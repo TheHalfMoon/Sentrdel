@@ -1,0 +1,49 @@
+name: Schema Lock Qualification
+
+on:
+  push:
+    branches:
+      - impl/001-r1-schema-substrate
+
+permissions:
+  contents: read
+
+jobs:
+  schema-lock:
+    name: Resolve and test schema substrate
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout without persisted credentials
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.98.0 --profile minimal --component rustfmt --component clippy
+
+      - name: Generate lockfile from exact top-level pins
+        run: cargo +1.98.0 generate-lockfile
+
+      - name: Show dependency tree
+        run: cargo +1.98.0 tree --workspace --locked
+
+      - name: Format
+        run: cargo +1.98.0 fmt --all -- --check
+
+      - name: Check workspace
+        run: cargo +1.98.0 check --workspace --all-targets --locked
+
+      - name: Test workspace
+        run: cargo +1.98.0 test --workspace --locked
+
+      - name: Clippy
+        run: cargo +1.98.0 clippy --workspace --all-targets --locked -- -D warnings
+
+      - name: Upload generated lockfile
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: schema-cargo-lock
+          path: Cargo.lock
+          if-no-files-found: error
+          retention-days: 1
