@@ -273,12 +273,8 @@ mod tests {
                 .any(|value| value.as_str() == Some("VERIFIED"))
         );
 
-        let encoded = serde_json::to_string(
-            evidence
-                .get("allOf")
-                .expect("authority conditionals"),
-        )
-        .expect("encode constraints");
+        let encoded = serde_json::to_string(evidence.get("allOf").expect("authority conditionals"))
+            .expect("encode constraints");
         assert!(encoded.contains("LLM_REASONER"));
         assert!(encoded.contains("INFERENCE"));
         assert!(encoded.contains("HYPOTHESIS"));

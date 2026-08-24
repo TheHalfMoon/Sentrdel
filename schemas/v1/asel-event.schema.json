@@ -221,6 +221,7 @@
     },
     "sequence": {
       "format": "uint64",
+      "maximum": 18446744073709551615,
       "minimum": 0,
       "type": "integer"
     },

@@ -112,6 +112,7 @@
         },
         "end_column": {
           "format": "uint64",
+          "maximum": 18446744073709551615,
           "minimum": 0,
           "type": [
             "integer",
@@ -120,6 +121,7 @@
         },
         "end_line": {
           "format": "uint64",
+          "maximum": 18446744073709551615,
           "minimum": 0,
           "type": [
             "integer",
@@ -131,6 +133,7 @@
         },
         "start_column": {
           "format": "uint64",
+          "maximum": 18446744073709551615,
           "minimum": 0,
           "type": [
             "integer",
@@ -139,6 +142,7 @@
         },
         "start_line": {
           "format": "uint64",
+          "maximum": 18446744073709551615,
           "minimum": 0,
           "type": [
             "integer",
@@ -259,6 +263,81 @@
                 "enum": [
                   "INFERENCE",
                   "HYPOTHESIS"
+                ]
+              }
+            },
+            "required": [
+              "epistemic_class"
+            ]
+          }
+        },
+        "required": [
+          "claim"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "claim": {
+            "properties": {
+              "epistemic_class": {
+                "const": "OBSERVATION"
+              }
+            },
+            "required": [
+              "epistemic_class"
+            ]
+          }
+        },
+        "required": [
+          "claim"
+        ]
+      },
+      "then": {
+        "properties": {
+          "producer": {
+            "properties": {
+              "kind": {
+                "const": "RUNTIME_TEST"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          }
+        },
+        "required": [
+          "producer"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "producer": {
+            "properties": {
+              "kind": {
+                "const": "RUNTIME_TEST"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          }
+        },
+        "required": [
+          "producer"
+        ]
+      },
+      "then": {
+        "properties": {
+          "claim": {
+            "properties": {
+              "epistemic_class": {
+                "enum": [
+                  "OBSERVATION",
+                  "CONTRADICTION"
                 ]
               }
             },

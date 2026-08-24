@@ -19,6 +19,7 @@
         },
         "end_column": {
           "format": "uint64",
+          "maximum": 18446744073709551615,
           "minimum": 0,
           "type": [
             "integer",
@@ -27,6 +28,7 @@
         },
         "end_line": {
           "format": "uint64",
+          "maximum": 18446744073709551615,
           "minimum": 0,
           "type": [
             "integer",
@@ -38,6 +40,7 @@
         },
         "start_column": {
           "format": "uint64",
+          "maximum": 18446744073709551615,
           "minimum": 0,
           "type": [
             "integer",
@@ -46,6 +49,7 @@
         },
         "start_line": {
           "format": "uint64",
+          "maximum": 18446744073709551615,
           "minimum": 0,
           "type": [
             "integer",

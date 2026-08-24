@@ -47,11 +47,13 @@
     },
     "max_stderr_bytes": {
       "format": "uint64",
+      "maximum": 18446744073709551615,
       "minimum": 0,
       "type": "integer"
     },
     "max_stdout_bytes": {
       "format": "uint64",
+      "maximum": 18446744073709551615,
       "minimum": 0,
       "type": "integer"
     },
@@ -69,6 +71,7 @@
     },
     "timeout_ms": {
       "format": "uint64",
+      "maximum": 18446744073709551615,
       "minimum": 0,
       "type": "integer"
     }

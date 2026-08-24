@@ -9,6 +9,8 @@
         },
         "created_at_unix_seconds": {
           "format": "int64",
+          "maximum": 9223372036854775807,
+          "minimum": -9223372036854775808,
           "type": "integer"
         },
         "evidence_basis": {
@@ -19,6 +21,8 @@
         },
         "expires_at_unix_seconds": {
           "format": "int64",
+          "maximum": 9223372036854775807,
+          "minimum": -9223372036854775808,
           "type": "integer"
         },
         "owner": {
@@ -67,7 +71,6 @@
         "ACCEPTED",
         "SUPPRESSED",
         "FIX_PROPOSED",
-        "FIX_VERIFIED",
         "FIX_REGRESSED",
         "CLOSED"
       ],

@@ -393,9 +393,8 @@ mod tests {
     fn runtime_observation_authority_is_exclusive() {
         let runtime = EvidenceAuthority::from_runtime("runtime", "1", ProducerKind::RuntimeTest)
             .expect("runtime authority");
-        let external =
-            EvidenceAuthority::from_runtime("engine", "1", ProducerKind::ExternalEngine)
-                .expect("external authority");
+        let external = EvidenceAuthority::from_runtime("engine", "1", ProducerKind::ExternalEngine)
+            .expect("external authority");
 
         assert!(runtime.seal(claim(EpistemicClass::Observation)).is_ok());
         assert!(matches!(
