@@ -16,7 +16,7 @@ use crate::{
     reasoner::ReasonerEvidenceDraft,
 };
 use schemars::{JsonSchema, SchemaGenerator};
-use serde_json::Value;
+use serde_json::{Value, json};
 use std::collections::BTreeMap;
 
 fn schema_value<T: JsonSchema>() -> Result<Value, serde_json::Error> {
@@ -24,10 +24,54 @@ fn schema_value<T: JsonSchema>() -> Result<Value, serde_json::Error> {
     serde_json::to_value(schema)
 }
 
+/// Add R1 authority constraints that are semantic in Rust but are also useful
+/// to non-Rust consumers validating the public wire schema.
+fn harden_evidence_schema(schema: &mut Value) {
+    if let Some(classes) = schema
+        .pointer_mut("/$defs/EpistemicClass/enum")
+        .and_then(Value::as_array_mut)
+    {
+        classes.retain(|value| value.as_str() != Some("VERIFIED"));
+    }
+
+    let llm_constraint = json!({
+        "if": {
+            "properties": {
+                "producer": {
+                    "properties": {
+                        "kind": {"const": "LLM_REASONER"}
+                    },
+                    "required": ["kind"]
+                }
+            },
+            "required": ["producer"]
+        },
+        "then": {
+            "properties": {
+                "claim": {
+                    "properties": {
+                        "epistemic_class": {
+                            "enum": ["INFERENCE", "HYPOTHESIS"]
+                        }
+                    },
+                    "required": ["epistemic_class"]
+                }
+            },
+            "required": ["claim"]
+        }
+    });
+
+    if let Some(root) = schema.as_object_mut() {
+        root.insert("allOf".to_owned(), Value::Array(vec![llm_constraint]));
+    }
+}
+
 /// Generate every R1 public wire schema with stable filenames.
 pub fn export_all() -> Result<BTreeMap<&'static str, Value>, serde_json::Error> {
     let mut schemas = BTreeMap::new();
-    schemas.insert("evidence.schema.json", schema_value::<EvidenceRecord>()?);
+    let mut evidence = schema_value::<EvidenceRecord>()?;
+    harden_evidence_schema(&mut evidence);
+    schemas.insert("evidence.schema.json", evidence);
     schemas.insert("finding.schema.json", schema_value::<FindingRecord>()?);
     schemas.insert("coverage.schema.json", schema_value::<CoverageRecord>()?);
     schemas.insert(
@@ -74,5 +118,27 @@ mod tests {
                 Some("https://json-schema.org/draft/2020-12/schema")
             );
         }
+    }
+
+    #[test]
+    fn evidence_schema_excludes_verified_and_limits_llm_classes() {
+        let schemas = export_all().expect("schema generation");
+        let evidence = schemas.get("evidence.schema.json").expect("evidence schema");
+        let classes = evidence
+            .pointer("/$defs/EpistemicClass/enum")
+            .and_then(|value| value.as_array())
+            .expect("epistemic enum");
+        assert!(!classes.iter().any(|value| value.as_str() == Some("VERIFIED")));
+
+        let conditional = evidence
+            .get("allOf")
+            .and_then(|value| value.as_array())
+            .and_then(|values| values.first())
+            .expect("LLM conditional");
+        let encoded = serde_json::to_string(conditional).expect("encode constraint");
+        assert!(encoded.contains("LLM_REASONER"));
+        assert!(encoded.contains("INFERENCE"));
+        assert!(encoded.contains("HYPOTHESIS"));
+        assert!(!encoded.contains("VERIFIED"));
     }
 }
