@@ -165,9 +165,7 @@ struct AgentSecurityEventHashView<'a, P: Serialize> {
     previous_event_hash: &'a Option<String>,
 }
 
-impl<'a> From<&'a AgentSecurityEventDraft>
-    for AgentSecurityEventHashView<'a, &'a PolicyDecision>
-{
+impl<'a> From<&'a AgentSecurityEventDraft> for AgentSecurityEventHashView<'a, &'a PolicyDecision> {
     fn from(draft: &'a AgentSecurityEventDraft) -> Self {
         Self {
             schema_version: &draft.schema_version,
