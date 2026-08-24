@@ -62,7 +62,9 @@ impl fmt::Display for StateStoreError {
                     "stored Finding failed authority validation: {error}"
                 )
             }
-            Self::Redaction(error) => write!(formatter, "state persistence redaction failed: {error}"),
+            Self::Redaction(error) => {
+                write!(formatter, "state persistence redaction failed: {error}")
+            }
             Self::UnsupportedSchemaVersion { object_kind, found } => write!(
                 formatter,
                 "unsupported {object_kind} schema version {found:?}; R1 requires {SCHEMA_V1:?}"
