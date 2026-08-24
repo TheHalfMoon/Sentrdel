@@ -24,8 +24,29 @@ fn schema_value<T: JsonSchema>() -> Result<Value, serde_json::Error> {
     serde_json::to_value(schema)
 }
 
-/// Add R1 authority constraints that are semantic in Rust but are also useful
-/// to non-Rust consumers validating the public wire schema.
+fn set_integer_bounds(schema: &mut Value, pointer: &str, minimum: Value, maximum: Value) {
+    let field = schema
+        .pointer_mut(pointer)
+        .and_then(Value::as_object_mut)
+        .unwrap_or_else(|| panic!("missing fixed-width integer schema field at {pointer}"));
+    field.insert("minimum".to_owned(), minimum);
+    field.insert("maximum".to_owned(), maximum);
+}
+
+fn set_u64_bounds(schema: &mut Value, pointer: &str) {
+    set_integer_bounds(schema, pointer, json!(u64::MIN), json!(u64::MAX));
+}
+
+fn set_i64_bounds(schema: &mut Value, pointer: &str) {
+    set_integer_bounds(schema, pointer, json!(i64::MIN), json!(i64::MAX));
+}
+
+fn set_i32_bounds(schema: &mut Value, pointer: &str) {
+    set_integer_bounds(schema, pointer, json!(i32::MIN), json!(i32::MAX));
+}
+
+/// Add R1 authority constraints that are semantic in Rust but must also be
+/// visible to non-Rust consumers validating the public wire schema.
 fn harden_evidence_schema(schema: &mut Value) {
     if let Some(classes) = schema
         .pointer_mut("/$defs/EpistemicClass/enum")
@@ -61,23 +82,135 @@ fn harden_evidence_schema(schema: &mut Value) {
         }
     });
 
+    let observation_constraint = json!({
+        "if": {
+            "properties": {
+                "claim": {
+                    "properties": {
+                        "epistemic_class": {"const": "OBSERVATION"}
+                    },
+                    "required": ["epistemic_class"]
+                }
+            },
+            "required": ["claim"]
+        },
+        "then": {
+            "properties": {
+                "producer": {
+                    "properties": {
+                        "kind": {"const": "RUNTIME_TEST"}
+                    },
+                    "required": ["kind"]
+                }
+            },
+            "required": ["producer"]
+        }
+    });
+
+    let runtime_constraint = json!({
+        "if": {
+            "properties": {
+                "producer": {
+                    "properties": {
+                        "kind": {"const": "RUNTIME_TEST"}
+                    },
+                    "required": ["kind"]
+                }
+            },
+            "required": ["producer"]
+        },
+        "then": {
+            "properties": {
+                "claim": {
+                    "properties": {
+                        "epistemic_class": {
+                            "enum": ["OBSERVATION", "CONTRADICTION"]
+                        }
+                    },
+                    "required": ["epistemic_class"]
+                }
+            },
+            "required": ["claim"]
+        }
+    });
+
     if let Some(root) = schema.as_object_mut() {
-        root.insert("allOf".to_owned(), Value::Array(vec![llm_constraint]));
+        root.insert(
+            "allOf".to_owned(),
+            Value::Array(vec![
+                llm_constraint,
+                observation_constraint,
+                runtime_constraint,
+            ]),
+        );
+    }
+
+    for field in ["start_line", "start_column", "end_line", "end_column"] {
+        set_u64_bounds(
+            schema,
+            &format!("/$defs/EvidenceLocation/properties/{field}"),
+        );
+    }
+}
+
+fn harden_finding_schema(schema: &mut Value) {
+    if let Some(states) = schema
+        .pointer_mut("/$defs/WorkflowState/enum")
+        .and_then(Value::as_array_mut)
+    {
+        states.retain(|value| value.as_str() != Some("FIX_VERIFIED"));
+    }
+    set_i64_bounds(
+        schema,
+        "/$defs/AcceptedRiskRecord/properties/created_at_unix_seconds",
+    );
+    set_i64_bounds(
+        schema,
+        "/$defs/AcceptedRiskRecord/properties/expires_at_unix_seconds",
+    );
+}
+
+fn harden_engine_manifest_schema(schema: &mut Value) {
+    for field in ["timeout_ms", "max_stdout_bytes", "max_stderr_bytes"] {
+        set_u64_bounds(schema, &format!("/properties/{field}"));
+    }
+}
+
+fn harden_engine_run_schema(schema: &mut Value) {
+    set_i32_bounds(schema, "/properties/exit_status");
+}
+
+fn harden_asel_schema(schema: &mut Value) {
+    set_u64_bounds(schema, "/properties/sequence");
+}
+
+fn harden_reasoner_schema(schema: &mut Value) {
+    for field in ["start_line", "start_column", "end_line", "end_column"] {
+        set_u64_bounds(
+            schema,
+            &format!("/$defs/EvidenceLocation/properties/{field}"),
+        );
     }
 }
 
 /// Generate every R1 public wire schema with stable filenames.
 pub fn export_all() -> Result<BTreeMap<&'static str, Value>, serde_json::Error> {
     let mut schemas = BTreeMap::new();
+
     let mut evidence = schema_value::<EvidenceRecord>()?;
     harden_evidence_schema(&mut evidence);
     schemas.insert("evidence.schema.json", evidence);
-    schemas.insert("finding.schema.json", schema_value::<FindingRecord>()?);
+
+    let mut finding = schema_value::<FindingRecord>()?;
+    harden_finding_schema(&mut finding);
+    schemas.insert("finding.schema.json", finding);
+
     schemas.insert("coverage.schema.json", schema_value::<CoverageRecord>()?);
-    schemas.insert(
-        "asel-event.schema.json",
-        schema_value::<AgentSecurityEventRecord>()?,
-    );
+
+    let mut asel = schema_value::<AgentSecurityEventRecord>()?;
+    harden_asel_schema(&mut asel);
+    schemas.insert("asel-event.schema.json", asel);
+
     schemas.insert(
         "policy-decision.schema.json",
         schema_value::<PolicyDecisionRecord>()?,
@@ -90,15 +223,19 @@ pub fn export_all() -> Result<BTreeMap<&'static str, Value>, serde_json::Error> 
         "security-pack-manifest.schema.json",
         schema_value::<SecurityPackManifest>()?,
     );
-    schemas.insert(
-        "engine-manifest.schema.json",
-        schema_value::<EngineManifest>()?,
-    );
-    schemas.insert("engine-run.schema.json", schema_value::<EngineRun>()?);
-    schemas.insert(
-        "reasoner-evidence.schema.json",
-        schema_value::<ReasonerEvidenceDraft>()?,
-    );
+
+    let mut engine_manifest = schema_value::<EngineManifest>()?;
+    harden_engine_manifest_schema(&mut engine_manifest);
+    schemas.insert("engine-manifest.schema.json", engine_manifest);
+
+    let mut engine_run = schema_value::<EngineRun>()?;
+    harden_engine_run_schema(&mut engine_run);
+    schemas.insert("engine-run.schema.json", engine_run);
+
+    let mut reasoner = schema_value::<ReasonerEvidenceDraft>()?;
+    harden_reasoner_schema(&mut reasoner);
+    schemas.insert("reasoner-evidence.schema.json", reasoner);
+
     Ok(schemas)
 }
 
@@ -121,7 +258,7 @@ mod tests {
     }
 
     #[test]
-    fn evidence_schema_excludes_verified_and_limits_llm_classes() {
+    fn evidence_schema_enforces_r1_authority_limits() {
         let schemas = export_all().expect("schema generation");
         let evidence = schemas
             .get("evidence.schema.json")
@@ -136,15 +273,85 @@ mod tests {
                 .any(|value| value.as_str() == Some("VERIFIED"))
         );
 
-        let conditional = evidence
-            .get("allOf")
-            .and_then(|value| value.as_array())
-            .and_then(|values| values.first())
-            .expect("LLM conditional");
-        let encoded = serde_json::to_string(conditional).expect("encode constraint");
+        let encoded = serde_json::to_string(
+            evidence
+                .get("allOf")
+                .expect("authority conditionals"),
+        )
+        .expect("encode constraints");
         assert!(encoded.contains("LLM_REASONER"));
         assert!(encoded.contains("INFERENCE"));
         assert!(encoded.contains("HYPOTHESIS"));
+        assert!(encoded.contains("OBSERVATION"));
+        assert!(encoded.contains("RUNTIME_TEST"));
+        assert!(encoded.contains("CONTRADICTION"));
         assert!(!encoded.contains("VERIFIED"));
+    }
+
+    #[test]
+    fn finding_schema_excludes_unauthorized_verified_fix_state() {
+        let schemas = export_all().expect("schema generation");
+        let finding = schemas.get("finding.schema.json").expect("finding schema");
+        let states = finding
+            .pointer("/$defs/WorkflowState/enum")
+            .and_then(|value| value.as_array())
+            .expect("workflow enum");
+        assert!(
+            !states
+                .iter()
+                .any(|value| value.as_str() == Some("FIX_VERIFIED"))
+        );
+    }
+
+    #[test]
+    fn fixed_width_integer_schemas_have_rust_bounds() {
+        let schemas = export_all().expect("schema generation");
+        let checks = [
+            (
+                "engine-manifest.schema.json",
+                "/properties/timeout_ms",
+                serde_json::json!(u64::MIN),
+                serde_json::json!(u64::MAX),
+            ),
+            (
+                "engine-run.schema.json",
+                "/properties/exit_status",
+                serde_json::json!(i32::MIN),
+                serde_json::json!(i32::MAX),
+            ),
+            (
+                "evidence.schema.json",
+                "/$defs/EvidenceLocation/properties/start_line",
+                serde_json::json!(u64::MIN),
+                serde_json::json!(u64::MAX),
+            ),
+            (
+                "finding.schema.json",
+                "/$defs/AcceptedRiskRecord/properties/created_at_unix_seconds",
+                serde_json::json!(i64::MIN),
+                serde_json::json!(i64::MAX),
+            ),
+            (
+                "reasoner-evidence.schema.json",
+                "/$defs/EvidenceLocation/properties/start_line",
+                serde_json::json!(u64::MIN),
+                serde_json::json!(u64::MAX),
+            ),
+            (
+                "asel-event.schema.json",
+                "/properties/sequence",
+                serde_json::json!(u64::MIN),
+                serde_json::json!(u64::MAX),
+            ),
+        ];
+
+        for (name, pointer, minimum, maximum) in checks {
+            let field = schemas
+                .get(name)
+                .and_then(|schema| schema.pointer(pointer))
+                .expect("bounded field");
+            assert_eq!(field.get("minimum"), Some(&minimum));
+            assert_eq!(field.get("maximum"), Some(&maximum));
+        }
     }
 }
