@@ -16,8 +16,12 @@ pub enum EvidenceStoreError {
     Json(serde_json::Error),
     Canonical(CanonicalError),
     EvidenceValidation(EvidenceValidationError),
-    IdentityVerificationFailed { evidence_id: String },
-    ImmutableConflict { evidence_id: String },
+    IdentityVerificationFailed {
+        evidence_id: String,
+    },
+    ImmutableConflict {
+        evidence_id: String,
+    },
     CorruptStoredObject {
         evidence_id: String,
         detail: &'static str,
@@ -107,7 +111,7 @@ impl Store {
         let evidence_id = evidence.evidence_id();
 
         let inserted = self.connection.execute(
-            "INSERT OR IGNORE INTO sentrdel_evidence_objects(evidence_id, canonical_json) VALUES (?1, ?2)",
+            "INSERT INTO sentrdel_evidence_objects(evidence_id, canonical_json) VALUES (?1, ?2) ON CONFLICT(evidence_id) DO NOTHING",
             params![evidence_id, canonical],
         )?;
 
@@ -200,8 +204,7 @@ mod tests {
     use sentrdel_schema::{
         SCHEMA_V1,
         evidence::{
-            EpistemicClass, Evidence, EvidenceAuthority, EvidenceClaim, EvidenceStoreError as _,
-            ProducerKind,
+            EpistemicClass, Evidence, EvidenceAuthority, EvidenceClaim, ProducerKind,
         },
     };
 
@@ -274,6 +277,16 @@ mod tests {
                 captured_at: "2026-08-24T00:00:00Z".to_owned(),
             })
             .expect("fixture evidence")
+    }
+
+    fn immutable_update_trigger_sql() -> &'static str {
+        r#"
+        CREATE TRIGGER sentrdel_evidence_immutable_update
+        BEFORE UPDATE ON sentrdel_evidence_objects
+        BEGIN
+            SELECT RAISE(ABORT, 'Sentrdel Evidence objects are immutable');
+        END;
+        "#
     }
 
     #[test]
@@ -364,16 +377,22 @@ mod tests {
         connection
             .execute_batch("DROP TRIGGER sentrdel_evidence_immutable_update;")
             .expect("test-only trigger removal");
-        let canonical = serde_json::to_vec_pretty(&evidence.to_record()).expect("pretty json");
+        let noncanonical = serde_json::to_vec_pretty(&evidence.to_record()).expect("pretty json");
         connection
             .execute(
                 "UPDATE sentrdel_evidence_objects SET canonical_json = ?1 WHERE evidence_id = ?2",
-                params![canonical, evidence.evidence_id()],
+                params![noncanonical, evidence.evidence_id()],
             )
             .expect("test-only tamper");
+        connection
+            .execute_batch(immutable_update_trigger_sql())
+            .expect("restore immutable trigger");
         drop(connection);
 
-        let store = Store::open(&temp.path);
-        assert!(store.is_err(), "schema preflight must detect missing immutable trigger");
+        let store = Store::open(&temp.path).expect("schema remains structurally valid");
+        assert!(matches!(
+            store.get_evidence(evidence.evidence_id(), &authority),
+            Err(EvidenceStoreError::CorruptStoredObject { .. })
+        ));
     }
 }
