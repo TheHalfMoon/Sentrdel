@@ -19,6 +19,8 @@ const ENGINE_RUN_KIND: &str = "engine_run";
 const ENGINE_MANIFEST_KIND: &str = "engine_manifest";
 const SECURITY_PACK_MANIFEST_KIND: &str = "security_pack_manifest";
 
+type FindingProjectionRow = (i64, Vec<u8>, Option<Vec<u8>>);
+
 pub type StateStoreResult<T> = Result<T, StateStoreError>;
 
 #[derive(Debug)]
@@ -479,7 +481,7 @@ impl Store {
 fn current_finding_row(
     connection: &Connection,
     finding_id: &str,
-) -> StateStoreResult<Option<(i64, Vec<u8>, Option<Vec<u8>>)>> {
+) -> StateStoreResult<Option<FindingProjectionRow>> {
     Ok(connection
         .query_row(
             "SELECT p.revision, p.canonical_json, h.canonical_json FROM sentrdel_finding_projection AS p LEFT JOIN sentrdel_finding_history AS h ON h.finding_id = p.finding_id AND h.revision = p.revision WHERE p.finding_id = ?1",
