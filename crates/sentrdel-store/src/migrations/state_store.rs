@@ -6,9 +6,7 @@ use sentrdel_schema::{
     canonical::{CanonicalError, canonical_json_bytes},
     coverage::CoverageRecord,
     engine::{EngineManifest, EngineRun},
-    finding::{
-        Finding, FindingError, FindingRecord, ReconcilerAuthority, WorkflowAuthorization,
-    },
+    finding::{Finding, FindingError, FindingRecord, ReconcilerAuthority, WorkflowAuthorization},
     pack::SecurityPackManifest,
     project::ProjectProfile,
 };
@@ -57,7 +55,10 @@ impl fmt::Display for StateStoreError {
             Self::Json(error) => write!(formatter, "stored state JSON is invalid: {error}"),
             Self::Canonical(error) => write!(formatter, "state canonicalization failed: {error}"),
             Self::FindingValidation(error) => {
-                write!(formatter, "stored Finding failed authority validation: {error}")
+                write!(
+                    formatter,
+                    "stored Finding failed authority validation: {error}"
+                )
             }
             Self::UnsupportedSchemaVersion { object_kind, found } => write!(
                 formatter,
@@ -182,11 +183,12 @@ impl Store {
                     return Ok(false);
                 }
 
-                let next_revision = revision.checked_add(1).ok_or_else(|| {
-                    StateStoreError::RevisionOverflow {
-                        finding_id: finding_id.clone(),
-                    }
-                })?;
+                let next_revision =
+                    revision
+                        .checked_add(1)
+                        .ok_or_else(|| StateStoreError::RevisionOverflow {
+                            finding_id: finding_id.clone(),
+                        })?;
                 let inserted = transaction.execute(
                     "INSERT INTO sentrdel_finding_history(finding_id, revision, canonical_json) VALUES (?1, ?2, ?3)",
                     params![finding_id, next_revision, canonical],
@@ -767,16 +769,10 @@ mod tests {
         assert_eq!(revision, 1);
         assert_eq!(loaded.workflow_state(), &WorkflowState::New);
 
-        let authorization =
-            WorkflowAuthorization::from_runtime("user-policy", "approval:fixture")
-                .expect("workflow authority");
+        let authorization = WorkflowAuthorization::from_runtime("user-policy", "approval:fixture")
+            .expect("workflow authority");
         finding
-            .transition(
-                WorkflowState::TriagedFixNow,
-                &authorization,
-                None,
-                101,
-            )
+            .transition(WorkflowState::TriagedFixNow, &authorization, None, 101)
             .expect("transition");
         assert!(store.put_finding(&finding).expect("second revision"));
         assert_eq!(
@@ -835,8 +831,16 @@ mod tests {
         let store = Store::open(&temp.path).expect("store opens");
 
         let coverage = coverage();
-        assert!(store.put_coverage_record(&coverage).expect("coverage insert"));
-        assert!(!store.put_coverage_record(&coverage).expect("coverage replay"));
+        assert!(
+            store
+                .put_coverage_record(&coverage)
+                .expect("coverage insert")
+        );
+        assert!(
+            !store
+                .put_coverage_record(&coverage)
+                .expect("coverage replay")
+        );
         assert_eq!(
             store
                 .get_coverage_record(&coverage.coverage_id)
@@ -889,7 +893,9 @@ mod tests {
         let temp = TempDb::new("immutable-sql");
         let store = Store::open(&temp.path).expect("store opens");
         let coverage = coverage();
-        store.put_coverage_record(&coverage).expect("persist coverage");
+        store
+            .put_coverage_record(&coverage)
+            .expect("persist coverage");
 
         let update = store.connection.execute(
             "UPDATE sentrdel_state_objects SET canonical_json = ?1 WHERE object_kind = 'coverage' AND object_key = ?2",
@@ -913,7 +919,11 @@ mod tests {
 
         profile.refreshed_at = "2026-08-24T01:00:00Z".to_owned();
         profile.languages.push("Python".to_owned());
-        assert!(store.put_project_profile(&profile).expect("profile refresh"));
+        assert!(
+            store
+                .put_project_profile(&profile)
+                .expect("profile refresh")
+        );
         assert_eq!(
             store
                 .get_project_profile(&profile.repository_id)
