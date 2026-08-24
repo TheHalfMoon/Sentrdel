@@ -17,6 +17,11 @@ pub enum StoreError {
     FutureSchemaVersion { found: i64, supported: i64 },
     InconsistentSchemaVersion { pragma: i64, ledger: i64 },
     MigrationIntegrity { version: i64, detail: &'static str },
+    UnrecognizedDatabase {
+        application_id: i64,
+        user_object_count: i64,
+    },
+    ForeignKeysUnavailable { actual: i64 },
     WalUnavailable { actual_mode: String },
 }
 
@@ -36,6 +41,17 @@ impl fmt::Display for StoreError {
                 formatter,
                 "database migration integrity check failed at version {version}: {detail}"
             ),
+            Self::UnrecognizedDatabase {
+                application_id,
+                user_object_count,
+            } => write!(
+                formatter,
+                "refusing non-empty or foreign SQLite database: application_id={application_id}, user schema objects={user_object_count}"
+            ),
+            Self::ForeignKeysUnavailable { actual } => write!(
+                formatter,
+                "SQLite refused required foreign_keys=ON invariant and returned {actual}"
+            ),
             Self::WalUnavailable { actual_mode } => write!(
                 formatter,
                 "SQLite refused required WAL journal mode and returned {actual_mode:?}"
@@ -51,6 +67,8 @@ impl Error for StoreError {
             Self::FutureSchemaVersion { .. }
             | Self::InconsistentSchemaVersion { .. }
             | Self::MigrationIntegrity { .. }
+            | Self::UnrecognizedDatabase { .. }
+            | Self::ForeignKeysUnavailable { .. }
             | Self::WalUnavailable { .. } => None,
         }
     }
@@ -67,9 +85,9 @@ pub struct Store {
 }
 
 impl Store {
-    /// Open or create a Sentrdel-owned SQLite database, reject unsupported,
-    /// inconsistent, or spoofed schema state without mutating it, then enforce
-    /// connection invariants and migrate to the current R1 schema version.
+    /// Open or create a Sentrdel-owned SQLite database, reject unrelated,
+    /// unsupported, inconsistent, or spoofed schema state without mutating it,
+    /// then enforce connection invariants and migrate to the current R1 schema.
     pub fn open(path: impl AsRef<Path>) -> StoreResult<Self> {
         let mut connection = Connection::open(path)?;
         migrations::preflight(&connection)?;
@@ -89,7 +107,9 @@ fn configure_connection(connection: &Connection) -> StoreResult<()> {
     let foreign_keys: i64 =
         connection.pragma_query_value(None, "foreign_keys", |row| row.get(0))?;
     if foreign_keys != 1 {
-        return Err(StoreError::Sqlite(rusqlite::Error::InvalidQuery));
+        return Err(StoreError::ForeignKeysUnavailable {
+            actual: foreign_keys,
+        });
     }
 
     let journal_mode: String =
@@ -164,15 +184,31 @@ mod tests {
             .expect("journal mode should be queryable")
     }
 
-    fn migration_ledger_exists(connection: &Connection) -> bool {
+    fn application_id(connection: &Connection) -> i64 {
+        connection
+            .pragma_query_value(None, "application_id", |row| row.get(0))
+            .expect("application_id should be queryable")
+    }
+
+    fn mark_sentrdel_application(connection: &Connection) {
+        connection
+            .pragma_update(None, "application_id", migrations::SENTRDEL_APPLICATION_ID)
+            .expect("fixture application_id should update");
+    }
+
+    fn table_exists(connection: &Connection, table: &str) -> bool {
         let exists: i64 = connection
             .query_row(
-                "SELECT EXISTS(SELECT 1 FROM sqlite_schema WHERE type = 'table' AND name = 'sentrdel_schema_migrations')",
-                [],
+                "SELECT EXISTS(SELECT 1 FROM sqlite_schema WHERE type = 'table' AND name = ?1)",
+                params![table],
                 |row| row.get(0),
             )
             .expect("schema metadata should be queryable");
         exists == 1
+    }
+
+    fn migration_ledger_exists(connection: &Connection) -> bool {
+        table_exists(connection, "sentrdel_schema_migrations")
     }
 
     fn create_migration_ledger(connection: &Connection, migration_name: &str) {
@@ -208,7 +244,7 @@ mod tests {
     }
 
     #[test]
-    fn open_enforces_wal_and_foreign_keys() {
+    fn open_enforces_wal_foreign_keys_and_application_identity() {
         let temp = TempDb::new("connection-invariants");
         let store = Store::open(&temp.path).expect("store should open");
 
@@ -219,6 +255,10 @@ mod tests {
 
         assert_eq!(journal_mode(&store.connection).to_ascii_lowercase(), "wal");
         assert_eq!(foreign_keys, 1);
+        assert_eq!(
+            application_id(&store.connection),
+            migrations::SENTRDEL_APPLICATION_ID
+        );
     }
 
     #[test]
@@ -254,6 +294,36 @@ mod tests {
                 .expect("migration ledger should be queryable after reopen");
             assert_eq!(migration_count, migrations::LATEST_SCHEMA_VERSION);
         }
+    }
+
+    #[test]
+    fn unrelated_nonempty_database_is_rejected_without_persistent_mutation() {
+        let temp = TempDb::new("unrecognized-database");
+        let connection = Connection::open(&temp.path).expect("fixture database should open");
+        connection
+            .execute_batch("CREATE TABLE unrelated_data (id INTEGER NOT NULL) STRICT;")
+            .expect("unrelated fixture table should be created");
+        assert_eq!(application_id(&connection), 0);
+        assert_eq!(journal_mode(&connection).to_ascii_lowercase(), "delete");
+        drop(connection);
+
+        let error = match Store::open(&temp.path) {
+            Ok(_) => panic!("unrecognized database must be rejected"),
+            Err(error) => error,
+        };
+        assert!(matches!(
+            error,
+            StoreError::UnrecognizedDatabase {
+                application_id: 0,
+                user_object_count: 1
+            }
+        ));
+
+        let connection = Connection::open(&temp.path).expect("rejected fixture should reopen");
+        assert_eq!(journal_mode(&connection).to_ascii_lowercase(), "delete");
+        assert!(table_exists(&connection, "unrelated_data"));
+        assert!(!migration_ledger_exists(&connection));
+        assert_eq!(application_id(&connection), 0);
     }
 
     #[test]
@@ -301,10 +371,7 @@ mod tests {
 
         assert!(matches!(
             error,
-            StoreError::InconsistentSchemaVersion {
-                pragma: 0,
-                ledger: 1
-            }
+            StoreError::MigrationIntegrity { version: 1, .. }
         ));
 
         let connection = Connection::open(&temp.path).expect("rejected fixture should reopen");
@@ -316,6 +383,7 @@ mod tests {
         let temp = TempDb::new("spoofed-current-schema");
         let connection = Connection::open(&temp.path).expect("fixture database should open");
         create_migration_ledger(&connection, "bootstrap_store_metadata");
+        mark_sentrdel_application(&connection);
         connection
             .pragma_update(None, "user_version", migrations::LATEST_SCHEMA_VERSION)
             .expect("fixture user_version should update");
@@ -341,6 +409,7 @@ mod tests {
         let connection = Connection::open(&temp.path).expect("fixture database should open");
         create_migration_ledger(&connection, "not-the-canonical-migration");
         create_v1_metadata_table(&connection);
+        mark_sentrdel_application(&connection);
         connection
             .pragma_update(None, "user_version", migrations::LATEST_SCHEMA_VERSION)
             .expect("fixture user_version should update");
