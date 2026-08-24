@@ -74,10 +74,6 @@ impl Store {
     pub fn schema_version(&self) -> StoreResult<i64> {
         migrations::user_version(&self.connection)
     }
-
-    pub(crate) fn connection(&self) -> &Connection {
-        &self.connection
-    }
 }
 
 fn configure_connection(connection: &Connection) -> StoreResult<()> {
@@ -160,11 +156,11 @@ mod tests {
         let store = Store::open(&temp.path).expect("store should open");
 
         let journal_mode: String = store
-            .connection()
+            .connection
             .pragma_query_value(None, "journal_mode", |row| row.get(0))
             .expect("journal mode should be queryable");
         let foreign_keys: i64 = store
-            .connection()
+            .connection
             .pragma_query_value(None, "foreign_keys", |row| row.get(0))
             .expect("foreign key state should be queryable");
 
@@ -183,7 +179,7 @@ mod tests {
                 migrations::LATEST_SCHEMA_VERSION
             );
             let migration_count: i64 = store
-                .connection()
+                .connection
                 .query_row(
                     "SELECT COUNT(*) FROM sentrdel_schema_migrations",
                     [],
@@ -196,7 +192,7 @@ mod tests {
         {
             let store = Store::open(&temp.path).expect("reopen should be idempotent");
             let migration_count: i64 = store
-                .connection()
+                .connection
                 .query_row(
                     "SELECT COUNT(*) FROM sentrdel_schema_migrations",
                     [],
