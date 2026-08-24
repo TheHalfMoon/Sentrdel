@@ -14,15 +14,28 @@ pub type StoreResult<T> = Result<T, StoreError>;
 #[derive(Debug)]
 pub enum StoreError {
     Sqlite(rusqlite::Error),
-    FutureSchemaVersion { found: i64, supported: i64 },
-    InconsistentSchemaVersion { pragma: i64, ledger: i64 },
-    MigrationIntegrity { version: i64, detail: &'static str },
+    FutureSchemaVersion {
+        found: i64,
+        supported: i64,
+    },
+    InconsistentSchemaVersion {
+        pragma: i64,
+        ledger: i64,
+    },
+    MigrationIntegrity {
+        version: i64,
+        detail: &'static str,
+    },
     UnrecognizedDatabase {
         application_id: i64,
         user_object_count: i64,
     },
-    ForeignKeysUnavailable { actual: i64 },
-    WalUnavailable { actual_mode: String },
+    ForeignKeysUnavailable {
+        actual: i64,
+    },
+    WalUnavailable {
+        actual_mode: String,
+    },
 }
 
 impl fmt::Display for StoreError {
