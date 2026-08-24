@@ -1,0 +1,42 @@
+name: Bootstrap CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - impl/001-v0-1-foundation
+
+permissions:
+  contents: read
+
+jobs:
+  rust-bootstrap:
+    name: Rust 1.98 bootstrap
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout without persisted credentials
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.98.0 --profile minimal --component rustfmt --component clippy
+
+      - name: Verify toolchain
+        run: |
+          rustc +1.98.0 --version
+          cargo +1.98.0 --version
+
+      - name: Format
+        run: cargo +1.98.0 fmt --all -- --check
+
+      - name: Check workspace
+        run: cargo +1.98.0 check --workspace --all-targets
+
+      - name: Test workspace
+        run: cargo +1.98.0 test --workspace
+
+      - name: Clippy
+        run: cargo +1.98.0 clippy --workspace --all-targets -- -D warnings
