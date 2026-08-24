@@ -5,17 +5,20 @@
 **Decision:** `ADOPT_PRIVILEGED_NATIVE_DEPENDENCY`  
 **Scope:** R1 T016 SQLite connection, migrations, and WAL only
 
-## Exact upstream
+## Qualified published packages
 
-- Repository: `rusqlite/rusqlite`
-- Release: `rusqlite 0.40.1`
-- Exact release commit: `6d3c282dc5531a57eb4e22ece3207f00c95d0fb0`
-- `Cargo.toml` blob: `314296058b4db8ee10154afd3ff70bf7263f5db4`
-- `libsqlite3-sys/Cargo.toml` blob: `ed6810b28bd32910dc2d0b4844c340bb18f6a014`
-- `libsqlite3-sys/build.rs` blob: `897706477e095bfb05bb5919d5d24695a2775cb2`
-- `README.md` blob: `d0dfa7c25f6f207f1b0e7c767d1a4ee955199d9e`
-- Transitive native binding crate: `libsqlite3-sys 0.38.1`
-- Bundled SQLite in this release: `3.53.2`
+- Registry/source: crates.io, locked by exact package version + registry checksum in committed `Cargo.lock`
+- Repository metadata: `rusqlite/rusqlite`
+- `rusqlite`: **0.40.2**, published 2026-08-08, MIT
+- Native target dependency: **`libsqlite3-sys 0.38.2`**, published 2026-08-08, MIT
+- Bundled SQLite documented for this pair: **3.53.2**
+- `libsqlite3-sys 0.38.2` package contains the SQLite amalgamation and build script used by the selected `bundled` feature
+
+The live GitHub default branch observed during qualification does not present a release tree identical to the already-published crates.io `rusqlite 0.40.2` package. Therefore Sentrdel does **not** invent a Git commit binding for this package release. The authoritative source identity for T016 is the crates.io package version plus checksum recorded by Cargo in the committed lockfile. Upstream repository metadata remains provenance/context, not the package-byte identity.
+
+## Why 0.40.2 rather than 0.40.1
+
+An initial resolver proof using exact `rusqlite =0.40.1` selected `libsqlite3-sys 0.38.2` because the 0.40.1 manifest uses a compatible semver requirement rather than an exact native-binding pin. `rusqlite 0.40.2` is the current published patch release and its non-wasm dependency metadata explicitly names `libsqlite3-sys 0.38.2`, matching the package Cargo actually resolves. This removes an avoidable qualification mismatch.
 
 ## License
 
@@ -28,63 +31,63 @@ These terms are compatible with Sentrdel Core's Apache-2.0 policy. Required thir
 ## Selected Cargo feature profile
 
 ```toml
-rusqlite = { version = "=0.40.1", default-features = false, features = ["bundled"] }
+rusqlite = { version = "=0.40.2", default-features = false, features = ["bundled"] }
 ```
 
 Rationale:
 
 - exact top-level version pin;
-- disable `rusqlite` default `cache`/`ffi-sqlite-wasm-rs` features because T016 does not need them;
+- disable `rusqlite` default cache/wasm feature set because T016 does not need it;
 - enable `bundled` so Linux/macOS/Windows use one known SQLite source version rather than whatever SQLite happens to be installed on the host;
-- `bundled` selects pregenerated bindings; T016 does **not** enable `buildtime_bindgen`, SQLCipher, loadable extensions, rusqlite macros, hooks, virtual tables, functions, backup, or serialization features.
+- `bundled` selects pregenerated bindings; T016 does **not** enable `buildtime_bindgen`, SQLCipher, load/loadable-extension APIs, rusqlite macros, hooks, virtual tables, functions, backup, session, or serialization features.
 
 ## Privileged build/runtime authority
 
 This dependency is **not** Rust-only and is admitted as privileged supply-chain code.
 
-`libsqlite3-sys 0.38.1` declares and executes `build.rs`. Under `bundled`, that build script:
+`libsqlite3-sys 0.38.2` declares and executes `build.rs`. Under `bundled`, that path:
 
 - executes with developer/CI build authority;
 - invokes the `cc` crate/toolchain to compile the vendored SQLite C amalgamation;
-- copies pregenerated Rust bindings into Cargo `OUT_DIR`;
+- uses pregenerated Rust bindings rather than enabling build-time bindgen;
 - reads Cargo/build environment variables;
 - honors SQLite-related build variables such as `SQLITE_MAX_VARIABLE_NUMBER`, `SQLITE_MAX_EXPR_DEPTH`, and `LIBSQLITE3_FLAGS` upstream;
 - links native SQLite code into the Sentrdel binary.
 
-The transitive crate also has default build-helper features for `pkg-config`/`vcpkg`; the selected bundled path is expected to compile the embedded amalgamation rather than select an arbitrary host SQLite library.
-
-**No dependency download is performed by the upstream build script for this selected feature profile.** SQLite source is embedded in the published `libsqlite3-sys` crate. Cargo registry fetching itself remains ordinary package resolution and is governed by Sentrdel lockfile/source policy.
+The published crate exposes pkg-config/vcpkg helpers for other feature paths, but the selected bundled feature compiles the embedded SQLite amalgamation. No upstream build-script download is required for this selected profile; registry package retrieval itself is normal Cargo resolution governed by the committed lockfile/source policy.
 
 ## Security review
 
 ### Positive
 
-- `rusqlite 0.40.1` is the current released rusqlite version observed during qualification.
-- The release includes a fix for SQL injection through tainted SAVEPOINT names.
-- The bundled SQLite version is 3.53.2, which SQLite identifies as the fix version for CVE-2026-11822 / CVE-2026-11824 affecting FTS5 memory corruption on earlier versions.
-- Sentrdel uses parameterized SQL for dynamic values and does not expose repository-controlled migration SQL.
+- `rusqlite 0.40.2` is the current published rusqlite release observed on 2026-08-24.
+- Its native target dependency metadata aligns with the current `libsqlite3-sys 0.38.2` release.
+- The bundled SQLite version is 3.53.2, which SQLite identifies as the fix version for CVE-2026-11822 / CVE-2026-11824 affecting earlier FTS5 code.
+- The historical `libsqlite3-sys` advisory CVE-2022-35737 affects versions before 0.25.1 and therefore does not affect 0.38.2.
+- Sentrdel uses Sentrdel-owned fixed migration SQL and parameterized SQL for future dynamic values; T016 exposes no repository-controlled SQL.
 - Sentrdel trusted crates retain `unsafe_code = "forbid"`; unsafe FFI remains encapsulated by the qualified dependency.
 
 ### Residual risk
 
 - Native C compilation materially increases Sentrdel's build-time and memory-safety TCB.
-- SQLite upstream is newer than the bundled 3.53.2 at qualification time (3.53.4 exists). No known SQLite CVE observed in the qualification sources requires a version later than 3.53.2, but maintenance releases contain additional bug fixes.
-- The bundled build compiles several SQLite capabilities into the C library, including FTS5 and load-extension support. Sentrdel does not enable rusqlite's `load_extension` API feature and T016 does not expose an extension-loading surface.
-- A future rusqlite/SQLite update requires a fresh dependency review before changing the exact pin/lockfile.
+- SQLite upstream is newer than bundled 3.53.2 at qualification time (3.53.4 exists). No reviewed advisory requires a version later than 3.53.2, but later maintenance releases include additional bug fixes.
+- The bundled SQLite C configuration contains capabilities such as FTS5 and compile-time load-extension support. Sentrdel does not enable rusqlite's extension-loading API feature and T016 exposes no extension-loading path.
+- The build script can be influenced by SQLite-specific environment variables. Release/self-security CI should eventually scrub or explicitly set build environment policy for reproducible privileged dependency builds under T082.
+- A future rusqlite/SQLite update requires fresh review before changing the exact pin/lockfile.
 
 ## Alternatives considered
 
 ### System SQLite — rejected for R1
 
-Would avoid compiling the bundled amalgamation, but makes the actual SQLite version and patch posture host-dependent. The upstream minimum accepted system SQLite is much older than the security-fixed 3.53.2 line, and Windows/macOS/Linux resolution differs. This weakens reproducibility and makes security claims depend on the developer machine.
+Would avoid compiling the bundled amalgamation, but makes the actual SQLite version and patch posture host-dependent. The supported system floor is far older than the security-fixed 3.53.2 line, and Windows/macOS/Linux resolution differs. This weakens reproducibility and makes security posture depend on the developer machine.
 
 ### Direct SQLite FFI / custom wrapper — rejected
 
-Would recreate unsafe FFI and database wrapper responsibilities inside Sentrdel with a larger maintenance/security burden.
+Would recreate unsafe FFI and database-wrapper responsibilities inside Sentrdel with a larger maintenance/security burden.
 
 ### Pure-Rust SQLite reimplementation — rejected
 
-Not required for R1 and substantially less mature for Sentrdel's durable local-store requirement.
+Not required for R1 and not justified against the maturity/auditability of SQLite for Sentrdel's durable local-store boundary.
 
 ## T016 constraints
 
@@ -98,12 +101,16 @@ This admission authorizes only:
 
 It does **not** authorize T017+ Evidence persistence, repository-provided SQL, extension loading, SQLCipher, arbitrary ATTACH targets, target-repository database mutation, or any live external database access.
 
+## Lockfile gate
+
+T016 is not qualified for merge until a Rust 1.98 Cargo resolver produces and Sentrdel commits `Cargo.lock` containing exact registry checksums for `rusqlite 0.40.2`, `libsqlite3-sys 0.38.2`, and the resolved transitive build/runtime graph. All final CI runs must use `--locked` after the temporary lockfile-capture step has been removed.
+
 ## Requalification triggers
 
 Re-review is required before:
 
-- changing `rusqlite` or `libsqlite3-sys` version/source;
+- changing `rusqlite`, `libsqlite3-sys`, or bundled SQLite version/source;
 - dropping `bundled` or using a host SQLite;
-- enabling `buildtime_bindgen`, `load_extension`, SQLCipher, hooks/functions/vtab/session features;
+- enabling `buildtime_bindgen`, extension loading, SQLCipher, hooks/functions/vtab/session features;
 - exposing repository-controlled SQL or database paths outside Sentrdel-owned state;
 - accepting a security advisory affecting the selected versions/features.
