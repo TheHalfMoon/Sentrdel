@@ -57,7 +57,7 @@ const EVIDENCE_DELETE_TRIGGER_SQL: &str = r#"
 struct Migration {
     version: i64,
     name: &'static str,
-    sql: &'static str,
+    apply: fn(&Connection) -> StoreResult<()>,
     validate: fn(&Connection) -> StoreResult<()>,
 }
 
@@ -65,51 +65,13 @@ const MIGRATIONS: &[Migration] = &[
     Migration {
         version: 1,
         name: "bootstrap_store_metadata",
-        sql: r#"
-            PRAGMA application_id = 1397642308;
-            CREATE TABLE sentrdel_store_metadata (
-                key   TEXT PRIMARY KEY NOT NULL,
-                value TEXT NOT NULL
-            ) STRICT;
-        "#,
+        apply: apply_v1_schema,
         validate: validate_v1_schema,
     },
     Migration {
         version: 2,
         name: "immutable_evidence_objects",
-        sql: r#"
-            CREATE TABLE sentrdel_evidence_objects (
-                evidence_id   TEXT PRIMARY KEY NOT NULL
-                    CHECK (
-                        length(evidence_id) = 71
-                        AND substr(evidence_id, 1, 7) = 'sha256:'
-                        AND substr(evidence_id, 8) NOT GLOB '*[^0-9a-f]*'
-                    ),
-                canonical_json BLOB NOT NULL CHECK (length(canonical_json) > 0)
-            ) STRICT;
-
-            CREATE TRIGGER sentrdel_evidence_immutable_reinsert
-            BEFORE INSERT ON sentrdel_evidence_objects
-            WHEN EXISTS (
-                SELECT 1 FROM sentrdel_evidence_objects
-                WHERE evidence_id = NEW.evidence_id
-            )
-            BEGIN
-                SELECT RAISE(IGNORE);
-            END;
-
-            CREATE TRIGGER sentrdel_evidence_immutable_update
-            BEFORE UPDATE ON sentrdel_evidence_objects
-            BEGIN
-                SELECT RAISE(ABORT, 'Sentrdel Evidence objects are immutable');
-            END;
-
-            CREATE TRIGGER sentrdel_evidence_immutable_delete
-            BEFORE DELETE ON sentrdel_evidence_objects
-            BEGIN
-                SELECT RAISE(ABORT, 'Sentrdel Evidence objects are immutable');
-            END;
-        "#,
+        apply: apply_v2_schema,
         validate: validate_v2_schema,
     },
 ];
@@ -214,11 +176,32 @@ pub(crate) fn migrate(connection: &mut Connection) -> StoreResult<()> {
     Ok(())
 }
 
+fn apply_v1_schema(connection: &Connection) -> StoreResult<()> {
+    connection.execute_batch(
+        r#"
+        PRAGMA application_id = 1397642308;
+        CREATE TABLE sentrdel_store_metadata (
+            key   TEXT PRIMARY KEY NOT NULL,
+            value TEXT NOT NULL
+        ) STRICT;
+        "#,
+    )?;
+    Ok(())
+}
+
+fn apply_v2_schema(connection: &Connection) -> StoreResult<()> {
+    connection.execute_batch(EVIDENCE_TABLE_SQL)?;
+    connection.execute_batch(EVIDENCE_REINSERT_TRIGGER_SQL)?;
+    connection.execute_batch(EVIDENCE_UPDATE_TRIGGER_SQL)?;
+    connection.execute_batch(EVIDENCE_DELETE_TRIGGER_SQL)?;
+    Ok(())
+}
+
 fn apply_bootstrap_migration(connection: &mut Connection) -> StoreResult<()> {
     let migration = &MIGRATIONS[0];
     let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
     transaction.execute_batch(CREATE_LEDGER_SQL)?;
-    transaction.execute_batch(migration.sql)?;
+    (migration.apply)(&transaction)?;
     transaction.execute(
         "INSERT INTO sentrdel_schema_migrations(version, name) VALUES (?1, ?2)",
         params![migration.version, migration.name],
@@ -230,7 +213,7 @@ fn apply_bootstrap_migration(connection: &mut Connection) -> StoreResult<()> {
 
 fn apply_migration(connection: &mut Connection, migration: &Migration) -> StoreResult<()> {
     let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
-    transaction.execute_batch(migration.sql)?;
+    (migration.apply)(&transaction)?;
     transaction.execute(
         "INSERT INTO sentrdel_schema_migrations(version, name) VALUES (?1, ?2)",
         params![migration.version, migration.name],
