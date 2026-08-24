@@ -158,7 +158,6 @@ pub struct Evidence {
 pub struct EvidenceRecord {
     pub evidence_id: String,
     pub producer: ProducerIdentity,
-    #[serde(flatten)]
     pub claim: EvidenceClaim,
 }
 

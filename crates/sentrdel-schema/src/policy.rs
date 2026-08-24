@@ -84,7 +84,6 @@ pub struct PolicyDecisionRecord {
     pub decision_id: String,
     pub authority_id: String,
     pub authority_configuration_digest: String,
-    #[serde(flatten)]
     pub claim: PolicyDecisionClaim,
 }
 
