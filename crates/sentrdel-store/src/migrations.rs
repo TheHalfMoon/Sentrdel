@@ -5,6 +5,13 @@ use crate::{StoreError, StoreResult};
 /// SQLite application_id spelling `SNTD` in big-endian ASCII.
 pub(crate) const SENTRDEL_APPLICATION_ID: i64 = 0x534E_5444;
 
+const CREATE_LEDGER_SQL: &str = r#"
+    CREATE TABLE sentrdel_schema_migrations (
+        version INTEGER PRIMARY KEY NOT NULL CHECK (version > 0),
+        name    TEXT NOT NULL UNIQUE
+    ) STRICT;
+"#;
+
 struct Migration {
     version: i64,
     name: &'static str,
@@ -43,6 +50,12 @@ pub(crate) fn preflight(connection: &Connection) -> StoreResult<()> {
         let ledger_version = migration_ledger_version(connection)?;
         reject_future_version(ledger_version)?;
 
+        if ledger_version == 0 {
+            return Err(StoreError::MigrationIntegrity {
+                version: 0,
+                detail: "migration ledger exists but contains no applied migration",
+            });
+        }
         if app_id != SENTRDEL_APPLICATION_ID {
             return Err(StoreError::MigrationIntegrity {
                 version: ledger_version,
@@ -82,19 +95,15 @@ pub(crate) fn migrate(connection: &mut Connection) -> StoreResult<()> {
     // connection configuration, but migration itself also refuses bad state.
     preflight(connection)?;
 
-    connection.execute_batch(
-        r#"
-        CREATE TABLE IF NOT EXISTS sentrdel_schema_migrations (
-            version INTEGER PRIMARY KEY NOT NULL CHECK (version > 0),
-            name    TEXT NOT NULL UNIQUE
-        ) STRICT;
-        "#,
-    )?;
-    validate_ledger_schema(connection)?;
+    let mut ledger_version = if migration_ledger_exists(connection)? {
+        validate_ledger_schema(connection)?;
+        migration_ledger_version(connection)?
+    } else {
+        apply_bootstrap_migration(connection)?;
+        1
+    };
 
-    let ledger_version = migration_ledger_version(connection)?;
     let pragma_version = user_version(connection)?;
-
     if pragma_version != ledger_version {
         return Err(StoreError::InconsistentSchemaVersion {
             pragma: pragma_version,
@@ -106,14 +115,8 @@ pub(crate) fn migrate(connection: &mut Connection) -> StoreResult<()> {
         .iter()
         .filter(|migration| migration.version > ledger_version)
     {
-        let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
-        transaction.execute_batch(migration.sql)?;
-        transaction.execute(
-            "INSERT INTO sentrdel_schema_migrations(version, name) VALUES (?1, ?2)",
-            params![migration.version, migration.name],
-        )?;
-        transaction.pragma_update(None, "user_version", migration.version)?;
-        transaction.commit()?;
+        apply_migration(connection, migration)?;
+        ledger_version = migration.version;
     }
 
     let final_version = user_version(connection)?;
@@ -127,6 +130,32 @@ pub(crate) fn migrate(connection: &mut Connection) -> StoreResult<()> {
     }
 
     validate_applied_migrations(connection, final_ledger_version)?;
+    Ok(())
+}
+
+fn apply_bootstrap_migration(connection: &mut Connection) -> StoreResult<()> {
+    let migration = &MIGRATIONS[0];
+    let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+    transaction.execute_batch(CREATE_LEDGER_SQL)?;
+    transaction.execute_batch(migration.sql)?;
+    transaction.execute(
+        "INSERT INTO sentrdel_schema_migrations(version, name) VALUES (?1, ?2)",
+        params![migration.version, migration.name],
+    )?;
+    transaction.pragma_update(None, "user_version", migration.version)?;
+    transaction.commit()?;
+    Ok(())
+}
+
+fn apply_migration(connection: &mut Connection, migration: &Migration) -> StoreResult<()> {
+    let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+    transaction.execute_batch(migration.sql)?;
+    transaction.execute(
+        "INSERT INTO sentrdel_schema_migrations(version, name) VALUES (?1, ?2)",
+        params![migration.version, migration.name],
+    )?;
+    transaction.pragma_update(None, "user_version", migration.version)?;
+    transaction.commit()?;
     Ok(())
 }
 
