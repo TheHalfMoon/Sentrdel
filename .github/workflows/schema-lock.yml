@@ -23,28 +23,29 @@ jobs:
       - name: Install pinned Rust toolchain
         run: rustup toolchain install 1.98.0 --profile minimal --component rustfmt --component clippy
 
-      - name: Generate lockfile from exact top-level pins
-        run: cargo +1.98.0 generate-lockfile
-
-      - name: Show dependency tree
+      - name: Verify committed lockfile and dependency tree
         run: cargo +1.98.0 tree --workspace --locked
 
-      - name: Upload generated lockfile
-        if: always()
+      - name: Format ephemeral checkout before semantic qualification
+        run: cargo +1.98.0 fmt --all
+
+      - name: Upload runner-formatted schema sources
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: schema-cargo-lock
-          path: Cargo.lock
-          if-no-files-found: ignore
+          name: schema-formatted-sources
+          path: crates/sentrdel-schema/src
+          if-no-files-found: error
           retention-days: 1
 
-      - name: Qualify schema substrate
+      - name: Semantic qualification
         run: |
           set -euo pipefail
-          cargo +1.98.0 fmt --all -- --check
           cargo +1.98.0 check --workspace --all-targets --locked
           cargo +1.98.0 test --workspace --locked
           cargo +1.98.0 clippy --workspace --all-targets --locked -- -D warnings
+
+      - name: Require committed source to match rustfmt
+        run: git diff --exit-code -- crates/sentrdel-schema/src
 
       - name: Publish auditable qualification status
         if: always()
