@@ -1,16 +1,14 @@
-use std::{collections::BTreeMap, error::Error, fmt};
+use std::{error::Error, fmt};
 
 use rusqlite::{OptionalExtension, TransactionBehavior, params};
 use sentrdel_schema::{
     SCHEMA_V1,
     asel::{
-        Actor, AgentSecurityEvent, AgentSecurityEventRecord, AselValidationError, EventKind,
-        SessionIntegrity, SessionVerification,
+        AgentSecurityEvent, AgentSecurityEventRecord, AselValidationError, SessionIntegrity,
+        SessionVerification, agent_security_event_record_content_hash,
     },
-    canonical::{CanonicalError, canonical_json_bytes, content_id},
-    policy::{PolicyDecisionClaim, PolicyDecisionRecord},
+    canonical::{CanonicalError, canonical_json_bytes},
 };
-use serde::Serialize;
 
 use crate::{PersistentSink, RedactionError, Store};
 
@@ -179,15 +177,17 @@ impl Store {
             .connection
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
 
-        let existing: Option<(String, Vec<u8>)> = transaction
+        let existing: Option<StoredAselRow> = transaction
             .query_row(
-                "SELECT event_hash, canonical_json FROM sentrdel_asel_events WHERE session_id = ?1 AND sequence = ?2",
+                "SELECT session_id, sequence, event_hash, previous_event_hash, canonical_json FROM sentrdel_asel_events WHERE session_id = ?1 AND sequence = ?2",
                 params![event.session_id(), sequence],
-                |row| Ok((row.get(0)?, row.get(1)?)),
+                stored_row,
             )
             .optional()?;
-        if let Some((existing_hash, existing_bytes)) = existing {
-            if existing_hash == event.event_hash() && existing_bytes == canonical {
+        if let Some(existing) = existing {
+            let stored_record =
+                validate_stored_row(&existing, event.session_id(), event.sequence())?;
+            if stored_record.event_hash == event.event_hash() && existing.canonical_json == canonical {
                 transaction.commit()?;
                 return Ok(false);
             }
@@ -307,13 +307,8 @@ impl Store {
         session_id: &str,
         trusted_head: Option<&str>,
     ) -> AselStoreResult<SessionVerification> {
-        let mut statement = self.connection.prepare(
-            "SELECT session_id, sequence, event_hash, previous_event_hash, canonical_json FROM sentrdel_asel_events WHERE session_id = ?1 ORDER BY sequence ASC",
-        )?;
-        let rows = statement.query_map(params![session_id], stored_row)?;
-        let stored: Vec<StoredAselRow> = rows.collect::<Result<_, _>>()?;
-
-        if stored.is_empty() {
+        let event_count = self.asel_event_count(session_id)?;
+        if event_count == 0 {
             return Ok(SessionVerification {
                 integrity: SessionIntegrity::EmptySession,
                 event_count: 0,
@@ -321,15 +316,17 @@ impl Store {
                 computed_head: None,
             });
         }
+        let available_head = self.asel_session_head(session_id)?;
 
-        let event_count =
-            u64::try_from(stored.len()).map_err(|_| AselStoreError::EventCountOutOfRange)?;
-        let available_head = stored.last().map(|row| row.event_hash.clone());
+        let mut statement = self.connection.prepare(
+            "SELECT session_id, sequence, event_hash, previous_event_hash, canonical_json FROM sentrdel_asel_events WHERE session_id = ?1 ORDER BY sequence ASC",
+        )?;
+        let rows = statement.query_map(params![session_id], stored_row)?;
         let mut expected_previous: Option<String> = None;
+        let mut expected_sequence = 0_u64;
 
-        for (index, row) in stored.iter().enumerate() {
-            let expected_sequence =
-                u64::try_from(index).map_err(|_| AselStoreError::EventCountOutOfRange)?;
+        for row in rows {
+            let row = row?;
             let row_sequence = match u64::try_from(row.sequence) {
                 Ok(sequence) => sequence,
                 Err(_) => {
@@ -341,7 +338,7 @@ impl Store {
                     ));
                 }
             };
-            let record = decode_canonical_record(row, session_id, row_sequence)?;
+            let record = decode_canonical_record(&row, session_id, row_sequence)?;
 
             if row.session_id != session_id || record.session_id != session_id {
                 return Ok(session_verification(
@@ -381,6 +378,9 @@ impl Store {
             }
 
             expected_previous = Some(record.event_hash);
+            expected_sequence = expected_sequence
+                .checked_add(1)
+                .ok_or(AselStoreError::EventCountOutOfRange)?;
         }
 
         let integrity = match (trusted_head, available_head.as_deref()) {
@@ -508,63 +508,6 @@ fn session_verification(
     }
 }
 
-#[derive(Serialize)]
-struct StoredPolicyDecisionHashView<'a> {
-    decision_id: &'a str,
-    authority_id: &'a str,
-    authority_configuration_digest: &'a str,
-    #[serde(flatten)]
-    claim: &'a PolicyDecisionClaim,
-}
-
-impl<'a> From<&'a PolicyDecisionRecord> for StoredPolicyDecisionHashView<'a> {
-    fn from(record: &'a PolicyDecisionRecord) -> Self {
-        Self {
-            decision_id: &record.decision_id,
-            authority_id: &record.authority_id,
-            authority_configuration_digest: &record.authority_configuration_digest,
-            claim: &record.claim,
-        }
-    }
-}
-
-#[derive(Serialize)]
-struct StoredEventHashView<'a> {
-    schema_version: &'a str,
-    session_id: &'a str,
-    sequence: u64,
-    timestamp: &'a str,
-    actor: &'a Actor,
-    kind: &'a EventKind,
-    intent_digest: &'a Option<String>,
-    target: &'a BTreeMap<String, String>,
-    params_digest: &'a Option<String>,
-    result_digest: &'a Option<String>,
-    policy_decision: Option<StoredPolicyDecisionHashView<'a>>,
-    provenance: &'a BTreeMap<String, String>,
-    previous_event_hash: &'a Option<String>,
-}
-
 fn record_content_hash(record: &AgentSecurityEventRecord) -> Result<String, CanonicalError> {
-    content_id(
-        "asel-event",
-        &StoredEventHashView {
-            schema_version: &record.schema_version,
-            session_id: &record.session_id,
-            sequence: record.sequence,
-            timestamp: &record.timestamp,
-            actor: &record.actor,
-            kind: &record.kind,
-            intent_digest: &record.intent_digest,
-            target: &record.target,
-            params_digest: &record.params_digest,
-            result_digest: &record.result_digest,
-            policy_decision: record
-                .policy_decision
-                .as_ref()
-                .map(StoredPolicyDecisionHashView::from),
-            provenance: &record.provenance,
-            previous_event_hash: &record.previous_event_hash,
-        },
-    )
+    agent_security_event_record_content_hash(record)
 }
