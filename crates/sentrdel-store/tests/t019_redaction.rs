@@ -163,12 +163,11 @@ fn registered_secret_fails_closed_before_any_current_sqlite_write_path() {
         .expect("redacted fixture evidence");
     assert!(store.put_evidence(&safe_evidence).expect("safe insert"));
 
+    let encoded_secret = serde_json::to_string(SECRET).expect("fixture JSON");
+    let escaped_secret = encoded_secret.as_bytes()[1..encoded_secret.len() - 1].to_vec();
     let forbidden = [
         SECRET.as_bytes().to_vec(),
-        serde_json::to_string(SECRET)
-            .expect("fixture JSON")
-            .as_bytes()[1..serde_json::to_string(SECRET).expect("fixture JSON").len() - 1]
-            .to_vec(),
+        escaped_secret,
         digest.as_bytes().to_vec(),
         format!("sha256:{digest}").into_bytes(),
     ];
@@ -198,7 +197,11 @@ fn export_log_and_snapshot_fixtures_use_the_same_redaction_boundary() {
     let digest = sha256_hex(SECRET);
     let raw = format!("secret={SECRET}; digest=sha256:{digest}");
 
-    for sink in [PersistentSink::Export, PersistentSink::Log, PersistentSink::Snapshot] {
+    for sink in [
+        PersistentSink::Export,
+        PersistentSink::Log,
+        PersistentSink::Snapshot,
+    ] {
         let redacted = store.redaction_boundary().redact_bytes(raw.as_bytes());
         store
             .redaction_boundary()
