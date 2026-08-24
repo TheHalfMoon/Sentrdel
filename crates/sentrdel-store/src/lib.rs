@@ -61,10 +61,12 @@ pub struct Store {
 }
 
 impl Store {
-    /// Open or create a Sentrdel-owned SQLite database, enforce connection
-    /// invariants, and migrate it to the current R1 schema version.
+    /// Open or create a Sentrdel-owned SQLite database, reject unsupported or
+    /// inconsistent schema state without mutating it, then enforce connection
+    /// invariants and migrate to the current R1 schema version.
     pub fn open(path: impl AsRef<Path>) -> StoreResult<Self> {
         let mut connection = Connection::open(path)?;
+        migrations::preflight(&connection)?;
         configure_connection(&connection)?;
         migrations::migrate(&mut connection)?;
         Ok(Self { connection })
@@ -150,21 +152,34 @@ mod tests {
         }
     }
 
+    fn journal_mode(connection: &Connection) -> String {
+        connection
+            .pragma_query_value(None, "journal_mode", |row| row.get(0))
+            .expect("journal mode should be queryable")
+    }
+
+    fn migration_ledger_exists(connection: &Connection) -> bool {
+        let exists: i64 = connection
+            .query_row(
+                "SELECT EXISTS(SELECT 1 FROM sqlite_schema WHERE type = 'table' AND name = 'sentrdel_schema_migrations')",
+                [],
+                |row| row.get(0),
+            )
+            .expect("schema metadata should be queryable");
+        exists == 1
+    }
+
     #[test]
     fn open_enforces_wal_and_foreign_keys() {
         let temp = TempDb::new("connection-invariants");
         let store = Store::open(&temp.path).expect("store should open");
 
-        let journal_mode: String = store
-            .connection
-            .pragma_query_value(None, "journal_mode", |row| row.get(0))
-            .expect("journal mode should be queryable");
         let foreign_keys: i64 = store
             .connection
             .pragma_query_value(None, "foreign_keys", |row| row.get(0))
             .expect("foreign key state should be queryable");
 
-        assert_eq!(journal_mode.to_ascii_lowercase(), "wal");
+        assert_eq!(journal_mode(&store.connection).to_ascii_lowercase(), "wal");
         assert_eq!(foreign_keys, 1);
     }
 
@@ -204,12 +219,14 @@ mod tests {
     }
 
     #[test]
-    fn future_schema_version_is_rejected_before_migration() {
+    fn future_schema_version_is_rejected_without_persistent_mutation() {
         let temp = TempDb::new("future-version");
         let connection = Connection::open(&temp.path).expect("fixture database should open");
         connection
             .pragma_update(None, "user_version", migrations::LATEST_SCHEMA_VERSION + 1)
             .expect("fixture user_version should update");
+        assert_eq!(journal_mode(&connection).to_ascii_lowercase(), "delete");
+        assert!(!migration_ledger_exists(&connection));
         drop(connection);
 
         let error = match Store::open(&temp.path) {
@@ -225,10 +242,14 @@ mod tests {
             } if found == migrations::LATEST_SCHEMA_VERSION + 1
                 && supported == migrations::LATEST_SCHEMA_VERSION
         ));
+
+        let connection = Connection::open(&temp.path).expect("rejected fixture should reopen");
+        assert_eq!(journal_mode(&connection).to_ascii_lowercase(), "delete");
+        assert!(!migration_ledger_exists(&connection));
     }
 
     #[test]
-    fn inconsistent_schema_metadata_is_rejected() {
+    fn inconsistent_schema_metadata_is_rejected_without_wal_mutation() {
         let temp = TempDb::new("inconsistent-version");
         let connection = Connection::open(&temp.path).expect("fixture database should open");
         connection
@@ -243,6 +264,7 @@ mod tests {
                 "#,
             )
             .expect("fixture migration ledger should be created");
+        assert_eq!(journal_mode(&connection).to_ascii_lowercase(), "delete");
         drop(connection);
 
         let error = match Store::open(&temp.path) {
@@ -257,5 +279,8 @@ mod tests {
                 ledger: 1
             }
         ));
+
+        let connection = Connection::open(&temp.path).expect("rejected fixture should reopen");
+        assert_eq!(journal_mode(&connection).to_ascii_lowercase(), "delete");
     }
 }
