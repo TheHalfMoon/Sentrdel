@@ -49,7 +49,7 @@
 - [x] T016 Implement SQLite connection/migrations/WAL and migration tests in `crates/sentrdel-store/`.
 - [x] T017 [P] Implement **SHA-256** content-addressed Evidence persistence and immutable lookup APIs with idempotency tests, using the canonical profile frozen by `implementation-amendment-001-hashing.md`.
 - [x] T018 [P] Implement Finding projection/history, CoverageRecord, ProjectProfile, EngineRun and manifest persistence.
-- [ ] T019 Implement redaction-before-persist boundary and tests proving discovered secret plaintext **and stable unkeyed secret-value-only digests** never appear in SQLite/export/log/snapshot fixtures.
+- [x] T019 Implement redaction-before-persist boundary and tests proving discovered secret plaintext **and stable unkeyed secret-value-only digests** never appear in SQLite/export/log/snapshot fixtures.
 - [ ] T020 Implement ASEL append/hash-link store, computed head, event count and optional trusted-head comparison in `crates/sentrdel-store/src/asel.rs`; tests distinguish available-chain consistency from externally trusted checkpoint validation.
 
 ### Policy kernel

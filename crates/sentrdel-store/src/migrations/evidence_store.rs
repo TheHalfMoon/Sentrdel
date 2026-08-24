@@ -6,7 +6,7 @@ use sentrdel_schema::{
     evidence::{Evidence, EvidenceAuthority, EvidenceRecord, EvidenceValidationError},
 };
 
-use crate::Store;
+use crate::{PersistentSink, RedactionError, Store};
 
 pub type EvidenceStoreResult<T> = Result<T, EvidenceStoreError>;
 
@@ -16,6 +16,7 @@ pub enum EvidenceStoreError {
     Json(serde_json::Error),
     Canonical(CanonicalError),
     EvidenceValidation(EvidenceValidationError),
+    Redaction(RedactionError),
     IdentityVerificationFailed {
         evidence_id: String,
     },
@@ -41,6 +42,9 @@ impl fmt::Display for EvidenceStoreError {
                     formatter,
                     "stored Evidence failed authority validation: {error}"
                 )
+            }
+            Self::Redaction(error) => {
+                write!(formatter, "Evidence persistence redaction failed: {error}")
             }
             Self::IdentityVerificationFailed { evidence_id } => write!(
                 formatter,
@@ -68,6 +72,7 @@ impl Error for EvidenceStoreError {
             Self::Json(error) => Some(error),
             Self::Canonical(error) => Some(error),
             Self::EvidenceValidation(error) => Some(error),
+            Self::Redaction(error) => Some(error),
             Self::IdentityVerificationFailed { .. }
             | Self::ImmutableConflict { .. }
             | Self::CorruptStoredObject { .. } => None,
@@ -99,8 +104,19 @@ impl From<EvidenceValidationError> for EvidenceStoreError {
     }
 }
 
+impl From<RedactionError> for EvidenceStoreError {
+    fn from(error: RedactionError) -> Self {
+        Self::Redaction(error)
+    }
+}
+
 impl Store {
     /// Persist sealed Evidence by canonical SHA-256 id.
+    ///
+    /// Registered discovered-secret material is checked before SQLite sees any
+    /// canonical bytes. Unsafe already-sealed Evidence fails closed; callers
+    /// must redact transient inputs before sealing so the canonical id remains
+    /// bound to the sanitized object.
     ///
     /// Returns `true` when a new immutable object was inserted and `false` for
     /// an idempotent replay of byte-identical canonical Evidence.
@@ -113,6 +129,7 @@ impl Store {
 
         let record = evidence.to_record();
         let canonical = canonical_json_bytes(&record)?;
+        self.require_persistable(PersistentSink::Sqlite, &canonical)?;
         let evidence_id = evidence.evidence_id();
 
         let inserted = self.connection.execute(
