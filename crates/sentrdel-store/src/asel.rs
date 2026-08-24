@@ -187,7 +187,9 @@ impl Store {
         if let Some(existing) = existing {
             let stored_record =
                 validate_stored_row(&existing, event.session_id(), event.sequence())?;
-            if stored_record.event_hash == event.event_hash() && existing.canonical_json == canonical {
+            if stored_record.event_hash == event.event_hash()
+                && existing.canonical_json == canonical
+            {
                 transaction.commit()?;
                 return Ok(false);
             }
