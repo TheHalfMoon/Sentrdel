@@ -111,7 +111,7 @@ mod tests {
         assert_eq!(first, second);
         assert_eq!(
             String::from_utf8(first).expect("utf8"),
-            r#"{"z":7,"a":{"a":"one","b":"two"}}"#
+            r#"{"a":{"a":"one","b":"two"},"z":7}"#
         );
         assert_eq!(
             content_id("example", &example).expect("content id"),
