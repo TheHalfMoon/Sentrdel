@@ -1,6 +1,7 @@
 #![forbid(unsafe_code)]
 //! Local SQLite persistence boundary for Sentrdel-owned state.
 
+pub mod asel;
 mod migrations;
 mod redaction;
 
@@ -321,6 +322,7 @@ mod tests {
         assert!(table_exists(&store.connection, "sentrdel_finding_history"));
         assert!(table_exists(&store.connection, "sentrdel_state_objects"));
         assert!(table_exists(&store.connection, "sentrdel_project_profiles"));
+        assert!(table_exists(&store.connection, "sentrdel_asel_events"));
     }
 
     #[test]

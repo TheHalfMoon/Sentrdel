@@ -2,7 +2,10 @@
 
 use crate::{
     canonical::{CanonicalError, content_id},
-    policy::{PolicyDecision, PolicyDecisionError, PolicyDecisionRecord, TrustedPolicyAuthority},
+    policy::{
+        PolicyDecision, PolicyDecisionClaim, PolicyDecisionError, PolicyDecisionRecord,
+        TrustedPolicyAuthority,
+    },
     version::SCHEMA_V1,
 };
 use schemars::JsonSchema;
@@ -125,6 +128,103 @@ pub struct AgentSecurityEventRecord {
     pub previous_event_hash: Option<String>,
 }
 
+#[derive(Serialize)]
+struct PolicyDecisionRecordHashView<'a> {
+    decision_id: &'a str,
+    authority_id: &'a str,
+    authority_configuration_digest: &'a str,
+    #[serde(flatten)]
+    claim: &'a PolicyDecisionClaim,
+}
+
+impl<'a> From<&'a PolicyDecisionRecord> for PolicyDecisionRecordHashView<'a> {
+    fn from(record: &'a PolicyDecisionRecord) -> Self {
+        Self {
+            decision_id: &record.decision_id,
+            authority_id: &record.authority_id,
+            authority_configuration_digest: &record.authority_configuration_digest,
+            claim: &record.claim,
+        }
+    }
+}
+
+#[derive(Serialize)]
+struct AgentSecurityEventHashView<'a, P: Serialize> {
+    schema_version: &'a str,
+    session_id: &'a str,
+    sequence: u64,
+    timestamp: &'a str,
+    actor: &'a Actor,
+    kind: &'a EventKind,
+    intent_digest: &'a Option<String>,
+    target: &'a BTreeMap<String, String>,
+    params_digest: &'a Option<String>,
+    result_digest: &'a Option<String>,
+    policy_decision: Option<P>,
+    provenance: &'a BTreeMap<String, String>,
+    previous_event_hash: &'a Option<String>,
+}
+
+impl<'a> From<&'a AgentSecurityEventDraft> for AgentSecurityEventHashView<'a, &'a PolicyDecision> {
+    fn from(draft: &'a AgentSecurityEventDraft) -> Self {
+        Self {
+            schema_version: &draft.schema_version,
+            session_id: &draft.session_id,
+            sequence: draft.sequence,
+            timestamp: &draft.timestamp,
+            actor: &draft.actor,
+            kind: &draft.kind,
+            intent_digest: &draft.intent_digest,
+            target: &draft.target,
+            params_digest: &draft.params_digest,
+            result_digest: &draft.result_digest,
+            policy_decision: draft.policy_decision.as_ref(),
+            provenance: &draft.provenance,
+            previous_event_hash: &draft.previous_event_hash,
+        }
+    }
+}
+
+impl<'a> From<&'a AgentSecurityEventRecord>
+    for AgentSecurityEventHashView<'a, PolicyDecisionRecordHashView<'a>>
+{
+    fn from(record: &'a AgentSecurityEventRecord) -> Self {
+        Self {
+            schema_version: &record.schema_version,
+            session_id: &record.session_id,
+            sequence: record.sequence,
+            timestamp: &record.timestamp,
+            actor: &record.actor,
+            kind: &record.kind,
+            intent_digest: &record.intent_digest,
+            target: &record.target,
+            params_digest: &record.params_digest,
+            result_digest: &record.result_digest,
+            policy_decision: record
+                .policy_decision
+                .as_ref()
+                .map(PolicyDecisionRecordHashView::from),
+            provenance: &record.provenance,
+            previous_event_hash: &record.previous_event_hash,
+        }
+    }
+}
+
+fn agent_security_event_draft_content_hash(
+    draft: &AgentSecurityEventDraft,
+) -> Result<String, CanonicalError> {
+    content_id("asel-event", &AgentSecurityEventHashView::from(draft))
+}
+
+/// Recompute the canonical ASEL content hash from an untrusted wire/persistence
+/// record without granting policy authority. This is the same schema-owned hash
+/// material and domain used by sealing and in-memory hash verification.
+pub fn agent_security_event_record_content_hash(
+    record: &AgentSecurityEventRecord,
+) -> Result<String, CanonicalError> {
+    content_id("asel-event", &AgentSecurityEventHashView::from(record))
+}
+
 pub struct EventPolicyBinding<'a> {
     pub authority: &'a TrustedPolicyAuthority,
     pub expected_action_digest: &'a str,
@@ -236,7 +336,7 @@ impl AgentSecurityEventDraft {
 
     pub fn seal(self) -> Result<AgentSecurityEvent, AselValidationError> {
         self.validate()?;
-        let event_hash = content_id("asel-event", &self)?;
+        let event_hash = agent_security_event_draft_content_hash(&self)?;
         Ok(AgentSecurityEvent {
             event_hash,
             draft: self,
@@ -325,7 +425,7 @@ impl AgentSecurityEvent {
 
     pub fn verify_hash(&self) -> Result<bool, AselValidationError> {
         self.draft.validate()?;
-        Ok(content_id("asel-event", &self.draft)? == self.event_hash)
+        Ok(agent_security_event_draft_content_hash(&self.draft)? == self.event_hash)
     }
 }
 
@@ -432,6 +532,16 @@ mod tests {
             AgentSecurityEvent::try_from_record(record, None),
             Err(AselValidationError::ForgedEventHash)
         ));
+    }
+
+    #[test]
+    fn record_hash_helper_matches_sealed_event_hash() {
+        let event = root().seal().expect("seal");
+        let record = event.to_record();
+        assert_eq!(
+            agent_security_event_record_content_hash(&record).expect("record hash"),
+            event.event_hash()
+        );
     }
 
     #[test]
