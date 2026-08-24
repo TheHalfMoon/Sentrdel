@@ -374,12 +374,7 @@ impl Store {
             return Ok(None);
         };
         let run: EngineRun = serde_json::from_slice(&stored)?;
-        require_typed_canonical(
-            &stored,
-            canonical_json_bytes(&run)?,
-            "EngineRun",
-            run_id,
-        )?;
+        require_typed_canonical(&stored, canonical_json_bytes(&run)?, "EngineRun", run_id)?;
         require_schema("EngineRun", &run.schema_version)?;
         verify_identity("EngineRun", run_id, &run.run_id)?;
         Ok(Some(run))
