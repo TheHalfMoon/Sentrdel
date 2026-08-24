@@ -203,9 +203,9 @@ impl PersistenceRedactionBoundary {
     }
 
     fn first_forbidden_kind(&self, bytes: &[u8]) -> Option<SecretPatternKind> {
-        self.patterns.iter().find_map(|pattern| {
-            contains_subslice(bytes, &pattern.bytes).then_some(pattern.kind)
-        })
+        self.patterns
+            .iter()
+            .find_map(|pattern| contains_subslice(bytes, &pattern.bytes).then_some(pattern.kind))
     }
 
     fn add_pattern(&mut self, bytes: Vec<u8>, kind: SecretPatternKind) {
@@ -345,9 +345,11 @@ mod tests {
             .expect("text redaction must return safe output");
 
         let redacted_bytes = boundary.redact_bytes(b"value=SECRET");
-        assert!(!redacted_bytes
-            .windows(b"SECRET".len())
-            .any(|window| window == b"SECRET"));
+        assert!(
+            !redacted_bytes
+                .windows(b"SECRET".len())
+                .any(|window| window == b"SECRET")
+        );
         boundary
             .ensure_safe(PersistentSink::Export, &redacted_bytes)
             .expect("byte redaction must return safe output");
