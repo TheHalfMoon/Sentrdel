@@ -30,6 +30,17 @@ jobs:
           rustc +1.98.0 --version
           cargo +1.98.0 --version
 
+      # TEMPORARY T016 QUALIFICATION STEP. Remove after the generated lockfile is
+      # committed. This runs only Cargo resolution for Sentrdel's trusted workspace;
+      # it does not execute a target repository.
+      - name: Resolve and emit candidate lockfile
+        run: |
+          cargo +1.98.0 generate-lockfile
+          echo 'SENTRDEL_T016_LOCKFILE_BEGIN'
+          base64 -w 0 Cargo.lock
+          echo
+          echo 'SENTRDEL_T016_LOCKFILE_END'
+
       - name: Format
         run: cargo +1.98.0 fmt --all -- --check
 
