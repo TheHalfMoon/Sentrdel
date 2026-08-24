@@ -10,7 +10,6 @@ use sentrdel_schema::{
     pack::SecurityPackManifest,
     project::ProjectProfile,
 };
-use serde_json::Value;
 
 use crate::Store;
 
@@ -308,10 +307,16 @@ impl Store {
         &self,
         coverage_id: &str,
     ) -> StateStoreResult<Option<CoverageRecord>> {
-        let Some(value) = self.get_immutable_value(COVERAGE_KIND, coverage_id)? else {
+        let Some(stored) = self.get_immutable_bytes(COVERAGE_KIND, coverage_id)? else {
             return Ok(None);
         };
-        let record: CoverageRecord = serde_json::from_value(value)?;
+        let record: CoverageRecord = serde_json::from_slice(&stored)?;
+        require_typed_canonical(
+            &stored,
+            canonical_json_bytes(&record)?,
+            "CoverageRecord",
+            coverage_id,
+        )?;
         require_schema("CoverageRecord", &record.schema_version)?;
         verify_identity("CoverageRecord", coverage_id, &record.coverage_id)?;
         Ok(Some(record))
@@ -345,8 +350,13 @@ impl Store {
         let Some(stored) = stored else {
             return Ok(None);
         };
-        let value = canonical_value(&stored, "ProjectProfile", repository_id)?;
-        let profile: ProjectProfile = serde_json::from_value(value)?;
+        let profile: ProjectProfile = serde_json::from_slice(&stored)?;
+        require_typed_canonical(
+            &stored,
+            canonical_json_bytes(&profile)?,
+            "ProjectProfile",
+            repository_id,
+        )?;
         require_schema("ProjectProfile", &profile.schema_version)?;
         verify_identity("ProjectProfile", repository_id, &profile.repository_id)?;
         Ok(Some(profile))
@@ -360,10 +370,16 @@ impl Store {
     }
 
     pub fn get_engine_run(&self, run_id: &str) -> StateStoreResult<Option<EngineRun>> {
-        let Some(value) = self.get_immutable_value(ENGINE_RUN_KIND, run_id)? else {
+        let Some(stored) = self.get_immutable_bytes(ENGINE_RUN_KIND, run_id)? else {
             return Ok(None);
         };
-        let run: EngineRun = serde_json::from_value(value)?;
+        let run: EngineRun = serde_json::from_slice(&stored)?;
+        require_typed_canonical(
+            &stored,
+            canonical_json_bytes(&run)?,
+            "EngineRun",
+            run_id,
+        )?;
         require_schema("EngineRun", &run.schema_version)?;
         verify_identity("EngineRun", run_id, &run.run_id)?;
         Ok(Some(run))
@@ -387,10 +403,16 @@ impl Store {
         adapter_version: &str,
     ) -> StateStoreResult<Option<EngineManifest>> {
         let key = pair_key(engine_id, adapter_version)?;
-        let Some(value) = self.get_immutable_value(ENGINE_MANIFEST_KIND, &key)? else {
+        let Some(stored) = self.get_immutable_bytes(ENGINE_MANIFEST_KIND, &key)? else {
             return Ok(None);
         };
-        let manifest: EngineManifest = serde_json::from_value(value)?;
+        let manifest: EngineManifest = serde_json::from_slice(&stored)?;
+        require_typed_canonical(
+            &stored,
+            canonical_json_bytes(&manifest)?,
+            "EngineManifest",
+            &key,
+        )?;
         require_schema("EngineManifest", &manifest.schema_version)?;
         verify_identity("EngineManifest engine_id", engine_id, &manifest.engine_id)?;
         verify_identity(
@@ -421,10 +443,16 @@ impl Store {
         version: &str,
     ) -> StateStoreResult<Option<SecurityPackManifest>> {
         let key = pair_key(pack_id, version)?;
-        let Some(value) = self.get_immutable_value(SECURITY_PACK_MANIFEST_KIND, &key)? else {
+        let Some(stored) = self.get_immutable_bytes(SECURITY_PACK_MANIFEST_KIND, &key)? else {
             return Ok(None);
         };
-        let manifest: SecurityPackManifest = serde_json::from_value(value)?;
+        let manifest: SecurityPackManifest = serde_json::from_slice(&stored)?;
+        require_typed_canonical(
+            &stored,
+            canonical_json_bytes(&manifest)?,
+            "SecurityPackManifest",
+            &key,
+        )?;
         require_schema("SecurityPackManifest", &manifest.schema_version)?;
         verify_identity("SecurityPackManifest pack_id", pack_id, &manifest.pack_id)?;
         verify_identity("SecurityPackManifest version", version, &manifest.version)?;
@@ -459,22 +487,19 @@ impl Store {
         Ok(false)
     }
 
-    fn get_immutable_value(
+    fn get_immutable_bytes(
         &self,
         object_kind: &'static str,
         object_key: &str,
-    ) -> StateStoreResult<Option<Value>> {
-        let stored: Option<Vec<u8>> = self
+    ) -> StateStoreResult<Option<Vec<u8>>> {
+        Ok(self
             .connection
             .query_row(
                 "SELECT canonical_json FROM sentrdel_state_objects WHERE object_kind = ?1 AND object_key = ?2",
                 params![object_kind, object_key],
                 |row| row.get(0),
             )
-            .optional()?;
-        stored
-            .map(|bytes| canonical_value(&bytes, object_kind, object_key))
-            .transpose()
+            .optional()?)
     }
 }
 
@@ -498,8 +523,13 @@ fn decode_finding(
     authorization: Option<&WorkflowAuthorization>,
     now_unix_seconds: i64,
 ) -> StateStoreResult<Finding> {
-    let value = canonical_value(stored, "Finding", finding_id)?;
-    let record: FindingRecord = serde_json::from_value(value)?;
+    let record: FindingRecord = serde_json::from_slice(stored)?;
+    require_typed_canonical(
+        stored,
+        canonical_json_bytes(&record)?,
+        "Finding",
+        finding_id,
+    )?;
     verify_identity("Finding", finding_id, &record.finding_id)?;
     Ok(Finding::try_from_record(
         record,
@@ -509,21 +539,20 @@ fn decode_finding(
     )?)
 }
 
-fn canonical_value(
+fn require_typed_canonical(
     stored: &[u8],
+    recanonical: Vec<u8>,
     object_kind: &'static str,
     object_id: &str,
-) -> StateStoreResult<Value> {
-    let value: Value = serde_json::from_slice(stored)?;
-    let recanonical = canonical_json_bytes(&value)?;
+) -> StateStoreResult<()> {
     if recanonical != stored {
         return Err(StateStoreError::CorruptStoredObject {
             object_kind,
             object_id: object_id.to_owned(),
-            detail: "stored bytes are not canonical JSON",
+            detail: "stored bytes are not canonical for the typed schema object",
         });
     }
-    Ok(value)
+    Ok(())
 }
 
 fn require_schema(object_kind: &'static str, schema_version: &str) -> StateStoreResult<()> {
@@ -573,6 +602,7 @@ mod tests {
     use rusqlite::params;
     use sentrdel_schema::{
         SCHEMA_V1,
+        canonical::canonical_json_bytes,
         coverage::{CoverageRecord, CoverageState},
         engine::{EngineManifest, EngineRun, NetworkRequirement, TerminationReason},
         finding::{
@@ -823,6 +853,57 @@ mod tests {
 
         assert!(matches!(
             store.get_finding(&finding_id, &reconciler, None, 100),
+            Err(StateStoreError::CorruptStoredObject { .. })
+        ));
+    }
+
+    #[test]
+    fn typed_canonicality_rejects_missing_optional_fields() {
+        let temp = TempDb::new("typed-canonicality");
+        let mut store = Store::open(&temp.path).expect("store opens");
+
+        let mut coverage_value = serde_json::to_value(coverage()).expect("coverage value");
+        coverage_value
+            .as_object_mut()
+            .expect("coverage object")
+            .remove("producer");
+        let coverage_bytes = canonical_json_bytes(&coverage_value).expect("generic canonical JSON");
+        store
+            .connection
+            .execute(
+                "INSERT INTO sentrdel_state_objects(object_kind, object_key, canonical_json) VALUES ('coverage', 'coverage:typed-canonical', ?1)",
+                params![coverage_bytes],
+            )
+            .expect("inject schema-noncanonical coverage fixture");
+        assert!(matches!(
+            store.get_coverage_record("coverage:typed-canonical"),
+            Err(StateStoreError::CorruptStoredObject { .. })
+        ));
+
+        let finding = finding();
+        let finding_id = finding.finding_id().to_owned();
+        let mut finding_value = serde_json::to_value(finding.to_record()).expect("finding value");
+        finding_value
+            .as_object_mut()
+            .expect("finding object")
+            .remove("primary_location");
+        let finding_bytes = canonical_json_bytes(&finding_value).expect("generic canonical JSON");
+        store
+            .connection
+            .execute(
+                "INSERT INTO sentrdel_finding_projection(finding_id, revision, canonical_json) VALUES (?1, 1, ?2)",
+                params![finding_id, finding_bytes],
+            )
+            .expect("inject finding projection fixture");
+        store
+            .connection
+            .execute(
+                "INSERT INTO sentrdel_finding_history(finding_id, revision, canonical_json) VALUES (?1, 1, ?2)",
+                params![finding_id, finding_bytes],
+            )
+            .expect("inject finding history fixture");
+        assert!(matches!(
+            store.get_finding(&finding_id, &reconciler(), None, 100),
             Err(StateStoreError::CorruptStoredObject { .. })
         ));
     }
