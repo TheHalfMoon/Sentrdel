@@ -15,6 +15,12 @@
     "adapter_version": {
       "type": "string"
     },
+    "allowed_environment_names": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
     "capabilities": {
       "items": {
         "type": "string"
@@ -87,6 +93,7 @@
     "timeout_ms",
     "max_stdout_bytes",
     "max_stderr_bytes",
+    "allowed_environment_names",
     "network_requirement"
   ],
   "title": "EngineManifest",
