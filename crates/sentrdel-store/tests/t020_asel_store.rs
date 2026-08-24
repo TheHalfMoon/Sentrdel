@@ -14,10 +14,7 @@ use sentrdel_schema::{
         EnforcementFidelity, PolicyDecision, PolicyDecisionClaim, TrustedPolicyAuthority, Verdict,
     },
 };
-use sentrdel_store::{
-    Store, StoreError,
-    asel::AselStoreError,
-};
+use sentrdel_store::{Store, StoreError, asel::AselStoreError};
 
 static NEXT_TEMP_DB: AtomicU64 = AtomicU64::new(0);
 
@@ -144,7 +141,10 @@ fn append_is_atomic_idempotent_and_distinguishes_local_from_trusted_head() {
 
     assert_eq!(store.asel_event_count("session-a").expect("count"), 2);
     assert_eq!(
-        store.asel_session_head("session-a").expect("head").as_deref(),
+        store
+            .asel_session_head("session-a")
+            .expect("head")
+            .as_deref(),
         Some(second.event_hash())
     );
 
@@ -181,7 +181,9 @@ fn append_is_atomic_idempotent_and_distinguishes_local_from_trusted_head() {
     drop(store);
     let reopened = Store::open(&temp.path).expect("store should reopen");
     assert_eq!(
-        reopened.asel_event_count("session-a").expect("reopen count"),
+        reopened
+            .asel_event_count("session-a")
+            .expect("reopen count"),
         2
     );
     assert_eq!(
@@ -218,10 +220,7 @@ fn gaps_wrong_links_and_conflicting_replays_fail_without_advancing_session() {
     let wrong_link = event(
         "session-b",
         1,
-        Some(
-            "sha256:0000000000000000000000000000000000000000000000000000000000000000"
-                .to_owned(),
-        ),
+        Some("sha256:0000000000000000000000000000000000000000000000000000000000000000".to_owned()),
         "2026-08-24T17:10:01Z",
     );
     assert!(matches!(
@@ -237,7 +236,10 @@ fn gaps_wrong_links_and_conflicting_replays_fail_without_advancing_session() {
 
     assert_eq!(store.asel_event_count("session-b").expect("count"), 1);
     assert_eq!(
-        store.asel_session_head("session-b").expect("head").as_deref(),
+        store
+            .asel_session_head("session-b")
+            .expect("head")
+            .as_deref(),
         Some(root.event_hash())
     );
 }
@@ -305,7 +307,9 @@ fn policy_bearing_event_round_trips_through_stored_event_hash_verification() {
     .seal()
     .expect("policy event should seal");
 
-    store.append_asel_event(&event).expect("policy event append");
+    store
+        .append_asel_event(&event)
+        .expect("policy event append");
     let record = store
         .get_asel_event_record("session-policy", 0)
         .expect("policy record lookup")
