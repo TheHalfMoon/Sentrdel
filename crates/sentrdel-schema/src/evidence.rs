@@ -1,13 +1,16 @@
 //! Canonical immutable Evidence types and producer-authority validation.
 
-use crate::{canonical::{content_id, CanonicalError}, version::SCHEMA_V1};
+use crate::{
+    canonical::{CanonicalError, content_id},
+    version::SCHEMA_V1,
+};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{collections::BTreeMap, error::Error, fmt};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "SCREAMING_SNAKE_CASE", deny_unknown_fields)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum ProducerKind {
     NativeRule,
     CompilerIndex,
@@ -72,7 +75,8 @@ pub struct ReproductionMetadata {
     pub notes: Option<String>,
 }
 
-/// Unsealed producer submission. The canonical ID is not caller-controlled.
+/// Untrusted producer submission. It deliberately has no caller-controlled
+/// canonical ID.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct EvidenceDraft {
@@ -93,9 +97,21 @@ pub struct EvidenceDraft {
     pub captured_at: String,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+/// Authoritative sealed Evidence. It cannot be deserialized directly and its
+/// fields are private, so untrusted bytes cannot bypass validation/sealing.
+#[derive(Clone, Debug, PartialEq, Serialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Evidence {
+    evidence_id: String,
+    #[serde(flatten)]
+    draft: EvidenceDraft,
+}
+
+/// Wire/persistence representation. This is explicitly untrusted until passed
+/// through `Evidence::try_from_record`.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct EvidenceRecord {
     pub evidence_id: String,
     #[serde(flatten)]
     pub draft: EvidenceDraft,
@@ -109,7 +125,7 @@ pub enum EvidenceValidationError {
     FactContainsInterpretation,
     LlmAuthorityEscalation(EpistemicClass),
     VerifiedNotAuthorizedInR1,
-    RuntimeVerifiedNotAuthorizedInR1,
+    ForgedEvidenceId,
     Canonical(String),
 }
 
@@ -131,10 +147,9 @@ impl fmt::Display for EvidenceValidationError {
             Self::VerifiedNotAuthorizedInR1 => {
                 write!(f, "VERIFIED evidence has no authorized producer in R1")
             }
-            Self::RuntimeVerifiedNotAuthorizedInR1 => write!(
-                f,
-                "runtime-test producer may emit OBSERVATION in R1 but not VERIFIED"
-            ),
+            Self::ForgedEvidenceId => {
+                write!(f, "evidence id does not match validated canonical content")
+            }
             Self::Canonical(message) => write!(f, "canonicalization failed: {message}"),
         }
     }
@@ -179,11 +194,6 @@ impl EvidenceDraft {
         if self.epistemic_class == EpistemicClass::Verified {
             return Err(EvidenceValidationError::VerifiedNotAuthorizedInR1);
         }
-        if self.producer.kind == ProducerKind::RuntimeTest
-            && self.epistemic_class == EpistemicClass::Verified
-        {
-            return Err(EvidenceValidationError::RuntimeVerifiedNotAuthorizedInR1);
-        }
         Ok(())
     }
 
@@ -198,6 +208,30 @@ impl EvidenceDraft {
 }
 
 impl Evidence {
+    pub fn try_from_record(record: EvidenceRecord) -> Result<Self, EvidenceValidationError> {
+        let expected_id = record.evidence_id;
+        let evidence = record.draft.seal()?;
+        if evidence.evidence_id != expected_id {
+            return Err(EvidenceValidationError::ForgedEvidenceId);
+        }
+        Ok(evidence)
+    }
+
+    pub fn to_record(&self) -> EvidenceRecord {
+        EvidenceRecord {
+            evidence_id: self.evidence_id.clone(),
+            draft: self.draft.clone(),
+        }
+    }
+
+    pub fn evidence_id(&self) -> &str {
+        &self.evidence_id
+    }
+
+    pub fn draft(&self) -> &EvidenceDraft {
+        &self.draft
+    }
+
     pub fn verify_identity(&self) -> Result<bool, EvidenceValidationError> {
         self.draft.validate()?;
         Ok(content_id("evidence", &self.draft)? == self.evidence_id)
@@ -239,13 +273,36 @@ mod tests {
     }
 
     #[test]
-    fn llm_fact_is_rejected() {
-        let error = draft(ProducerKind::LlmReasoner, EpistemicClass::Fact)
+    fn forged_record_is_rejected() {
+        let evidence = draft(ProducerKind::NativeRule, EpistemicClass::Fact)
             .seal()
-            .expect_err("LLM FACT must fail");
+            .expect("seal");
+        let mut record = evidence.to_record();
+        record.evidence_id = "sha256:forged".to_owned();
         assert!(matches!(
-            error,
+            Evidence::try_from_record(record),
+            Err(EvidenceValidationError::ForgedEvidenceId)
+        ));
+    }
+
+    #[test]
+    fn llm_fact_is_rejected_even_from_untrusted_draft() {
+        let payload = serde_json::to_value(draft(ProducerKind::LlmReasoner, EpistemicClass::Fact))
+            .expect("encode");
+        let inbound: EvidenceDraft = serde_json::from_value(payload).expect("parse untrusted draft");
+        assert!(matches!(
+            inbound.seal().expect_err("LLM FACT must fail"),
             EvidenceValidationError::LlmAuthorityEscalation(EpistemicClass::Fact)
+        ));
+    }
+
+    #[test]
+    fn llm_verified_is_rejected_even_from_untrusted_draft() {
+        let inbound = draft(ProducerKind::LlmReasoner, EpistemicClass::Verified);
+        assert!(matches!(
+            inbound.seal().expect_err("LLM VERIFIED must fail"),
+            EvidenceValidationError::LlmAuthorityEscalation(EpistemicClass::Verified)
+                | EvidenceValidationError::VerifiedNotAuthorizedInR1
         ));
     }
 
