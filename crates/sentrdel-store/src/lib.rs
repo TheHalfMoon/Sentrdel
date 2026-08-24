@@ -224,7 +224,7 @@ mod tests {
         table_exists(connection, "sentrdel_schema_migrations")
     }
 
-    fn create_migration_ledger(connection: &Connection, migration_name: &str) {
+    fn create_empty_migration_ledger(connection: &Connection) {
         connection
             .execute_batch(
                 r#"
@@ -235,6 +235,10 @@ mod tests {
                 "#,
             )
             .expect("fixture migration ledger should be created");
+    }
+
+    fn create_migration_ledger(connection: &Connection, migration_name: &str) {
+        create_empty_migration_ledger(connection);
         connection
             .execute(
                 "INSERT INTO sentrdel_schema_migrations(version, name) VALUES (1, ?1)",
@@ -272,6 +276,8 @@ mod tests {
             application_id(&store.connection),
             migrations::SENTRDEL_APPLICATION_ID
         );
+        assert!(table_exists(&store.connection, "sentrdel_schema_migrations"));
+        assert!(table_exists(&store.connection, "sentrdel_store_metadata"));
     }
 
     #[test]
@@ -307,6 +313,28 @@ mod tests {
                 .expect("migration ledger should be queryable after reopen");
             assert_eq!(migration_count, migrations::LATEST_SCHEMA_VERSION);
         }
+    }
+
+    #[test]
+    fn incomplete_empty_ledger_is_rejected_without_wal_mutation() {
+        let temp = TempDb::new("empty-ledger");
+        let connection = Connection::open(&temp.path).expect("fixture database should open");
+        create_empty_migration_ledger(&connection);
+        mark_sentrdel_application(&connection);
+        assert_eq!(journal_mode(&connection).to_ascii_lowercase(), "delete");
+        drop(connection);
+
+        let error = match Store::open(&temp.path) {
+            Ok(_) => panic!("empty migration ledger must be rejected"),
+            Err(error) => error,
+        };
+        assert!(matches!(
+            error,
+            StoreError::MigrationIntegrity { version: 0, .. }
+        ));
+
+        let connection = Connection::open(&temp.path).expect("rejected fixture should reopen");
+        assert_eq!(journal_mode(&connection).to_ascii_lowercase(), "delete");
     }
 
     #[test]
