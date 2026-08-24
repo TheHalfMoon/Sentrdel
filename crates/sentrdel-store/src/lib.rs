@@ -4,6 +4,7 @@
 mod migrations;
 
 pub use migrations::evidence_store::{EvidenceStoreError, EvidenceStoreResult};
+pub use migrations::state_store::{StateStoreError, StateStoreResult};
 
 use std::error::Error;
 use std::fmt;
@@ -284,6 +285,13 @@ mod tests {
         ));
         assert!(table_exists(&store.connection, "sentrdel_store_metadata"));
         assert!(table_exists(&store.connection, "sentrdel_evidence_objects"));
+        assert!(table_exists(
+            &store.connection,
+            "sentrdel_finding_projection"
+        ));
+        assert!(table_exists(&store.connection, "sentrdel_finding_history"));
+        assert!(table_exists(&store.connection, "sentrdel_state_objects"));
+        assert!(table_exists(&store.connection, "sentrdel_project_profiles"));
     }
 
     #[test]

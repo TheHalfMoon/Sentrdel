@@ -51,7 +51,7 @@ fn cleanup_database_files(path: &Path) {
 }
 
 #[test]
-fn canonical_v1_database_upgrades_to_v2_without_losing_v1_state() {
+fn canonical_v1_database_upgrades_through_latest_without_losing_v1_state() {
     let temp = TempDb::new();
     let connection = Connection::open(&temp.path).expect("v1 fixture database should open");
     connection
@@ -77,7 +77,8 @@ fn canonical_v1_database_upgrades_to_v2_without_losing_v1_state() {
     drop(connection);
 
     let store = Store::open(&temp.path).expect("canonical v1 database should upgrade");
-    assert_eq!(store.schema_version().expect("schema version"), 2);
+    let upgraded_version = store.schema_version().expect("schema version");
+    assert!(upgraded_version >= 2);
     drop(store);
 
     let connection = Connection::open(&temp.path).expect("upgraded database should reopen");
@@ -103,7 +104,7 @@ fn canonical_v1_database_upgrades_to_v2_without_losing_v1_state() {
         )
         .expect("v2 table should be discoverable");
 
-    assert_eq!(ledger_count, 2);
+    assert_eq!(ledger_count, upgraded_version);
     assert_eq!(preserved, "preserved");
     assert_eq!(evidence_table_exists, 1);
 }

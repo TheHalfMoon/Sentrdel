@@ -1,4 +1,6 @@
 pub(crate) mod evidence_store;
+mod state_schema;
+pub(crate) mod state_store;
 
 use rusqlite::{Connection, OptionalExtension, TransactionBehavior, params};
 
@@ -73,6 +75,12 @@ const MIGRATIONS: &[Migration] = &[
         name: "immutable_evidence_objects",
         apply: apply_v2_schema,
         validate: validate_v2_schema,
+    },
+    Migration {
+        version: 3,
+        name: "reconciled_state_persistence",
+        apply: state_schema::apply_v3_schema,
+        validate: state_schema::validate_v3_schema,
     },
 ];
 
