@@ -276,7 +276,10 @@ mod tests {
             application_id(&store.connection),
             migrations::SENTRDEL_APPLICATION_ID
         );
-        assert!(table_exists(&store.connection, "sentrdel_schema_migrations"));
+        assert!(table_exists(
+            &store.connection,
+            "sentrdel_schema_migrations"
+        ));
         assert!(table_exists(&store.connection, "sentrdel_store_metadata"));
     }
 
