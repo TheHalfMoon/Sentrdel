@@ -2,9 +2,7 @@
 
 use crate::{
     canonical::{CanonicalError, content_id},
-    policy::{
-        PolicyDecision, PolicyDecisionError, PolicyDecisionRecord, TrustedPolicyAuthority,
-    },
+    policy::{PolicyDecision, PolicyDecisionError, PolicyDecisionRecord, TrustedPolicyAuthority},
     version::SCHEMA_V1,
 };
 use schemars::JsonSchema;
@@ -184,10 +182,16 @@ impl fmt::Display for AselValidationError {
             }
             Self::ForgedEventHash => write!(f, "ASEL event hash does not match canonical event"),
             Self::PolicyBindingRequired => {
-                write!(f, "embedded policy decision requires trusted authority/action binding")
+                write!(
+                    f,
+                    "embedded policy decision requires trusted authority/action binding"
+                )
             }
             Self::UnexpectedPolicyBinding => {
-                write!(f, "policy binding supplied for event without a policy decision")
+                write!(
+                    f,
+                    "policy binding supplied for event without a policy decision"
+                )
             }
             Self::Policy(error) => write!(f, "invalid embedded policy decision: {error}"),
             Self::Canonical(message) => write!(f, "ASEL canonicalization failed: {message}"),
@@ -293,7 +297,11 @@ impl AgentSecurityEvent {
             target: self.draft.target.clone(),
             params_digest: self.draft.params_digest.clone(),
             result_digest: self.draft.result_digest.clone(),
-            policy_decision: self.draft.policy_decision.as_ref().map(PolicyDecision::to_record),
+            policy_decision: self
+                .draft
+                .policy_decision
+                .as_ref()
+                .map(PolicyDecision::to_record),
             provenance: self.draft.provenance.clone(),
             previous_event_hash: self.draft.previous_event_hash.clone(),
         }
@@ -435,7 +443,10 @@ mod tests {
         let second = second_draft.seal().expect("second");
         let trusted = second.event_hash().to_owned();
         let result = verify_session(&[first, second], Some(&trusted));
-        assert_eq!(result.integrity, SessionIntegrity::ValidRelativeToProvidedHead);
+        assert_eq!(
+            result.integrity,
+            SessionIntegrity::ValidRelativeToProvidedHead
+        );
         assert_eq!(result.event_count, 2);
     }
 

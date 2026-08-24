@@ -203,7 +203,10 @@ impl fmt::Display for FindingError {
             Self::MissingAuthorization => write!(f, "trusted workflow authorization is required"),
             Self::AuthorizationMismatch => write!(f, "workflow authorization binding mismatch"),
             Self::UnexpectedAuthorizationMetadata => {
-                write!(f, "NEW finding must not contain workflow authorization metadata")
+                write!(
+                    f,
+                    "NEW finding must not contain workflow authorization metadata"
+                )
             }
             Self::AcceptedRiskRequired => write!(f, "ACCEPTED state requires a valid risk record"),
             Self::AcceptedRiskUnexpected => {

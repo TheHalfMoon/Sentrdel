@@ -1,11 +1,13 @@
 //! Guard policy decision contracts with an explicit trusted-authority binding.
 
-use crate::canonical::{content_id, CanonicalError};
+use crate::canonical::{CanonicalError, content_id};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::{error::Error, fmt};
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema)]
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema,
+)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum Verdict {
     Allow,
@@ -101,7 +103,9 @@ impl fmt::Display for PolicyDecisionError {
             Self::EmptyActionDigest => write!(f, "policy action digest must not be empty"),
             Self::ActionDigestMismatch => write!(f, "policy decision action digest mismatch"),
             Self::AuthorityMismatch => write!(f, "policy authority binding mismatch"),
-            Self::ForgedDecisionId => write!(f, "policy decision id does not match canonical content"),
+            Self::ForgedDecisionId => {
+                write!(f, "policy decision id does not match canonical content")
+            }
             Self::Canonical(message) => write!(f, "policy canonicalization failed: {message}"),
         }
     }
@@ -229,8 +233,8 @@ mod tests {
     #[test]
     fn forged_record_is_rejected() {
         let authority = TrustedPolicyAuthority::from_runtime("kernel", "sha256:config");
-        let decision = PolicyDecision::bind(claim("sha256:a"), "sha256:a", &authority)
-            .expect("bind");
+        let decision =
+            PolicyDecision::bind(claim("sha256:a"), "sha256:a", &authority).expect("bind");
         let mut record = decision.to_record();
         record.decision_id = "sha256:forged".to_owned();
         assert!(matches!(

@@ -18,7 +18,10 @@ impl fmt::Display for CanonicalError {
         match self {
             Self::Serialize(error) => write!(f, "canonical JSON serialization failed: {error}"),
             Self::FloatingPointNumber => {
-                write!(f, "floating-point numbers are not permitted in canonical v1 objects")
+                write!(
+                    f,
+                    "floating-point numbers are not permitted in canonical v1 objects"
+                )
             }
             Self::EmptyNamespace => write!(f, "content-id namespace must not be empty"),
         }
@@ -89,7 +92,7 @@ fn encode_hex(bytes: &[u8]) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{canonical_json_bytes, content_id, CanonicalError};
+    use super::{CanonicalError, canonical_json_bytes, content_id};
     use serde::Serialize;
     use std::collections::BTreeMap;
 

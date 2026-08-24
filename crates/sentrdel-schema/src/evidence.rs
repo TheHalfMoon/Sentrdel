@@ -185,7 +185,10 @@ impl fmt::Display for EvidenceValidationError {
             Self::EmptyProducer => write!(f, "evidence producer id/version must not be empty"),
             Self::EmptyObservation => write!(f, "evidence observation must not be empty"),
             Self::ProducerAuthorityMismatch => {
-                write!(f, "evidence producer does not match trusted runtime authority")
+                write!(
+                    f,
+                    "evidence producer does not match trusted runtime authority"
+                )
             }
             Self::FactContainsInterpretation => write!(
                 f,
@@ -198,7 +201,10 @@ impl fmt::Display for EvidenceValidationError {
                 write!(f, "VERIFIED evidence has no authorized producer in R1")
             }
             Self::RuntimeAuthorityMismatch(class) => {
-                write!(f, "producer kind is not authorized to emit epistemic class {class:?}")
+                write!(
+                    f,
+                    "producer kind is not authorized to emit epistemic class {class:?}"
+                )
             }
             Self::ForgedEvidenceId => {
                 write!(f, "evidence id does not match validated canonical content")
@@ -297,7 +303,10 @@ fn validate_claim(
         return Err(EvidenceValidationError::VerifiedNotAuthorizedInR1);
     }
     if producer_kind == &ProducerKind::RuntimeTest
-        && !matches!(claim.epistemic_class, EpistemicClass::Observation | EpistemicClass::Contradiction)
+        && !matches!(
+            claim.epistemic_class,
+            EpistemicClass::Observation | EpistemicClass::Contradiction
+        )
     {
         return Err(EvidenceValidationError::RuntimeAuthorityMismatch(
             claim.epistemic_class.clone(),
@@ -362,12 +371,15 @@ mod tests {
             .expect("authority");
         assert!(matches!(
             llm.seal(claim(EpistemicClass::Fact)),
-            Err(EvidenceValidationError::LlmAuthorityEscalation(EpistemicClass::Fact))
+            Err(EvidenceValidationError::LlmAuthorityEscalation(
+                EpistemicClass::Fact
+            ))
         ));
         assert!(matches!(
             llm.seal(claim(EpistemicClass::Verified)),
-            Err(EvidenceValidationError::LlmAuthorityEscalation(EpistemicClass::Verified))
-                | Err(EvidenceValidationError::VerifiedNotAuthorizedInR1)
+            Err(EvidenceValidationError::LlmAuthorityEscalation(
+                EpistemicClass::Verified
+            )) | Err(EvidenceValidationError::VerifiedNotAuthorizedInR1)
         ));
     }
 

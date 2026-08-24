@@ -38,10 +38,7 @@ pub struct ReasonerEvidenceDraft {
 }
 
 impl ReasonerEvidenceDraft {
-    pub fn seal(
-        self,
-        authority: &EvidenceAuthority,
-    ) -> Result<Evidence, EvidenceValidationError> {
+    pub fn seal(self, authority: &EvidenceAuthority) -> Result<Evidence, EvidenceValidationError> {
         if authority.producer().kind != ProducerKind::LlmReasoner {
             return Err(EvidenceValidationError::ProducerAuthorityMismatch);
         }
