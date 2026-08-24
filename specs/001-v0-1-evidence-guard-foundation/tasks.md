@@ -1,7 +1,7 @@
 # Tasks: Sentrdel v0.1 Evidence + Guard Foundation
 
 **Input:** constitution, `major-review-2026-08-24.md`, `spec.md`, `clarification-closeout.md`, `research.md`, `plan.md`, `data-model.md`, `contracts/`, `quickstart.md`  
-**Status:** TASKS_COMPLETE_PENDING_FINAL_ANALYZE
+**Status:** IMPLEMENTATION_IN_PROGRESS
 
 ## Format
 
@@ -15,13 +15,13 @@
 
 **Purpose:** Establish project authority, secure Rust workspace, self-supply-chain policy, source-reuse controls, and repository security guidance before implementation breadth.
 
-- [ ] T001 Verify the founder-frozen **Apache-2.0** core license in `LICENSE` and create `docs/third-party/POLICY.md` defining compatibility/adoption rules; donor source/data still requires per-source qualification.
-- [ ] T002 Create the **Rust 1.98.0** nine-crate workspace in `Cargo.toml`, `rust-toolchain.toml`, and `crates/*/Cargo.toml`; commit `Cargo.lock` as soon as dependency resolution exists.
-- [ ] T003 [P] Configure workspace fmt/clippy/test profiles in `Cargo.toml`, `.cargo/config.toml`, and crate roots so `cargo fmt --check`, `cargo clippy --workspace --all-targets -- -D warnings`, and `cargo test --workspace` are canonical gates.
-- [ ] T004 [P] Add dependency/license/advisory policy in `deny.toml` and `docs/security/dependency-policy.md`; require explicit justification/elevated review for `build.rs`, proc macros, native code, downloaded artifacts, credential/network behavior and other privileged dependencies.
-- [ ] T005 [P] Create `docs/third-party/source-qualification-ledger.md` using `SourceQualificationRecord`; record initial STUDY/ADAPT entries for Graphify, code-graph-rag, DeepSeek Harness and Continue without copying source.
-- [ ] T006 [P] Create fixture/test skeleton under `fixtures/repos/`, `fixtures/engines/`, `fixtures/mcp/`, `fixtures/policies/`, `tests/contract/`, `tests/integration/`, `tests/adversarial/`, and `tests/benchmark/`.
-- [ ] T007 Add root `AGENTS.md` and `SECURITY.md`: no unqualified donor source, no live exploitation, no target build/install/Cargo execution during analysis, no weakening contracts; SECURITY.md defines system scope, threat boundaries, invariants, reportability and known limitations and is context—not executable authority.
+- [x] T001 Verify the founder-frozen **Apache-2.0** core license in `LICENSE` and create `docs/third-party/POLICY.md` defining compatibility/adoption rules; donor source/data still requires per-source qualification.
+- [x] T002 Create the **Rust 1.98.0** nine-crate workspace in `Cargo.toml`, `rust-toolchain.toml`, and `crates/*/Cargo.toml`; commit `Cargo.lock` as soon as dependency resolution exists.
+- [x] T003 [P] Configure workspace fmt/clippy/test profiles in `Cargo.toml`, `.cargo/config.toml`, and crate roots so `cargo fmt --check`, `cargo clippy --workspace --all-targets -- -D warnings`, and `cargo test --workspace` are canonical gates.
+- [x] T004 [P] Add dependency/license/advisory policy in `deny.toml` and `docs/security/dependency-policy.md`; require explicit justification/elevated review for `build.rs`, proc macros, native code, downloaded artifacts, credential/network behavior and other privileged dependencies.
+- [x] T005 [P] Create `docs/third-party/source-qualification-ledger.md` using `SourceQualificationRecord`; record initial STUDY/ADAPT entries for Graphify, code-graph-rag, DeepSeek Harness and Continue without copying source.
+- [x] T006 [P] Create fixture/test skeleton under `fixtures/repos/`, `fixtures/engines/`, `fixtures/mcp/`, `fixtures/policies/`, `tests/contract/`, `tests/integration/`, `tests/adversarial/`, and `tests/benchmark/`.
+- [x] T007 Add root `AGENTS.md` and `SECURITY.md`: no unqualified donor source, no live exploitation, no target build/install/Cargo execution during analysis, no weakening contracts; SECURITY.md defines system scope, threat boundaries, invariants, reportability and known limitations and is context—not executable authority.
 
 **Checkpoint:** Empty workspace builds with exact toolchain; governance/self-security gates are explicit.
 
@@ -33,19 +33,21 @@
 
 ### Canonical schema
 
-- [ ] T008 Implement schema-version and canonical serialization primitives in `crates/sentrdel-schema/src/version.rs` and `canonical.rs` with deterministic hashing tests.
-- [ ] T009 [P] Implement `Evidence`, `ProducerKind`, `EpistemicClass`, `ConfidenceBand`, direct `observation`, optional `security_interpretation`, subjects and locations in `crates/sentrdel-schema/src/evidence.rs`; tests must reject semantic conclusions mislabeled as LLM/unauthorized FACT.
-- [ ] T010 [P] Implement `Finding`, severity, two-axis lifecycle, `AcceptedRisk`, and transition validation in `crates/sentrdel-schema/src/finding.rs` with lifecycle tests.
-- [ ] T011 [P] Implement `CoverageRecord`, coverage states and provider coverage dimensions in `crates/sentrdel-schema/src/coverage.rs`; failure/unavailable/detection-only cannot masquerade as secure/covered posture.
-- [ ] T012 [P] Implement ASEL envelope, actors, event kinds, hash-link fields, session-integrity result, `PolicyDecision`, verdict and `EnforcementFidelity` in `crates/sentrdel-schema/src/asel.rs` and `policy.rs`.
-- [ ] T013 [P] Implement `ProjectProfile`, provider/framework records, `SecurityPackManifest`, `EngineManifest`, and `EngineRun` schema types in `project.rs`, `pack.rs`, `engine.rs`, including pack coverage modes and engine environment allowlist.
-- [ ] T014 Generate/check versioned JSON Schemas into `schemas/v1/` and add round-trip/unknown-authority contract tests.
-- [ ] T015 Restrict reasoner public API so LLM adapters can construct only INFERENCE/HYPOTHESIS Evidence; add compile/runtime contract tests.
+- [x] T008 Implement schema-version and canonical serialization primitives in `crates/sentrdel-schema/src/version.rs` and `canonical.rs` with deterministic hashing tests.
+- [x] T009 [P] Implement `Evidence`, `ProducerKind`, `EpistemicClass`, `ConfidenceBand`, direct `observation`, optional `security_interpretation`, subjects and locations in `crates/sentrdel-schema/src/evidence.rs`; tests must reject semantic conclusions mislabeled as LLM/unauthorized FACT.
+- [x] T010 [P] Implement `Finding`, severity, two-axis lifecycle, `AcceptedRisk`, and transition validation in `crates/sentrdel-schema/src/finding.rs` with lifecycle tests.
+- [x] T011 [P] Implement `CoverageRecord`, coverage states and provider coverage dimensions in `crates/sentrdel-schema/src/coverage.rs`; failure/unavailable/detection-only cannot masquerade as secure/covered posture.
+- [x] T012 [P] Implement ASEL envelope, actors, event kinds, hash-link fields, session-integrity result, `PolicyDecision`, verdict and `EnforcementFidelity` in `crates/sentrdel-schema/src/asel.rs` and `policy.rs`.
+- [x] T013 [P] Implement `ProjectProfile`, provider/framework records, `SecurityPackManifest`, `EngineManifest`, and `EngineRun` schema types in `project.rs`, `pack.rs`, `engine.rs`, including pack coverage modes and engine environment allowlist.
+- [x] T014 Generate/check versioned JSON Schemas into `schemas/v1/` and add round-trip/unknown-authority contract tests.
+- [x] T015 Restrict reasoner public API so LLM adapters can construct only INFERENCE/HYPOTHESIS Evidence; add compile/runtime contract tests.
+
+**Implementation checkpoint (2026-08-24):** T001–T007 are canonical in bootstrap commit `4bb988afa21b18a67e9ba5692b458d05dc2efbf2`. T008–T015 are canonical in schema-substrate merge `c60ed8610643406dea0c3298eb1eb83520f0d7be`. R1 canonical IDs use domain-separated SHA-256 under `implementation-amendment-001-hashing.md`.
 
 ### Store and integrity
 
 - [ ] T016 Implement SQLite connection/migrations/WAL and migration tests in `crates/sentrdel-store/`.
-- [ ] T017 [P] Implement BLAKE3 content-addressed Evidence persistence and immutable lookup APIs with idempotency tests.
+- [ ] T017 [P] Implement **SHA-256** content-addressed Evidence persistence and immutable lookup APIs with idempotency tests, using the canonical profile frozen by `implementation-amendment-001-hashing.md`.
 - [ ] T018 [P] Implement Finding projection/history, CoverageRecord, ProjectProfile, EngineRun and manifest persistence.
 - [ ] T019 Implement redaction-before-persist boundary and tests proving discovered secret plaintext **and stable unkeyed secret-value-only digests** never appear in SQLite/export/log/snapshot fixtures.
 - [ ] T020 Implement ASEL append/hash-link store, computed head, event count and optional trusted-head comparison in `crates/sentrdel-store/src/asel.rs`; tests distinguish available-chain consistency from externally trusted checkpoint validation.
