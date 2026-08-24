@@ -71,23 +71,14 @@
       ],
       "type": "string"
     },
-    "PolicyDecisionRecord": {
+    "PolicyDecisionClaim": {
       "additionalProperties": false,
-      "description": "Persistence/wire representation. Deserializing this remains untrusted until\n`PolicyDecision::try_from_record` rebinds it to the expected authority/action.",
+      "description": "Untrusted/deserializable policy result. A claim is not an authoritative\ndecision until bound to a runtime-selected trusted authority and action.",
       "properties": {
         "action_digest": {
           "type": "string"
         },
-        "authority_configuration_digest": {
-          "type": "string"
-        },
-        "authority_id": {
-          "type": "string"
-        },
         "decided_at": {
-          "type": "string"
-        },
-        "decision_id": {
           "type": "string"
         },
         "enforcement_fidelity": {
@@ -117,14 +108,15 @@
           },
           "type": "array"
         },
+        "schema_version": {
+          "type": "string"
+        },
         "verdict": {
           "$ref": "#/$defs/Verdict"
         }
       },
       "required": [
-        "decision_id",
-        "authority_id",
-        "authority_configuration_digest",
+        "schema_version",
         "verdict",
         "enforcement_fidelity",
         "reason_codes",
@@ -133,6 +125,31 @@
         "policy_version_digests",
         "action_digest",
         "decided_at"
+      ],
+      "type": "object"
+    },
+    "PolicyDecisionRecord": {
+      "additionalProperties": false,
+      "description": "Persistence/wire representation. Deserializing this remains untrusted until\n`PolicyDecision::try_from_record` rebinds it to the expected authority/action.",
+      "properties": {
+        "authority_configuration_digest": {
+          "type": "string"
+        },
+        "authority_id": {
+          "type": "string"
+        },
+        "claim": {
+          "$ref": "#/$defs/PolicyDecisionClaim"
+        },
+        "decision_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "decision_id",
+        "authority_id",
+        "authority_configuration_digest",
+        "claim"
       ],
       "type": "object"
     },

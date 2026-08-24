@@ -123,12 +123,18 @@ mod tests {
     #[test]
     fn evidence_schema_excludes_verified_and_limits_llm_classes() {
         let schemas = export_all().expect("schema generation");
-        let evidence = schemas.get("evidence.schema.json").expect("evidence schema");
+        let evidence = schemas
+            .get("evidence.schema.json")
+            .expect("evidence schema");
         let classes = evidence
             .pointer("/$defs/EpistemicClass/enum")
             .and_then(|value| value.as_array())
             .expect("epistemic enum");
-        assert!(!classes.iter().any(|value| value.as_str() == Some("VERIFIED")));
+        assert!(
+            !classes
+                .iter()
+                .any(|value| value.as_str() == Some("VERIFIED"))
+        );
 
         let conditional = evidence
             .get("allOf")
