@@ -10,6 +10,7 @@ use sentrdel_schema::{
     asel::{
         Actor, ActorType, AgentSecurityEvent, AgentSecurityEventDraft, EventKind, SessionIntegrity,
     },
+    canonical::canonical_json_bytes,
     policy::{
         EnforcementFidelity, PolicyDecision, PolicyDecisionClaim, TrustedPolicyAuthority, Verdict,
     },
@@ -197,6 +198,79 @@ fn append_is_atomic_idempotent_and_distinguishes_local_from_trusted_head() {
 }
 
 #[test]
+fn one_read_transaction_keeps_verification_metadata_and_scan_on_one_snapshot() {
+    let temp = TempDb::new("snapshot-consistency");
+    let mut writer = Store::open(&temp.path).expect("writer store should open");
+    let root = event("session-snapshot", 0, None, "2026-08-24T17:02:00Z");
+    writer.append_asel_event(&root).expect("root append");
+    let second = event(
+        "session-snapshot",
+        1,
+        Some(root.event_hash().to_owned()),
+        "2026-08-24T17:02:01Z",
+    );
+
+    let mut reader = Connection::open(&temp.path).expect("reader connection");
+    reader
+        .execute_batch("PRAGMA journal_mode = WAL;")
+        .expect("reader WAL mode");
+    let transaction = reader.transaction().expect("reader transaction");
+    let count_before: i64 = transaction
+        .query_row(
+            "SELECT COUNT(*) FROM sentrdel_asel_events WHERE session_id = ?1",
+            params!["session-snapshot"],
+            |row| row.get(0),
+        )
+        .expect("snapshot count");
+    let head_before: String = transaction
+        .query_row(
+            "SELECT event_hash FROM sentrdel_asel_events WHERE session_id = ?1 ORDER BY sequence DESC LIMIT 1",
+            params!["session-snapshot"],
+            |row| row.get(0),
+        )
+        .expect("snapshot head");
+
+    writer
+        .append_asel_event(&second)
+        .expect("concurrent append after snapshot begins");
+
+    let count_after_append: i64 = transaction
+        .query_row(
+            "SELECT COUNT(*) FROM sentrdel_asel_events WHERE session_id = ?1",
+            params!["session-snapshot"],
+            |row| row.get(0),
+        )
+        .expect("snapshot count after append");
+    let scanned_head: String = transaction
+        .query_row(
+            "SELECT event_hash FROM sentrdel_asel_events WHERE session_id = ?1 ORDER BY sequence DESC LIMIT 1",
+            params!["session-snapshot"],
+            |row| row.get(0),
+        )
+        .expect("snapshot scan head");
+
+    assert_eq!(count_before, 1);
+    assert_eq!(count_after_append, 1);
+    assert_eq!(head_before, root.event_hash());
+    assert_eq!(scanned_head, root.event_hash());
+    transaction.commit().expect("commit reader transaction");
+
+    assert_eq!(
+        writer
+            .asel_event_count("session-snapshot")
+            .expect("writer sees appended row"),
+        2
+    );
+    assert_eq!(
+        writer
+            .asel_session_head("session-snapshot")
+            .expect("writer sees new head")
+            .as_deref(),
+        Some(second.event_hash())
+    );
+}
+
+#[test]
 fn replay_rejects_tampered_stored_row_instead_of_masking_corruption() {
     let temp = TempDb::new("tampered-replay");
     let mut store = Store::open(&temp.path).expect("store should open");
@@ -379,14 +453,10 @@ fn canonical_v3_store_upgrades_to_v4_and_preserves_prior_state() {
         refreshed_at: "2026-08-24T17:30:00Z".to_owned(),
     };
     {
-        let store = Store::open(&temp.path).expect("latest store opens");
-        assert!(
-            store
-                .put_project_profile(&prior_profile)
-                .expect("seed prior v3-compatible state")
-        );
+        Store::open(&temp.path).expect("latest store opens to create fixture schema");
     }
 
+    let canonical_profile = canonical_json_bytes(&prior_profile).expect("canonical v3 profile bytes");
     let connection = Connection::open(&temp.path).expect("fixture database");
     connection
         .execute_batch(
@@ -397,6 +467,12 @@ fn canonical_v3_store_upgrades_to_v4_and_preserves_prior_state() {
             "#,
         )
         .expect("downgrade fixture to canonical v3");
+    connection
+        .execute(
+            "INSERT INTO sentrdel_project_profiles(repository_id, canonical_json) VALUES (?1, ?2)",
+            params![&prior_profile.repository_id, canonical_profile],
+        )
+        .expect("seed state while database is canonical v3");
     drop(connection);
 
     let store = Store::open(&temp.path).expect("canonical v3 upgrades to v4");
