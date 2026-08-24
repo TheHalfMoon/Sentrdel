@@ -61,14 +61,14 @@ fn authority() -> EvidenceAuthority {
 }
 
 #[test]
-fn canonical_v2_state_upgrades_to_v3_without_losing_evidence() {
+fn canonical_v2_state_upgrades_to_latest_without_losing_evidence() {
     let temp = TempDb::new("upgrade");
     let authority = authority();
     let evidence = authority
         .seal(EvidenceClaim {
             schema_version: SCHEMA_V1.to_owned(),
             input_digests: vec!["sha256:fixture-input".to_owned()],
-            observation: "preserve across v2 to v3".to_owned(),
+            observation: "preserve across v2 upgrade".to_owned(),
             security_interpretation: None,
             category: "fixture".to_owned(),
             epistemic_class: EpistemicClass::Fact,
@@ -86,17 +86,18 @@ fn canonical_v2_state_upgrades_to_v3_without_losing_evidence() {
         store.put_evidence(&evidence).expect("persist evidence");
     }
 
-    // Build an exact canonical v2 state by removing only migration-v3 objects
+    // Build an exact canonical v2 state by removing migration-v3/v4 objects
     // from a database whose v1/v2 objects were created by the canonical code.
     let connection = Connection::open(&temp.path).expect("fixture database");
     connection
         .execute_batch(
             r#"
+            DROP TABLE sentrdel_asel_events;
             DROP TABLE sentrdel_finding_history;
             DROP TABLE sentrdel_finding_projection;
             DROP TABLE sentrdel_state_objects;
             DROP TABLE sentrdel_project_profiles;
-            DELETE FROM sentrdel_schema_migrations WHERE version = 3;
+            DELETE FROM sentrdel_schema_migrations WHERE version >= 3;
             PRAGMA user_version = 2;
             "#,
         )
@@ -104,7 +105,7 @@ fn canonical_v2_state_upgrades_to_v3_without_losing_evidence() {
     drop(connection);
 
     let store = Store::open(&temp.path).expect("canonical v2 database upgrades");
-    assert_eq!(store.schema_version().expect("schema version"), 3);
+    assert_eq!(store.schema_version().expect("schema version"), 4);
     assert_eq!(
         store
             .get_evidence(evidence.evidence_id(), &authority)
@@ -127,8 +128,16 @@ fn canonical_v2_state_upgrades_to_v3_without_losing_evidence() {
             |row| row.get(0),
         )
         .expect("v3 tables");
-    assert_eq!(ledger_count, 3);
+    let v4_table_count: i64 = connection
+        .query_row(
+            "SELECT COUNT(*) FROM sqlite_schema WHERE type = 'table' AND name = 'sentrdel_asel_events'",
+            [],
+            |row| row.get(0),
+        )
+        .expect("v4 ASEL table");
+    assert_eq!(ledger_count, 4);
     assert_eq!(v3_table_count, 4);
+    assert_eq!(v4_table_count, 1);
 }
 
 #[test]
