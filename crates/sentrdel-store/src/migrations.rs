@@ -1,4 +1,5 @@
 pub(crate) mod evidence_store;
+mod asel_schema;
 mod state_schema;
 pub(crate) mod state_store;
 
@@ -81,6 +82,12 @@ const MIGRATIONS: &[Migration] = &[
         name: "reconciled_state_persistence",
         apply: state_schema::apply_v3_schema,
         validate: state_schema::validate_v3_schema,
+    },
+    Migration {
+        version: 4,
+        name: "asel_append_only_store",
+        apply: asel_schema::apply_v4_schema,
+        validate: asel_schema::validate_v4_schema,
     },
 ];
 
