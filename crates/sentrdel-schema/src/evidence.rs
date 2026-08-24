@@ -48,6 +48,50 @@ pub struct ProducerIdentity {
     pub kind: ProducerKind,
 }
 
+/// Runtime-selected producer capability. It is deliberately not serializable or
+/// deserializable; untrusted scanner/model/repository bytes cannot choose their
+/// own producer kind or identity.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct EvidenceAuthority {
+    producer: ProducerIdentity,
+}
+
+impl EvidenceAuthority {
+    pub fn from_runtime(
+        id: impl Into<String>,
+        version: impl Into<String>,
+        kind: ProducerKind,
+    ) -> Result<Self, EvidenceValidationError> {
+        let producer = ProducerIdentity {
+            id: id.into(),
+            version: version.into(),
+            kind,
+        };
+        if producer.id.trim().is_empty() || producer.version.trim().is_empty() {
+            return Err(EvidenceValidationError::EmptyProducer);
+        }
+        Ok(Self { producer })
+    }
+
+    pub fn producer(&self) -> &ProducerIdentity {
+        &self.producer
+    }
+
+    pub fn seal(&self, claim: EvidenceClaim) -> Result<Evidence, EvidenceValidationError> {
+        validate_claim(&claim, &self.producer.kind)?;
+        let unsigned = EvidenceUnsigned {
+            producer: &self.producer,
+            claim: &claim,
+        };
+        let evidence_id = content_id("evidence", &unsigned)?;
+        Ok(Evidence {
+            evidence_id,
+            producer: self.producer.clone(),
+            claim,
+        })
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct EvidenceSubject {
@@ -75,13 +119,12 @@ pub struct ReproductionMetadata {
     pub notes: Option<String>,
 }
 
-/// Untrusted producer submission. It deliberately has no caller-controlled
-/// canonical ID.
+/// Untrusted producer claim. Producer identity/kind are intentionally absent;
+/// they are injected only from `EvidenceAuthority`.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
-pub struct EvidenceDraft {
+pub struct EvidenceClaim {
     pub schema_version: String,
-    pub producer: ProducerIdentity,
     pub input_digests: Vec<String>,
     /// Direct bounded observation or the primary claim text.
     pub observation: String,
@@ -98,23 +141,25 @@ pub struct EvidenceDraft {
 }
 
 /// Authoritative sealed Evidence. It cannot be deserialized directly and its
-/// fields are private, so untrusted bytes cannot bypass validation/sealing.
+/// fields are private.
 #[derive(Clone, Debug, PartialEq, Serialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Evidence {
     evidence_id: String,
+    producer: ProducerIdentity,
     #[serde(flatten)]
-    draft: EvidenceDraft,
+    claim: EvidenceClaim,
 }
 
-/// Wire/persistence representation. This is explicitly untrusted until passed
-/// through `Evidence::try_from_record`.
+/// Untrusted wire/persistence representation. Acceptance requires the expected
+/// runtime producer authority and canonical ID verification.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct EvidenceRecord {
     pub evidence_id: String,
+    pub producer: ProducerIdentity,
     #[serde(flatten)]
-    pub draft: EvidenceDraft,
+    pub claim: EvidenceClaim,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -122,9 +167,11 @@ pub enum EvidenceValidationError {
     UnsupportedSchemaVersion(String),
     EmptyProducer,
     EmptyObservation,
+    ProducerAuthorityMismatch,
     FactContainsInterpretation,
     LlmAuthorityEscalation(EpistemicClass),
     VerifiedNotAuthorizedInR1,
+    RuntimeAuthorityMismatch(EpistemicClass),
     ForgedEvidenceId,
     Canonical(String),
 }
@@ -137,6 +184,9 @@ impl fmt::Display for EvidenceValidationError {
             }
             Self::EmptyProducer => write!(f, "evidence producer id/version must not be empty"),
             Self::EmptyObservation => write!(f, "evidence observation must not be empty"),
+            Self::ProducerAuthorityMismatch => {
+                write!(f, "evidence producer does not match trusted runtime authority")
+            }
             Self::FactContainsInterpretation => write!(
                 f,
                 "FACT evidence must contain only a direct bounded observation; put semantic meaning in separate INFERENCE evidence"
@@ -146,6 +196,9 @@ impl fmt::Display for EvidenceValidationError {
             }
             Self::VerifiedNotAuthorizedInR1 => {
                 write!(f, "VERIFIED evidence has no authorized producer in R1")
+            }
+            Self::RuntimeAuthorityMismatch(class) => {
+                write!(f, "producer kind is not authorized to emit epistemic class {class:?}")
             }
             Self::ForgedEvidenceId => {
                 write!(f, "evidence id does not match validated canonical content")
@@ -163,54 +216,16 @@ impl From<CanonicalError> for EvidenceValidationError {
     }
 }
 
-impl EvidenceDraft {
-    pub fn validate(&self) -> Result<(), EvidenceValidationError> {
-        if self.schema_version != SCHEMA_V1 {
-            return Err(EvidenceValidationError::UnsupportedSchemaVersion(
-                self.schema_version.clone(),
-            ));
-        }
-        if self.producer.id.trim().is_empty() || self.producer.version.trim().is_empty() {
-            return Err(EvidenceValidationError::EmptyProducer);
-        }
-        if self.observation.trim().is_empty() {
-            return Err(EvidenceValidationError::EmptyObservation);
-        }
-        if self.epistemic_class == EpistemicClass::Fact
-            && self.security_interpretation.is_some()
-        {
-            return Err(EvidenceValidationError::FactContainsInterpretation);
-        }
-        if self.producer.kind == ProducerKind::LlmReasoner
-            && !matches!(
-                self.epistemic_class,
-                EpistemicClass::Inference | EpistemicClass::Hypothesis
-            )
-        {
-            return Err(EvidenceValidationError::LlmAuthorityEscalation(
-                self.epistemic_class.clone(),
-            ));
-        }
-        if self.epistemic_class == EpistemicClass::Verified {
-            return Err(EvidenceValidationError::VerifiedNotAuthorizedInR1);
-        }
-        Ok(())
-    }
-
-    pub fn seal(self) -> Result<Evidence, EvidenceValidationError> {
-        self.validate()?;
-        let evidence_id = content_id("evidence", &self)?;
-        Ok(Evidence {
-            evidence_id,
-            draft: self,
-        })
-    }
-}
-
 impl Evidence {
-    pub fn try_from_record(record: EvidenceRecord) -> Result<Self, EvidenceValidationError> {
+    pub fn try_from_record(
+        record: EvidenceRecord,
+        authority: &EvidenceAuthority,
+    ) -> Result<Self, EvidenceValidationError> {
+        if record.producer != authority.producer {
+            return Err(EvidenceValidationError::ProducerAuthorityMismatch);
+        }
         let expected_id = record.evidence_id;
-        let evidence = record.draft.seal()?;
+        let evidence = authority.seal(record.claim)?;
         if evidence.evidence_id != expected_id {
             return Err(EvidenceValidationError::ForgedEvidenceId);
         }
@@ -220,7 +235,8 @@ impl Evidence {
     pub fn to_record(&self) -> EvidenceRecord {
         EvidenceRecord {
             evidence_id: self.evidence_id.clone(),
-            draft: self.draft.clone(),
+            producer: self.producer.clone(),
+            claim: self.claim.clone(),
         }
     }
 
@@ -228,28 +244,75 @@ impl Evidence {
         &self.evidence_id
     }
 
-    pub fn draft(&self) -> &EvidenceDraft {
-        &self.draft
+    pub fn producer(&self) -> &ProducerIdentity {
+        &self.producer
+    }
+
+    pub fn claim(&self) -> &EvidenceClaim {
+        &self.claim
     }
 
     pub fn verify_identity(&self) -> Result<bool, EvidenceValidationError> {
-        self.draft.validate()?;
-        Ok(content_id("evidence", &self.draft)? == self.evidence_id)
+        validate_claim(&self.claim, &self.producer.kind)?;
+        let unsigned = EvidenceUnsigned {
+            producer: &self.producer,
+            claim: &self.claim,
+        };
+        Ok(content_id("evidence", &unsigned)? == self.evidence_id)
     }
+}
+
+#[derive(Serialize)]
+struct EvidenceUnsigned<'a> {
+    producer: &'a ProducerIdentity,
+    claim: &'a EvidenceClaim,
+}
+
+fn validate_claim(
+    claim: &EvidenceClaim,
+    producer_kind: &ProducerKind,
+) -> Result<(), EvidenceValidationError> {
+    if claim.schema_version != SCHEMA_V1 {
+        return Err(EvidenceValidationError::UnsupportedSchemaVersion(
+            claim.schema_version.clone(),
+        ));
+    }
+    if claim.observation.trim().is_empty() {
+        return Err(EvidenceValidationError::EmptyObservation);
+    }
+    if claim.epistemic_class == EpistemicClass::Fact && claim.security_interpretation.is_some() {
+        return Err(EvidenceValidationError::FactContainsInterpretation);
+    }
+    if producer_kind == &ProducerKind::LlmReasoner
+        && !matches!(
+            claim.epistemic_class,
+            EpistemicClass::Inference | EpistemicClass::Hypothesis
+        )
+    {
+        return Err(EvidenceValidationError::LlmAuthorityEscalation(
+            claim.epistemic_class.clone(),
+        ));
+    }
+    if claim.epistemic_class == EpistemicClass::Verified {
+        return Err(EvidenceValidationError::VerifiedNotAuthorizedInR1);
+    }
+    if producer_kind == &ProducerKind::RuntimeTest
+        && !matches!(claim.epistemic_class, EpistemicClass::Observation | EpistemicClass::Contradiction)
+    {
+        return Err(EvidenceValidationError::RuntimeAuthorityMismatch(
+            claim.epistemic_class.clone(),
+        ));
+    }
+    Ok(())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn draft(kind: ProducerKind, class: EpistemicClass) -> EvidenceDraft {
-        EvidenceDraft {
+    fn claim(class: EpistemicClass) -> EvidenceClaim {
+        EvidenceClaim {
             schema_version: SCHEMA_V1.to_owned(),
-            producer: ProducerIdentity {
-                id: "fixture".to_owned(),
-                version: "1".to_owned(),
-                kind,
-            },
             input_digests: vec!["sha256:input".to_owned()],
             observation: "bounded observation".to_owned(),
             security_interpretation: None,
@@ -265,54 +328,58 @@ mod tests {
     }
 
     #[test]
-    fn seal_controls_identity() {
-        let evidence = draft(ProducerKind::NativeRule, EpistemicClass::Fact)
-            .seal()
-            .expect("seal");
+    fn seal_controls_identity_and_producer() {
+        let authority = EvidenceAuthority::from_runtime("native", "1", ProducerKind::NativeRule)
+            .expect("authority");
+        let evidence = authority.seal(claim(EpistemicClass::Fact)).expect("seal");
+        assert_eq!(evidence.producer(), authority.producer());
         assert!(evidence.verify_identity().expect("verify"));
     }
 
     #[test]
-    fn forged_record_is_rejected() {
-        let evidence = draft(ProducerKind::NativeRule, EpistemicClass::Fact)
-            .seal()
-            .expect("seal");
+    fn forged_record_or_producer_is_rejected() {
+        let native = EvidenceAuthority::from_runtime("native", "1", ProducerKind::NativeRule)
+            .expect("authority");
+        let external = EvidenceAuthority::from_runtime("engine", "1", ProducerKind::ExternalEngine)
+            .expect("authority");
+        let evidence = native.seal(claim(EpistemicClass::Fact)).expect("seal");
         let mut record = evidence.to_record();
         record.evidence_id = "sha256:forged".to_owned();
         assert!(matches!(
-            Evidence::try_from_record(record),
+            Evidence::try_from_record(record, &native),
             Err(EvidenceValidationError::ForgedEvidenceId)
         ));
-    }
-
-    #[test]
-    fn llm_fact_is_rejected_even_from_untrusted_draft() {
-        let payload = serde_json::to_value(draft(ProducerKind::LlmReasoner, EpistemicClass::Fact))
-            .expect("encode");
-        let inbound: EvidenceDraft = serde_json::from_value(payload).expect("parse untrusted draft");
+        let record = evidence.to_record();
         assert!(matches!(
-            inbound.seal().expect_err("LLM FACT must fail"),
-            EvidenceValidationError::LlmAuthorityEscalation(EpistemicClass::Fact)
+            Evidence::try_from_record(record, &external),
+            Err(EvidenceValidationError::ProducerAuthorityMismatch)
         ));
     }
 
     #[test]
-    fn llm_verified_is_rejected_even_from_untrusted_draft() {
-        let inbound = draft(ProducerKind::LlmReasoner, EpistemicClass::Verified);
+    fn llm_fact_and_verified_are_rejected() {
+        let llm = EvidenceAuthority::from_runtime("llm", "1", ProducerKind::LlmReasoner)
+            .expect("authority");
         assert!(matches!(
-            inbound.seal().expect_err("LLM VERIFIED must fail"),
-            EvidenceValidationError::LlmAuthorityEscalation(EpistemicClass::Verified)
-                | EvidenceValidationError::VerifiedNotAuthorizedInR1
+            llm.seal(claim(EpistemicClass::Fact)),
+            Err(EvidenceValidationError::LlmAuthorityEscalation(EpistemicClass::Fact))
+        ));
+        assert!(matches!(
+            llm.seal(claim(EpistemicClass::Verified)),
+            Err(EvidenceValidationError::LlmAuthorityEscalation(EpistemicClass::Verified))
+                | Err(EvidenceValidationError::VerifiedNotAuthorizedInR1)
         ));
     }
 
     #[test]
     fn fact_cannot_hide_semantic_interpretation() {
-        let mut value = draft(ProducerKind::NativeRule, EpistemicClass::Fact);
+        let native = EvidenceAuthority::from_runtime("native", "1", ProducerKind::NativeRule)
+            .expect("authority");
+        let mut value = claim(EpistemicClass::Fact);
         value.security_interpretation = Some("this proves SSRF".to_owned());
         assert!(matches!(
-            value.seal().expect_err("semantic FACT must fail"),
-            EvidenceValidationError::FactContainsInterpretation
+            native.seal(value),
+            Err(EvidenceValidationError::FactContainsInterpretation)
         ));
     }
 }
