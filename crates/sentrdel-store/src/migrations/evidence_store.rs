@@ -175,15 +175,7 @@ impl Store {
             });
         }
 
-        let evidence = Evidence::try_from_record(record, authority)?;
-        if evidence.evidence_id() != evidence_id || !evidence.verify_identity()? {
-            return Err(EvidenceStoreError::CorruptStoredObject {
-                evidence_id: evidence_id.to_owned(),
-                detail: "Evidence identity verification failed after load",
-            });
-        }
-
-        Ok(Some(evidence))
+        Ok(Some(Evidence::try_from_record(record, authority)?))
     }
 
     /// Check whether an immutable Evidence object exists without interpreting it.
