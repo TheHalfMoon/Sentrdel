@@ -22,10 +22,12 @@ The original Spec Kit plan selected BLAKE3 content addressing. During implementa
 
 R1 needs stable collision-resistant canonical object identifiers, not BLAKE3-specific performance. Therefore R1 uses SHA-256 through RustCrypto `sha2 0.11.0` to reduce unnecessary build-time authority. The identifier format is `sha256:<lowercase-hex>`. This choice may be revisited under a later performance/security qualification without changing the evidence model's product semantics.
 
-## Lockfile gate
+## Resolved lockfile surface
 
-Exact transitive versions are authoritative only after the generated `Cargo.lock` is reviewed and committed. No branch containing these dependencies is eligible to merge with a stale or regenerated-at-build lockfile.
+The committed R1 lockfile resolves 26 packages. The materially privileged transitive build surface includes the proc-macro toolchain (`serde_derive`, `schemars_derive`, `ref-cast-impl`, `proc-macro2`, `quote`, `syn`, `serde_derive_internals`) plus platform/runtime helpers such as `cpufeatures`. No BLAKE3/`cc`/`arrayref` dependency is present in this R1 lockfile.
 
-## Source reuse boundary
+The exact Cargo checksums in `Cargo.lock`, rather than this prose list, are canonical. CI must use `--locked` and must not regenerate dependency versions at merge time.
 
-These are package dependencies, not copied donor source/data. Donor projects Graphify, code-graph-rag, DeepSeek Harness, and Continue remain STUDY/ADAPT-only until their own exact source qualification records authorize reuse.
+## Donor-source boundary
+
+The founder has separately authorized reuse of the discussed GitHub donor code in Sentrdel. That authorization allows future copy/port/adaptation, but PR #3 contains no donor-source import. Actual donor imports remain separate changes with exact repository/ref/file provenance and security qualification recorded in `docs/third-party/source-qualification-ledger.md`.
