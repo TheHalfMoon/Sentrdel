@@ -26,6 +26,10 @@ pub struct EngineManifest {
     pub timeout_ms: u64,
     pub max_stdout_bytes: u64,
     pub max_stderr_bytes: u64,
+    /// Child-process environment authority is deny-by-default. Only names in
+    /// this trusted manifest allowlist may be considered for explicit passing
+    /// by the future engine runner; repository data must not widen this list.
+    pub allowed_environment_names: Vec<String>,
     pub network_requirement: NetworkRequirement,
 }
 
