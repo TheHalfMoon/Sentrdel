@@ -21,14 +21,37 @@ const MIGRATIONS: &[Migration] = &[Migration {
     "#,
 }];
 
-pub(crate) fn migrate(connection: &mut Connection) -> StoreResult<()> {
+/// Validate schema metadata without mutating the database.
+///
+/// This must run before connection configuration that can persist state (most
+/// importantly `journal_mode=WAL`) so unsupported or inconsistent databases are
+/// rejected without Sentrdel changing them first.
+pub(crate) fn preflight(connection: &Connection) -> StoreResult<()> {
     let pragma_version = user_version(connection)?;
-    if pragma_version > LATEST_SCHEMA_VERSION {
-        return Err(StoreError::FutureSchemaVersion {
-            found: pragma_version,
-            supported: LATEST_SCHEMA_VERSION,
+    reject_future_version(pragma_version)?;
+
+    if let Some(ledger_version) = migration_ledger_version_if_present(connection)? {
+        reject_future_version(ledger_version)?;
+        if pragma_version != ledger_version {
+            return Err(StoreError::InconsistentSchemaVersion {
+                pragma: pragma_version,
+                ledger: ledger_version,
+            });
+        }
+    } else if pragma_version != 0 {
+        return Err(StoreError::InconsistentSchemaVersion {
+            pragma: pragma_version,
+            ledger: 0,
         });
     }
+
+    Ok(())
+}
+
+pub(crate) fn migrate(connection: &mut Connection) -> StoreResult<()> {
+    // Defense in depth: callers should preflight before any persistent
+    // connection configuration, but migration itself also refuses bad state.
+    preflight(connection)?;
 
     connection.execute_batch(
         r#"
@@ -39,18 +62,8 @@ pub(crate) fn migrate(connection: &mut Connection) -> StoreResult<()> {
         "#,
     )?;
 
-    let ledger_version: i64 = connection.query_row(
-        "SELECT COALESCE(MAX(version), 0) FROM sentrdel_schema_migrations",
-        [],
-        |row| row.get(0),
-    )?;
-
-    if ledger_version > LATEST_SCHEMA_VERSION {
-        return Err(StoreError::FutureSchemaVersion {
-            found: ledger_version,
-            supported: LATEST_SCHEMA_VERSION,
-        });
-    }
+    let ledger_version = migration_ledger_version(connection)?;
+    let pragma_version = user_version(connection)?;
 
     if pragma_version != ledger_version {
         return Err(StoreError::InconsistentSchemaVersion {
@@ -74,11 +87,7 @@ pub(crate) fn migrate(connection: &mut Connection) -> StoreResult<()> {
     }
 
     let final_version = user_version(connection)?;
-    let final_ledger_version: i64 = connection.query_row(
-        "SELECT COALESCE(MAX(version), 0) FROM sentrdel_schema_migrations",
-        [],
-        |row| row.get(0),
-    )?;
+    let final_ledger_version = migration_ledger_version(connection)?;
 
     if final_version != LATEST_SCHEMA_VERSION || final_ledger_version != LATEST_SCHEMA_VERSION {
         return Err(StoreError::InconsistentSchemaVersion {
@@ -88,6 +97,38 @@ pub(crate) fn migrate(connection: &mut Connection) -> StoreResult<()> {
     }
 
     Ok(())
+}
+
+fn reject_future_version(found: i64) -> StoreResult<()> {
+    if found > LATEST_SCHEMA_VERSION {
+        return Err(StoreError::FutureSchemaVersion {
+            found,
+            supported: LATEST_SCHEMA_VERSION,
+        });
+    }
+    Ok(())
+}
+
+fn migration_ledger_version_if_present(connection: &Connection) -> StoreResult<Option<i64>> {
+    let exists: i64 = connection.query_row(
+        "SELECT EXISTS(SELECT 1 FROM sqlite_schema WHERE type = 'table' AND name = 'sentrdel_schema_migrations')",
+        [],
+        |row| row.get(0),
+    )?;
+
+    if exists == 0 {
+        return Ok(None);
+    }
+
+    Ok(Some(migration_ledger_version(connection)?))
+}
+
+fn migration_ledger_version(connection: &Connection) -> StoreResult<i64> {
+    Ok(connection.query_row(
+        "SELECT COALESCE(MAX(version), 0) FROM sentrdel_schema_migrations",
+        [],
+        |row| row.get(0),
+    )?)
 }
 
 pub(crate) fn user_version(connection: &Connection) -> StoreResult<i64> {
