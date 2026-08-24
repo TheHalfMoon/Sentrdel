@@ -160,6 +160,59 @@ fn harden_finding_schema(schema: &mut Value) {
     {
         states.retain(|value| value.as_str() != Some("FIX_VERIFIED"));
     }
+
+    let accepted_risk_constraint = json!({
+        "if": {
+            "properties": {
+                "workflow_state": {"const": "ACCEPTED"}
+            },
+            "required": ["workflow_state"]
+        },
+        "then": {
+            "properties": {
+                "accepted_risk": {"$ref": "#/$defs/AcceptedRiskRecord"}
+            },
+            "required": ["accepted_risk"]
+        },
+        "else": {
+            "properties": {
+                "accepted_risk": {"type": "null"}
+            }
+        }
+    });
+
+    let workflow_authorization_constraint = json!({
+        "if": {
+            "properties": {
+                "workflow_state": {"const": "NEW"}
+            },
+            "required": ["workflow_state"]
+        },
+        "then": {
+            "properties": {
+                "workflow_authority_id": {"type": "null"},
+                "workflow_authorization_ref": {"type": "null"}
+            }
+        },
+        "else": {
+            "properties": {
+                "workflow_authority_id": {"type": "string"},
+                "workflow_authorization_ref": {"type": "string"}
+            },
+            "required": ["workflow_authority_id", "workflow_authorization_ref"]
+        }
+    });
+
+    if let Some(root) = schema.as_object_mut() {
+        root.insert(
+            "allOf".to_owned(),
+            Value::Array(vec![
+                accepted_risk_constraint,
+                workflow_authorization_constraint,
+            ]),
+        );
+    }
+
     set_i64_bounds(
         schema,
         "/$defs/AcceptedRiskRecord/properties/created_at_unix_seconds",
@@ -285,7 +338,7 @@ mod tests {
     }
 
     #[test]
-    fn finding_schema_excludes_unauthorized_verified_fix_state() {
+    fn finding_schema_enforces_r1_workflow_shape() {
         let schemas = export_all().expect("schema generation");
         let finding = schemas.get("finding.schema.json").expect("finding schema");
         let states = finding
@@ -296,6 +349,37 @@ mod tests {
             !states
                 .iter()
                 .any(|value| value.as_str() == Some("FIX_VERIFIED"))
+        );
+
+        assert_eq!(
+            finding
+                .pointer("/allOf/0/then/properties/accepted_risk/$ref")
+                .and_then(|value| value.as_str()),
+            Some("#/$defs/AcceptedRiskRecord")
+        );
+        assert_eq!(
+            finding
+                .pointer("/allOf/0/else/properties/accepted_risk/type")
+                .and_then(|value| value.as_str()),
+            Some("null")
+        );
+        assert_eq!(
+            finding
+                .pointer("/allOf/1/then/properties/workflow_authority_id/type")
+                .and_then(|value| value.as_str()),
+            Some("null")
+        );
+        assert_eq!(
+            finding
+                .pointer("/allOf/1/else/properties/workflow_authority_id/type")
+                .and_then(|value| value.as_str()),
+            Some("string")
+        );
+        assert_eq!(
+            finding
+                .pointer("/allOf/1/else/properties/workflow_authorization_ref/type")
+                .and_then(|value| value.as_str()),
+            Some("string")
         );
     }
 
