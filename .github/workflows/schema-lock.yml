@@ -55,6 +55,15 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
+      - name: Require generated schemas to match committed artifacts
+        run: |
+          set -euo pipefail
+          if [ -n "$(git status --porcelain -- schemas/v1)" ]; then
+            git status --short -- schemas/v1
+            git diff -- schemas/v1
+            exit 1
+          fi
+
       - name: Require committed source to match rustfmt
         run: git diff --exit-code -- crates/sentrdel-schema/src
 
