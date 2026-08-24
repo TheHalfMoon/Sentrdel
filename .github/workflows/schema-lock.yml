@@ -1,9 +1,23 @@
 name: Schema Lock Qualification
 
 on:
+  pull_request:
+    paths:
+      - 'crates/sentrdel-schema/**'
+      - 'schemas/v1/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - '.github/workflows/schema-lock.yml'
   push:
     branches:
-      - impl/001-r1-schema-substrate
+      - main
+      - 'impl/**'
+    paths:
+      - 'crates/sentrdel-schema/**'
+      - 'schemas/v1/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - '.github/workflows/schema-lock.yml'
 
 permissions:
   contents: read
@@ -68,7 +82,7 @@ jobs:
         run: git diff --exit-code -- crates/sentrdel-schema/src
 
       - name: Publish auditable qualification status
-        if: always()
+        if: always() && github.event_name == 'push'
         env:
           GH_TOKEN: ${{ github.token }}
           JOB_STATUS: ${{ job.status }}
