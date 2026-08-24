@@ -125,8 +125,16 @@ pub(super) fn apply_v3_schema(connection: &Connection) -> StoreResult<()> {
 
 pub(super) fn validate_v3_schema(connection: &Connection) -> StoreResult<()> {
     let required = [
-        ("table", "sentrdel_finding_projection", FINDING_PROJECTION_TABLE_SQL),
-        ("table", "sentrdel_finding_history", FINDING_HISTORY_TABLE_SQL),
+        (
+            "table",
+            "sentrdel_finding_projection",
+            FINDING_PROJECTION_TABLE_SQL,
+        ),
+        (
+            "table",
+            "sentrdel_finding_history",
+            FINDING_HISTORY_TABLE_SQL,
+        ),
         (
             "trigger",
             "sentrdel_finding_history_immutable_reinsert",
@@ -158,7 +166,11 @@ pub(super) fn validate_v3_schema(connection: &Connection) -> StoreResult<()> {
             "sentrdel_state_objects_immutable_delete",
             STATE_OBJECTS_DELETE_TRIGGER_SQL,
         ),
-        ("table", "sentrdel_project_profiles", PROJECT_PROFILES_TABLE_SQL),
+        (
+            "table",
+            "sentrdel_project_profiles",
+            PROJECT_PROFILES_TABLE_SQL,
+        ),
     ];
 
     for (object_type, name, expected) in required {
