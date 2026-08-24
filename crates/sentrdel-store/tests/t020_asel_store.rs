@@ -4,7 +4,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use rusqlite::Connection;
+use rusqlite::{Connection, params};
 use sentrdel_schema::{
     SCHEMA_V1,
     asel::{
@@ -13,6 +13,7 @@ use sentrdel_schema::{
     policy::{
         EnforcementFidelity, PolicyDecision, PolicyDecisionClaim, TrustedPolicyAuthority, Verdict,
     },
+    project::ProjectProfile,
 };
 use sentrdel_store::{Store, StoreError, asel::AselStoreError};
 
@@ -196,6 +197,41 @@ fn append_is_atomic_idempotent_and_distinguishes_local_from_trusted_head() {
 }
 
 #[test]
+fn replay_rejects_tampered_stored_row_instead_of_masking_corruption() {
+    let temp = TempDb::new("tampered-replay");
+    let mut store = Store::open(&temp.path).expect("store should open");
+    let root = event("session-tamper", 0, None, "2026-08-24T17:05:00Z");
+    store.append_asel_event(&root).expect("root append");
+    let second = event(
+        "session-tamper",
+        1,
+        Some(root.event_hash().to_owned()),
+        "2026-08-24T17:05:01Z",
+    );
+    store.append_asel_event(&second).expect("second append");
+
+    let connection = Connection::open(&temp.path).expect("tamper fixture database");
+    connection
+        .execute_batch("DROP TRIGGER sentrdel_asel_immutable_update;")
+        .expect("remove update guard only for corruption fixture");
+    connection
+        .execute(
+            "UPDATE sentrdel_asel_events SET previous_event_hash = ?1 WHERE session_id = ?2 AND sequence = 1",
+            params![
+                "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+                "session-tamper"
+            ],
+        )
+        .expect("tamper previous hash column");
+    drop(connection);
+
+    assert!(matches!(
+        store.append_asel_event(&second),
+        Err(AselStoreError::CorruptStoredEvent { sequence: 1, .. })
+    ));
+}
+
+#[test]
 fn gaps_wrong_links_and_conflicting_replays_fail_without_advancing_session() {
     let temp = TempDb::new("append-rejections");
     let mut store = Store::open(&temp.path).expect("store should open");
@@ -328,8 +364,27 @@ fn policy_bearing_event_round_trips_through_stored_event_hash_verification() {
 #[test]
 fn canonical_v3_store_upgrades_to_v4_and_preserves_prior_state() {
     let temp = TempDb::new("v3-upgrade");
+    let prior_profile = ProjectProfile {
+        schema_version: SCHEMA_V1.to_owned(),
+        repository_id: "repo:t020-v3".to_owned(),
+        repository_root_digest: "sha256:t020-v3-root".to_owned(),
+        languages: vec!["Rust".to_owned()],
+        package_ecosystems: vec!["cargo".to_owned()],
+        ci_systems: Vec::new(),
+        mcp_configurations: Vec::new(),
+        detected_providers: Vec::new(),
+        detected_frameworks: Vec::new(),
+        security_packs: Vec::new(),
+        created_at: "2026-08-24T17:30:00Z".to_owned(),
+        refreshed_at: "2026-08-24T17:30:00Z".to_owned(),
+    };
     {
-        Store::open(&temp.path).expect("latest store opens");
+        let store = Store::open(&temp.path).expect("latest store opens");
+        assert!(
+            store
+                .put_project_profile(&prior_profile)
+                .expect("seed prior v3-compatible state")
+        );
     }
 
     let connection = Connection::open(&temp.path).expect("fixture database");
@@ -346,6 +401,11 @@ fn canonical_v3_store_upgrades_to_v4_and_preserves_prior_state() {
 
     let store = Store::open(&temp.path).expect("canonical v3 upgrades to v4");
     assert_eq!(store.schema_version().expect("schema version"), 4);
+    let restored = store
+        .get_project_profile("repo:t020-v3")
+        .expect("read prior state after v4 migration")
+        .expect("prior profile survives migration");
+    assert_eq!(restored, prior_profile);
     assert_eq!(store.asel_event_count("missing").expect("empty count"), 0);
 }
 
