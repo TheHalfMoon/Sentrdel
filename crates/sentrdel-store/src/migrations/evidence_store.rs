@@ -43,7 +43,9 @@ impl fmt::Display for EvidenceStoreError {
                     "stored Evidence failed authority validation: {error}"
                 )
             }
-            Self::Redaction(error) => write!(formatter, "Evidence persistence redaction failed: {error}"),
+            Self::Redaction(error) => {
+                write!(formatter, "Evidence persistence redaction failed: {error}")
+            }
             Self::IdentityVerificationFailed { evidence_id } => write!(
                 formatter,
                 "refusing Evidence whose canonical identity does not verify: {evidence_id}"
