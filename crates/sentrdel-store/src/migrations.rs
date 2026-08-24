@@ -301,7 +301,10 @@ mod tests {
         }
         assert_eq!(
             LATEST_SCHEMA_VERSION,
-            MIGRATIONS.last().expect("migration plan is non-empty").version
+            MIGRATIONS
+                .last()
+                .expect("migration plan is non-empty")
+                .version
         );
     }
 }
