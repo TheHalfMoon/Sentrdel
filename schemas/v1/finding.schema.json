@@ -79,6 +79,73 @@
   },
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
+  "allOf": [
+    {
+      "else": {
+        "properties": {
+          "accepted_risk": {
+            "type": "null"
+          }
+        }
+      },
+      "if": {
+        "properties": {
+          "workflow_state": {
+            "const": "ACCEPTED"
+          }
+        },
+        "required": [
+          "workflow_state"
+        ]
+      },
+      "then": {
+        "properties": {
+          "accepted_risk": {
+            "$ref": "#/$defs/AcceptedRiskRecord"
+          }
+        },
+        "required": [
+          "accepted_risk"
+        ]
+      }
+    },
+    {
+      "else": {
+        "properties": {
+          "workflow_authority_id": {
+            "type": "string"
+          },
+          "workflow_authorization_ref": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "workflow_authority_id",
+          "workflow_authorization_ref"
+        ]
+      },
+      "if": {
+        "properties": {
+          "workflow_state": {
+            "const": "NEW"
+          }
+        },
+        "required": [
+          "workflow_state"
+        ]
+      },
+      "then": {
+        "properties": {
+          "workflow_authority_id": {
+            "type": "null"
+          },
+          "workflow_authorization_ref": {
+            "type": "null"
+          }
+        }
+      }
+    }
+  ],
   "description": "Untrusted persistence/wire record. Acceptance requires validation against a\nruntime reconciler authority; states beyond NEW additionally require a\nruntime workflow authorization.",
   "properties": {
     "accepted_risk": {
