@@ -111,3 +111,77 @@ pub(super) fn validate_v4_schema(connection: &Connection) -> StoreResult<()> {
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use rusqlite::{Connection, params};
+
+    use super::apply_v4_schema;
+
+    fn hash(byte: char) -> String {
+        format!("sha256:{}", byte.to_string().repeat(64))
+    }
+
+    #[test]
+    fn sqlite_triggers_enforce_append_order_and_immutability() {
+        let connection = Connection::open_in_memory().expect("fixture database");
+        apply_v4_schema(&connection).expect("v4 schema should apply");
+
+        let root_hash = hash('a');
+        let second_hash = hash('b');
+        let gap_hash = hash('c');
+
+        connection
+            .execute(
+                "INSERT INTO sentrdel_asel_events(session_id, sequence, event_hash, previous_event_hash, canonical_json) VALUES (?1, 0, ?2, NULL, ?3)",
+                params!["session-trigger", root_hash, b"{}".as_slice()],
+            )
+            .expect("first root should append");
+
+        assert!(
+            connection
+                .execute(
+                    "INSERT INTO sentrdel_asel_events(session_id, sequence, event_hash, previous_event_hash, canonical_json) VALUES (?1, 0, ?2, NULL, ?3)",
+                    params!["session-trigger", hash('d'), b"{}".as_slice()],
+                )
+                .is_err(),
+            "second root must be rejected"
+        );
+
+        assert!(
+            connection
+                .execute(
+                    "INSERT INTO sentrdel_asel_events(session_id, sequence, event_hash, previous_event_hash, canonical_json) VALUES (?1, 2, ?2, ?3, ?4)",
+                    params!["session-trigger", gap_hash, root_hash, b"{}".as_slice()],
+                )
+                .is_err(),
+            "sequence gap must be rejected"
+        );
+
+        connection
+            .execute(
+                "INSERT INTO sentrdel_asel_events(session_id, sequence, event_hash, previous_event_hash, canonical_json) VALUES (?1, 1, ?2, ?3, ?4)",
+                params!["session-trigger", second_hash, root_hash, b"{}".as_slice()],
+            )
+            .expect("exact successor should append");
+
+        assert!(
+            connection
+                .execute(
+                    "UPDATE sentrdel_asel_events SET canonical_json = ?1 WHERE session_id = ?2 AND sequence = 1",
+                    params![b"{\"mutated\":true}".as_slice(), "session-trigger"],
+                )
+                .is_err(),
+            "ASEL rows must be immutable"
+        );
+        assert!(
+            connection
+                .execute(
+                    "DELETE FROM sentrdel_asel_events WHERE session_id = ?1 AND sequence = 1",
+                    params!["session-trigger"],
+                )
+                .is_err(),
+            "ASEL rows must not be deletable"
+        );
+    }
+}
