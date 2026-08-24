@@ -33,9 +33,14 @@ impl fmt::Display for EvidenceStoreError {
         match self {
             Self::Sqlite(error) => write!(formatter, "SQLite evidence-store error: {error}"),
             Self::Json(error) => write!(formatter, "stored Evidence JSON is invalid: {error}"),
-            Self::Canonical(error) => write!(formatter, "Evidence canonicalization failed: {error}"),
+            Self::Canonical(error) => {
+                write!(formatter, "Evidence canonicalization failed: {error}")
+            }
             Self::EvidenceValidation(error) => {
-                write!(formatter, "stored Evidence failed authority validation: {error}")
+                write!(
+                    formatter,
+                    "stored Evidence failed authority validation: {error}"
+                )
             }
             Self::IdentityVerificationFailed { evidence_id } => write!(
                 formatter,
@@ -203,9 +208,7 @@ mod tests {
     use rusqlite::{Connection, params};
     use sentrdel_schema::{
         SCHEMA_V1,
-        evidence::{
-            EpistemicClass, Evidence, EvidenceAuthority, EvidenceClaim, ProducerKind,
-        },
+        evidence::{EpistemicClass, Evidence, EvidenceAuthority, EvidenceClaim, ProducerKind},
     };
 
     use super::EvidenceStoreError;
