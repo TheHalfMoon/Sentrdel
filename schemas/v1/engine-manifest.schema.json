@@ -15,6 +15,13 @@
     "adapter_version": {
       "type": "string"
     },
+    "allowed_environment_names": {
+      "description": "Child-process environment authority is deny-by-default. Only names in\nthis trusted manifest allowlist may be considered for explicit passing\nby the future engine runner; repository data must not widen this list.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
     "capabilities": {
       "items": {
         "type": "string"
@@ -87,6 +94,7 @@
     "timeout_ms",
     "max_stdout_bytes",
     "max_stderr_bytes",
+    "allowed_environment_names",
     "network_requirement"
   ],
   "title": "EngineManifest",
