@@ -145,7 +145,7 @@ Target shape:
 ```text
 Events: 42
 Chain valid: yes
-Computed head: blake3:...
+Computed head: sha256:...
 Trusted checkpoint: not supplied
 
 The available chain is internally consistent. Without a trusted external head/signature,

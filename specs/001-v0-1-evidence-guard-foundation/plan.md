@@ -12,8 +12,8 @@ The design deliberately avoids a universal CPG, mandatory cloud services, mandat
 ## Technical Context
 
 **Language/Version:** **Rust 1.98.0 exact pin for R1**  
-**Primary Dependencies:** `clap`, `serde`, `serde_json`, `schemars`, `tokio`, `rayon`, `thiserror`, `tracing`, `blake3`, `rusqlite`, `petgraph`, `tree-sitter`, `ast-grep-core`/qualified language crates, minimal-feature `gix`, `regorus >=0.11.0`, qualified `rmcp` protocol/model support, `regex`, `ignore`, `walkdir`, `moka` only where justified  
-**Storage:** SQLite + content-addressed BLAKE3 objects; secret values excluded  
+**Primary Dependencies:** `clap`, `serde`, `serde_json`, `schemars`, `tokio`, `rayon`, `thiserror`, `tracing`, `sha2`, `rusqlite`, `petgraph`, `tree-sitter`, `ast-grep-core`/qualified language crates, minimal-feature `gix`, `regorus >=0.11.0`, qualified `rmcp` protocol/model support, `regex`, `ignore`, `walkdir`, `moka` only where justified  
+**Storage:** SQLite + domain-separated SHA-256 content-addressed objects under `implementation-amendment-001-hashing.md`; secret values excluded  
 **Testing:** `cargo test`, contract/property/adversarial tests, fixture repositories, golden output where stable, fuzz/property tests for parsers/monotonicity/bounded framing where practical  
 **Target Platform:** Review/init: Linux, macOS, Windows. Guard enforcement fidelity is seam-specific and MUST be reported. R1 MCP gateway is stdio only.  
 **Project Type:** Rust CLI/workspace security tool  
