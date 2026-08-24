@@ -1,3 +1,8 @@
+use std::ffi::OsString;
+use std::fs;
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
+
 use sentrdel_schema::{
     SCHEMA_V1,
     coverage::{CoverageRecord, CoverageState},
@@ -7,6 +12,50 @@ use sentrdel_schema::{
     project::ProjectProfile,
 };
 use sentrdel_store::{StateStoreError, Store};
+
+static NEXT_TEMP_DB: AtomicU64 = AtomicU64::new(0);
+
+struct TempDb {
+    path: PathBuf,
+}
+
+impl TempDb {
+    fn new(label: &str) -> Self {
+        let sequence = NEXT_TEMP_DB.fetch_add(1, Ordering::Relaxed);
+        let path = std::env::temp_dir().join(format!(
+            "sentrdel-t019-state-{label}-{}-{sequence}.sqlite3",
+            std::process::id()
+        ));
+        cleanup_database_files(&path);
+        Self { path }
+    }
+}
+
+impl Drop for TempDb {
+    fn drop(&mut self) {
+        cleanup_database_files(&self.path);
+    }
+}
+
+fn sidecar_path(path: &Path, suffix: &str) -> PathBuf {
+    let mut value: OsString = path.as_os_str().to_owned();
+    value.push(suffix);
+    PathBuf::from(value)
+}
+
+fn cleanup_database_files(path: &Path) {
+    for candidate in [
+        path.to_path_buf(),
+        sidecar_path(path, "-wal"),
+        sidecar_path(path, "-shm"),
+    ] {
+        match fs::remove_file(candidate) {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => panic!("failed to remove temporary SQLite file: {error}"),
+        }
+    }
+}
 
 fn finding(secret: &str) -> Finding {
     let reconciler = ReconcilerAuthority::from_runtime("sentrdel-reconciler", "sha256:t019-config")
@@ -125,15 +174,8 @@ fn security_pack_manifest(secret: &str) -> SecurityPackManifest {
 
 #[test]
 fn every_current_state_write_path_rejects_registered_secret_material() {
-    let path = std::env::temp_dir().join(format!(
-        "sentrdel-t019-state-{}.sqlite3",
-        std::process::id()
-    ));
-    let _ = std::fs::remove_file(&path);
-    let _ = std::fs::remove_file(format!("{}-wal", path.display()));
-    let _ = std::fs::remove_file(format!("{}-shm", path.display()));
-
-    let mut store = Store::open(&path).expect("store opens");
+    let temp = TempDb::new("all-write-paths");
+    let mut store = Store::open(&temp.path).expect("store opens");
     let secret = "t019-state-secret-Z8p4L2";
     store
         .register_discovered_secret(secret)
@@ -163,9 +205,4 @@ fn every_current_state_write_path_rejects_registered_secret_material() {
         store.put_security_pack_manifest(&security_pack_manifest(secret)),
         Err(StateStoreError::Redaction(_))
     ));
-
-    drop(store);
-    let _ = std::fs::remove_file(&path);
-    let _ = std::fs::remove_file(format!("{}-wal", path.display()));
-    let _ = std::fs::remove_file(format!("{}-shm", path.display()));
 }
