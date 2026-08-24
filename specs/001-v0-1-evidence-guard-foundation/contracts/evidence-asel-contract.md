@@ -1,6 +1,6 @@
 # Contract — Canonical Evidence, Findings, Coverage, and ASEL
 
-**Version:** draft-v1.1  
+**Version:** draft-v1.2  
 **Status:** BINDING_FOR_R1_IMPLEMENTATION
 
 ## 1. Canonical serialization
@@ -12,6 +12,8 @@ All cross-crate/persisted/exported canonical objects MUST have:
 - generated JSON Schema checked into `/schemas`;
 - rejection of structurally invalid objects before persistence;
 - stable content hashing after redaction/canonicalization.
+
+R1 canonical object identifiers use domain-separated **SHA-256** and the machine format `sha256:<lowercase-hex>`. This replaces the earlier BLAKE3 planning choice after implementation-time dependency qualification reduced unnecessary build-time authority. A future spec may change the hash algorithm only with explicit versioning/migration.
 
 Unknown fields MAY be rejected for security-critical R1 envelopes; extension points are explicitly namespaced rather than silently accepting arbitrary authority-bearing fields.
 
@@ -111,11 +113,11 @@ UI/docs MUST NOT call a local unauthenticated chain `tamper-proof`. Later signat
   "actor": {"actor_type": "AGENT", "id": "..."},
   "kind": "mcp.invocation",
   "target": {"server": "...", "tool": "..."},
-  "params_digest": "blake3:...",
+  "params_digest": "sha256:...",
   "policy_decision": "...",
   "provenance": {"source": "sentrdel-guard"},
-  "previous_event_hash": "blake3:...",
-  "event_hash": "blake3:..."
+  "previous_event_hash": "sha256:...",
+  "event_hash": "sha256:..."
 }
 ```
 
