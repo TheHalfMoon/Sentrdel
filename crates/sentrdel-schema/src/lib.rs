@@ -1,15 +1,21 @@
 #![forbid(unsafe_code)]
 //! Canonical, versioned security data contracts for Sentrdel.
+//!
+//! The schema crate owns representation and validation only. It performs no
+//! filesystem mutation, subprocess execution, network access, or policy
+//! evaluation.
 
-/// Bootstrap schema version. The concrete public schemas land in Phase 2.
-pub const SCHEMA_BOOTSTRAP_VERSION: &str = "0";
+pub mod asel;
+pub mod canonical;
+pub mod coverage;
+pub mod engine;
+pub mod evidence;
+pub mod finding;
+pub mod pack;
+pub mod policy;
+pub mod project;
+pub mod reasoner;
+pub mod schema_export;
+pub mod version;
 
-#[cfg(test)]
-mod tests {
-    use super::SCHEMA_BOOTSTRAP_VERSION;
-
-    #[test]
-    fn bootstrap_version_is_explicit() {
-        assert_eq!(SCHEMA_BOOTSTRAP_VERSION, "0");
-    }
-}
+pub use version::SCHEMA_V1;
