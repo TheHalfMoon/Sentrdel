@@ -1,7 +1,7 @@
 # Data Model — Sentrdel v0.1 Evidence + Guard Foundation
 
-**Status:** DESIGN_COMPLETE  
-**Authority:** `spec.md`, constitution, and this model. Field-level Rust/JSON names may evolve during implementation only if contracts and semantics remain compatible or are explicitly version-bumped.
+**Status:** DESIGN_COMPLETE_AFTER_MAJOR_REVIEW  
+**Authority:** `spec.md`, constitution, major review, and this model. Field-level Rust/JSON names may evolve during implementation only if semantics remain compatible or are explicitly version-bumped.
 
 ## Design Rules
 
@@ -9,9 +9,11 @@
 2. Findings are reconciled projections over Evidence; producers never create Findings directly.
 3. Coverage is first-class and cannot be inferred from absence of findings.
 4. LLM producers cannot construct FACT/OBSERVATION/VERIFIED evidence through the public reasoner API.
-5. Secret plaintext is never part of the persistent canonical model by default.
-6. All persisted/cross-process objects have explicit schema versions.
-7. Stable identities use content hashes or deterministic semantic keys; random UUIDs may identify sessions/runs but not replace provenance hashes.
+5. FACT describes a directly observable bounded property, not a semantic security conclusion merely because a detector is deterministic.
+6. Discovered secret plaintext and stable unkeyed digests derived solely from secret values are excluded from the persistent canonical model by default.
+7. All persisted/cross-process objects have explicit schema versions.
+8. Stable identities use canonical content hashes or deterministic semantic keys; UUIDs may identify sessions/runs but do not replace provenance hashes.
+9. Hash-linked history is verifiable relative to a trusted head/checkpoint; unauthenticated local chains are not described as tamper-proof.
 
 ## 1. Evidence
 
@@ -23,7 +25,8 @@ Evidence {
   producer_version
   producer_kind
   input_digests[]
-  claim
+  observation              # direct bounded basis: what was actually parsed/matched/observed
+  security_interpretation? # producer's security meaning; may be inference/hypothesis
   category
   epistemic_class
   confidence_band?
@@ -34,6 +37,12 @@ Evidence {
   captured_at
 }
 ```
+
+A producer MUST NOT hide an interpretation inside `observation`. For example:
+
+- valid FACT observation: `workflow job has permissions.contents = write`;
+- valid inference: `this widens repository-write capability`;
+- invalid FACT: `attacker can compromise repository` unless the producer has the semantic/runtime authority to support that statement.
 
 ### `ProducerKind`
 
@@ -47,22 +56,20 @@ Evidence {
 
 ### `EpistemicClass`
 
-- `FACT` — directly observable and machine-checkable from bounded input.
-- `INFERENCE` — deterministic or model-derived interpretation; producer kind preserves which.
-- `HYPOTHESIS` — unconfirmed candidate, commonly from LLM/heuristic reasoning.
+- `FACT` — directly observable and machine-checkable bounded property.
+- `INFERENCE` — interpretation derived from facts; producer kind/provenance tells whether deterministic or model-derived.
+- `HYPOTHESIS` — unconfirmed candidate, commonly heuristic/LLM.
 - `OBSERVATION` — runtime/test measurement.
-- `VERIFIED` — independent bounded execution reproduced the claim. Reserved for future Verify producer authority.
-- `CONTRADICTION` — evidence that disputes another claim/evidence item.
+- `VERIFIED` — independent bounded execution reproduced the security claim; reserved for future Verify authority.
+- `CONTRADICTION` — evidence disputing another claim/evidence item.
 
-R1 has no producer authorized to emit `VERIFIED` from execution because verification is not implemented. Fixture tests MAY create synthetic VERIFIED records only inside schema tests.
+R1 has no runtime producer authorized to emit VERIFIED. Schema fixtures MAY construct synthetic VERIFIED values solely for invariant tests.
 
 ### `ConfidenceBand`
 
-- `LOW`
-- `MEDIUM`
-- `HIGH`
+`LOW | MEDIUM | HIGH`
 
-No fake probability percentages are part of the core schema in R1.
+No fake probability percentages are part of R1 core schema.
 
 ### Location
 
@@ -79,6 +86,19 @@ Location {
 ```
 
 Absolute host paths MUST NOT be persisted as canonical source locations.
+
+### Secret evidence
+
+For a discovered secret candidate, persistent attributes MAY include:
+
+```text
+secret_rule_id
+secret_kind
+redacted_display
+sanitized_context_fingerprint?
+```
+
+They MUST NOT include plaintext value or an unkeyed digest derived solely from that value.
 
 ## 2. Finding
 
@@ -107,15 +127,13 @@ Finding {
 
 ### Severity
 
-Initial action-oriented severity:
-
-- `BLOCK` — fix before merge under active policy.
+- `BLOCK`
 - `HIGH`
 - `MEDIUM`
 - `LOW`
 - `INFO`
 
-CLI novice rendering MAY use `Fix before merging`, `Fix soon`, `Worth a look`; the machine schema remains stable.
+CLI novice rendering may use `Fix before merging`, `Fix soon`, `Worth a look`.
 
 ### Epistemic state
 
@@ -126,7 +144,7 @@ CLI novice rendering MAY use `Fix before merging`, `Fix soon`, `Worth a look`; t
 - `UNPROVEN`
 - `UNVERIFIABLE`
 
-R1 normally produces DETECTED/CORROBORATED/CONTESTED/UNPROVEN. PROVEN is reserved for future qualified verification evidence or deterministic proof classes explicitly authorized by a later spec.
+R1 normally produces DETECTED/CORROBORATED/CONTESTED/UNPROVEN. PROVEN is reserved for qualified proof classes defined by a later spec.
 
 ### Workflow state
 
@@ -140,7 +158,7 @@ R1 normally produces DETECTED/CORROBORATED/CONTESTED/UNPROVEN. PROVEN is reserve
 - `FIX_REGRESSED`
 - `CLOSED`
 
-R1 MUST NOT automatically set `ACCEPTED`, `SUPPRESSED`, or `FIX_VERIFIED` from LLM output.
+R1 MUST NOT automatically set ACCEPTED, SUPPRESSED or FIX_VERIFIED from LLM output.
 
 ### AcceptedRisk
 
@@ -150,7 +168,7 @@ AcceptedRisk {
   reason
   created_at
   expires_at
-  signature_ref?           # future cryptographic signature
+  signature_ref?
   evidence_basis[]
 }
 ```
@@ -184,11 +202,13 @@ CoverageRecord {
 - `TIMED_OUT`
 - `SKIPPED_BY_POLICY`
 
-There is deliberately no `CLEAN` coverage state. Cleanliness is a finding/query conclusion over covered dimensions, not a producer availability state.
+There is deliberately no CLEAN coverage state. Cleanliness is a conclusion over covered dimensions, not producer availability.
+
+Provider coverage dimensions distinguish at least detection, offline/static posture, optional live posture and cross-layer/business-logic coverage.
 
 ## 4. ASEL Event
 
-Agent Security Event Log is append-only and hash chained.
+ASEL is append-only in normal operation and hash-linked.
 
 ```text
 AgentSecurityEvent {
@@ -232,7 +252,7 @@ Implemented/required:
 - `tool.result`
 - `guard.error`
 
-Reserved in schema for later:
+Reserved later:
 
 - `prompt.input`
 - `model.request`
@@ -249,7 +269,23 @@ Reserved in schema for later:
 - `ci.change`
 - `iac.change`
 
-Unknown future event kinds MUST be forward-compatible through a namespaced extension mechanism; core-known security-critical kinds remain enums/validated.
+Unknown future event kinds use a namespaced extension mechanism; core security-critical kinds remain validated.
+
+### Session integrity state
+
+```text
+ASELSessionIntegrity {
+  session_id
+  event_count
+  computed_head_hash
+  expected_head_hash?      # trusted checkpoint when supplied
+  chain_valid
+  trusted_checkpoint_valid?
+  first_invalid_sequence?
+}
+```
+
+`chain_valid=true` means the available chain is internally consistent. It does not independently prove non-truncation/replacement unless `expected_head_hash` or a later trusted signature/attestation is available.
 
 ## 5. PolicyDecision
 
@@ -269,18 +305,13 @@ PolicyDecision {
 
 ### Verdict
 
-- `ALLOW`
-- `ASK`
-- `DENY`
-- `UNDECIDABLE`
+`ALLOW | ASK | DENY | UNDECIDABLE`
 
 ### EnforcementFidelity
 
-- `ENFORCED`
-- `PARTIAL`
-- `ADVISORY`
+`ENFORCED | PARTIAL | ADVISORY`
 
-`DENY` from any kernel invariant is absorbing for the exact `action_digest` scope.
+DENY from any kernel invariant is absorbing for the exact action scope.
 
 ## 6. ProjectProfile
 
@@ -305,14 +336,15 @@ ProjectProfile {
 
 ```text
 DetectedProvider {
-  provider_id             # e.g. "supabase"
+  provider_id
   evidence_ids[]
   detection_confidence
   pack_status             # AVAILABLE | NOT_INSTALLED | NOT_IMPLEMENTED | PARTIAL
+  coverage_dimensions[]
 }
 ```
 
-Detection is not a security verdict.
+Detection is never a security verdict.
 
 ## 7. SecurityPackManifest
 
@@ -328,6 +360,7 @@ SecurityPackManifest {
   required_engines[]
   required_features[]
   coverage_dimensions[]
+  live_access_requirement?  # NONE | OPTIONAL_EXPLICIT | REQUIRED; R1 packs use NONE
 }
 ```
 
@@ -349,11 +382,12 @@ EngineManifest {
   timeout_ms
   max_stdout_bytes
   max_stderr_bytes
+  allowed_environment_names[]
   network_requirement
 }
 ```
 
-Repository files MUST NOT redefine the executable path to an arbitrary binary under the repository.
+Repository files MUST NOT redefine an arbitrary executable. Environment inheritance is deny-by-default; explicitly allowed variable names still pass redaction/policy boundaries.
 
 ## 9. EngineRun
 
@@ -389,22 +423,7 @@ GraphNode {
 }
 ```
 
-Initial kinds:
-
-- PROJECT
-- FILE
-- SYMBOL
-- REFERENCE
-- RESOURCE
-- DEPENDENCY
-- WORKFLOW
-- PROVIDER
-- MCP_SERVER
-- MCP_TOOL
-- AGENT_ACTION
-- EVIDENCE
-- FINDING
-- INVARIANT
+Initial kinds: PROJECT, FILE, SYMBOL, REFERENCE, RESOURCE, DEPENDENCY, WORKFLOW, PROVIDER, MCP_SERVER, MCP_TOOL, AGENT_ACTION, EVIDENCE, FINDING, INVARIANT.
 
 ### Edge
 
@@ -420,22 +439,9 @@ GraphEdge {
 }
 ```
 
-Initial relations:
+Initial relations: REFS, CALLS, DEPENDS_ON, READS_FROM, WRITES_TO, FLOWS_TO, AFFECTED_BY, SUPPORTS, CONTRADICTS, DETECTED_AS, INVOKES, CROSSES_TRUST_BOUNDARY.
 
-- `REFS`
-- `CALLS`
-- `DEPENDS_ON`
-- `READS_FROM`
-- `WRITES_TO`
-- `FLOWS_TO`
-- `AFFECTED_BY`
-- `SUPPORTS`
-- `CONTRADICTS`
-- `DETECTED_AS`
-- `INVOKES`
-- `CROSSES_TRUST_BOUNDARY`
-
-`CALLS`/`FLOWS_TO` MUST NOT imply compiler certainty unless their producer provenance actually supplies it.
+CALLS/FLOWS_TO MUST NOT imply compiler certainty unless provenance supplies it.
 
 ## 11. SourceQualificationRecord
 
@@ -448,6 +454,10 @@ SourceQualificationRecord {
   license_expression
   notices[]
   integration_mode      # NATIVE_DEP | COPIED_SOURCE | COPIED_DATA | EXTERNAL_PROCESS | STUDY_ONLY
+  executes_at_build?
+  procedural_macro?
+  native_code?
+  downloads_artifacts?
   security_notes
   maintenance_notes
   modifications
@@ -456,17 +466,16 @@ SourceQualificationRecord {
 }
 ```
 
-No `COPIED_SOURCE`/`COPIED_DATA` adoption is permitted without this record and compatible project license policy.
+No COPIED_SOURCE/COPIED_DATA adoption is permitted without this record and compatible Apache-2.0 project policy. Privileged dependency properties require explicit review even for ordinary NATIVE_DEP adoption.
 
 ## Relationships
 
 ```text
 ProjectProfile 1 --- * CoverageRecord
-ProjectProfile 1 --- * SecurityPackManifest (detected/available)
+ProjectProfile 1 --- * SecurityPackManifest
 EngineManifest 1 --- * EngineRun
 EngineRun 1 --- * Evidence
 Evidence * --- * Finding
-Finding 1 --- * Workflow history
 ASEL Session 1 --- * AgentSecurityEvent
 AgentSecurityEvent * --- 0..1 PolicyDecision
 Evidence/Findings/Events --- Graph nodes/edges by stable ids
@@ -474,12 +483,14 @@ Evidence/Findings/Events --- Graph nodes/edges by stable ids
 
 ## Invariants
 
-- Evidence ID must match canonical content hash.
-- Event sequence strictly increases inside a session.
-- Event `previous_event_hash` must match prior event hash except sequence 0/1 root.
-- Finding evidence IDs must exist.
-- `VERIFIED` evidence must come from a producer authority permitted by the active schema/policy version; no such runtime producer exists in R1.
-- LLM reasoner API cannot produce disallowed epistemic classes.
+- Evidence ID matches canonical serialization hash.
+- Evidence FACT observation is direct/bounded and cannot be emitted by LLM reasoner authority.
+- Event sequence strictly increases in a session.
+- Event previous hash matches prior event except root.
+- A chain is only independently compared against history when a trusted expected head/checkpoint exists.
+- Finding evidence IDs exist.
+- VERIFIED Evidence comes only from producer authority permitted by active schema/policy; no runtime Verify producer exists in R1.
 - Repository policy cannot remove kernel invariant IDs.
-- A CoverageRecord failure/unavailable state cannot be converted into `COVERED` without a successful producer run for the same capability/input scope.
+- Coverage failure/unavailable cannot become COVERED without successful producer evidence for the same scope.
 - Provider detection never implies secure posture.
+- Persistent secret evidence contains neither plaintext value nor stable unkeyed value-only digest.
