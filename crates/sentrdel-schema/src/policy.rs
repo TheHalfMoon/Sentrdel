@@ -1,6 +1,9 @@
 //! Guard policy decision contracts with an explicit trusted-authority binding.
 
-use crate::canonical::{CanonicalError, content_id};
+use crate::{
+    canonical::{CanonicalError, content_id},
+    version::SCHEMA_V1,
+};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::{error::Error, fmt};
@@ -29,6 +32,7 @@ pub enum EnforcementFidelity {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct PolicyDecisionClaim {
+    pub schema_version: String,
     pub verdict: Verdict,
     pub enforcement_fidelity: EnforcementFidelity,
     pub reason_codes: Vec<String>,
@@ -89,6 +93,7 @@ pub struct PolicyDecisionRecord {
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum PolicyDecisionError {
+    UnsupportedSchemaVersion(String),
     EmptyActionDigest,
     ActionDigestMismatch,
     AuthorityMismatch,
@@ -99,6 +104,9 @@ pub enum PolicyDecisionError {
 impl fmt::Display for PolicyDecisionError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::UnsupportedSchemaVersion(version) => {
+                write!(f, "unsupported policy-decision schema version: {version}")
+            }
             Self::EmptyActionDigest => write!(f, "policy action digest must not be empty"),
             Self::ActionDigestMismatch => write!(f, "policy decision action digest mismatch"),
             Self::AuthorityMismatch => write!(f, "policy authority binding mismatch"),
@@ -124,6 +132,11 @@ impl PolicyDecision {
         expected_action_digest: &str,
         authority: &TrustedPolicyAuthority,
     ) -> Result<Self, PolicyDecisionError> {
+        if claim.schema_version != SCHEMA_V1 {
+            return Err(PolicyDecisionError::UnsupportedSchemaVersion(
+                claim.schema_version.clone(),
+            ));
+        }
         if expected_action_digest.is_empty() || claim.action_digest.is_empty() {
             return Err(PolicyDecisionError::EmptyActionDigest);
         }
@@ -209,6 +222,7 @@ mod tests {
 
     fn claim(action: &str) -> PolicyDecisionClaim {
         PolicyDecisionClaim {
+            schema_version: SCHEMA_V1.to_owned(),
             verdict: Verdict::Allow,
             enforcement_fidelity: EnforcementFidelity::Enforced,
             reason_codes: Vec::new(),
@@ -226,6 +240,17 @@ mod tests {
         assert!(matches!(
             PolicyDecision::bind(claim("sha256:a"), "sha256:b", &authority),
             Err(PolicyDecisionError::ActionDigestMismatch)
+        ));
+    }
+
+    #[test]
+    fn unsupported_version_is_rejected() {
+        let authority = TrustedPolicyAuthority::from_runtime("kernel", "sha256:config");
+        let mut value = claim("sha256:a");
+        value.schema_version = "999".to_owned();
+        assert!(matches!(
+            PolicyDecision::bind(value, "sha256:a", &authority),
+            Err(PolicyDecisionError::UnsupportedSchemaVersion(_))
         ));
     }
 
