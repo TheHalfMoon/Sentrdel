@@ -26,6 +26,18 @@ const EVIDENCE_TABLE_SQL: &str = r#"
     ) STRICT
 "#;
 
+const EVIDENCE_REINSERT_TRIGGER_SQL: &str = r#"
+    CREATE TRIGGER sentrdel_evidence_immutable_reinsert
+    BEFORE INSERT ON sentrdel_evidence_objects
+    WHEN EXISTS (
+        SELECT 1 FROM sentrdel_evidence_objects
+        WHERE evidence_id = NEW.evidence_id
+    )
+    BEGIN
+        SELECT RAISE(IGNORE);
+    END
+"#;
+
 const EVIDENCE_UPDATE_TRIGGER_SQL: &str = r#"
     CREATE TRIGGER sentrdel_evidence_immutable_update
     BEFORE UPDATE ON sentrdel_evidence_objects
@@ -75,6 +87,16 @@ const MIGRATIONS: &[Migration] = &[
                     ),
                 canonical_json BLOB NOT NULL CHECK (length(canonical_json) > 0)
             ) STRICT;
+
+            CREATE TRIGGER sentrdel_evidence_immutable_reinsert
+            BEFORE INSERT ON sentrdel_evidence_objects
+            WHEN EXISTS (
+                SELECT 1 FROM sentrdel_evidence_objects
+                WHERE evidence_id = NEW.evidence_id
+            )
+            BEGIN
+                SELECT RAISE(IGNORE);
+            END;
 
             CREATE TRIGGER sentrdel_evidence_immutable_update
             BEFORE UPDATE ON sentrdel_evidence_objects
@@ -406,6 +428,12 @@ fn validate_v2_schema(connection: &Connection) -> StoreResult<()> {
         "sentrdel_evidence_objects",
         EVIDENCE_TABLE_SQL,
     )?;
+    let reinsert_trigger_matches = schema_sql_matches(
+        connection,
+        "trigger",
+        "sentrdel_evidence_immutable_reinsert",
+        EVIDENCE_REINSERT_TRIGGER_SQL,
+    )?;
     let update_trigger_matches = schema_sql_matches(
         connection,
         "trigger",
@@ -423,6 +451,7 @@ fn validate_v2_schema(connection: &Connection) -> StoreResult<()> {
         || matching_columns != 2
         || strict != 1
         || !table_sql_matches
+        || !reinsert_trigger_matches
         || !update_trigger_matches
         || !delete_trigger_matches
     {
@@ -520,6 +549,15 @@ mod tests {
                         ),
                     canonical_json BLOB NOT NULL CHECK (length(canonical_json) > 0)
                 ) STRICT;
+                CREATE TRIGGER sentrdel_evidence_immutable_reinsert
+                BEFORE INSERT ON sentrdel_evidence_objects
+                WHEN EXISTS (
+                    SELECT 1 FROM sentrdel_evidence_objects
+                    WHERE evidence_id = NEW.evidence_id
+                )
+                BEGIN
+                    SELECT RAISE(IGNORE);
+                END;
                 CREATE TRIGGER sentrdel_evidence_immutable_update
                 BEFORE UPDATE ON sentrdel_evidence_objects
                 WHEN 0
