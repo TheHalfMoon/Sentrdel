@@ -1,10 +1,11 @@
 # Contract — External Engines and Security Packs
 
+**Version:** draft-v1.1  
 **Status:** BINDING_FOR_R1_IMPLEMENTATION
 
 ## 1. External Engine Boundary
 
-External engines are untrusted evidence producers. They do not participate in the trusted Rust core process except through bounded invocation and validated output.
+External engines are untrusted evidence producers. They do not participate in the trusted Rust core except through bounded invocation and validated output.
 
 Conceptual Rust boundary:
 
@@ -16,60 +17,47 @@ trait Engine {
 }
 ```
 
-The implementation MAY differ syntactically; semantics are binding.
+Syntax may differ; semantics are binding.
 
 ### EngineRequest
 
-Contains only normalized paths/scopes/input references needed by the engine. Repository-controlled data MUST NOT choose arbitrary executable paths or inject shell syntax.
+Contains normalized scopes/input references only. Repository-controlled data MUST NOT choose arbitrary executables, inject shell syntax or expand process environment authority.
 
 ### EngineLimits
 
 Must support:
 
 - wall-clock timeout;
-- stdout byte cap;
-- stderr byte cap;
-- bounded environment inheritance;
+- stdout/stderr byte caps;
 - cwd/workspace boundary;
-- network requirement declaration;
-- future CPU/memory/process constraints where platform APIs permit.
+- **deny-by-default child environment with explicit allowed variable names**;
+- network requirement declaration and command-level policy;
+- future CPU/memory/process limits where platform APIs permit.
 
 ### Invocation rules
 
-- No shell string evaluation.
-- Executable + each argument are separate argv elements.
-- Engine executable origin/version is captured.
-- Repository hooks/install scripts are not implicitly executed to prepare an engine.
-- Output is parsed as untrusted bytes.
-- Absolute result paths are normalized/rejected if they escape the repository scope.
-- Malformed output never becomes Evidence.
+- No shell string evaluation; executable/arguments are separate argv values.
+- Executable origin/version/digest are captured where feasible.
+- Engine paths come from trusted user/system installation/manifest resolution, not target-repository arbitrary paths.
+- Full developer environment is NOT inherited. Cloud credentials, model/provider keys, signing keys, SSH agent sockets and unrelated secrets are excluded by default.
+- Target hooks/build/install scripts/Cargo/package-manager code are not implicitly executed to prepare analysis.
+- Output is untrusted bounded bytes; malformed output never becomes Evidence.
+- Result paths are repository-relative or normalized/rejected if outside scope.
+- Engine failure emits explicit coverage state.
 
 ### Engine result
 
-Every run yields:
-
-- zero or more validated Evidence items;
-- CoverageRecord(s);
-- EngineRun metadata;
-- diagnostics.
-
-A timeout/crash/missing executable/malformed output MUST emit non-covered coverage state.
+Every run yields zero or more validated Evidence items, CoverageRecords, EngineRun metadata and diagnostics. Timeout/crash/missing/malformed/output-cap/policy block is visible as non-covered coverage.
 
 ## 2. Supported output dialects
 
-R1 canonical adapters MAY support:
+R1 adapters MAY support Sentrdel-native JSON, qualified SARIF mapping, and dedicated engine-specific JSON adapters with fixtures.
 
-- Sentrdel-native JSON evidence dialect;
-- SARIF subset/full mapping as qualified;
-- engine-specific JSON only through a dedicated adapter with contract fixtures.
-
-There is no generic "accept any JSON and ask the LLM what it means" pathway.
+There is no generic "accept arbitrary JSON and ask an LLM what it means" path.
 
 ## 3. Security Pack Boundary
 
-A Security Pack is a provider/framework-specific evidence module. Packs allow A-to-Z depth without giving provider code authority over findings or kernel policy.
-
-Conceptual boundary:
+A Security Pack is a provider/framework-specific Evidence/Coverage module. It allows A-to-Z depth without giving provider code authority over Findings or kernel policy.
 
 ```text
 trait SecurityPack {
@@ -80,78 +68,54 @@ trait SecurityPack {
 }
 ```
 
-A pack MAY be native Rust or orchestrate qualified external engines through `sentrdel-engine`; it MUST NOT spawn processes directly.
+A pack MAY be native Rust or orchestrate qualified external engines only through `sentrdel-engine`; it MUST NOT spawn processes directly.
 
 ## 4. Pack authority
 
-A pack may:
+A pack may detect its provider/framework, emit Evidence/Coverage, contribute provenance-qualified graph relationships, and declare missing capabilities.
 
-- detect its provider/framework;
-- emit Evidence;
-- emit CoverageRecords;
-- contribute graph nodes/edges with provenance;
-- recommend required evidence capabilities.
+A pack may NOT create/update canonical Findings, mark a project globally secure, weaken policy/kernel invariants, set VERIFIED without future verification authority, or persist secret plaintext/value-only hashes.
 
-A pack may NOT:
+## 5. Pack coverage modes
 
-- create/update canonical Findings directly;
-- mark the project globally secure;
-- override/remove kernel invariants;
-- weaken user/system policy;
-- set runtime VERIFIED without a future authorized verification producer;
-- persist secret plaintext.
+Provider detection is not security coverage. Manifests/results distinguish:
 
-## 5. Supabase Pack reserved capability map
+- `DETECTION` — provider/framework presence only;
+- `STATIC_POSTURE` — repository/migration/config/source analysis without provider credentials;
+- `LIVE_POSTURE` — explicit credentialed provider/API posture, only in later specs and opt-in;
+- `BUSINESS_LOGIC` — cross-layer application/provider trust and invariant reasoning;
+- `RUNTIME` — observed runtime/provider behavior when a later authorized surface exists.
 
-R1 only detects Supabase and records pack coverage state. R3 will specify the implementation, but the pack contract MUST be capable of representing at least these future dimensions:
+A missing mode is a visible coverage gap, never a PASS.
 
-- Postgres schema exposure;
-- Row Level Security enabled/disabled and policy semantics;
-- table/view/function grants;
-- Auth/JWT/claims usage;
-- service-role/secret-key boundary and client exposure;
-- Storage buckets and policies;
-- migrations/triggers/views/functions/security-definer/search-path concerns;
-- Edge Functions;
-- Realtime authorization where applicable;
-- configuration/secrets relevant to Supabase deployment;
+## 6. Supabase P0 reserved capability map
+
+R1 detects Supabase and validates the pack contract. **R2** specifies the first full pack, beginning with offline/static posture. The contract represents at least:
+
+- Postgres/Data API schema exposure;
+- RLS enabled/missing-policy/policy evidence;
+- table/view/function grants and function EXECUTE exposure;
+- SECURITY DEFINER/view/function and mutable `search_path` concerns;
+- Auth/JWT/claims/config signals;
+- service-role/secret-key boundary and client/browser exposure;
+- Storage buckets/policies/public-listing/ownership signals;
+- migrations/triggers/views/functions;
+- Edge Functions and Realtime authorization where statically observable;
 - code-to-database/resource relationships;
-- tenant/user ownership invariants.
+- tenant/user ownership invariants in later BUSINESS_LOGIC mode.
 
 `detected_provider = supabase` does not imply any of these dimensions are covered.
 
-## 6. Manifest provenance
+## 7. Manifest provenance
 
-Every EngineManifest and SecurityPackManifest contains or references:
+Every EngineManifest/SecurityPackManifest contains or references stable ID, version, source provenance, compatible schema versions, capabilities, network/runtime requirements, license/source-qualification record and artifact integrity digest where feasible.
 
-- stable id;
-- version;
-- source provenance;
-- compatible Sentrdel schema versions;
-- declared capabilities;
-- declared network/runtime requirements;
-- license/provenance record for non-Sentrdel-owned source/data;
-- integrity digest for installed external artifacts where feasible.
+## 8. Failure isolation
 
-## 7. Failure isolation
+One engine/pack failure cannot corrupt another producer's Evidence or mutate accepted immutable Evidence. Independent producers continue when safe and coverage records the failed capability.
 
-One engine or pack failure MUST NOT corrupt other Evidence or Findings. The orchestrator continues independent producers when safe and records per-capability failure/coverage state.
+## 9. Deterministic fixtures
 
-A producer cannot write directly into another producer's namespace or mutate previously accepted immutable Evidence.
+Every adapter/pack includes fixtures for valid minimal output, multiple evidence, empty-but-covered, malformed/oversized output, out-of-root paths, duplicate IDs, unsupported schema/version, non-zero/timeout/missing cases, environment secret canaries and secret-like output redaction.
 
-## 8. Deterministic test fixtures
-
-Every adapter/pack must include fixtures covering:
-
-- valid minimal output;
-- multiple findings/evidence;
-- empty but covered output;
-- malformed output;
-- oversized output;
-- absolute/out-of-root paths;
-- duplicate IDs/fingerprints;
-- unsupported schema/version;
-- engine non-zero/timeout/missing cases;
-- secret-like content in output to prove redaction.
-
-Provider packs additionally need positive/negative detection fixtures to prove detection is not a security verdict.
+Provider packs additionally need positive/negative detection fixtures and per-coverage-mode fixtures proving detection is not a security verdict.
