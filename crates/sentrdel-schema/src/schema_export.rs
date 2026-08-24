@@ -1,13 +1,17 @@
-//! JSON Schema generation for public canonical contracts.
+//! JSON Schema generation for public wire contracts.
+//!
+//! Authoritative sealed in-memory types are intentionally not the public
+//! deserialization contract. Public JSON Schemas describe untrusted wire or
+//! persistence records that must be rebound to runtime authority before use.
 
 use crate::{
-    asel::AgentSecurityEvent,
+    asel::AgentSecurityEventRecord,
     coverage::CoverageRecord,
     engine::{EngineManifest, EngineRun},
-    evidence::Evidence,
-    finding::Finding,
+    evidence::EvidenceRecord,
+    finding::FindingRecord,
     pack::SecurityPackManifest,
-    policy::PolicyDecision,
+    policy::PolicyDecisionRecord,
     project::ProjectProfile,
     reasoner::ReasonerEvidenceDraft,
 };
@@ -20,20 +24,32 @@ fn schema_value<T: JsonSchema>() -> Result<Value, serde_json::Error> {
     serde_json::to_value(schema)
 }
 
-/// Generate every R1 public schema with stable filenames.
+/// Generate every R1 public wire schema with stable filenames.
 pub fn export_all() -> Result<BTreeMap<&'static str, Value>, serde_json::Error> {
     let mut schemas = BTreeMap::new();
-    schemas.insert("evidence.schema.json", schema_value::<Evidence>()?);
-    schemas.insert("finding.schema.json", schema_value::<Finding>()?);
+    schemas.insert("evidence.schema.json", schema_value::<EvidenceRecord>()?);
+    schemas.insert("finding.schema.json", schema_value::<FindingRecord>()?);
     schemas.insert("coverage.schema.json", schema_value::<CoverageRecord>()?);
-    schemas.insert("asel-event.schema.json", schema_value::<AgentSecurityEvent>()?);
-    schemas.insert("policy-decision.schema.json", schema_value::<PolicyDecision>()?);
-    schemas.insert("project-profile.schema.json", schema_value::<ProjectProfile>()?);
+    schemas.insert(
+        "asel-event.schema.json",
+        schema_value::<AgentSecurityEventRecord>()?,
+    );
+    schemas.insert(
+        "policy-decision.schema.json",
+        schema_value::<PolicyDecisionRecord>()?,
+    );
+    schemas.insert(
+        "project-profile.schema.json",
+        schema_value::<ProjectProfile>()?,
+    );
     schemas.insert(
         "security-pack-manifest.schema.json",
         schema_value::<SecurityPackManifest>()?,
     );
-    schemas.insert("engine-manifest.schema.json", schema_value::<EngineManifest>()?);
+    schemas.insert(
+        "engine-manifest.schema.json",
+        schema_value::<EngineManifest>()?,
+    );
     schemas.insert("engine-run.schema.json", schema_value::<EngineRun>()?);
     schemas.insert(
         "reasoner-evidence.schema.json",
