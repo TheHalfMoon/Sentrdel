@@ -537,8 +537,8 @@ mod tests {
     fn suppressed_can_reopen_to_new_and_clears_authority() {
         let authority = reconciler();
         let mut value = Finding::new_reconciled(draft(), &authority).expect("finding");
-        let auth = WorkflowAuthorization::from_runtime("user-policy", "approval:reopen")
-            .expect("auth");
+        let auth =
+            WorkflowAuthorization::from_runtime("user-policy", "approval:reopen").expect("auth");
 
         value
             .transition(WorkflowState::Suppressed, &auth, None, 100)
@@ -577,8 +577,8 @@ mod tests {
     fn future_created_risk_is_rejected() {
         let authority = reconciler();
         let mut value = Finding::new_reconciled(draft(), &authority).expect("finding");
-        let auth = WorkflowAuthorization::from_runtime("user-policy", "approval:future")
-            .expect("auth");
+        let auth =
+            WorkflowAuthorization::from_runtime("user-policy", "approval:future").expect("auth");
         let risk = AcceptedRiskRecord {
             owner: "owner".to_owned(),
             reason: "temporary".to_owned(),
