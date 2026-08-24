@@ -317,8 +317,7 @@ impl Store {
             params![session_id],
             |row| row.get(0),
         )?;
-        let event_count =
-            u64::try_from(count).map_err(|_| AselStoreError::EventCountOutOfRange)?;
+        let event_count = u64::try_from(count).map_err(|_| AselStoreError::EventCountOutOfRange)?;
         if event_count == 0 {
             return Ok(SessionVerification {
                 integrity: SessionIntegrity::EmptySession,
