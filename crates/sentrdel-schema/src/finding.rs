@@ -86,7 +86,7 @@ impl Finding {
                 | (FixProposed, FixVerified | FixRegressed | TriagedFixNow | Closed)
                 | (FixVerified, FixRegressed | Closed)
                 | (FixRegressed, TriagedFixNow | FixProposed | Closed)
-        ) || self.workflow_state == *next
+        ) || &self.workflow_state == next
     }
 
     pub fn validate_risk_acceptance(&self) -> bool {
