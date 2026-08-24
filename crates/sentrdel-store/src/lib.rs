@@ -3,6 +3,8 @@
 
 mod migrations;
 
+pub use migrations::evidence_store::{EvidenceStoreError, EvidenceStoreResult};
+
 use std::error::Error;
 use std::fmt;
 use std::path::Path;
@@ -281,6 +283,7 @@ mod tests {
             "sentrdel_schema_migrations"
         ));
         assert!(table_exists(&store.connection, "sentrdel_store_metadata"));
+        assert!(table_exists(&store.connection, "sentrdel_evidence_objects"));
     }
 
     #[test]
@@ -429,7 +432,7 @@ mod tests {
         create_migration_ledger(&connection, "bootstrap_store_metadata");
         mark_sentrdel_application(&connection);
         connection
-            .pragma_update(None, "user_version", migrations::LATEST_SCHEMA_VERSION)
+            .pragma_update(None, "user_version", 1)
             .expect("fixture user_version should update");
         assert_eq!(journal_mode(&connection).to_ascii_lowercase(), "delete");
         drop(connection);
@@ -455,7 +458,7 @@ mod tests {
         create_v1_metadata_table(&connection);
         mark_sentrdel_application(&connection);
         connection
-            .pragma_update(None, "user_version", migrations::LATEST_SCHEMA_VERSION)
+            .pragma_update(None, "user_version", 1)
             .expect("fixture user_version should update");
         assert_eq!(journal_mode(&connection).to_ascii_lowercase(), "delete");
         drop(connection);
