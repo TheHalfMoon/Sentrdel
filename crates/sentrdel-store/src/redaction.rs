@@ -147,13 +147,8 @@ impl PersistenceRedactionBoundary {
 
     /// Reject bytes that still contain any registered secret representation.
     pub fn ensure_safe(&self, sink: PersistentSink, bytes: &[u8]) -> Result<(), RedactionError> {
-        for pattern in &self.patterns {
-            if contains_subslice(bytes, &pattern.bytes) {
-                return Err(RedactionError::SensitiveDataRejected {
-                    sink,
-                    pattern_kind: pattern.kind,
-                });
-            }
+        if let Some(pattern_kind) = self.first_forbidden_kind(bytes) {
+            return Err(RedactionError::SensitiveDataRejected { sink, pattern_kind });
         }
         Ok(())
     }
@@ -163,17 +158,54 @@ impl PersistenceRedactionBoundary {
     /// Canonical schema objects must be redacted before sealing/hashing instead;
     /// durable Store APIs reject unsafe canonical bytes rather than silently
     /// changing their identity here.
+    ///
+    /// A fixed display token can itself collide with a registered secret (for
+    /// example the secret value `SECRET`). Replacement can also create a new
+    /// forbidden sequence across a replacement boundary. Therefore the returned
+    /// bytes are re-checked and deterministically fall back to an empty payload if
+    /// any forbidden representation remains. Empty output is preferable to
+    /// returning a value that only looks redacted while still containing secret
+    /// material.
     pub fn redact_bytes(&self, bytes: &[u8]) -> Vec<u8> {
         let mut redacted = bytes.to_vec();
         for pattern in &self.patterns {
             redacted = replace_all(&redacted, &pattern.bytes, REDACTED_SECRET_TOKEN.as_bytes());
         }
-        redacted
+
+        if self.first_forbidden_kind(&redacted).is_some() {
+            Vec::new()
+        } else {
+            redacted
+        }
     }
 
+    /// Redact UTF-8 text without ever replacing an arbitrary binary derivative
+    /// inside a code point. Binary-only patterns are checked after textual
+    /// replacement; if one is still present, the method fails closed to an empty
+    /// string instead of constructing invalid UTF-8 or panicking.
     pub fn redact_text(&self, text: &str) -> String {
-        String::from_utf8(self.redact_bytes(text.as_bytes()))
-            .expect("redacting UTF-8 text with an ASCII token preserves UTF-8")
+        let mut redacted = text.to_owned();
+        for pattern in &self.patterns {
+            let Ok(needle) = std::str::from_utf8(&pattern.bytes) else {
+                continue;
+            };
+            if needle.is_empty() {
+                continue;
+            }
+            redacted = redacted.replace(needle, REDACTED_SECRET_TOKEN);
+        }
+
+        if self.first_forbidden_kind(redacted.as_bytes()).is_some() {
+            String::new()
+        } else {
+            redacted
+        }
+    }
+
+    fn first_forbidden_kind(&self, bytes: &[u8]) -> Option<SecretPatternKind> {
+        self.patterns.iter().find_map(|pattern| {
+            contains_subslice(bytes, &pattern.bytes).then_some(pattern.kind)
+        })
     }
 
     fn add_pattern(&mut self, bytes: Vec<u8>, kind: SecretPatternKind) {
@@ -297,5 +329,41 @@ mod tests {
         assert!(!debug.contains(SECRET));
         assert!(!debug.contains(&digest));
         assert!(!debug.contains("derived-secret-token"));
+    }
+
+    #[test]
+    fn replacement_token_collision_fails_closed_without_reintroducing_secret() {
+        let mut boundary = PersistenceRedactionBoundary::default();
+        boundary
+            .register_discovered_secret("SECRET")
+            .expect("register colliding secret");
+
+        let redacted_text = boundary.redact_text("value=SECRET");
+        assert!(!redacted_text.contains("SECRET"));
+        boundary
+            .ensure_safe(PersistentSink::Log, redacted_text.as_bytes())
+            .expect("text redaction must return safe output");
+
+        let redacted_bytes = boundary.redact_bytes(b"value=SECRET");
+        assert!(!redacted_bytes
+            .windows(b"SECRET".len())
+            .any(|window| window == b"SECRET"));
+        boundary
+            .ensure_safe(PersistentSink::Export, &redacted_bytes)
+            .expect("byte redaction must return safe output");
+    }
+
+    #[test]
+    fn binary_derivative_cannot_break_utf8_text_redaction() {
+        let mut boundary = PersistenceRedactionBoundary::default();
+        boundary
+            .register_forbidden_derivative(&[0xa9])
+            .expect("register binary derivative");
+
+        let redacted = boundary.redact_text("é");
+        assert!(redacted.is_empty());
+        boundary
+            .ensure_safe(PersistentSink::Log, redacted.as_bytes())
+            .expect("binary derivative handling must fail closed safely");
     }
 }
