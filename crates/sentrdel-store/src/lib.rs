@@ -16,6 +16,7 @@ pub enum StoreError {
     Sqlite(rusqlite::Error),
     FutureSchemaVersion { found: i64, supported: i64 },
     InconsistentSchemaVersion { pragma: i64, ledger: i64 },
+    MigrationIntegrity { version: i64, detail: &'static str },
     WalUnavailable { actual_mode: String },
 }
 
@@ -31,6 +32,10 @@ impl fmt::Display for StoreError {
                 formatter,
                 "database schema metadata is inconsistent: PRAGMA user_version={pragma}, migration ledger={ledger}"
             ),
+            Self::MigrationIntegrity { version, detail } => write!(
+                formatter,
+                "database migration integrity check failed at version {version}: {detail}"
+            ),
             Self::WalUnavailable { actual_mode } => write!(
                 formatter,
                 "SQLite refused required WAL journal mode and returned {actual_mode:?}"
@@ -45,6 +50,7 @@ impl Error for StoreError {
             Self::Sqlite(error) => Some(error),
             Self::FutureSchemaVersion { .. }
             | Self::InconsistentSchemaVersion { .. }
+            | Self::MigrationIntegrity { .. }
             | Self::WalUnavailable { .. } => None,
         }
     }
@@ -61,9 +67,9 @@ pub struct Store {
 }
 
 impl Store {
-    /// Open or create a Sentrdel-owned SQLite database, reject unsupported or
-    /// inconsistent schema state without mutating it, then enforce connection
-    /// invariants and migrate to the current R1 schema version.
+    /// Open or create a Sentrdel-owned SQLite database, reject unsupported,
+    /// inconsistent, or spoofed schema state without mutating it, then enforce
+    /// connection invariants and migrate to the current R1 schema version.
     pub fn open(path: impl AsRef<Path>) -> StoreResult<Self> {
         let mut connection = Connection::open(path)?;
         migrations::preflight(&connection)?;
@@ -104,7 +110,7 @@ mod tests {
     use std::path::{Path, PathBuf};
     use std::sync::atomic::{AtomicU64, Ordering};
 
-    use rusqlite::Connection;
+    use rusqlite::{Connection, params};
 
     use super::{Store, StoreError, migrations};
 
@@ -167,6 +173,38 @@ mod tests {
             )
             .expect("schema metadata should be queryable");
         exists == 1
+    }
+
+    fn create_migration_ledger(connection: &Connection, migration_name: &str) {
+        connection
+            .execute_batch(
+                r#"
+                CREATE TABLE sentrdel_schema_migrations (
+                    version INTEGER PRIMARY KEY NOT NULL CHECK (version > 0),
+                    name    TEXT NOT NULL UNIQUE
+                ) STRICT;
+                "#,
+            )
+            .expect("fixture migration ledger should be created");
+        connection
+            .execute(
+                "INSERT INTO sentrdel_schema_migrations(version, name) VALUES (1, ?1)",
+                params![migration_name],
+            )
+            .expect("fixture migration row should be inserted");
+    }
+
+    fn create_v1_metadata_table(connection: &Connection) {
+        connection
+            .execute_batch(
+                r#"
+                CREATE TABLE sentrdel_store_metadata (
+                    key   TEXT PRIMARY KEY NOT NULL,
+                    value TEXT NOT NULL
+                ) STRICT;
+                "#,
+            )
+            .expect("fixture v1 metadata table should be created");
     }
 
     #[test]
@@ -252,18 +290,7 @@ mod tests {
     fn inconsistent_schema_metadata_is_rejected_without_wal_mutation() {
         let temp = TempDb::new("inconsistent-version");
         let connection = Connection::open(&temp.path).expect("fixture database should open");
-        connection
-            .execute_batch(
-                r#"
-                CREATE TABLE sentrdel_schema_migrations (
-                    version INTEGER PRIMARY KEY NOT NULL CHECK (version > 0),
-                    name    TEXT NOT NULL UNIQUE
-                ) STRICT;
-                INSERT INTO sentrdel_schema_migrations(version, name)
-                VALUES (1, 'fixture-only');
-                "#,
-            )
-            .expect("fixture migration ledger should be created");
+        create_migration_ledger(&connection, "fixture-only");
         assert_eq!(journal_mode(&connection).to_ascii_lowercase(), "delete");
         drop(connection);
 
@@ -278,6 +305,55 @@ mod tests {
                 pragma: 0,
                 ledger: 1
             }
+        ));
+
+        let connection = Connection::open(&temp.path).expect("rejected fixture should reopen");
+        assert_eq!(journal_mode(&connection).to_ascii_lowercase(), "delete");
+    }
+
+    #[test]
+    fn spoofed_current_version_without_v1_schema_is_rejected_without_wal_mutation() {
+        let temp = TempDb::new("spoofed-current-schema");
+        let connection = Connection::open(&temp.path).expect("fixture database should open");
+        create_migration_ledger(&connection, "bootstrap_store_metadata");
+        connection
+            .pragma_update(None, "user_version", migrations::LATEST_SCHEMA_VERSION)
+            .expect("fixture user_version should update");
+        assert_eq!(journal_mode(&connection).to_ascii_lowercase(), "delete");
+        drop(connection);
+
+        let error = match Store::open(&temp.path) {
+            Ok(_) => panic!("spoofed current schema must be rejected"),
+            Err(error) => error,
+        };
+        assert!(matches!(
+            error,
+            StoreError::MigrationIntegrity { version: 1, .. }
+        ));
+
+        let connection = Connection::open(&temp.path).expect("rejected fixture should reopen");
+        assert_eq!(journal_mode(&connection).to_ascii_lowercase(), "delete");
+    }
+
+    #[test]
+    fn wrong_canonical_migration_name_is_rejected_without_wal_mutation() {
+        let temp = TempDb::new("wrong-migration-name");
+        let connection = Connection::open(&temp.path).expect("fixture database should open");
+        create_migration_ledger(&connection, "not-the-canonical-migration");
+        create_v1_metadata_table(&connection);
+        connection
+            .pragma_update(None, "user_version", migrations::LATEST_SCHEMA_VERSION)
+            .expect("fixture user_version should update");
+        assert_eq!(journal_mode(&connection).to_ascii_lowercase(), "delete");
+        drop(connection);
+
+        let error = match Store::open(&temp.path) {
+            Ok(_) => panic!("wrong migration identity must be rejected"),
+            Err(error) => error,
+        };
+        assert!(matches!(
+            error,
+            StoreError::MigrationIntegrity { version: 1, .. }
         ));
 
         let connection = Connection::open(&temp.path).expect("rejected fixture should reopen");
