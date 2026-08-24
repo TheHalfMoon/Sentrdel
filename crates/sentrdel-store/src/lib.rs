@@ -212,11 +212,7 @@ mod tests {
         let temp = TempDb::new("future-version");
         let connection = Connection::open(&temp.path).expect("fixture database should open");
         connection
-            .pragma_update(
-                None,
-                "user_version",
-                migrations::LATEST_SCHEMA_VERSION + 1,
-            )
+            .pragma_update(None, "user_version", migrations::LATEST_SCHEMA_VERSION + 1)
             .expect("fixture user_version should update");
         drop(connection);
 
