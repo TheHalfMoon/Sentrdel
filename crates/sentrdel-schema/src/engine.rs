@@ -61,3 +61,42 @@ pub struct EngineRun {
     pub produced_evidence_ids: Vec<String>,
     pub coverage_ids: Vec<String>,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::EngineManifest;
+
+    fn manifest_json() -> serde_json::Value {
+        serde_json::json!({
+            "schema_version": "1",
+            "engine_id": "fixture",
+            "adapter_version": "1",
+            "executable_source": "trusted-config",
+            "executable_digest": null,
+            "expected_version_constraint": null,
+            "input_dialects": ["repo"],
+            "output_dialects": ["json"],
+            "capabilities": ["fixture"],
+            "timeout_ms": 1000,
+            "max_stdout_bytes": 4096,
+            "max_stderr_bytes": 4096,
+            "allowed_environment_names": ["PATH", "LANG"],
+            "network_requirement": "NONE"
+        })
+    }
+
+    #[test]
+    fn manifest_requires_explicit_environment_allowlist() {
+        let value = manifest_json();
+        let manifest: EngineManifest =
+            serde_json::from_value(value).expect("explicit allowlist manifest should decode");
+        assert_eq!(manifest.allowed_environment_names, ["PATH", "LANG"]);
+
+        let mut missing = manifest_json();
+        missing
+            .as_object_mut()
+            .expect("fixture object")
+            .remove("allowed_environment_names");
+        assert!(serde_json::from_value::<EngineManifest>(missing).is_err());
+    }
+}
