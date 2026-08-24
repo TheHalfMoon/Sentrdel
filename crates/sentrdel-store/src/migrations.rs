@@ -1,3 +1,5 @@
+pub(crate) mod evidence_store;
+
 use rusqlite::{Connection, OptionalExtension, TransactionBehavior, params};
 
 use crate::{StoreError, StoreResult};
@@ -19,18 +21,48 @@ struct Migration {
     validate: fn(&Connection) -> StoreResult<()>,
 }
 
-const MIGRATIONS: &[Migration] = &[Migration {
-    version: 1,
-    name: "bootstrap_store_metadata",
-    sql: r#"
-        PRAGMA application_id = 1397642308;
-        CREATE TABLE sentrdel_store_metadata (
-            key   TEXT PRIMARY KEY NOT NULL,
-            value TEXT NOT NULL
-        ) STRICT;
-    "#,
-    validate: validate_v1_schema,
-}];
+const MIGRATIONS: &[Migration] = &[
+    Migration {
+        version: 1,
+        name: "bootstrap_store_metadata",
+        sql: r#"
+            PRAGMA application_id = 1397642308;
+            CREATE TABLE sentrdel_store_metadata (
+                key   TEXT PRIMARY KEY NOT NULL,
+                value TEXT NOT NULL
+            ) STRICT;
+        "#,
+        validate: validate_v1_schema,
+    },
+    Migration {
+        version: 2,
+        name: "immutable_evidence_objects",
+        sql: r#"
+            CREATE TABLE sentrdel_evidence_objects (
+                evidence_id   TEXT PRIMARY KEY NOT NULL
+                    CHECK (
+                        length(evidence_id) = 71
+                        AND substr(evidence_id, 1, 7) = 'sha256:'
+                        AND substr(evidence_id, 8) NOT GLOB '*[^0-9a-f]*'
+                    ),
+                canonical_json BLOB NOT NULL CHECK (length(canonical_json) > 0)
+            ) STRICT;
+
+            CREATE TRIGGER sentrdel_evidence_immutable_update
+            BEFORE UPDATE ON sentrdel_evidence_objects
+            BEGIN
+                SELECT RAISE(ABORT, 'Sentrdel Evidence objects are immutable');
+            END;
+
+            CREATE TRIGGER sentrdel_evidence_immutable_delete
+            BEFORE DELETE ON sentrdel_evidence_objects
+            BEGIN
+                SELECT RAISE(ABORT, 'Sentrdel Evidence objects are immutable');
+            END;
+        "#,
+        validate: validate_v2_schema,
+    },
+];
 
 pub(crate) const LATEST_SCHEMA_VERSION: i64 = MIGRATIONS[MIGRATIONS.len() - 1].version;
 
@@ -308,6 +340,73 @@ fn validate_v1_schema(connection: &Connection) -> StoreResult<()> {
         return Err(StoreError::MigrationIntegrity {
             version: 1,
             detail: "schema objects required by migration v1 are missing or malformed",
+        });
+    }
+
+    Ok(())
+}
+
+fn validate_v2_schema(connection: &Connection) -> StoreResult<()> {
+    let column_count: i64 = connection.query_row(
+        "SELECT COUNT(*) FROM pragma_table_info('sentrdel_evidence_objects')",
+        [],
+        |row| row.get(0),
+    )?;
+    let matching_columns: i64 = connection.query_row(
+        r#"
+        SELECT COUNT(*)
+        FROM pragma_table_info('sentrdel_evidence_objects')
+        WHERE (name = 'evidence_id' AND type = 'TEXT' AND "notnull" = 1 AND pk = 1)
+           OR (name = 'canonical_json' AND type = 'BLOB' AND "notnull" = 1 AND pk = 0)
+        "#,
+        [],
+        |row| row.get(0),
+    )?;
+    let strict: i64 = connection.query_row(
+        r#"
+        SELECT COALESCE(MAX(strict), 0)
+        FROM pragma_table_list('sentrdel_evidence_objects')
+        WHERE schema = 'main' AND name = 'sentrdel_evidence_objects' AND type = 'table'
+        "#,
+        [],
+        |row| row.get(0),
+    )?;
+    let update_trigger: i64 = connection.query_row(
+        r#"
+        SELECT COUNT(*)
+        FROM sqlite_schema
+        WHERE type = 'trigger'
+          AND name = 'sentrdel_evidence_immutable_update'
+          AND tbl_name = 'sentrdel_evidence_objects'
+          AND upper(sql) LIKE '%BEFORE UPDATE%'
+          AND upper(sql) LIKE '%RAISE(ABORT%'
+        "#,
+        [],
+        |row| row.get(0),
+    )?;
+    let delete_trigger: i64 = connection.query_row(
+        r#"
+        SELECT COUNT(*)
+        FROM sqlite_schema
+        WHERE type = 'trigger'
+          AND name = 'sentrdel_evidence_immutable_delete'
+          AND tbl_name = 'sentrdel_evidence_objects'
+          AND upper(sql) LIKE '%BEFORE DELETE%'
+          AND upper(sql) LIKE '%RAISE(ABORT%'
+        "#,
+        [],
+        |row| row.get(0),
+    )?;
+
+    if column_count != 2
+        || matching_columns != 2
+        || strict != 1
+        || update_trigger != 1
+        || delete_trigger != 1
+    {
+        return Err(StoreError::MigrationIntegrity {
+            version: 2,
+            detail: "immutable Evidence storage schema does not match migration v2",
         });
     }
 
