@@ -1,6 +1,6 @@
 # Contract — Canonical Evidence, Findings, Coverage, and ASEL
 
-**Version:** draft-v1.3  
+**Version:** draft-v1.4  
 **Status:** BINDING_FOR_R1_IMPLEMENTATION
 
 ## 1. Canonical serialization
@@ -50,7 +50,9 @@ Allowed producer-to-epistemic mapping in R1:
 | External scanner | FACT only for directly mapped observations; otherwise INFERENCE; never VERIFIED because scanner severity says so |
 | LLM reasoner | INFERENCE, HYPOTHESIS only |
 | Human | workflow decision/evidence note; cannot fabricate runtime VERIFIED |
-| Future verification executor | OBSERVATION, VERIFIED, CONTRADICTION — **not implemented in R1** |
+| Runtime/test producer | OBSERVATION, CONTRADICTION only in R1; `VERIFIED` remains unavailable until the verification specification exists |
+
+`OBSERVATION` is reserved for the runtime/test producer in R1. No static producer, external scanner, human, system source, or LLM may claim runtime observation authority.
 
 API design MUST prevent an LLM adapter from requesting a more authoritative class.
 
@@ -120,14 +122,29 @@ UI/docs MUST NOT call a local unauthenticated chain `tamper-proof`. Later signat
   "kind": "mcp.invocation",
   "target": {"server": "...", "tool": "..."},
   "params_digest": "sha256:...",
-  "policy_decision": "...",
+  "policy_decision": {
+    "decision_id": "sha256:...",
+    "authority_id": "sentrdel-policy",
+    "authority_configuration_digest": "sha256:...",
+    "claim": {
+      "schema_version": "1",
+      "verdict": "ALLOW",
+      "enforcement_fidelity": "ENFORCED",
+      "reason_codes": [],
+      "rule_ids": [],
+      "kernel_invariant_ids": [],
+      "policy_version_digests": ["sha256:..."],
+      "action_digest": "sha256:...",
+      "decided_at": "2026-08-24T00:00:00Z"
+    }
+  },
   "provenance": {"source": "sentrdel-guard"},
   "previous_event_hash": "sha256:...",
   "event_hash": "sha256:..."
 }
 ```
 
-Generated JSON Schema is canonical.
+`policy_decision` is optional; when present it is a `PolicyDecisionRecord` object with a nested untrusted `claim`, not a scalar or an authority token. Generated JSON Schema is canonical.
 
 ## 6. Guard decision monotonicity
 
