@@ -1,0 +1,59 @@
+//! External evidence-engine manifests and run metadata.
+
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum NetworkRequirement {
+    None,
+    Optional,
+    Required,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct EngineManifest {
+    pub schema_version: String,
+    pub engine_id: String,
+    pub adapter_version: String,
+    pub executable_source: String,
+    pub executable_digest: Option<String>,
+    pub expected_version_constraint: Option<String>,
+    pub input_dialects: Vec<String>,
+    pub output_dialects: Vec<String>,
+    pub capabilities: Vec<String>,
+    pub timeout_ms: u64,
+    pub max_stdout_bytes: u64,
+    pub max_stderr_bytes: u64,
+    pub network_requirement: NetworkRequirement,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum TerminationReason {
+    Completed,
+    NonZero,
+    Timeout,
+    OutputCap,
+    SpawnFailed,
+    MalformedOutput,
+    PolicyBlocked,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct EngineRun {
+    pub schema_version: String,
+    pub run_id: String,
+    pub engine_manifest_digest: String,
+    pub input_digests: Vec<String>,
+    pub started_at: String,
+    pub finished_at: String,
+    pub exit_status: Option<i32>,
+    pub termination_reason: TerminationReason,
+    pub stdout_digest: Option<String>,
+    pub stderr_digest: Option<String>,
+    pub produced_evidence_ids: Vec<String>,
+    pub coverage_ids: Vec<String>,
+}
