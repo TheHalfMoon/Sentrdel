@@ -10,6 +10,8 @@ publish.workspace = true
 
 [dependencies]
 rusqlite.workspace = true
+serde_json.workspace = true
+sentrdel-schema = { path = "../sentrdel-schema" }
 
 [lints]
 workspace = true
