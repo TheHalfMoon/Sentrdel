@@ -1,5 +1,5 @@
-pub(crate) mod evidence_store;
 mod asel_schema;
+pub(crate) mod evidence_store;
 mod state_schema;
 pub(crate) mod state_store;
 
