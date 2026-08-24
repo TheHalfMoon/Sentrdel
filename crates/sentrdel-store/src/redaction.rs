@@ -38,7 +38,10 @@ impl fmt::Display for RedactionError {
         match self {
             Self::EmptySecret => write!(formatter, "discovered secret value must not be empty"),
             Self::EmptyDerivative => {
-                write!(formatter, "secret-derived forbidden representation must not be empty")
+                write!(
+                    formatter,
+                    "secret-derived forbidden representation must not be empty"
+                )
             }
             Self::JsonEncoding(error) => {
                 write!(formatter, "secret redaction JSON encoding failed: {error}")
@@ -55,9 +58,7 @@ impl Error for RedactionError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
             Self::JsonEncoding(error) => Some(error),
-            Self::EmptySecret
-            | Self::EmptyDerivative
-            | Self::SensitiveDataRejected { .. } => None,
+            Self::EmptySecret | Self::EmptyDerivative | Self::SensitiveDataRejected { .. } => None,
         }
     }
 }
@@ -105,10 +106,7 @@ impl PersistenceRedactionBoundary {
         let encoded = serde_json::to_string(secret).map_err(RedactionError::JsonEncoding)?;
         let escaped = &encoded.as_bytes()[1..encoded.len() - 1];
         if escaped != secret.as_bytes() {
-            self.add_pattern(
-                escaped.to_vec(),
-                SecretPatternKind::JsonEscapedPlaintext,
-            );
+            self.add_pattern(escaped.to_vec(), SecretPatternKind::JsonEscapedPlaintext);
         }
 
         let digest = Sha256::digest(secret.as_bytes());
@@ -142,10 +140,7 @@ impl PersistenceRedactionBoundary {
             return Err(RedactionError::EmptyDerivative);
         }
         let before = self.patterns.len();
-        self.add_pattern(
-            derivative.to_vec(),
-            SecretPatternKind::RegisteredDerivative,
-        );
+        self.add_pattern(derivative.to_vec(), SecretPatternKind::RegisteredDerivative);
         self.sort_longest_first();
         Ok(self.patterns.len() != before)
     }
@@ -194,7 +189,10 @@ impl PersistenceRedactionBoundary {
 }
 
 fn contains_subslice(haystack: &[u8], needle: &[u8]) -> bool {
-    !needle.is_empty() && haystack.windows(needle.len()).any(|window| window == needle)
+    !needle.is_empty()
+        && haystack
+            .windows(needle.len())
+            .any(|window| window == needle)
 }
 
 fn replace_all(input: &[u8], needle: &[u8], replacement: &[u8]) -> Vec<u8> {
@@ -231,7 +229,7 @@ mod tests {
     use sha2::{Digest, Sha256};
 
     use super::{
-        PersistenceRedactionBoundary, PersistentSink, RedactionError, REDACTED_SECRET_TOKEN,
+        PersistenceRedactionBoundary, PersistentSink, REDACTED_SECRET_TOKEN, RedactionError,
         SecretPatternKind,
     };
 
@@ -245,7 +243,11 @@ mod tests {
     #[test]
     fn registration_detects_plaintext_json_escaped_and_value_only_sha256() {
         let mut boundary = PersistenceRedactionBoundary::default();
-        assert!(boundary.register_discovered_secret(SECRET).expect("register"));
+        assert!(
+            boundary
+                .register_discovered_secret(SECRET)
+                .expect("register")
+        );
         assert!(!boundary.register_discovered_secret(SECRET).expect("dedupe"));
 
         assert!(matches!(
@@ -257,22 +259,28 @@ mod tests {
         ));
 
         let json = serde_json::to_string(SECRET).expect("fixture JSON");
-        assert!(boundary
-            .ensure_safe(PersistentSink::Snapshot, json.as_bytes())
-            .is_err());
+        assert!(
+            boundary
+                .ensure_safe(PersistentSink::Snapshot, json.as_bytes())
+                .is_err()
+        );
 
         let digest = sha256_hex(SECRET);
         for representation in [digest.clone(), format!("sha256:{digest}")] {
-            assert!(boundary
-                .ensure_safe(PersistentSink::Export, representation.as_bytes())
-                .is_err());
+            assert!(
+                boundary
+                    .ensure_safe(PersistentSink::Export, representation.as_bytes())
+                    .is_err()
+            );
         }
     }
 
     #[test]
     fn redaction_output_and_debug_do_not_disclose_registered_material() {
         let mut boundary = PersistenceRedactionBoundary::default();
-        boundary.register_discovered_secret(SECRET).expect("register");
+        boundary
+            .register_discovered_secret(SECRET)
+            .expect("register");
         boundary
             .register_forbidden_derivative(b"derived-secret-token")
             .expect("register derivative");
