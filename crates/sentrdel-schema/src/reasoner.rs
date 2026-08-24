@@ -1,6 +1,12 @@
 //! Structurally restricted LLM reasoner output.
 
-use crate::{evidence::{ConfidenceBand, EpistemicClass, Evidence, EvidenceDraft, EvidenceLocation, EvidenceSubject, EvidenceValidationError, ProducerIdentity, ProducerKind}, version::SCHEMA_V1};
+use crate::{
+    evidence::{
+        ConfidenceBand, EpistemicClass, Evidence, EvidenceAuthority, EvidenceClaim,
+        EvidenceLocation, EvidenceSubject, EvidenceValidationError, ProducerKind,
+    },
+    version::SCHEMA_V1,
+};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -14,11 +20,11 @@ pub enum ReasonerEpistemicClass {
     Hypothesis,
 }
 
+/// Untrusted model output. Producer identity is not model-controlled and is
+/// supplied separately through a runtime `EvidenceAuthority`.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ReasonerEvidenceDraft {
-    pub producer_id: String,
-    pub producer_version: String,
     pub input_digests: Vec<String>,
     pub observation: String,
     pub security_interpretation: String,
@@ -32,19 +38,20 @@ pub struct ReasonerEvidenceDraft {
 }
 
 impl ReasonerEvidenceDraft {
-    pub fn seal(self) -> Result<Evidence, EvidenceValidationError> {
+    pub fn seal(
+        self,
+        authority: &EvidenceAuthority,
+    ) -> Result<Evidence, EvidenceValidationError> {
+        if authority.producer().kind != ProducerKind::LlmReasoner {
+            return Err(EvidenceValidationError::ProducerAuthorityMismatch);
+        }
         let class = match self.epistemic_class {
             ReasonerEpistemicClass::Inference => EpistemicClass::Inference,
             ReasonerEpistemicClass::Hypothesis => EpistemicClass::Hypothesis,
         };
 
-        EvidenceDraft {
+        authority.seal(EvidenceClaim {
             schema_version: SCHEMA_V1.to_owned(),
-            producer: ProducerIdentity {
-                id: self.producer_id,
-                version: self.producer_version,
-                kind: ProducerKind::LlmReasoner,
-            },
             input_digests: self.input_digests,
             observation: self.observation,
             security_interpretation: Some(self.security_interpretation),
@@ -56,8 +63,7 @@ impl ReasonerEvidenceDraft {
             attributes: self.attributes,
             reproduction: None,
             captured_at: self.captured_at,
-        }
-        .seal()
+        })
     }
 }
 
@@ -71,5 +77,27 @@ mod tests {
         assert_eq!(encoded, "\"INFERENCE\"");
         assert!(serde_json::from_str::<ReasonerEpistemicClass>("\"VERIFIED\"").is_err());
         assert!(serde_json::from_str::<ReasonerEpistemicClass>("\"FACT\"").is_err());
+    }
+
+    #[test]
+    fn reasoner_cannot_use_native_rule_authority() {
+        let authority = EvidenceAuthority::from_runtime("native", "1", ProducerKind::NativeRule)
+            .expect("authority");
+        let draft = ReasonerEvidenceDraft {
+            input_digests: Vec::new(),
+            observation: "model observed context".to_owned(),
+            security_interpretation: "possible issue".to_owned(),
+            category: "fixture".to_owned(),
+            epistemic_class: ReasonerEpistemicClass::Hypothesis,
+            confidence_band: None,
+            subjects: Vec::new(),
+            locations: Vec::new(),
+            attributes: BTreeMap::new(),
+            captured_at: "2026-08-24T00:00:00Z".to_owned(),
+        };
+        assert!(matches!(
+            draft.seal(&authority),
+            Err(EvidenceValidationError::ProducerAuthorityMismatch)
+        ));
     }
 }
