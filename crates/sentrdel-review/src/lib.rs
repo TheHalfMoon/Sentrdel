@@ -1,0 +1,4 @@
+#![forbid(unsafe_code)]
+//! Diff-first security review. Target repository code is data, never authority.
+
+pub const TARGET_BUILD_EXECUTION_ALLOWED: bool = false;

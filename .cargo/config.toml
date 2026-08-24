@@ -1,0 +1,10 @@
+# This file is trusted Sentrdel workspace configuration.
+# Target repositories being analyzed MUST NOT be allowed to supply Cargo
+# configuration to Sentrdel's analysis path.
+
+[net]
+git-fetch-with-cli = false
+retry = 2
+
+[term]
+color = "auto"

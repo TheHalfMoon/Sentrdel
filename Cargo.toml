@@ -1,0 +1,31 @@
+[workspace]
+members = [
+  "crates/sentrdel-schema",
+  "crates/sentrdel-store",
+  "crates/sentrdel-graph",
+  "crates/sentrdel-engine",
+  "crates/sentrdel-policy",
+  "crates/sentrdel-guard",
+  "crates/sentrdel-review",
+  "crates/sentrdel-verify",
+  "crates/sentrdel-cli",
+]
+resolver = "3"
+
+[workspace.package]
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.98.0"
+license = "Apache-2.0"
+repository = "https://github.com/TheHalfMoon/Sentrdel"
+authors = ["TheHalfMoon"]
+publish = false
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+unexpected_cfgs = { level = "warn", check-cfg = ["cfg(sentrdel_internal_test)"] }
+
+[workspace.lints.clippy]
+all = "warn"
+correctness = "deny"
+suspicious = "deny"

@@ -1,0 +1,12 @@
+[package]
+name = "sentrdel-schema"
+description = "Canonical Sentrdel security evidence and protocol schemas"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true

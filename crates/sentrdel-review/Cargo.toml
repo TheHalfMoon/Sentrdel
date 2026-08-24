@@ -1,0 +1,12 @@
+[package]
+name = "sentrdel-review"
+description = "Local evidence-first security review and project profiling"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
