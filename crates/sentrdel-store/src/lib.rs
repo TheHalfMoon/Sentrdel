@@ -2,9 +2,14 @@
 //! Local SQLite persistence boundary for Sentrdel-owned state.
 
 mod migrations;
+mod redaction;
 
 pub use migrations::evidence_store::{EvidenceStoreError, EvidenceStoreResult};
 pub use migrations::state_store::{StateStoreError, StateStoreResult};
+pub use redaction::{
+    PersistenceRedactionBoundary, PersistentSink, REDACTED_SECRET_TOKEN, RedactionError,
+    SecretPatternKind,
+};
 
 use std::error::Error;
 use std::fmt;
@@ -98,6 +103,7 @@ impl From<rusqlite::Error> for StoreError {
 
 pub struct Store {
     connection: Connection,
+    redaction: PersistenceRedactionBoundary,
 }
 
 impl Store {
@@ -109,7 +115,30 @@ impl Store {
         migrations::preflight(&connection)?;
         configure_connection(&connection)?;
         migrations::migrate(&mut connection)?;
-        Ok(Self { connection })
+        Ok(Self {
+            connection,
+            redaction: PersistenceRedactionBoundary::default(),
+        })
+    }
+
+    /// Register a secret value immediately after discovery and before any
+    /// persistent canonical object is created from secret-bearing input.
+    pub fn register_discovered_secret(&mut self, secret: &str) -> Result<bool, RedactionError> {
+        self.redaction.register_discovered_secret(secret)
+    }
+
+    /// Access the same in-memory redaction boundary for export/log/snapshot
+    /// sinks and for pre-seal sanitization of transient text.
+    pub fn redaction_boundary(&self) -> &PersistenceRedactionBoundary {
+        &self.redaction
+    }
+
+    pub(crate) fn require_persistable(
+        &self,
+        sink: PersistentSink,
+        bytes: &[u8],
+    ) -> Result<(), RedactionError> {
+        self.redaction.ensure_safe(sink, bytes)
     }
 
     /// Return the migration version recorded by SQLite itself.
