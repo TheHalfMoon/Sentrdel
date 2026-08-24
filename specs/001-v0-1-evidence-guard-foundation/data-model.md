@@ -1,7 +1,7 @@
 # Data Model — Sentrdel v0.1 Evidence + Guard Foundation
 
 **Status:** DESIGN_COMPLETE_AFTER_MAJOR_REVIEW  
-**Authority:** `spec.md`, constitution, major review, and this model. Field-level Rust/JSON names may evolve during implementation only if semantics remain compatible or are explicitly version-bumped.
+**Authority:** `spec.md`, constitution, major review, this model, and binding implementation amendments. Field-level Rust/JSON names may evolve during implementation only if semantics remain compatible or are explicitly version-bumped.
 
 ## Design Rules
 
@@ -20,7 +20,7 @@
 ```text
 Evidence {
   schema_version
-  evidence_id              # BLAKE3 of canonical stable serialization
+  evidence_id              # domain-separated SHA-256 of canonical stable serialization
   producer
   producer_version
   producer_kind
@@ -37,6 +37,8 @@ Evidence {
   captured_at
 }
 ```
+
+R1 canonical identifiers use `sha256:<lowercase-hex>` under `implementation-amendment-001-hashing.md`; earlier BLAKE3 planning text is superseded.
 
 A producer MUST NOT hide an interpretation inside `observation`. For example:
 
@@ -63,7 +65,7 @@ A producer MUST NOT hide an interpretation inside `observation`. For example:
 - `VERIFIED` — independent bounded execution reproduced the security claim; reserved for future Verify authority.
 - `CONTRADICTION` — evidence disputing another claim/evidence item.
 
-R1 has no runtime producer authorized to emit VERIFIED. Schema fixtures MAY construct synthetic VERIFIED values solely for invariant tests.
+R1 has no runtime producer authorized to emit VERIFIED. The R1 public Evidence schema excludes VERIFIED and runtime ingestion rejects it.
 
 ### `ConfidenceBand`
 
@@ -148,17 +150,20 @@ R1 normally produces DETECTED/CORROBORATED/CONTESTED/UNPROVEN. PROVEN is reserve
 
 ### Workflow state
 
+R1 public workflow states:
+
 - `NEW`
 - `TRIAGED_FIX_NOW`
 - `TRIAGED_DEFER`
 - `ACCEPTED`
 - `SUPPRESSED`
 - `FIX_PROPOSED`
-- `FIX_VERIFIED`
 - `FIX_REGRESSED`
 - `CLOSED`
 
-R1 MUST NOT automatically set ACCEPTED, SUPPRESSED or FIX_VERIFIED from LLM output.
+`FIX_VERIFIED` is reserved for a later Verify authority. R1 transition/record validation rejects it and the R1 public Finding JSON Schema excludes it.
+
+R1 MUST NOT automatically set ACCEPTED or SUPPRESSED from LLM output.
 
 ### AcceptedRisk
 
@@ -166,14 +171,14 @@ R1 MUST NOT automatically set ACCEPTED, SUPPRESSED or FIX_VERIFIED from LLM outp
 AcceptedRisk {
   owner
   reason
-  created_at
-  expires_at
-  signature_ref?
+  created_at_unix_seconds
+  expires_at_unix_seconds
+  authorization_ref
   evidence_basis[]
 }
 ```
 
-Expiry is mandatory.
+Expiry is mandatory, must be later than the validation time, and the authorization reference must bind to trusted workflow authorization.
 
 ## 3. CoverageRecord
 
@@ -291,7 +296,10 @@ ASELSessionIntegrity {
 
 ```text
 PolicyDecision {
+  schema_version
   decision_id
+  authority_id
+  authority_configuration_digest
   verdict
   enforcement_fidelity
   reason_codes[]
@@ -303,9 +311,13 @@ PolicyDecision {
 }
 ```
 
+Persisted/untrusted policy-decision records are rebound to a runtime-selected trusted policy authority and expected action digest before becoming authoritative.
+
 ### Verdict
 
 `ALLOW | ASK | DENY | UNDECIDABLE`
+
+`UNDECIDABLE` is not part of an implicit enum ordering. Monotonic `ALLOW < ASK < DENY` composition is implemented explicitly in the policy kernel; evaluation failure cannot silently become ALLOW.
 
 ### EnforcementFidelity
 
@@ -451,6 +463,8 @@ SourceQualificationRecord {
   repository
   exact_ref
   files_or_artifacts[]
+  permission_basis?
+  source_specific_permission_reference?
   license_expression
   notices[]
   integration_mode      # NATIVE_DEP | COPIED_SOURCE | COPIED_DATA | EXTERNAL_PROCESS | STUDY_ONLY
@@ -483,13 +497,14 @@ Evidence/Findings/Events --- Graph nodes/edges by stable ids
 
 ## Invariants
 
-- Evidence ID matches canonical serialization hash.
+- Evidence ID matches domain-separated SHA-256 canonical serialization identity.
 - Evidence FACT observation is direct/bounded and cannot be emitted by LLM reasoner authority.
 - Event sequence strictly increases in a session.
 - Event previous hash matches prior event except root.
 - A chain is only independently compared against history when a trusted expected head/checkpoint exists.
 - Finding evidence IDs exist.
 - VERIFIED Evidence comes only from producer authority permitted by active schema/policy; no runtime Verify producer exists in R1.
+- FIX_VERIFIED Finding workflow state is unavailable in R1 and cannot be loaded or transitioned into canonical state.
 - Repository policy cannot remove kernel invariant IDs.
 - Coverage failure/unavailable cannot become COVERED without successful producer evidence for the same scope.
 - Provider detection never implies secure posture.
