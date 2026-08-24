@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - impl/001-r1-schema-substrate
+  pull_request:
+    branches:
+      - main
 
 permissions:
   contents: read
