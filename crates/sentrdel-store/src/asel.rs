@@ -420,11 +420,12 @@ fn validate_stored_row(
     expected_session_id: &str,
     expected_sequence: u64,
 ) -> AselStoreResult<AgentSecurityEventRecord> {
-    let row_sequence = u64::try_from(row.sequence).map_err(|_| AselStoreError::CorruptStoredEvent {
-        session_id: expected_session_id.to_owned(),
-        sequence: expected_sequence,
-        detail: "row sequence is negative or out of range",
-    })?;
+    let row_sequence =
+        u64::try_from(row.sequence).map_err(|_| AselStoreError::CorruptStoredEvent {
+            session_id: expected_session_id.to_owned(),
+            sequence: expected_sequence,
+            detail: "row sequence is negative or out of range",
+        })?;
     let record = decode_canonical_record(row, expected_session_id, expected_sequence)?;
     if row.session_id != expected_session_id
         || record.session_id != expected_session_id
