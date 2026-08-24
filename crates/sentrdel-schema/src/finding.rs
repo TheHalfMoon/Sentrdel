@@ -214,7 +214,7 @@ impl fmt::Display for FindingError {
             }
             Self::AcceptedRiskMalformed => write!(
                 f,
-                "risk record is missing required authority/evidence fields"
+                "risk record is missing required authority/evidence fields or has invalid timestamps"
             ),
             Self::AcceptedRiskExpired => write!(f, "risk acceptance is already expired"),
             Self::FixVerifiedNotAuthorizedInR1 => write!(
@@ -301,18 +301,26 @@ impl Finding {
         if !self.can_transition_workflow(&next) {
             return Err(FindingError::InvalidTransition);
         }
+
+        let clears_authorization = next == WorkflowState::New;
         validate_workflow_state(
             &next,
             accepted_risk.as_ref(),
             Some(authorization),
-            Some(&authorization.authority_id),
-            Some(&authorization.authorization_ref),
+            (!clears_authorization).then_some(authorization.authority_id.as_str()),
+            (!clears_authorization).then_some(authorization.authorization_ref.as_str()),
             now_unix_seconds,
         )?;
+
         self.workflow_state = next;
         self.accepted_risk = accepted_risk;
-        self.workflow_authority_id = Some(authorization.authority_id.clone());
-        self.workflow_authorization_ref = Some(authorization.authorization_ref.clone());
+        if clears_authorization {
+            self.workflow_authority_id = None;
+            self.workflow_authorization_ref = None;
+        } else {
+            self.workflow_authority_id = Some(authorization.authority_id.clone());
+            self.workflow_authorization_ref = Some(authorization.authorization_ref.clone());
+        }
         Ok(())
     }
 
@@ -438,6 +446,7 @@ fn validate_accepted_risk(
         || risk.authorization_ref.trim().is_empty()
         || risk.evidence_basis.is_empty()
         || risk.created_at_unix_seconds > risk.expires_at_unix_seconds
+        || risk.created_at_unix_seconds > now_unix_seconds
     {
         return Err(FindingError::AcceptedRiskMalformed);
     }
@@ -525,6 +534,27 @@ mod tests {
     }
 
     #[test]
+    fn suppressed_can_reopen_to_new_and_clears_authority() {
+        let authority = reconciler();
+        let mut value = Finding::new_reconciled(draft(), &authority).expect("finding");
+        let auth = WorkflowAuthorization::from_runtime("user-policy", "approval:reopen")
+            .expect("auth");
+
+        value
+            .transition(WorkflowState::Suppressed, &auth, None, 100)
+            .expect("suppress");
+        assert_eq!(value.workflow_state(), &WorkflowState::Suppressed);
+
+        value
+            .transition(WorkflowState::New, &auth, None, 101)
+            .expect("reopen");
+        assert_eq!(value.workflow_state(), &WorkflowState::New);
+        let record = value.to_record();
+        assert!(record.workflow_authority_id.is_none());
+        assert!(record.workflow_authorization_ref.is_none());
+    }
+
+    #[test]
     fn expired_or_empty_basis_risk_is_rejected() {
         let authority = reconciler();
         let mut value = Finding::new_reconciled(draft(), &authority).expect("finding");
@@ -539,6 +569,26 @@ mod tests {
         };
         assert!(matches!(
             value.transition(WorkflowState::Accepted, &auth, Some(risk), 15),
+            Err(FindingError::AcceptedRiskMalformed)
+        ));
+    }
+
+    #[test]
+    fn future_created_risk_is_rejected() {
+        let authority = reconciler();
+        let mut value = Finding::new_reconciled(draft(), &authority).expect("finding");
+        let auth = WorkflowAuthorization::from_runtime("user-policy", "approval:future")
+            .expect("auth");
+        let risk = AcceptedRiskRecord {
+            owner: "owner".to_owned(),
+            reason: "temporary".to_owned(),
+            created_at_unix_seconds: 200,
+            expires_at_unix_seconds: 300,
+            authorization_ref: "approval:future".to_owned(),
+            evidence_basis: vec!["sha256:evidence".to_owned()],
+        };
+        assert!(matches!(
+            value.transition(WorkflowState::Accepted, &auth, Some(risk), 100),
             Err(FindingError::AcceptedRiskMalformed)
         ));
     }
