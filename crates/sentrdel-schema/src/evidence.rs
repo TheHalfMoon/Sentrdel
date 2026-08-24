@@ -301,6 +301,13 @@ fn validate_claim(
     if claim.epistemic_class == EpistemicClass::Verified {
         return Err(EvidenceValidationError::VerifiedNotAuthorizedInR1);
     }
+    if claim.epistemic_class == EpistemicClass::Observation
+        && producer_kind != &ProducerKind::RuntimeTest
+    {
+        return Err(EvidenceValidationError::RuntimeAuthorityMismatch(
+            claim.epistemic_class.clone(),
+        ));
+    }
     if producer_kind == &ProducerKind::RuntimeTest
         && !matches!(
             claim.epistemic_class,
@@ -379,6 +386,23 @@ mod tests {
             Err(EvidenceValidationError::LlmAuthorityEscalation(
                 EpistemicClass::Verified
             )) | Err(EvidenceValidationError::VerifiedNotAuthorizedInR1)
+        ));
+    }
+
+    #[test]
+    fn runtime_observation_authority_is_exclusive() {
+        let runtime = EvidenceAuthority::from_runtime("runtime", "1", ProducerKind::RuntimeTest)
+            .expect("runtime authority");
+        let external =
+            EvidenceAuthority::from_runtime("engine", "1", ProducerKind::ExternalEngine)
+                .expect("external authority");
+
+        assert!(runtime.seal(claim(EpistemicClass::Observation)).is_ok());
+        assert!(matches!(
+            external.seal(claim(EpistemicClass::Observation)),
+            Err(EvidenceValidationError::RuntimeAuthorityMismatch(
+                EpistemicClass::Observation
+            ))
         ));
     }
 
