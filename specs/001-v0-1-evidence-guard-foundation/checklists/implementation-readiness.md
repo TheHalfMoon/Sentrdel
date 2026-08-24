@@ -35,7 +35,7 @@
 - [x] Only `sentrdel-engine` may spawn external evidence engines.
 - [x] Engine environment is deny-by-default/allowlisted.
 - [x] Only reconciler creates canonical Findings.
-- [x] SQLite + BLAKE3 + thin petgraph evidence graph documented.
+- [x] SQLite + domain-separated **SHA-256** canonical content IDs + thin petgraph evidence graph documented; SHA-256 is binding under `implementation-amendment-001-hashing.md`.
 - [x] gix/regorus/rmcp are qualified as dependencies requiring security wrappers, not blindly trusted foundations.
 - [x] Regorus >=0.11.0 + byte/depth/subset bounds planned.
 - [x] MCP stdio framing/version/payload caps planned; SDK defaults are not security authority.
@@ -79,7 +79,7 @@
 
 ## Implementation gate
 
-**Planning status:** READY_FOR_FINAL_ANALYZE  
-**Coding status:** AUTHORIZED_AFTER_FINAL_ANALYZE
+**Planning status:** COMPLETE_WITH_BINDING_IMPLEMENTATION_AMENDMENTS  
+**Coding status:** IMPLEMENTATION_IN_PROGRESS
 
-Implementation may proceed with Sentrdel-owned Rust code after the final consistency pass. Donor source/data reuse remains separately gated by exact source qualification. No R1 authority exists for live exploitation, remote MCP, provider credentials, production mutation, target build execution, or universal CPG work.
+Implementation is in progress with Sentrdel-owned Rust code. T001–T015 are canonical as recorded in `tasks.md`; T016 is the next unfinished foundational task. Donor source/data reuse remains separately gated by exact source qualification. No R1 authority exists for live exploitation, remote MCP, provider credentials, production mutation, target build execution, or universal CPG work.
