@@ -1,4 +1,5 @@
 name: Schema Lock Qualification
+# Merge-candidate gate: read-only repository access; no source mutation.
 
 on:
   pull_request:
