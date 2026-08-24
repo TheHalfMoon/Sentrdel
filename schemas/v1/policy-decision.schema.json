@@ -1,0 +1,86 @@
+{
+  "$defs": {
+    "EnforcementFidelity": {
+      "enum": [
+        "ENFORCED",
+        "PARTIAL",
+        "ADVISORY"
+      ],
+      "type": "string"
+    },
+    "Verdict": {
+      "enum": [
+        "ALLOW",
+        "ASK",
+        "DENY",
+        "UNDECIDABLE"
+      ],
+      "type": "string"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Persistence/wire representation. Deserializing this remains untrusted until\n`PolicyDecision::try_from_record` rebinds it to the expected authority/action.",
+  "properties": {
+    "action_digest": {
+      "type": "string"
+    },
+    "authority_configuration_digest": {
+      "type": "string"
+    },
+    "authority_id": {
+      "type": "string"
+    },
+    "decided_at": {
+      "type": "string"
+    },
+    "decision_id": {
+      "type": "string"
+    },
+    "enforcement_fidelity": {
+      "$ref": "#/$defs/EnforcementFidelity"
+    },
+    "kernel_invariant_ids": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "policy_version_digests": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "reason_codes": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "rule_ids": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "verdict": {
+      "$ref": "#/$defs/Verdict"
+    }
+  },
+  "required": [
+    "decision_id",
+    "authority_id",
+    "authority_configuration_digest",
+    "verdict",
+    "enforcement_fidelity",
+    "reason_codes",
+    "rule_ids",
+    "kernel_invariant_ids",
+    "policy_version_digests",
+    "action_digest",
+    "decided_at"
+  ],
+  "title": "PolicyDecisionRecord",
+  "type": "object"
+}

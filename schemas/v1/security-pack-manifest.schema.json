@@ -1,0 +1,93 @@
+{
+  "$defs": {
+    "SourceProvenance": {
+      "additionalProperties": false,
+      "properties": {
+        "exact_ref": {
+          "type": "string"
+        },
+        "integrity_digest": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "license_expression": {
+          "type": "string"
+        },
+        "source_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "source_id",
+        "exact_ref",
+        "license_expression"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "coverage_dimensions": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "detection_capabilities": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "evidence_capabilities": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "pack_id": {
+      "type": "string"
+    },
+    "provider_or_framework": {
+      "type": "string"
+    },
+    "required_engines": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "required_features": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "schema_version": {
+      "type": "string"
+    },
+    "source_provenance": {
+      "$ref": "#/$defs/SourceProvenance"
+    },
+    "version": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "pack_id",
+    "version",
+    "provider_or_framework",
+    "source_provenance",
+    "detection_capabilities",
+    "evidence_capabilities",
+    "required_engines",
+    "required_features",
+    "coverage_dimensions"
+  ],
+  "title": "SecurityPackManifest",
+  "type": "object"
+}

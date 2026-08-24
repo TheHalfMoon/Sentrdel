@@ -1,0 +1,157 @@
+{
+  "$defs": {
+    "ConfidenceBand": {
+      "enum": [
+        "LOW",
+        "MEDIUM",
+        "HIGH"
+      ],
+      "type": "string"
+    },
+    "EvidenceLocation": {
+      "additionalProperties": false,
+      "properties": {
+        "content_digest": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "end_column": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "end_line": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "repo_relative_path": {
+          "type": "string"
+        },
+        "start_column": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "start_line": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "symbol": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "repo_relative_path"
+      ],
+      "type": "object"
+    },
+    "EvidenceSubject": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "id"
+      ],
+      "type": "object"
+    },
+    "ReasonerEpistemicClass": {
+      "description": "The reasoner public API cannot represent FACT/OBSERVATION/VERIFIED.",
+      "enum": [
+        "INFERENCE",
+        "HYPOTHESIS"
+      ],
+      "type": "string"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Untrusted model output. Producer identity is not model-controlled and is\nsupplied separately through a runtime `EvidenceAuthority`.",
+  "properties": {
+    "attributes": {
+      "additionalProperties": true,
+      "type": "object"
+    },
+    "captured_at": {
+      "type": "string"
+    },
+    "category": {
+      "type": "string"
+    },
+    "confidence_band": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ConfidenceBand"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "epistemic_class": {
+      "$ref": "#/$defs/ReasonerEpistemicClass"
+    },
+    "input_digests": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "locations": {
+      "items": {
+        "$ref": "#/$defs/EvidenceLocation"
+      },
+      "type": "array"
+    },
+    "observation": {
+      "type": "string"
+    },
+    "security_interpretation": {
+      "type": "string"
+    },
+    "subjects": {
+      "items": {
+        "$ref": "#/$defs/EvidenceSubject"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "input_digests",
+    "observation",
+    "security_interpretation",
+    "category",
+    "epistemic_class",
+    "subjects",
+    "locations",
+    "attributes",
+    "captured_at"
+  ],
+  "title": "ReasonerEvidenceDraft",
+  "type": "object"
+}

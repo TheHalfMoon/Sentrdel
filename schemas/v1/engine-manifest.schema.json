@@ -1,0 +1,91 @@
+{
+  "$defs": {
+    "NetworkRequirement": {
+      "enum": [
+        "NONE",
+        "OPTIONAL",
+        "REQUIRED"
+      ],
+      "type": "string"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "adapter_version": {
+      "type": "string"
+    },
+    "capabilities": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "engine_id": {
+      "type": "string"
+    },
+    "executable_digest": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "executable_source": {
+      "type": "string"
+    },
+    "expected_version_constraint": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "input_dialects": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "max_stderr_bytes": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "max_stdout_bytes": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "network_requirement": {
+      "$ref": "#/$defs/NetworkRequirement"
+    },
+    "output_dialects": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "schema_version": {
+      "type": "string"
+    },
+    "timeout_ms": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "schema_version",
+    "engine_id",
+    "adapter_version",
+    "executable_source",
+    "input_dialects",
+    "output_dialects",
+    "capabilities",
+    "timeout_ms",
+    "max_stdout_bytes",
+    "max_stderr_bytes",
+    "network_requirement"
+  ],
+  "title": "EngineManifest",
+  "type": "object"
+}

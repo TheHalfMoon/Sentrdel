@@ -1,0 +1,242 @@
+{
+  "$defs": {
+    "ConfidenceBand": {
+      "enum": [
+        "LOW",
+        "MEDIUM",
+        "HIGH"
+      ],
+      "type": "string"
+    },
+    "EpistemicClass": {
+      "enum": [
+        "FACT",
+        "INFERENCE",
+        "HYPOTHESIS",
+        "OBSERVATION",
+        "VERIFIED",
+        "CONTRADICTION"
+      ],
+      "type": "string"
+    },
+    "EvidenceLocation": {
+      "additionalProperties": false,
+      "properties": {
+        "content_digest": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "end_column": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "end_line": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "repo_relative_path": {
+          "type": "string"
+        },
+        "start_column": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "start_line": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "symbol": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "repo_relative_path"
+      ],
+      "type": "object"
+    },
+    "EvidenceSubject": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "id"
+      ],
+      "type": "object"
+    },
+    "ProducerIdentity": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/ProducerKind"
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "version",
+        "kind"
+      ],
+      "type": "object"
+    },
+    "ProducerKind": {
+      "enum": [
+        "NATIVE_RULE",
+        "COMPILER_INDEX",
+        "EXTERNAL_ENGINE",
+        "RUNTIME_TEST",
+        "LLM_REASONER",
+        "HUMAN",
+        "SYSTEM"
+      ],
+      "type": "string"
+    },
+    "ReproductionMetadata": {
+      "additionalProperties": false,
+      "properties": {
+        "input_digest": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "method": {
+          "type": "string"
+        },
+        "notes": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "method"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Untrusted wire/persistence representation. Acceptance requires the expected\nruntime producer authority and canonical ID verification.",
+  "properties": {
+    "attributes": {
+      "additionalProperties": true,
+      "type": "object"
+    },
+    "captured_at": {
+      "type": "string"
+    },
+    "category": {
+      "type": "string"
+    },
+    "confidence_band": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ConfidenceBand"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "epistemic_class": {
+      "$ref": "#/$defs/EpistemicClass"
+    },
+    "evidence_id": {
+      "type": "string"
+    },
+    "input_digests": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "locations": {
+      "items": {
+        "$ref": "#/$defs/EvidenceLocation"
+      },
+      "type": "array"
+    },
+    "observation": {
+      "description": "Direct bounded observation or the primary claim text.",
+      "type": "string"
+    },
+    "producer": {
+      "$ref": "#/$defs/ProducerIdentity"
+    },
+    "reproduction": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ReproductionMetadata"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "schema_version": {
+      "type": "string"
+    },
+    "security_interpretation": {
+      "description": "Optional explicit interpretation kept separate from raw observation.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "subjects": {
+      "items": {
+        "$ref": "#/$defs/EvidenceSubject"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "evidence_id",
+    "producer",
+    "schema_version",
+    "input_digests",
+    "observation",
+    "category",
+    "epistemic_class",
+    "subjects",
+    "locations",
+    "attributes",
+    "captured_at"
+  ],
+  "title": "EvidenceRecord",
+  "type": "object"
+}

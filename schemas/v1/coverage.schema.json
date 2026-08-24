@@ -1,0 +1,92 @@
+{
+  "$defs": {
+    "CoverageState": {
+      "enum": [
+        "COVERED",
+        "PARTIAL",
+        "UNSUPPORTED",
+        "UNAVAILABLE",
+        "FAILED",
+        "TIMED_OUT",
+        "SKIPPED_BY_POLICY"
+      ],
+      "type": "string"
+    },
+    "ProviderCoverageDimension": {
+      "enum": [
+        "DETECTION",
+        "STATIC_POSTURE",
+        "CREDENTIALED_LIVE_POSTURE",
+        "CROSS_LAYER_BUSINESS_LOGIC"
+      ],
+      "type": "string"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "capability": {
+      "type": "string"
+    },
+    "coverage_id": {
+      "type": "string"
+    },
+    "details": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "input_digests": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "observed_at": {
+      "type": "string"
+    },
+    "producer": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "provider_dimension": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ProviderCoverageDimension"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "reason_code": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "schema_version": {
+      "type": "string"
+    },
+    "scope": {
+      "type": "string"
+    },
+    "state": {
+      "$ref": "#/$defs/CoverageState"
+    }
+  },
+  "required": [
+    "schema_version",
+    "coverage_id",
+    "capability",
+    "scope",
+    "state",
+    "input_digests",
+    "observed_at"
+  ],
+  "title": "CoverageRecord",
+  "type": "object"
+}
