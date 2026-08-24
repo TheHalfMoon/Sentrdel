@@ -1,0 +1,43 @@
+name: Format Finding Once
+
+on:
+  push:
+    branches:
+      - impl/001-r1-schema-substrate
+    paths:
+      - '.github/workflows/format-finding-once.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  format-finding:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout exact branch without persisted credentials
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+
+      - name: Install exact rustfmt
+        run: rustup toolchain install 1.98.0 --profile minimal --component rustfmt
+
+      - name: Format only finding.rs
+        run: rustfmt +1.98.0 --edition 2024 crates/sentrdel-schema/src/finding.rs
+
+      - name: Update only finding.rs through GitHub API
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          path='crates/sentrdel-schema/src/finding.rs'
+          sha=$(gh api "repos/$REPO/contents/$path?ref=$BRANCH" --jq .sha)
+          content=$(base64 -w0 "$path")
+          gh api --method PUT "repos/$REPO/contents/$path" \
+            -f message='style(schema): apply pinned rustfmt to finding' \
+            -f content="$content" \
+            -f sha="$sha" \
+            -f branch="$BRANCH" >/dev/null
