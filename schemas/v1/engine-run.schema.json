@@ -1,0 +1,90 @@
+{
+  "$defs": {
+    "TerminationReason": {
+      "enum": [
+        "COMPLETED",
+        "NON_ZERO",
+        "TIMEOUT",
+        "OUTPUT_CAP",
+        "SPAWN_FAILED",
+        "MALFORMED_OUTPUT",
+        "POLICY_BLOCKED"
+      ],
+      "type": "string"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "coverage_ids": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "engine_manifest_digest": {
+      "type": "string"
+    },
+    "exit_status": {
+      "format": "int32",
+      "maximum": 2147483647,
+      "minimum": -2147483648,
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "finished_at": {
+      "type": "string"
+    },
+    "input_digests": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "produced_evidence_ids": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "run_id": {
+      "type": "string"
+    },
+    "schema_version": {
+      "type": "string"
+    },
+    "started_at": {
+      "type": "string"
+    },
+    "stderr_digest": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "stdout_digest": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "termination_reason": {
+      "$ref": "#/$defs/TerminationReason"
+    }
+  },
+  "required": [
+    "schema_version",
+    "run_id",
+    "engine_manifest_digest",
+    "input_digests",
+    "started_at",
+    "finished_at",
+    "termination_reason",
+    "produced_evidence_ids",
+    "coverage_ids"
+  ],
+  "title": "EngineRun",
+  "type": "object"
+}

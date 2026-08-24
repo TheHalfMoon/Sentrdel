@@ -1,6 +1,6 @@
 # Contract — Canonical Evidence, Findings, Coverage, and ASEL
 
-**Version:** draft-v1.1  
+**Version:** draft-v1.4  
 **Status:** BINDING_FOR_R1_IMPLEMENTATION
 
 ## 1. Canonical serialization
@@ -13,6 +13,8 @@ All cross-crate/persisted/exported canonical objects MUST have:
 - rejection of structurally invalid objects before persistence;
 - stable content hashing after redaction/canonicalization.
 
+R1 canonical object identifiers use domain-separated **SHA-256** and the machine format `sha256:<lowercase-hex>`. This replaces the earlier BLAKE3 planning choice after implementation-time dependency qualification reduced unnecessary build-time authority. A future spec may change the hash algorithm only with explicit versioning/migration.
+
 Unknown fields MAY be rejected for security-critical R1 envelopes; extension points are explicitly namespaced rather than silently accepting arbitrary authority-bearing fields.
 
 ## 2. Evidence producer authority
@@ -20,6 +22,12 @@ Unknown fields MAY be rejected for security-critical R1 envelopes; extension poi
 A producer submits candidate Evidence to schema validation. It never submits a Finding.
 
 Evidence separates a direct `observation`/basis from optional `security_interpretation`.
+
+### Runtime authority trust boundary
+
+`EvidenceAuthority`, `TrustedPolicyAuthority`, `ReconcilerAuthority`, and `WorkflowAuthorization` are capabilities constructed only by trusted in-process Sentrdel core/bootstrap code from configuration already admitted by the TCB. They are **not** cryptographic isolation against arbitrary malicious Rust code linked into the same process. Untrusted repositories, external engines, MCP peers, provider responses, and LLM output remain data/process boundaries and MUST NOT be allowed to invoke authority constructors as plugins or deserialize authority capabilities from their payloads.
+
+Future dynamically loaded or third-party in-process code requires a separate trust/admission design; R1 does not treat arbitrary linked code as untrusted isolation-safe extension code.
 
 ### FACT rule
 
@@ -42,7 +50,9 @@ Allowed producer-to-epistemic mapping in R1:
 | External scanner | FACT only for directly mapped observations; otherwise INFERENCE; never VERIFIED because scanner severity says so |
 | LLM reasoner | INFERENCE, HYPOTHESIS only |
 | Human | workflow decision/evidence note; cannot fabricate runtime VERIFIED |
-| Future verification executor | OBSERVATION, VERIFIED, CONTRADICTION — **not implemented in R1** |
+| Runtime/test producer | OBSERVATION, CONTRADICTION only in R1; `VERIFIED` remains unavailable until the verification specification exists |
+
+`OBSERVATION` is reserved for the runtime/test producer in R1. No static producer, external scanner, human, system source, or LLM may claim runtime observation authority.
 
 API design MUST prevent an LLM adapter from requesting a more authoritative class.
 
@@ -111,15 +121,30 @@ UI/docs MUST NOT call a local unauthenticated chain `tamper-proof`. Later signat
   "actor": {"actor_type": "AGENT", "id": "..."},
   "kind": "mcp.invocation",
   "target": {"server": "...", "tool": "..."},
-  "params_digest": "blake3:...",
-  "policy_decision": "...",
+  "params_digest": "sha256:...",
+  "policy_decision": {
+    "decision_id": "sha256:...",
+    "authority_id": "sentrdel-policy",
+    "authority_configuration_digest": "sha256:...",
+    "claim": {
+      "schema_version": "1",
+      "verdict": "ALLOW",
+      "enforcement_fidelity": "ENFORCED",
+      "reason_codes": [],
+      "rule_ids": [],
+      "kernel_invariant_ids": [],
+      "policy_version_digests": ["sha256:..."],
+      "action_digest": "sha256:...",
+      "decided_at": "2026-08-24T00:00:00Z"
+    }
+  },
   "provenance": {"source": "sentrdel-guard"},
-  "previous_event_hash": "blake3:...",
-  "event_hash": "blake3:..."
+  "previous_event_hash": "sha256:...",
+  "event_hash": "sha256:..."
 }
 ```
 
-Generated JSON Schema is canonical.
+`policy_decision` is optional; when present it is a `PolicyDecisionRecord` object with a nested untrusted `claim`, not a scalar or an authority token. Generated JSON Schema is canonical.
 
 ## 6. Guard decision monotonicity
 

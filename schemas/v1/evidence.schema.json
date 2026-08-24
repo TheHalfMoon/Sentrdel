@@ -1,0 +1,374 @@
+{
+  "$defs": {
+    "ConfidenceBand": {
+      "enum": [
+        "LOW",
+        "MEDIUM",
+        "HIGH"
+      ],
+      "type": "string"
+    },
+    "EpistemicClass": {
+      "enum": [
+        "FACT",
+        "INFERENCE",
+        "HYPOTHESIS",
+        "OBSERVATION",
+        "CONTRADICTION"
+      ],
+      "type": "string"
+    },
+    "EvidenceClaim": {
+      "additionalProperties": false,
+      "description": "Untrusted producer claim. Producer identity/kind are intentionally absent;\nthey are injected only from `EvidenceAuthority`.",
+      "properties": {
+        "attributes": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "captured_at": {
+          "type": "string"
+        },
+        "category": {
+          "type": "string"
+        },
+        "confidence_band": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ConfidenceBand"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "epistemic_class": {
+          "$ref": "#/$defs/EpistemicClass"
+        },
+        "input_digests": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "locations": {
+          "items": {
+            "$ref": "#/$defs/EvidenceLocation"
+          },
+          "type": "array"
+        },
+        "observation": {
+          "description": "Direct bounded observation or the primary claim text.",
+          "type": "string"
+        },
+        "reproduction": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReproductionMetadata"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "schema_version": {
+          "type": "string"
+        },
+        "security_interpretation": {
+          "description": "Optional explicit interpretation kept separate from raw observation.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "subjects": {
+          "items": {
+            "$ref": "#/$defs/EvidenceSubject"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "schema_version",
+        "input_digests",
+        "observation",
+        "category",
+        "epistemic_class",
+        "subjects",
+        "locations",
+        "attributes",
+        "captured_at"
+      ],
+      "type": "object"
+    },
+    "EvidenceLocation": {
+      "additionalProperties": false,
+      "properties": {
+        "content_digest": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "end_column": {
+          "format": "uint64",
+          "maximum": 18446744073709551615,
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "end_line": {
+          "format": "uint64",
+          "maximum": 18446744073709551615,
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "repo_relative_path": {
+          "type": "string"
+        },
+        "start_column": {
+          "format": "uint64",
+          "maximum": 18446744073709551615,
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "start_line": {
+          "format": "uint64",
+          "maximum": 18446744073709551615,
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "symbol": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "repo_relative_path"
+      ],
+      "type": "object"
+    },
+    "EvidenceSubject": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "id"
+      ],
+      "type": "object"
+    },
+    "ProducerIdentity": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/ProducerKind"
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "version",
+        "kind"
+      ],
+      "type": "object"
+    },
+    "ProducerKind": {
+      "enum": [
+        "NATIVE_RULE",
+        "COMPILER_INDEX",
+        "EXTERNAL_ENGINE",
+        "RUNTIME_TEST",
+        "LLM_REASONER",
+        "HUMAN",
+        "SYSTEM"
+      ],
+      "type": "string"
+    },
+    "ReproductionMetadata": {
+      "additionalProperties": false,
+      "properties": {
+        "input_digest": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "method": {
+          "type": "string"
+        },
+        "notes": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "method"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "producer": {
+            "properties": {
+              "kind": {
+                "const": "LLM_REASONER"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          }
+        },
+        "required": [
+          "producer"
+        ]
+      },
+      "then": {
+        "properties": {
+          "claim": {
+            "properties": {
+              "epistemic_class": {
+                "enum": [
+                  "INFERENCE",
+                  "HYPOTHESIS"
+                ]
+              }
+            },
+            "required": [
+              "epistemic_class"
+            ]
+          }
+        },
+        "required": [
+          "claim"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "claim": {
+            "properties": {
+              "epistemic_class": {
+                "const": "OBSERVATION"
+              }
+            },
+            "required": [
+              "epistemic_class"
+            ]
+          }
+        },
+        "required": [
+          "claim"
+        ]
+      },
+      "then": {
+        "properties": {
+          "producer": {
+            "properties": {
+              "kind": {
+                "const": "RUNTIME_TEST"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          }
+        },
+        "required": [
+          "producer"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "producer": {
+            "properties": {
+              "kind": {
+                "const": "RUNTIME_TEST"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          }
+        },
+        "required": [
+          "producer"
+        ]
+      },
+      "then": {
+        "properties": {
+          "claim": {
+            "properties": {
+              "epistemic_class": {
+                "enum": [
+                  "OBSERVATION",
+                  "CONTRADICTION"
+                ]
+              }
+            },
+            "required": [
+              "epistemic_class"
+            ]
+          }
+        },
+        "required": [
+          "claim"
+        ]
+      }
+    }
+  ],
+  "description": "Untrusted wire/persistence representation. Acceptance requires the expected\nruntime producer authority and canonical ID verification.",
+  "properties": {
+    "claim": {
+      "$ref": "#/$defs/EvidenceClaim"
+    },
+    "evidence_id": {
+      "type": "string"
+    },
+    "producer": {
+      "$ref": "#/$defs/ProducerIdentity"
+    }
+  },
+  "required": [
+    "evidence_id",
+    "producer",
+    "claim"
+  ],
+  "title": "EvidenceRecord",
+  "type": "object"
+}
