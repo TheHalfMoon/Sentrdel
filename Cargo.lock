@@ -245,7 +245,6 @@ version = "0.0.0"
 dependencies = [
  "rusqlite",
  "sentrdel-schema",
- "serde",
  "serde_json",
  "sha2",
 ]
