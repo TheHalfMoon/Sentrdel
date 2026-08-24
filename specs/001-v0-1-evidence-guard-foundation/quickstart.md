@@ -1,6 +1,6 @@
 # Quickstart — Sentrdel v0.1 Evidence + Guard Foundation
 
-This is the planned R1 user/developer flow. Commands are contracts for implementation, not claims that code already exists.
+This is the planned R1 user/developer flow. Commands are implementation contracts, not claims that code already exists.
 
 ## User flow 1 — Initialize a project
 
@@ -23,14 +23,16 @@ Detected
 Coverage
   Native changed-code review      available
   Dependency advisory review      available/offline-cache dependent
-  Supabase deep security pack     NOT IMPLEMENTED (R3)
+  Supabase detection              covered
+  Supabase static posture         NOT IMPLEMENTED (R2)
+  Supabase business logic         NOT IMPLEMENTED (R3)
 
-No provider detection is treated as a security verdict.
+Provider detection is not a security verdict.
 ```
 
 ## User flow 2 — Review AI-generated changes
 
-After Cursor/Codex/Claude/another agent changes code:
+After any agent/developer changes code:
 
 ```bash
 sentrdel review
@@ -43,11 +45,11 @@ BLOCK — fix before merging
 
 1. Someone using your application may reach a dangerous command with untrusted input.
    Where: src/api/export.ts:41
-   Evidence: structural rule + changed-code reachability
-   Proof: Corroborated pattern, not runtime verified
+   Evidence: structural observation + changed-code reachability
+   Proof: Corroborated inference, not runtime verified
 
 Coverage gaps
-   Supabase provider detected; deep RLS/Auth/Storage checks are not available in this release.
+   Supabase provider detected; RLS/Auth/Storage static posture is not available in R1.
 ```
 
 Technical details:
@@ -70,21 +72,23 @@ Expected exit codes:
 - 3 incomplete/undecidable analysis where success/block would misrepresent coverage;
 - 4 internal/integrity failure.
 
-## User flow 3 — MCP guard
+## User flow 3 — bounded stdio MCP guard
 
-Run Sentrdel as the MCP security gateway between an agent and an upstream MCP server using the implementation-defined upstream configuration:
+R1 supports only stdio MCP through Sentrdel's bounded gateway. Remote/Streamable HTTP MCP is intentionally deferred.
 
 ```bash
-sentrdel guard mcp ...
+sentrdel guard mcp -- <upstream-mcp-command> [args...]
 ```
 
 Target behavior:
 
 ```text
+Transport: STDIO
+Protocol: explicitly negotiated supported version
 MCP tool: github.create_pull_request
 Policy: ASK
 Fidelity: ENFORCED
-Reason: repository write through a controlled MCP gateway
+Reason: repository write through the controlled stdio gateway
 ```
 
 Kernel-invariant denial:
@@ -97,7 +101,7 @@ Fidelity: ENFORCED
 Reason: SENTRDEL-KERNEL-WORKSPACE-BOUNDARY
 ```
 
-The denial cannot be downgraded by repository config, tool output, later plugin, or LLM.
+The denial cannot be downgraded by repo config, tool output, later plugin or LLM. Oversized/unterminated frames and unsupported protocol versions fail closed under configured policy.
 
 ## User flow 4 — Git hook assistance
 
@@ -105,7 +109,7 @@ The denial cannot be downgraded by repository config, tool output, later plugin,
 sentrdel guard install-git-hooks
 ```
 
-Sentrdel must explicitly report:
+Sentrdel reports:
 
 ```text
 Fidelity: PARTIAL
@@ -118,7 +122,7 @@ Local git hooks can be bypassed; use CI enforcement for a team merge gate.
 sentrdel review --no-network
 ```
 
-Native producers still run. Network-dependent capabilities use local cache/fixtures or emit coverage gaps. No LLM is required.
+Native producers still run. Network-dependent capabilities use local cache/fixtures or emit explicit coverage gaps. No LLM is required.
 
 ## User flow 6 — Optional reasoner
 
@@ -126,33 +130,55 @@ Native producers still run. Network-dependent capabilities use local cache/fixtu
 sentrdel review --reason
 ```
 
-Reasoner output can add explanations/hypotheses but must visibly remain unverified unless deterministic/runtime evidence supports it.
+Reasoner output remains INFERENCE/HYPOTHESIS and cannot become authoritative FACT/VERIFIED, suppression or policy authority.
+
+## User flow 7 — ASEL integrity check
+
+R1 exposes the computed session head and verifies the available chain:
+
+```bash
+sentrdel evidence verify --session <session-id>
+```
+
+Target shape:
+
+```text
+Events: 42
+Chain valid: yes
+Computed head: blake3:...
+Trusted checkpoint: not supplied
+
+The available chain is internally consistent. Without a trusted external head/signature,
+this does not independently prove that the entire local history was not replaced or truncated.
+```
 
 ## Developer bootstrap target
 
-Once implementation starts:
+Implementation is pinned to Rust 1.98.0:
 
 ```bash
 rustup show
 cargo check --workspace
 cargo test --workspace
-cargo clippy --workspace --all-targets --all-features -- -D warnings
+cargo clippy --workspace --all-targets -- -D warnings
 cargo fmt --all -- --check
 ```
 
-Security/release gates will additionally include the repository's frozen `cargo-deny`/advisory policy after dependency setup.
+Security/release gates additionally include `cargo-audit`, `cargo-deny`, dependency/source qualification and lockfile/toolchain checks.
 
 ## Contract acceptance sequence
 
-Before any detector breadth is added, implementation should prove in this order:
+Before detector breadth:
 
 1. canonical Evidence/ASEL schemas compile and round-trip;
-2. SQLite persistence preserves immutable IDs and redaction;
-3. ASEL chain tampering is detected;
-4. kernel-invariant DENY cannot be downgraded;
-5. missing external producer creates coverage gap;
-6. native review works offline on a fixture diff;
-7. MCP gateway enforcement records a complete event chain;
-8. `init` detects Supabase but reports deep provider security as not covered;
-9. plain-language output remains backed by the same canonical Finding/Evidence objects;
-10. optional reasoner cannot escalate its epistemic authority.
+2. SQLite persistence preserves immutable IDs and secret-redaction/value-hash prohibition;
+3. ASEL chain/head verification reports its trust limits honestly;
+4. kernel DENY cannot be downgraded;
+5. Regorus pathological input fails bounded/fail-closed;
+6. external engines receive scrubbed/allowlisted environments;
+7. missing producer creates a coverage gap;
+8. native review works offline on hostile-repo fixtures without executing target helpers/tools;
+9. bounded stdio MCP gateway survives malformed/oversized/unsupported-version inputs and records a complete chain;
+10. `init` detects Supabase but reports static posture/business logic as not covered;
+11. plain-language output remains backed by the same canonical Finding/Evidence objects;
+12. optional reasoner cannot escalate epistemic authority.
