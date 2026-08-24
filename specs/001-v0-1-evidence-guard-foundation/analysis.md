@@ -1,166 +1,160 @@
 # Spec Kit Consistency Analysis — R1
 
 **Date:** 2026-08-24  
-**Result:** PASS_WITH_NONBLOCKING_GATES  
-**Implementation:** NOT_STARTED
+**Result:** **PASS_READY_FOR_IMPLEMENTATION**  
+**Implementation:** NOT_STARTED_AT_THIS_ANALYSIS_POINT  
+**Major review:** `major-review-2026-08-24.md` APPLIED
 
 ## Inputs analyzed
 
-- `.specify/memory/constitution.md`
+- `.specify/memory/constitution.md` v1.0.1
+- `LICENSE` (Apache-2.0)
 - `specs/000-sentrdel-roadmap/roadmap.md`
+- `major-review-2026-08-24.md`
 - `spec.md`
 - `clarification-closeout.md`
 - `research.md`
 - `plan.md`
 - `data-model.md`
-- `contracts/evidence-asel-contract.md`
-- `contracts/cli-contract.md`
-- `contracts/engine-security-pack-contract.md`
+- all `contracts/`
 - `quickstart.md`
 - `checklists/implementation-readiness.md`
 - `tasks.md`
 
 ## Summary
 
-- Constitutional principles checked: **10/10 represented in plan/tasks**.
+- Constitutional principles: **10/10 represented**.
 - User stories: **5/5 independently testable**.
-- Functional requirements: **35/35 have implementation/test coverage in tasks**.
-- Success criteria: **10/10 have an implementation or release-qualification path**.
-- Planned implementation tasks: **87**.
+- Functional requirements: **35/35 task-covered**.
+- Success criteria: **10/10 task/release-path covered**.
+- Implementation tasks: **87**, retained after hardening rather than inflating scope.
 - Critical contradictions: **0**.
 - High-severity inconsistencies: **0**.
-- Blocking unresolved product clarifications: **0**.
-- Nonblocking governance gates: **1** — exact core license must be founder-frozen before donor source/data is copied or a release is published.
+- Blocking product/governance clarifications: **0**.
+- Core license gate: **RESOLVED — Apache-2.0**.
+- Donor reuse gate: remains correctly **per-item**, not a blocker for Sentrdel-owned Rust implementation.
+
+## Major-review repair coverage
+
+| Repair | Authoritative artifact/task | Result |
+|---|---|---|
+| Sentrdel category = evidence/control plane, not generic AI scanner | roadmap, spec overview | COVERED |
+| Rust exact pin/current Cargo security | plan/research, T002/T082 | COVERED |
+| crates.io/build-script supply-chain threat | constitution IX, research, T004/T082 | COVERED |
+| MCP stdio-only R1 | spec FR-018, plan, T050–T058 | COVERED |
+| bounded MCP framing/buffering | FR-018/032, T050–T052/T058 | COVERED |
+| explicit MCP protocol negotiation | FR-018, T050/T058 | COVERED |
+| remote HTTP MCP deferred | spec non-goals/tasks deferred list | COVERED |
+| Regorus >=0.11.0 + input/subset bounds | FR-022/032, T023/T025 | COVERED |
+| FACT direct-observation rule | FR-002/003, data model, T009/T045 | COVERED |
+| no secret plaintext/value-only hash | FR-007, contract, T019/T041 | COVERED |
+| no Git external execution surfaces | FR-008/033, T037/T038/T049 | COVERED |
+| engine child environment scrub | FR-011/031, T027/T029 | COVERED |
+| honest ASEL trusted-head semantics | FR-034, contract, T020/T053 | COVERED |
+| Supabase static posture accelerated to R2 | roadmap/research, R1 T062 remains detection-only | COVERED |
+| GitHub Actions detector expanded | FR-009, T044 | COVERED |
+| root SECURITY.md before feature breadth | T007/T083 | COVERED |
+| Apache-2.0 freeze | LICENSE/T001 | COVERED |
 
 ## Requirement-to-task coverage
 
 | Requirement group | Spec IDs | Primary tasks | Result |
 |---|---|---|---|
-| Canonical Evidence/Finding/Coverage schemas | FR-001–FR-007 | T008–T020 | COVERED |
-| Git diff review + native producers | FR-008–FR-014 | T037–T049, T031–T034 | COVERED |
-| ASEL + MCP/git Guard | FR-015–FR-022 | T012, T020–T025, T050–T058 | COVERED |
-| Init/project profile/Security Packs | FR-023–FR-026 | T059–T066, T013–T014 | COVERED |
+| Evidence/Finding/Coverage schemas | FR-001–FR-007 | T008–T020 | COVERED |
+| Safe diff review/native producers | FR-008–FR-014 | T031–T049 | COVERED |
+| ASEL + bounded stdio MCP/git Guard | FR-015–FR-022 | T012, T020–T025, T050–T058 | COVERED |
+| Init/project profile/Security Packs | FR-023–FR-026 | T013–T014, T059–T066 | COVERED |
 | Optional LLM authority boundary | FR-027–FR-030 | T015, T071–T076 | COVERED |
-| Sentrdel self-security/source qualification | FR-031–FR-035 | T001, T005, T019, T025, T027–T030, T037–T038, T082–T084 | COVERED |
+| Sentrdel self-security/source/dependency qualification | FR-031–FR-035 | T001–T007, T019, T023, T025, T027–T030, T037–T038, T050, T058, T082–T084 | COVERED |
 
 ## Success-criteria coverage
 
 | Criterion | Task coverage | Result |
 |---|---|---|
 | SC-001 clean-PR FP gate | T077–T078 | COVERED |
-| SC-002 high finding evidence/location/proof | T045, T048–T049 | COVERED |
+| SC-002 evidence/location/observation/proof | T009, T045, T048–T049 | COVERED |
 | SC-003 review latency | T079 | COVERED |
-| SC-004 MCP guard latency | T080 | COVERED |
-| SC-005 missing producer = coverage gap | T030, T047, T049 | COVERED |
-| SC-006 DENY non-downgrade proof | T025 | COVERED |
-| SC-007 prompt injection cannot escalate LLM authority | T015, T075 | COVERED |
-| SC-008 novice action-oriented rendering | T067–T070, release fixtures T077 | COVERED |
-| SC-009 base install without LLM/external scanner/cloud | T048, T076, T081 release CI | COVERED |
-| SC-010 source qualification before copied donor source | T001, T005, T082 | COVERED |
+| SC-004 MCP policy latency | T080 | COVERED |
+| SC-005 missing producer = gap | T030, T047, T049 | COVERED |
+| SC-006 DENY + Rego fail-closed proof | T023, T025 | COVERED |
+| SC-007 LLM injection/authority | T015, T075 | COVERED |
+| SC-008 novice rendering | T067–T070, T077 | COVERED |
+| SC-009 base install + bounded stdio MCP | T048, T050–T058, T076, T081 | COVERED |
+| SC-010 license/source/dependency self-security | T001, T004–T005, T082, T087 | COVERED |
 
 ## Constitution analysis
 
-### Rust trusted core
+### Rust trusted core — PASS
 
-PASS. The nine-crate workspace keeps canonical schema/store/graph/policy/guard/review in Rust; external engines are isolated behind `sentrdel-engine`.
+Nine-crate trusted core remains Rust. External tools remain evidence-only. Toolchain is pinned to Rust 1.98.0 for R1.
 
-### Evidence before verdict
+### Evidence before verdict — PASS
 
-PASS. Evidence is immutable, Findings are reconciled, coverage is first-class, and LLM authority is structurally restricted.
+Major review fixed an important ambiguity: deterministic does not automatically mean FACT. Direct observation is separated from security interpretation; only reconciler creates Findings.
 
-### Vendor neutrality/local first
+### Vendor neutrality/local first — PASS
 
-PASS. R1's useful path is CLI/git/MCP and does not require cloud/model/vendor hooks.
+Review/init are local. Guard uses a true protocol seam. R1 does not depend on Cursor/Codex/Claude-specific hooks.
 
-### Honest monotonic guardrails
+### Honest monotonic guardrails — PASS
 
-PASS. ENFORCED/PARTIAL/ADVISORY is modeled; kernel DENY is absorbing; undecidable enforcement fails closed.
+MCP gateway scope is narrower and more truthful: bounded stdio only. Remote MCP is explicitly absent rather than implied. Fidelity remains machine-visible.
 
-### Safe verification
+### Safe verification — PASS BY EXCLUSION
 
-PASS by exclusion. No target execution verification is in R1; future Verify work requires a separate spec.
+No executable Verify authority in R1.
 
-### A-to-Z security packs
+### A-to-Z packs — PASS
 
-PASS. R1 defines detection/pack contracts and roadmap R3 makes Supabase P0 without pretending deep provider security is already covered.
+Supabase is accelerated to R2 static posture without polluting R1 scope. Coverage modes prevent provider detection from masquerading as provider security.
 
-### Mature infrastructure reuse
+### Mature infrastructure reuse — PASS
 
-PASS. Native Rust dependencies are selected where appropriate; donor projects are study/adapt references; copied source is gated by provenance/license qualification.
+ast-grep/gix/regorus/rmcp are treated as qualified dependencies with Sentrdel-owned security boundaries, not magical trusted components. Python/JVM donor runtimes are not mandatory.
 
-### FP/false-block/latency quality
+### FP/false-block/latency — PASS
 
-PASS. Explicit release tasks and performance gates exist.
+Existing benchmark/release gates remain intact.
 
-### Sentrdel self-security
+### Sentrdel self-security — PASS
 
-PASS. Threats are translated into tasks for path/output bounds, redaction, policy monotonicity, chain integrity and dependency/reuse controls.
+Major review materially strengthened supply chain, secret persistence, Git execution, engine environment, MCP framing, Rego bounds and integrity language.
 
-### Spec Kit governance
+### Spec Kit governance — PASS
 
-PASS. Large product is decomposed through roadmap + bounded R1 artifacts and implementation is not started.
+No major-review finding was used as justification for unspecced feature breadth. Repairs modify existing tasks/requirements; scope remains bounded.
 
-## Findings from analysis
+## Remaining nonblocking gates
 
-### A-001 — Core license is intentionally not frozen
+### G-001 — Per-source donor qualification
 
-**Severity:** GOVERNANCE GATE / NONBLOCKING FOR PURE SENTRDEL-OWNED BOOTSTRAP  
-**Status:** OPEN UNTIL FOUNDER DECISION  
-**Covered by:** T001 and implementation-readiness checklist.
+**Status:** EXPECTED / NONBLOCKING FOR ORIGINAL SENTRDEL CODE
 
-The founder required open source but has not explicitly frozen Apache-2.0, MIT, or another exact core license. Planning may complete, and Sentrdel-owned bootstrap code may be written once implementation is authorized. However, no donor source/data may be copied/vendored and no release may be published before T001 records the founder-frozen license and compatibility policy.
+Apache-2.0 is frozen, but every donor source/data item still needs exact file/ref/license/security qualification before copy/vendor adoption.
 
-### A-002 — Rust dependency observations must not become floating assumptions
+### G-002 — Dependency qualification is implementation-time exact-head work
 
-**Severity:** LOW  
-**Status:** COVERED BY IMPLEMENTATION TASKS
+**Status:** EXPECTED
 
-Research observed current Rust requirements/versions for ast-grep, gix, Regorus and the official MCP Rust SDK. Integration tasks MUST pin qualified versions and preserve contract tests instead of relying on `latest`. T050 already makes this explicit for MCP; T023/T037/T039 inherit the same source-qualification/dependency-policy requirement.
-
-### A-003 — LLM severity downgrade must remain prohibited even if not repeated in every task sentence
-
-**Severity:** LOW  
-**Status:** CONTRACTUALLY COVERED
-
-The spec prohibits LLM ownership of security truth and the Evidence contract makes producer severity advisory. T075's adversarial authority test MUST include an attempted model-driven severity downgrade/suppression case in addition to FACT/VERIFIED and policy escalation attempts.
-
-### A-004 — MCP session head hash output
-
-**Severity:** LOW  
-**Status:** CONTRACTUALLY COVERED
-
-`quickstart.md` requires an ASEL session-chain head on summary/shutdown. T053 creates the event chain and T055 owns the CLI. Implementation must expose the verified head hash in machine-readable session summary; no separate architecture change is required.
+Research observations are not dependency locks. T002/T004/T023/T037/T039/T050/T082 must resolve exact versions/features and record privileged build/proc-macro/native behavior before release.
 
 ## Anti-scope-creep checks
 
-The following tempting work has no R1 implementation task and MUST remain deferred:
+Still deferred:
 
-- full Supabase RLS/Auth/Storage/Edge Functions analysis;
-- Firebase/cloud/payment pack breadth;
-- sandboxed verification or exploit execution;
+- Supabase static posture implementation (R2; R1 detection only);
+- general cross-layer business logic/invariants (R3);
+- Firebase/Auth/Stripe/cloud provider breadth;
+- remote/Streamable HTTP MCP;
+- verification/exploit execution;
 - auto-fix application;
-- eBPF/runtime enforcement;
-- VS Code/Cursor/JetBrains/GitHub App;
-- universal CPG construction;
-- broad scanner/rule-count expansion.
+- runtime/eBPF enforcement;
+- IDE/GitHub App integrations;
+- universal CPG;
+- broad rule-count race.
 
-This is intentional and consistent with the roadmap.
+## Final verdict
 
-## Implementation ordering conclusion
+**PASS_READY_FOR_IMPLEMENTATION**
 
-The task dependency graph is coherent:
-
-1. governance/workspace;
-2. canonical schema/store/policy/engine/graph substrate;
-3. US1 Review, US2 Guard, US3 Init can proceed largely in parallel;
-4. US4 Explain builds on findings/store;
-5. US5 reasoner is optional and last among user features;
-6. release hardening closes the slice.
-
-## Final analyze verdict
-
-**PASS_WITH_NONBLOCKING_GATES**
-
-The R1 Spec Kit package is internally consistent enough to implement. The only founder-owned unresolved decision is the exact core license, which becomes blocking before donor source/data reuse or release, not before producing Sentrdel-owned Rust foundation code.
-
-No implementation has been started by this planning branch.
+The major review found meaningful security-design defects and corrected them before code existed. The package now has no unresolved blocker for Sentrdel-owned Rust Phase 1 implementation. Implementation must begin at T001/T002/T003/T004/T005/T006/T007 and preserve the explicit authority boundaries above.
