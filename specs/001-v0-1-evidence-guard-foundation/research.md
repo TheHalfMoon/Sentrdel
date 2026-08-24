@@ -122,9 +122,9 @@ Remote/Streamable HTTP MCP is deferred to a later spec with host/DNS-rebinding, 
 
 ## R7 — Canonical store
 
-**Decision:** SQLite via `rusqlite`, WAL mode where appropriate, plus BLAKE3 content addressing.
+**Decision:** SQLite via `rusqlite`, WAL mode where appropriate, plus domain-separated **SHA-256** content addressing under `implementation-amendment-001-hashing.md`.
 
-Rationale: single local file, mature recovery/audit tooling, inspectability, portability and deterministic migrations. The graph does not require a separate graph-database server.
+Rationale: single local file, mature recovery/audit tooling, inspectability, portability and deterministic migrations. The graph does not require a separate graph-database server. SHA-256 is the binding R1 canonical-ID choice; earlier BLAKE3 planning text is superseded by Implementation Amendment 001.
 
 **Secret rule:** discovered secret plaintext is never persisted by default. Do not persist a stable unkeyed digest derived solely from the secret value. Persist rule/type/location/redacted display and sanitized non-secret fingerprints instead.
 
@@ -220,7 +220,9 @@ R1 output therefore uses terms such as `chain-valid`, `integrity-linked` and `he
 
 Epistemic: `DETECTED`, `CORROBORATED`, `CONTESTED`, `PROVEN`, `UNPROVEN`, `UNVERIFIABLE`.
 
-Workflow: `NEW`, `TRIAGED_FIX_NOW`, `TRIAGED_DEFER`, `ACCEPTED`, `SUPPRESSED`, `FIX_PROPOSED`, `FIX_VERIFIED`, `FIX_REGRESSED`, `CLOSED`.
+R1 workflow states: `NEW`, `TRIAGED_FIX_NOW`, `TRIAGED_DEFER`, `ACCEPTED`, `SUPPRESSED`, `FIX_PROPOSED`, `FIX_REGRESSED`, `CLOSED`.
+
+`FIX_VERIFIED` is reserved for the later Verify authority. R1 transition/ingestion validation rejects it and the R1 public Finding schema does not advertise it.
 
 Risk acceptance requires owner, reason and expiry; automated LLM suppression is prohibited.
 
@@ -260,7 +262,7 @@ Optional credentialed live posture is a separate explicit mode later. R3 busines
 
 ### Graphify-Labs/graphify
 
-STUDY/ADAPT concepts selectively: confidence labels, incremental graph update, graph diff, affected/blast-radius traversal and reporting ergonomics. Do not run a second canonical graph or make its Python runtime a base dependency.
+`GQ-001` qualifies `Graphify-Labs/graphify@b2cd36267456c166788c95be6e68574064a92a42` for a bounded **selective native Rust port** of graph-diff/impact-traversal/validation concepts only. Do not run a second canonical graph, import its Python/NetworkX runtime, or treat donor confidence as Sentrdel epistemic authority. See `docs/third-party/graphify-source-qualification.md`.
 
 ### vitali87/code-graph-rag
 
@@ -297,19 +299,3 @@ Design for incremental work from the first implementation:
 ## R20 — Licensing and source qualification
 
 **Core license frozen:** **Apache-2.0**.
-
-Before donor source/data reuse record upstream repository, exact commit/tag, exact source files/data, license/notices, transitive/embedded licensing, maintenance/security status, integration boundary, modifications and verification tests.
-
-The license decision does not make every donor automatically compatible.
-
-## R21 — Sentrdel's own dependency governance
-
-Required for R1:
-
-- committed lockfile after dependencies exist;
-- `cargo-audit` + `cargo-deny` CI;
-- dependency justification/source-qualification ledger;
-- explicit attention to build scripts/proc macros/native/download behavior;
-- root `SECURITY.md` defining Sentrdel's own scope, trust boundaries, invariants and known limitations.
-
-`cargo-vet` is optional later for the trusted Sentrdel repository itself. It is not an analyzer to run inside arbitrary untrusted target repositories because Cargo metadata/config resolution may execute repository-controlled tooling.
