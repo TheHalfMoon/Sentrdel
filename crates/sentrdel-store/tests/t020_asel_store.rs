@@ -456,7 +456,8 @@ fn canonical_v3_store_upgrades_to_v4_and_preserves_prior_state() {
         Store::open(&temp.path).expect("latest store opens to create fixture schema");
     }
 
-    let canonical_profile = canonical_json_bytes(&prior_profile).expect("canonical v3 profile bytes");
+    let canonical_profile =
+        canonical_json_bytes(&prior_profile).expect("canonical v3 profile bytes");
     let connection = Connection::open(&temp.path).expect("fixture database");
     connection
         .execute_batch(
