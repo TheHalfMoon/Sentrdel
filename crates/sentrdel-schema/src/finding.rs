@@ -1,6 +1,9 @@
-//! Reconciled Finding state with sealed workflow authority.
+//! Reconciled Finding state with sealed reconciler and workflow authority.
 
-use crate::canonical::{CanonicalError, content_id};
+use crate::{
+    canonical::{CanonicalError, content_id},
+    version::SCHEMA_V1,
+};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::{error::Error, fmt};
@@ -53,6 +56,31 @@ pub struct AcceptedRiskRecord {
     pub evidence_basis: Vec<String>,
 }
 
+/// Runtime capability owned by the trusted reconciler implementation. It is
+/// neither serializable nor deserializable, so untrusted bytes cannot mint it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ReconcilerAuthority {
+    authority_id: String,
+    configuration_digest: String,
+}
+
+impl ReconcilerAuthority {
+    pub fn from_runtime(
+        authority_id: impl Into<String>,
+        configuration_digest: impl Into<String>,
+    ) -> Result<Self, FindingError> {
+        let authority_id = authority_id.into();
+        let configuration_digest = configuration_digest.into();
+        if authority_id.trim().is_empty() || configuration_digest.trim().is_empty() {
+            return Err(FindingError::MissingReconcilerAuthority);
+        }
+        Ok(Self {
+            authority_id,
+            configuration_digest,
+        })
+    }
+}
+
 /// Runtime-issued workflow authorization. It deliberately implements neither
 /// Serialize nor Deserialize, so repository/model/engine JSON cannot fabricate
 /// an authority token.
@@ -83,8 +111,8 @@ impl WorkflowAuthorization {
     }
 }
 
-/// Input supplied by the reconciler when first creating a finding. Workflow
-/// state is intentionally absent; canonical findings always begin at NEW.
+/// Input supplied by reconciliation logic. Workflow state is intentionally
+/// absent; canonical findings always begin at NEW.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ReconciledFindingDraft {
@@ -109,6 +137,8 @@ pub struct ReconciledFindingDraft {
 #[serde(deny_unknown_fields)]
 pub struct Finding {
     finding_id: String,
+    reconciler_authority_id: String,
+    reconciler_configuration_digest: String,
     #[serde(flatten)]
     draft: ReconciledFindingDraft,
     workflow_state: WorkflowState,
@@ -117,12 +147,15 @@ pub struct Finding {
     workflow_authorization_ref: Option<String>,
 }
 
-/// Untrusted persistence/wire record. It requires validation plus a runtime
-/// authorization when it represents a state beyond NEW.
+/// Untrusted persistence/wire record. Acceptance requires validation against a
+/// runtime reconciler authority; states beyond NEW additionally require a
+/// runtime workflow authorization.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct FindingRecord {
     pub finding_id: String,
+    pub reconciler_authority_id: String,
+    pub reconciler_configuration_digest: String,
     #[serde(flatten)]
     pub draft: ReconciledFindingDraft,
     pub workflow_state: WorkflowState,
@@ -133,12 +166,16 @@ pub struct FindingRecord {
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum FindingError {
+    UnsupportedSchemaVersion(String),
     EmptyFingerprint,
     EmptyEvidenceBasis,
+    MissingReconcilerAuthority,
+    ReconcilerAuthorityMismatch,
     ForgedFindingId,
     InvalidTransition,
     MissingAuthorization,
     AuthorizationMismatch,
+    UnexpectedAuthorizationMetadata,
     AcceptedRiskRequired,
     AcceptedRiskUnexpected,
     AcceptedRiskMalformed,
@@ -150,19 +187,37 @@ pub enum FindingError {
 impl fmt::Display for FindingError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::UnsupportedSchemaVersion(version) => {
+                write!(f, "unsupported finding schema version: {version}")
+            }
             Self::EmptyFingerprint => write!(f, "finding fingerprint must not be empty"),
             Self::EmptyEvidenceBasis => write!(f, "finding must reference supporting evidence"),
+            Self::MissingReconcilerAuthority => {
+                write!(f, "trusted reconciler authority is required")
+            }
+            Self::ReconcilerAuthorityMismatch => {
+                write!(f, "finding reconciler authority binding mismatch")
+            }
             Self::ForgedFindingId => write!(f, "finding id does not match canonical identity"),
             Self::InvalidTransition => write!(f, "invalid finding workflow transition"),
             Self::MissingAuthorization => write!(f, "trusted workflow authorization is required"),
             Self::AuthorizationMismatch => write!(f, "workflow authorization binding mismatch"),
-            Self::AcceptedRiskRequired => write!(f, "ACCEPTED state requires a valid risk record"),
-            Self::AcceptedRiskUnexpected => write!(f, "risk record is only valid in ACCEPTED state"),
-            Self::AcceptedRiskMalformed => write!(f, "risk record is missing required authority/evidence fields"),
-            Self::AcceptedRiskExpired => write!(f, "risk acceptance is already expired"),
-            Self::FixVerifiedNotAuthorizedInR1 => {
-                write!(f, "FIX_VERIFIED cannot be set before the verification spec is implemented")
+            Self::UnexpectedAuthorizationMetadata => {
+                write!(f, "NEW finding must not contain workflow authorization metadata")
             }
+            Self::AcceptedRiskRequired => write!(f, "ACCEPTED state requires a valid risk record"),
+            Self::AcceptedRiskUnexpected => {
+                write!(f, "risk record is only valid in ACCEPTED state")
+            }
+            Self::AcceptedRiskMalformed => write!(
+                f,
+                "risk record is missing required authority/evidence fields"
+            ),
+            Self::AcceptedRiskExpired => write!(f, "risk acceptance is already expired"),
+            Self::FixVerifiedNotAuthorizedInR1 => write!(
+                f,
+                "FIX_VERIFIED cannot be set before the verification spec is implemented"
+            ),
             Self::Canonical(message) => write!(f, "finding canonicalization failed: {message}"),
         }
     }
@@ -177,11 +232,16 @@ impl From<CanonicalError> for FindingError {
 }
 
 impl Finding {
-    pub fn new_reconciled(draft: ReconciledFindingDraft) -> Result<Self, FindingError> {
+    pub fn new_reconciled(
+        draft: ReconciledFindingDraft,
+        reconciler: &ReconcilerAuthority,
+    ) -> Result<Self, FindingError> {
         validate_draft(&draft)?;
         let finding_id = finding_id(&draft)?;
         Ok(Self {
             finding_id,
+            reconciler_authority_id: reconciler.authority_id.clone(),
+            reconciler_configuration_digest: reconciler.configuration_digest.clone(),
             draft,
             workflow_state: WorkflowState::New,
             accepted_risk: None,
@@ -192,10 +252,16 @@ impl Finding {
 
     pub fn try_from_record(
         record: FindingRecord,
+        reconciler: &ReconcilerAuthority,
         authorization: Option<&WorkflowAuthorization>,
         now_unix_seconds: i64,
     ) -> Result<Self, FindingError> {
         validate_draft(&record.draft)?;
+        if record.reconciler_authority_id != reconciler.authority_id
+            || record.reconciler_configuration_digest != reconciler.configuration_digest
+        {
+            return Err(FindingError::ReconcilerAuthorityMismatch);
+        }
         if finding_id(&record.draft)? != record.finding_id {
             return Err(FindingError::ForgedFindingId);
         }
@@ -209,6 +275,8 @@ impl Finding {
         )?;
         Ok(Self {
             finding_id: record.finding_id,
+            reconciler_authority_id: record.reconciler_authority_id,
+            reconciler_configuration_digest: record.reconciler_configuration_digest,
             draft: record.draft,
             workflow_state: record.workflow_state,
             accepted_risk: record.accepted_risk,
@@ -248,6 +316,8 @@ impl Finding {
     pub fn to_record(&self) -> FindingRecord {
         FindingRecord {
             finding_id: self.finding_id.clone(),
+            reconciler_authority_id: self.reconciler_authority_id.clone(),
+            reconciler_configuration_digest: self.reconciler_configuration_digest.clone(),
             draft: self.draft.clone(),
             workflow_state: self.workflow_state.clone(),
             accepted_risk: self.accepted_risk.clone(),
@@ -272,10 +342,16 @@ impl Finding {
         use WorkflowState::*;
         matches!(
             (&self.workflow_state, next),
-            (New, TriagedFixNow | TriagedDefer | Accepted | Suppressed | FixProposed | Closed)
-                | (TriagedFixNow, Accepted | TriagedDefer | FixProposed | Closed)
-                | (TriagedDefer, TriagedFixNow | Accepted | FixProposed | Closed)
-                | (Accepted, TriagedFixNow | TriagedDefer | Closed)
+            (
+                New,
+                TriagedFixNow | TriagedDefer | Accepted | Suppressed | FixProposed | Closed
+            ) | (
+                TriagedFixNow,
+                Accepted | TriagedDefer | FixProposed | Closed
+            ) | (
+                TriagedDefer,
+                TriagedFixNow | Accepted | FixProposed | Closed
+            ) | (Accepted, TriagedFixNow | TriagedDefer | Closed)
                 | (Suppressed, New | Closed)
                 | (FixProposed, FixRegressed | TriagedFixNow | Closed)
                 | (FixRegressed, TriagedFixNow | FixProposed | Closed)
@@ -284,6 +360,11 @@ impl Finding {
 }
 
 fn validate_draft(draft: &ReconciledFindingDraft) -> Result<(), FindingError> {
+    if draft.schema_version != SCHEMA_V1 {
+        return Err(FindingError::UnsupportedSchemaVersion(
+            draft.schema_version.clone(),
+        ));
+    }
     if draft.fingerprint.trim().is_empty() {
         return Err(FindingError::EmptyFingerprint);
     }
@@ -320,6 +401,9 @@ fn validate_workflow_state(
         if risk.is_some() {
             return Err(FindingError::AcceptedRiskUnexpected);
         }
+        if stored_authority_id.is_some() || stored_authorization_ref.is_some() {
+            return Err(FindingError::UnexpectedAuthorizationMetadata);
+        }
         return Ok(());
     }
     if state == &WorkflowState::FixVerified {
@@ -332,7 +416,9 @@ fn validate_workflow_state(
         return Err(FindingError::AuthorizationMismatch);
     }
     match (state, risk) {
-        (WorkflowState::Accepted, Some(risk)) => validate_accepted_risk(risk, authorization, now_unix_seconds),
+        (WorkflowState::Accepted, Some(risk)) => {
+            validate_accepted_risk(risk, authorization, now_unix_seconds)
+        }
         (WorkflowState::Accepted, None) => Err(FindingError::AcceptedRiskRequired),
         (_, Some(_)) => Err(FindingError::AcceptedRiskUnexpected),
         (_, None) => Ok(()),
@@ -365,9 +451,14 @@ fn validate_accepted_risk(
 mod tests {
     use super::*;
 
+    fn reconciler() -> ReconcilerAuthority {
+        ReconcilerAuthority::from_runtime("sentrdel-reconciler", "sha256:config")
+            .expect("reconciler")
+    }
+
     fn draft() -> ReconciledFindingDraft {
         ReconciledFindingDraft {
-            schema_version: "1".to_owned(),
+            schema_version: SCHEMA_V1.to_owned(),
             fingerprint: "fp".to_owned(),
             title: "fixture".to_owned(),
             impact_statement: "fixture impact".to_owned(),
@@ -387,26 +478,53 @@ mod tests {
 
     #[test]
     fn reconciled_finding_always_starts_new() {
-        let value = Finding::new_reconciled(draft()).expect("finding");
+        let value = Finding::new_reconciled(draft(), &reconciler()).expect("finding");
         assert_eq!(value.workflow_state(), &WorkflowState::New);
     }
 
     #[test]
+    fn record_is_bound_to_reconciler_authority() {
+        let authority = reconciler();
+        let value = Finding::new_reconciled(draft(), &authority).expect("finding");
+        let record = value.to_record();
+        let other = ReconcilerAuthority::from_runtime("other", "sha256:other").expect("other");
+        assert!(matches!(
+            Finding::try_from_record(record, &other, None, 100),
+            Err(FindingError::ReconcilerAuthorityMismatch)
+        ));
+    }
+
+    #[test]
+    fn new_record_rejects_hidden_workflow_authority() {
+        let authority = reconciler();
+        let value = Finding::new_reconciled(draft(), &authority).expect("finding");
+        let mut record = value.to_record();
+        record.workflow_authority_id = Some("fake".to_owned());
+        record.workflow_authorization_ref = Some("fake".to_owned());
+        assert!(matches!(
+            Finding::try_from_record(record, &authority, None, 100),
+            Err(FindingError::UnexpectedAuthorizationMetadata)
+        ));
+    }
+
+    #[test]
     fn forged_closed_record_needs_authority() {
-        let value = Finding::new_reconciled(draft()).expect("finding");
+        let authority = reconciler();
+        let value = Finding::new_reconciled(draft(), &authority).expect("finding");
         let mut record = value.to_record();
         record.workflow_state = WorkflowState::Closed;
         record.workflow_authority_id = Some("fake".to_owned());
         record.workflow_authorization_ref = Some("fake".to_owned());
         assert!(matches!(
-            Finding::try_from_record(record, None, 100),
+            Finding::try_from_record(record, &authority, None, 100),
             Err(FindingError::MissingAuthorization)
         ));
     }
 
     #[test]
     fn expired_or_empty_basis_risk_is_rejected() {
-        let mut value = Finding::new_reconciled(draft()).expect("finding");
+        let authority = reconciler();
+        let mut value = Finding::new_reconciled(draft(), &authority).expect("finding");
         let auth = WorkflowAuthorization::from_runtime("user-policy", "approval:1").expect("auth");
         let risk = AcceptedRiskRecord {
             owner: "owner".to_owned(),
@@ -424,7 +542,8 @@ mod tests {
 
     #[test]
     fn fix_verified_is_impossible_in_r1() {
-        let mut value = Finding::new_reconciled(draft()).expect("finding");
+        let authority = reconciler();
+        let mut value = Finding::new_reconciled(draft(), &authority).expect("finding");
         let auth = WorkflowAuthorization::from_runtime("kernel", "approval:2").expect("auth");
         assert!(matches!(
             value.transition(WorkflowState::FixVerified, &auth, None, 0),
