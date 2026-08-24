@@ -2,7 +2,8 @@ use rusqlite::{Connection, OptionalExtension, TransactionBehavior, params};
 
 use crate::{StoreError, StoreResult};
 
-pub(crate) const LATEST_SCHEMA_VERSION: i64 = 1;
+/// SQLite application_id spelling `SNTD` in big-endian ASCII.
+pub(crate) const SENTRDEL_APPLICATION_ID: i64 = 0x534E_5444;
 
 struct Migration {
     version: i64,
@@ -15,6 +16,7 @@ const MIGRATIONS: &[Migration] = &[Migration {
     version: 1,
     name: "bootstrap_store_metadata",
     sql: r#"
+        PRAGMA application_id = 1397642308;
         CREATE TABLE sentrdel_store_metadata (
             key   TEXT PRIMARY KEY NOT NULL,
             value TEXT NOT NULL
@@ -23,20 +25,30 @@ const MIGRATIONS: &[Migration] = &[Migration {
     validate: validate_v1_schema,
 }];
 
-/// Validate schema metadata and every already-applied migration without mutating
-/// the database.
+pub(crate) const LATEST_SCHEMA_VERSION: i64 = MIGRATIONS[MIGRATIONS.len() - 1].version;
+
+/// Validate ownership, schema metadata, and every already-applied migration
+/// without mutating the database.
 ///
 /// This must run before connection configuration that can persist state (most
-/// importantly `journal_mode=WAL`) so unsupported, inconsistent, or spoofed
-/// databases are rejected without Sentrdel changing them first.
+/// importantly `journal_mode=WAL`) so unrelated, unsupported, inconsistent, or
+/// spoofed databases are rejected without Sentrdel changing them first.
 pub(crate) fn preflight(connection: &Connection) -> StoreResult<()> {
     let pragma_version = user_version(connection)?;
+    let app_id = application_id(connection)?;
     reject_future_version(pragma_version)?;
 
     if migration_ledger_exists(connection)? {
         validate_ledger_schema(connection)?;
         let ledger_version = migration_ledger_version(connection)?;
         reject_future_version(ledger_version)?;
+
+        if app_id != SENTRDEL_APPLICATION_ID {
+            return Err(StoreError::MigrationIntegrity {
+                version: ledger_version,
+                detail: "migration ledger exists without the canonical Sentrdel application_id",
+            });
+        }
         if pragma_version != ledger_version {
             return Err(StoreError::InconsistentSchemaVersion {
                 pragma: pragma_version,
@@ -44,10 +56,21 @@ pub(crate) fn preflight(connection: &Connection) -> StoreResult<()> {
             });
         }
         validate_applied_migrations(connection, ledger_version)?;
-    } else if pragma_version != 0 {
+        return Ok(());
+    }
+
+    if pragma_version != 0 {
         return Err(StoreError::InconsistentSchemaVersion {
             pragma: pragma_version,
             ledger: 0,
+        });
+    }
+
+    let user_objects = user_schema_object_count(connection)?;
+    if app_id != 0 || user_objects != 0 {
+        return Err(StoreError::UnrecognizedDatabase {
+            application_id: app_id,
+            user_object_count: user_objects,
         });
     }
 
@@ -115,6 +138,18 @@ fn reject_future_version(found: i64) -> StoreResult<()> {
         });
     }
     Ok(())
+}
+
+fn application_id(connection: &Connection) -> StoreResult<i64> {
+    Ok(connection.pragma_query_value(None, "application_id", |row| row.get(0))?)
+}
+
+fn user_schema_object_count(connection: &Connection) -> StoreResult<i64> {
+    Ok(connection.query_row(
+        "SELECT COUNT(*) FROM sqlite_schema WHERE name NOT LIKE 'sqlite_%'",
+        [],
+        |row| row.get(0),
+    )?)
 }
 
 fn migration_ledger_exists(connection: &Connection) -> StoreResult<bool> {
@@ -209,6 +244,13 @@ fn validate_applied_migrations(connection: &Connection, ledger_version: i64) -> 
 }
 
 fn validate_v1_schema(connection: &Connection) -> StoreResult<()> {
+    if application_id(connection)? != SENTRDEL_APPLICATION_ID {
+        return Err(StoreError::MigrationIntegrity {
+            version: 1,
+            detail: "Sentrdel application_id is missing or incorrect",
+        });
+    }
+
     let column_count: i64 = connection.query_row(
         "SELECT COUNT(*) FROM pragma_table_info('sentrdel_store_metadata')",
         [],
@@ -246,4 +288,20 @@ fn validate_v1_schema(connection: &Connection) -> StoreResult<()> {
 
 pub(crate) fn user_version(connection: &Connection) -> StoreResult<i64> {
     Ok(connection.pragma_query_value(None, "user_version", |row| row.get(0))?)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{LATEST_SCHEMA_VERSION, MIGRATIONS};
+
+    #[test]
+    fn migration_plan_is_contiguous_and_latest_is_derived() {
+        for (index, migration) in MIGRATIONS.iter().enumerate() {
+            assert_eq!(migration.version, index as i64 + 1);
+        }
+        assert_eq!(
+            LATEST_SCHEMA_VERSION,
+            MIGRATIONS.last().expect("migration plan is non-empty").version
+        );
+    }
 }
