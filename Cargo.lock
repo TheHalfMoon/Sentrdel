@@ -246,6 +246,7 @@ dependencies = [
  "rusqlite",
  "sentrdel-schema",
  "serde_json",
+ "sha2",
 ]
 
 [[package]]
