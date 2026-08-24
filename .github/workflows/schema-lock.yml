@@ -44,6 +44,17 @@ jobs:
           cargo +1.98.0 test --workspace --locked
           cargo +1.98.0 clippy --workspace --all-targets --locked -- -D warnings
 
+      - name: Generate public wire schemas
+        run: cargo +1.98.0 run -p sentrdel-schema --bin export_schemas --locked
+
+      - name: Upload generated public wire schemas
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: sentrdel-schemas-v1
+          path: schemas/v1
+          if-no-files-found: error
+          retention-days: 1
+
       - name: Require committed source to match rustfmt
         run: git diff --exit-code -- crates/sentrdel-schema/src
 
