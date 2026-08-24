@@ -301,15 +301,24 @@ impl Store {
     ///
     /// `NoTrustedHead` means the available chain is internally consistent only.
     /// `ValidRelativeToProvidedHead` is returned only when the caller supplies an
-    /// expected checkpoint that exactly matches the verified local tail. This API
-    /// does not authenticate embedded policy decisions; their authority binding
-    /// remains a separate schema-layer operation.
+    /// expected checkpoint that exactly matches the verified local tail. Count,
+    /// head, and ordered rows are read inside one SQLite transaction so concurrent
+    /// appends cannot mix verification metadata from different WAL snapshots.
+    /// This API does not authenticate embedded policy decisions; their authority
+    /// binding remains a separate schema-layer operation.
     pub fn verify_asel_session(
         &self,
         session_id: &str,
         trusted_head: Option<&str>,
     ) -> AselStoreResult<SessionVerification> {
-        let event_count = self.asel_event_count(session_id)?;
+        let transaction = self.connection.unchecked_transaction()?;
+        let count: i64 = transaction.query_row(
+            "SELECT COUNT(*) FROM sentrdel_asel_events WHERE session_id = ?1",
+            params![session_id],
+            |row| row.get(0),
+        )?;
+        let event_count =
+            u64::try_from(count).map_err(|_| AselStoreError::EventCountOutOfRange)?;
         if event_count == 0 {
             return Ok(SessionVerification {
                 integrity: SessionIntegrity::EmptySession,
@@ -318,9 +327,15 @@ impl Store {
                 computed_head: None,
             });
         }
-        let available_head = self.asel_session_head(session_id)?;
+        let available_head: Option<String> = transaction
+            .query_row(
+                "SELECT event_hash FROM sentrdel_asel_events WHERE session_id = ?1 ORDER BY sequence DESC LIMIT 1",
+                params![session_id],
+                |row| row.get(0),
+            )
+            .optional()?;
 
-        let mut statement = self.connection.prepare(
+        let mut statement = transaction.prepare(
             "SELECT session_id, sequence, event_hash, previous_event_hash, canonical_json FROM sentrdel_asel_events WHERE session_id = ?1 ORDER BY sequence ASC",
         )?;
         let rows = statement.query_map(params![session_id], stored_row)?;
