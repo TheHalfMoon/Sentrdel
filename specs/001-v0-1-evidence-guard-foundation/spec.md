@@ -2,197 +2,197 @@
 
 **Feature Branch:** `spec/001-v0-1-evidence-guard-foundation`  
 **Created:** 2026-08-24  
-**Status:** SPECIFIED  
-**Roadmap:** R1 in `specs/000-sentrdel-roadmap/roadmap.md`
+**Status:** SPECIFIED_AFTER_MAJOR_REVIEW  
+**Roadmap:** R1 in `specs/000-sentrdel-roadmap/roadmap.md`  
+**Major review:** `major-review-2026-08-24.md`
 
 ## Overview
 
 Sentrdel v0.1 establishes the smallest trustworthy foundation that is already useful in real AI-assisted development workflows. It provides a Rust-first local CLI that reviews git changes, turns heterogeneous security signals into a canonical evidence model, explains findings in plain language, records coverage gaps honestly, and enforces monotonic policy at vendor-neutral seams Sentrdel can actually control.
 
-This slice does **not** attempt to secure every provider or build a universal CPG. It creates the contracts and runtime foundation required for later A-to-Z security packs, including Supabase as the first P0 provider pack in roadmap R3.
+Sentrdel's category is the **open-source security evidence and control plane for the whole software project, from agent action to production**. R1 does not attempt to beat mature scanners on rule count or build a universal CPG. It builds the trustworthy adjudication/control substrate for later A-to-Z security packs, with Supabase now the first dedicated post-R1 provider posture spec.
 
 ## User Scenarios & Testing
 
 ### User Story 1 — Review an AI-generated change before merge (Priority: P1)
 
-A developer has used Codex, Cursor, Claude Code, Junie, Windsurf, Copilot, or another coding agent to modify a repository. They run `sentrdel review` and receive a concise security judgment focused on the changed code and its blast radius.
+A developer uses any coding agent—or no agent—to modify a repository. They run `sentrdel review` and receive a concise security judgment focused on changed code and its bounded blast radius.
 
-The output must explain the real-world impact first, show exact locations and evidence underneath, and distinguish proven/observed facts from hypotheses.
+The output explains real-world impact first, shows exact locations/evidence underneath, and distinguishes direct observations from security interpretations/hypotheses.
 
-**Why this priority:** This works with every coding agent today and creates immediate value without relying on vendor hook APIs.
+**Why this priority:** It works across agents today and does not depend on proprietary hook APIs.
 
-**Independent Test:** Given a fixture git repository containing a changed secret, a vulnerable high-signal code pattern, a dependency delta with a known advisory fixture, and a changed CI workflow, `sentrdel review` emits deterministic evidence-backed findings with exact locations, producer identities, proof status, and a non-zero exit decision when policy requires blocking.
+**Independent Test:** Given a fixture git repository containing a changed secret, vulnerable high-signal structural pattern, dependency delta with an advisory fixture, and security-sensitive GitHub Actions change, `sentrdel review` emits deterministic evidence-backed findings with locations, producer identities, epistemic status, coverage and correct exit behavior.
 
 **Acceptance Scenarios:**
 
-1. **Given** a clean changed diff, **When** the developer runs `sentrdel review`, **Then** Sentrdel reports no finding for unsupported checks and separately reports any coverage gaps.
-2. **Given** a changed file containing a high-signal security pattern, **When** review runs, **Then** the finding includes the changed location, evidence producer, epistemic class, and plain-language impact.
-3. **Given** two independent producers that support the same claim, **When** evidence is reconciled, **Then** Sentrdel correlates them into one finding rather than duplicating alerts.
-4. **Given** contradictory evidence, **When** reconciliation runs, **Then** the finding is marked contested/unproven and MUST NOT be presented as verified.
+1. Clean supported diff -> no unsupported check is silently treated as clean; coverage gaps are separate.
+2. High-signal pattern -> finding has location, direct observation/basis, security interpretation, producer and proof status.
+3. Independent supporting producers -> one correlated finding retaining provenance.
+4. Contradictory evidence -> contested/unproven, never verified.
+5. Hostile Git configuration -> review does not execute hooks, textconv/external diff/filter helpers, submodule fetches, credential helpers or network operations.
 
 ---
 
 ### User Story 2 — Guard controllable agent actions (Priority: P1)
 
-A developer wants Sentrdel active while an AI coding agent works. They enable the vendor-neutral guard surfaces available in v0.1: MCP gateway and git hooks, with an architecture that can later add PATH shims and vendor-native hooks.
+A developer wants Sentrdel active while an AI coding agent works. In v0.1 the true vendor-neutral enforcement seam is a **bounded stdio MCP gateway**; git hooks are partial/advisory guardrails. Remote/Streamable HTTP MCP is not in R1.
 
-Sentrdel evaluates actions using monotonic policy and records an append-only Agent Security Event Log (ASEL). The UI clearly says whether a control is **enforced** or **advisory**.
+Sentrdel evaluates actions using monotonic policy and records an integrity-linked Agent Security Event Log (ASEL). The UI clearly states whether a control is ENFORCED, PARTIAL or ADVISORY.
 
-**Why this priority:** Agent security is a core product differentiator, but Sentrdel must not falsely claim it can intercept actions in vendors that expose no hook.
-
-**Independent Test:** A fixture MCP client attempts an allowed tool call, an approval-required call, and a kernel-invariant-denied call through `sentrdel guard mcp`. The gateway returns the correct verdicts, records tamper-evident ASEL events, and proves that a later plugin/rule cannot downgrade DENY.
+**Independent Test:** A fixture stdio MCP client attempts allowed, approval-required, kernel-denied, malformed, oversized and unsupported-version calls through `sentrdel guard mcp`. The gateway returns correct decisions, enforces byte/framing limits, records an ASEL chain/head and proves later policy cannot downgrade a kernel DENY.
 
 **Acceptance Scenarios:**
 
-1. **Given** an explicitly allowed action and no stricter rule, **When** it passes the MCP gateway, **Then** the verdict is ALLOW and the action proceeds.
-2. **Given** an action requiring human approval, **When** it reaches an enforcement seam, **Then** Sentrdel blocks pending a scoped ASK decision.
-3. **Given** a kernel-invariant violation, **When** any later policy/plugin attempts to allow it, **Then** the final verdict remains DENY.
-4. **Given** an engine/policy failure at an enforcement seam, **When** a decision cannot be made, **Then** Sentrdel records `UNDECIDABLE` and behaves fail-closed into ASK/deny-by-policy rather than silently allowing.
-5. **Given** a git hook that a user can bypass, **When** Sentrdel reports its state, **Then** it is labeled advisory/partial rather than universally enforced.
+1. Explicit allow + no stricter rule -> ALLOW and forward.
+2. Human approval required -> ASK blocks at the controlled seam until scoped decision.
+3. Kernel invariant violated -> final DENY remains DENY regardless of later policy/LLM/plugin.
+4. Policy/transport decision unavailable -> UNDECIDABLE fails closed according to policy.
+5. Bypassable git hook -> PARTIAL/ADVISORY, never universal enforcement.
+6. Oversized/unterminated stdio frame -> bounded rejection without unbounded buffering.
+7. Unsupported/ambiguous MCP protocol version -> fail closed; never depend on SDK default/LATEST alone.
 
 ---
 
 ### User Story 3 — Initialize Sentrdel and understand project coverage (Priority: P1)
 
-A developer runs `sentrdel init` in an unfamiliar project. Sentrdel discovers relevant repository characteristics without executing target build/install scripts and creates a local configuration that is safe by default.
+A developer runs `sentrdel init` in an unfamiliar project. Sentrdel discovers repository characteristics without executing target build/install/Cargo/package-manager scripts.
 
-It identifies stack/provider signals such as languages, package ecosystems, CI workflows, MCP configuration, and security-provider candidates (for example Supabase), then reports what v0.1 can and cannot currently analyze.
+It identifies languages, package ecosystems, CI workflows, MCP configuration and provider signals such as Supabase, then reports exactly what R1 can and cannot analyze.
 
-**Why this priority:** A-to-Z security requires Sentrdel to understand the project and expose coverage truth before provider packs mature.
-
-**Independent Test:** Given fixture repositories for Rust, TypeScript/Next.js+Supabase, Python, and a mixed monorepo, `sentrdel init` produces deterministic stack detection, refuses unsafe path traversal/symlinks according to policy, and records unsupported domains as coverage gaps.
+**Independent Test:** Fixture repositories for Rust, TypeScript/Next.js+Supabase, Python and mixed monorepo produce deterministic profiles, reject unsafe traversal inputs, and expose unsupported domains as coverage gaps.
 
 **Acceptance Scenarios:**
 
-1. **Given** a Next.js repository with Supabase migrations/config, **When** initialization runs, **Then** Sentrdel identifies `supabase` as a detected provider requiring a future/installed security pack; it MUST NOT claim the provider is secure merely because v0.1 lacks full Supabase analysis.
-2. **Given** repository-owned configuration that attempts to weaken a kernel invariant, **When** config loads, **Then** validation rejects the widening change.
-3. **Given** malicious repository filenames or oversized inputs, **When** initialization scans, **Then** bounded traversal fails safely and produces a diagnostic rather than executing repository content.
+1. Next.js+Supabase -> provider detected; deep posture is explicitly NOT_IMPLEMENTED/PARTIAL, never secure-by-absence.
+2. Repo config tries to weaken kernel invariant -> rejected.
+3. Malicious filenames/oversized input -> bounded diagnostic, no execution.
+4. Rust target repo with malicious `.cargo/config.toml` -> Sentrdel does not invoke Cargo/metadata/build tools during analysis.
 
 ---
 
 ### User Story 4 — Explain a finding and its evidence (Priority: P2)
 
-A developer who does not know cybersecurity runs `sentrdel explain <finding-id>` and sees a three-tier explanation: plain-language impact, attacker/security narrative with minimal remediation guidance, and the complete technical evidence/provenance chain.
+A non-security developer runs `sentrdel explain <finding-id>` and sees three tiers: plain-language impact, attacker/security narrative + minimal remediation, then technical evidence/provenance/coverage.
 
-**Why this priority:** Evidence rigor is useless if developers cannot understand what action to take.
-
-**Independent Test:** For a stored fixture finding, `sentrdel explain` renders the same canonical finding in novice, practitioner, and evidence-detail layers without changing the underlying severity/proof state.
+**Independent Test:** A fixture finding renders all tiers without changing canonical severity/proof/workflow state.
 
 ---
 
-### User Story 5 — Optional LLM reasoning without surrendering security authority (Priority: P3)
+### User Story 5 — Optional LLM reasoning without surrendering authority (Priority: P3)
 
-A developer may opt into `--reason` using a configured local or user-key model provider. The LLM can summarize evidence, draft hypotheses, or translate findings, but cannot create facts, mark verification complete, suppress findings, weaken policy, or independently lower severity.
+A developer may opt into `--reason` through a configured local or explicit user-key provider. The model may summarize evidence/draft hypotheses/translate findings, but cannot create facts, mark verification complete, suppress findings, weaken policy or independently lower authoritative severity.
 
-**Why this priority:** LLM reasoning can improve contextual security analysis later, but v0.1 must prove that deterministic security remains useful without it.
-
-**Independent Test:** A hostile fixture source file contains prompt-injection text instructing the reasoner to mark a finding safe. The reasoner output is stored only as INFERENCE/HYPOTHESIS and cannot alter deterministic evidence or final kernel-policy restrictions.
+**Independent Test:** Hostile source/MCP text instructing the model to mark a finding safe is stored only as INFERENCE/HYPOTHESIS and cannot mutate deterministic evidence/kernel restrictions.
 
 ## Functional Requirements
 
 ### Canonical schemas and storage
 
 - **FR-001** Sentrdel MUST define a versioned canonical Evidence schema in Rust and generate machine-readable JSON Schema.
-- **FR-002** Evidence MUST include stable identity/content hash, producer identity/version, input digests, claim/category, epistemic class, locations/subjects, optional confidence band, provenance, and reproduction metadata where available.
-- **FR-003** Epistemic classes MUST distinguish at least `FACT`, `INFERENCE`, `HYPOTHESIS`, `OBSERVATION`, `VERIFIED`, and `CONTRADICTION`.
+- **FR-002** Evidence MUST include stable identity/content hash, producer identity/version, input digests, direct observation/basis, security claim/interpretation, category, epistemic class, subjects/locations, optional confidence band, provenance and reproduction metadata where available.
+- **FR-003** Epistemic classes MUST distinguish at least `FACT`, `INFERENCE`, `HYPOTHESIS`, `OBSERVATION`, `VERIFIED`, and `CONTRADICTION`; FACT is limited to directly observable bounded properties, not semantic exploit/security conclusions merely because a detector is deterministic.
 - **FR-004** Sentrdel MUST define Findings separately from Evidence; only the reconciler may create/update canonical Findings.
 - **FR-005** Finding state MUST separate epistemic state from workflow state.
-- **FR-006** Sentrdel MUST persist evidence, findings, coverage records, and event-log metadata locally in an inspectable content-addressed store.
-- **FR-007** Secret values MUST be redacted before persistence; evidence may reference a redacted secret identifier/location but MUST NOT persist discovered plaintext secret values by default.
+- **FR-006** Sentrdel MUST persist evidence, findings, coverage and event-log metadata locally in an inspectable content-addressed store.
+- **FR-007** Discovered secret plaintext MUST be removed before persistence. Sentrdel MUST NOT persist a stable unkeyed digest derived solely from the discovered secret value; persistent evidence may keep location, rule/type, redacted display and sanitized non-secret fingerprints.
 
 ### Review
 
-- **FR-008** `sentrdel review` MUST accept a git working-tree/staged/base diff mode without running target repository hooks or build scripts.
-- **FR-009** v0.1 MUST include deterministic high-signal checks for changed secrets, selected structural security patterns, dependency/advisory deltas for supported ecosystems, and security-sensitive CI workflow changes.
-- **FR-010** Structural pattern matching MUST run in-process where feasible through Rust-native parsing/matching rather than shelling out for the baseline path.
-- **FR-011** External engine integrations MUST implement a versioned Engine boundary; stdout/stderr/JSON/SARIF are untrusted and size/time bounded.
-- **FR-012** Missing/failed engines MUST produce an explicit coverage gap, never a clean result.
-- **FR-013** Review MUST correlate equivalent evidence from independent producers into a single finding while retaining every producer's provenance.
+- **FR-008** `sentrdel review` MUST accept working-tree/staged/base diff modes without executing target repository hooks, build/install scripts, Cargo/package-manager commands, external diff/textconv/filter processes, submodule fetches, credential helpers or network remotes.
+- **FR-009** v0.1 MUST include high-signal deterministic checks for changed secrets, selected structural security patterns, dependency/advisory deltas for supported ecosystems, and GitHub Actions security-sensitive changes including permissions/OIDC, `pull_request_target`, untrusted shell interpolation, action pinning and self-hosted/untrusted-runner boundaries where statically observable.
+- **FR-010** Baseline structural matching MUST run in-process through qualified Rust-native parsing/matching where feasible.
+- **FR-011** External engines MUST implement a versioned Engine boundary; executable identity, child environment, stdout/stderr/JSON/SARIF are untrusted and size/time/resource bounded. Child environments MUST be scrubbed/allowlisted rather than inheriting all developer credentials by default.
+- **FR-012** Missing/failed engines MUST produce explicit coverage gaps, never a clean result.
+- **FR-013** Review MUST correlate equivalent evidence from independent producers into a single Finding while retaining provenance/contradictions.
 - **FR-014** Review MUST support changed-symbol/blast-radius infrastructure without requiring a custom universal CPG.
 
 ### Guard and ASEL
 
-- **FR-015** Sentrdel MUST define a versioned Agent Security Event Log (ASEL) envelope suitable for append-only JSONL transport and future publication as an open specification.
-- **FR-016** ASEL MUST cover actor, event kind, normalized target, parameter/result digests, policy verdict, provenance, sequence, previous-hash linkage, and timestamp/session identity.
-- **FR-017** v0.1 MUST support events for MCP discovery/invocation, git operations relevant to installed hooks, approval/denial, and tool results; the schema MUST reserve extensible kinds for file, shell, network, dependency, secret/env, CI/IaC, and model events.
-- **FR-018** `sentrdel guard mcp` MUST proxy supported MCP transports without trusting tool descriptions or tool results as instructions.
-- **FR-019** Guard verdicts MUST use `ALLOW`, `ASK`, `DENY`, and `UNDECIDABLE` semantics; `UNDECIDABLE` at an enforcement seam MUST fail closed according to policy.
-- **FR-020** DENY produced by a kernel invariant MUST be absorbing for that action scope; downstream plugins/policies/LLMs MUST NOT downgrade it.
-- **FR-021** Every guard surface MUST declare its enforcement fidelity as `ENFORCED`, `PARTIAL`, or `ADVISORY` in machine-readable state and human output.
-- **FR-022** Repository-local policy/config MUST only narrow permissions relative to core/user policy and MUST NOT disable evidence logging.
+- **FR-015** Sentrdel MUST define versioned ASEL suitable for append-only JSONL and future publication as an open specification.
+- **FR-016** ASEL MUST cover actor, event kind, normalized target, parameter/result digests, policy decision, provenance, sequence, previous-hash linkage and timestamp/session identity.
+- **FR-017** R1 MUST support events for MCP discovery/invocation, relevant installed git-hook operations, approval/denial and tool results; schema reserves namespaced future event kinds.
+- **FR-018** `sentrdel guard mcp` MUST support **stdio MCP only in R1**, using Sentrdel-owned bounded framing/buffering, explicit protocol-version negotiation/allowlisting and payload byte/depth caps. Tool descriptions/results are untrusted data, not instructions. Remote/Streamable HTTP MCP is out of R1.
+- **FR-019** Guard decisions MUST use `ALLOW`, `ASK`, `DENY`, `UNDECIDABLE`; UNDECIDABLE at an enforcement seam fails closed according to policy.
+- **FR-020** Kernel-invariant DENY MUST be absorbing for the action scope; no downstream policy/plugin/LLM may downgrade it.
+- **FR-021** Every guard surface MUST declare `ENFORCED`, `PARTIAL`, or `ADVISORY` in machine/human output.
+- **FR-022** Repository-local policy/config may only narrow permissions and cannot disable evidence logging. Rego policy/input size/depth and supported features MUST be bounded; kernel invariants remain Rust-owned.
 
 ### Initialization and A-to-Z extensibility
 
-- **FR-023** `sentrdel init` MUST detect project languages, package ecosystems, CI configuration, MCP configuration, and provider/framework signals without executing target install/build scripts.
-- **FR-024** Provider/framework detection MUST be separate from provider security verdicts.
-- **FR-025** The architecture MUST define a Security Pack evidence contract so future packs—including the P0 Supabase pack—can add deterministic provider-specific evidence without bypassing core reconciliation.
-- **FR-026** The base install MUST remain useful without external scanners, cloud services, or LLM providers.
+- **FR-023** `sentrdel init` MUST detect languages, package ecosystems, CI, MCP and provider/framework signals without executing target install/build/Cargo/package-manager code.
+- **FR-024** Provider/framework detection MUST be separate from provider security verdicts and from static-vs-live-vs-business-logic coverage.
+- **FR-025** Architecture MUST define a Security Pack Evidence/Coverage contract. Supabase is the P0 post-R1 pack and cannot bypass reconciliation.
+- **FR-026** Base install MUST remain useful without external scanners, cloud services or LLM providers.
 
 ### LLM boundary
 
 - **FR-027** LLM integration MUST be optional and feature/config gated.
-- **FR-028** LLM-produced evidence MUST be structurally restricted to `INFERENCE` or `HYPOTHESIS`.
-- **FR-029** LLM output MUST NOT directly suppress findings, set `VERIFIED`, weaken policy, or override kernel invariants.
-- **FR-030** Raw source/prompt upload to a remote provider MUST require explicit user configuration; local-only operation remains the default.
+- **FR-028** LLM-produced Evidence MUST be structurally restricted to INFERENCE/HYPOTHESIS.
+- **FR-029** LLM output MUST NOT suppress Findings, set VERIFIED, weaken policy/kernel invariants or independently lower authoritative severity/proof state.
+- **FR-030** Remote raw source/prompt upload requires explicit configuration; local-only default remains.
 
 ### Security of Sentrdel
 
-- **FR-031** Sentrdel MUST never construct target commands through a shell string; subprocess execution uses argv arrays only.
-- **FR-032** Untrusted repository traversal and engine output MUST have byte, path, process, and time bounds.
-- **FR-033** Target repository git hooks MUST NOT run during Sentrdel analysis.
-- **FR-034** Event/evidence history MUST be tamper-evident through chained/content hashes.
-- **FR-035** Third-party source reuse MUST be blocked until provenance/license/source qualification is recorded.
+- **FR-031** Sentrdel MUST never construct target/external-engine commands through shell strings; argv arrays only and child environments deny-by-default/allowlisted.
+- **FR-032** Untrusted repository, engine, policy/Rego and MCP inputs MUST have explicit byte/path/process/time/depth/buffer bounds appropriate to the boundary.
+- **FR-033** Analysis MUST NOT execute target hooks, build scripts, proc macros, Cargo metadata/package-manager code, external Git transforms, submodule/network fetches or repository-configured helpers merely to inspect a target repository.
+- **FR-034** Event/evidence history MUST be integrity-linked through hashes and expose verifiable session/head state; product language MUST NOT claim an unauthenticated local hash chain independently proves non-truncation/non-replacement.
+- **FR-035** Third-party source reuse and privileged Sentrdel dependencies MUST be qualified. R1 pins Rust 1.98.0, commits `Cargo.lock` once dependencies exist, uses `cargo-audit` + `cargo-deny`, and applies elevated review to build scripts/proc macros/native/download-at-build dependencies.
 
 ## Key Entities
 
-- **Evidence** — immutable producer claim with provenance and epistemic class.
-- **Finding** — reconciled security judgment linked to one or more Evidence items.
-- **CoverageRecord** — what was analyzed, skipped, unavailable, failed, or unsupported.
-- **AgentSecurityEvent (ASEL Event)** — append-only record of an agent/tool/environment action or security decision.
-- **PolicyDecision** — monotonic guard result with rule/kernel-invariant provenance.
-- **SecurityGraphNode/Edge** — thin property-graph representation of claims/relationships with producer provenance.
-- **EngineManifest/EngineRun** — bounded external evidence-producer contract and one execution record.
-- **SecurityPackManifest** — provider/framework detection and evidence capabilities without direct verdict authority.
-- **ProjectProfile** — detected stack/providers/coverage/configuration for a repository.
+- **Evidence** — immutable producer observation/claim with provenance and epistemic class.
+- **Finding** — reconciled security judgment linked to Evidence.
+- **CoverageRecord** — what was covered, partial, unsupported, unavailable, failed or skipped.
+- **AgentSecurityEvent** — integrity-linked record of agent/tool/environment action or decision.
+- **PolicyDecision** — monotonic guard result with rule/kernel provenance.
+- **SecurityGraphNode/Edge** — thin property/evidence graph with producer provenance.
+- **EngineManifest/Run** — bounded external evidence producer contract and execution record.
+- **SecurityPackManifest** — provider/framework evidence capability declarations without verdict authority.
+- **ProjectProfile** — detected stack/providers/coverage/configuration.
 
 ## Edge Cases
 
-- Repository is empty, detached, shallow, very large, or contains malformed/binary files.
-- Diff contains renamed/deleted files, generated code, symlink paths, Unicode-confusable filenames, or very large blobs.
-- External engine returns malformed JSON/SARIF, hangs, floods output, exits non-zero, or reports absolute paths outside repository root.
-- Two engines disagree about the same claim.
-- A repository attempts to configure Sentrdel to ignore evidence or widen access.
-- MCP tool descriptions/results contain prompt-injection or instruction-shaped content.
-- User runs without network, without any external engine, or without an LLM.
-- A detected provider (such as Supabase) has no installed/mature security pack; this MUST appear as partial coverage.
-- Git hook is bypassed; Sentrdel must not claim the associated control remained enforced.
+- Empty/detached/shallow/large repositories; binary/generated/renamed/deleted/symlink/confusable files.
+- Hostile Git config attempting external diff/textconv/filter/credential/network execution.
+- Hostile `.cargo/config.toml` in target repo.
+- External engine malformed JSON, hangs, output flood, non-zero, outside-root path or attempts to consume inherited secrets.
+- Engines disagree.
+- Repo policy tries to widen permissions or disable logging.
+- MCP description/result prompt injection; giant/unterminated stdio frame; unsupported version negotiation.
+- Deep/oversized Rego policy/input.
+- Offline/no engine/no model operation.
+- Supabase detected without installed deep pack -> visible partial/not-implemented coverage.
+- Git hook bypass -> no enforcement overclaim.
 
 ## Success Criteria
 
-- **SC-001** On the v0.1 release benchmark, clean-PR false-positive rate is no worse than **1 false positive per 5 clean PRs** for release-gating checks.
-- **SC-002** Every high-severity/blocking finding emitted by v0.1 has a valid repository-relative location (when applicable), evidence chain, producer provenance, and explicit proof/epistemic status.
-- **SC-003** `sentrdel review` completes warm native-only diff analysis in **<5 seconds p95** for diffs under 2,000 changed LOC on the reference benchmark machine; broader warm 100k-LOC project review target is **<30 seconds**.
-- **SC-004** Guard decisions at the in-process MCP policy seam complete in **<50 ms p95**, excluding downstream MCP tool execution and explicit human approval time.
-- **SC-005** Removing or failing a configured external engine changes coverage state to a visible gap and never changes it to `clean`.
-- **SC-006** A property/contract test proves no extension policy can downgrade a kernel-invariant DENY.
-- **SC-007** A hostile prompt-injection fixture cannot cause optional LLM output to become FACT/VERIFIED, suppress deterministic evidence, or weaken policy.
-- **SC-008** A novice-facing usability fixture can render every benchmark finding as one sentence naming actor/capability/object plus a clear action category without requiring CWE/CVSS knowledge.
-- **SC-009** Base installation and primary tests succeed without an LLM provider, external scanner installation, or cloud account.
-- **SC-010** Source-qualification records exist before any donor source is copied into the repository.
+- **SC-001** Clean-PR false-positive rate for release-gating checks is no worse than **1 FP per 5 clean PRs** on the R1 benchmark.
+- **SC-002** Every high/blocking finding has valid repo-relative location when applicable, direct evidence basis, producer provenance and explicit proof/epistemic status.
+- **SC-003** Warm native diff review completes **<5s p95** under 2,000 changed LOC on reference machine; broader warm 100k LOC target **<30s**.
+- **SC-004** In-process MCP policy decision **<50ms p95**, excluding downstream tool/human time and bounded framing I/O.
+- **SC-005** Removing/failing configured engine creates visible coverage gap, never clean.
+- **SC-006** Contract/property tests prove no extension policy can downgrade kernel DENY and pathological bounded Rego inputs cannot bypass fail-closed behavior.
+- **SC-007** Hostile prompt/MCP content cannot make LLM output FACT/VERIFIED, suppress deterministic evidence or weaken policy.
+- **SC-008** Every benchmark finding has novice sentence naming actor/capability/object + clear action category without CWE/CVSS requirement.
+- **SC-009** Base install/tests succeed without LLM, external scanner or cloud account; R1 MCP tests prove bounded stdio behavior and explicit protocol negotiation.
+- **SC-010** Apache-2.0 license is present; source/dependency qualification exists before donor source copy or privileged dependency adoption; self-security gates pass before release.
 
 ## Non-Goals for v0.1
 
-- Building a universal Code Property Graph or compiler-quality semantics for all languages.
-- Full Supabase/Firebase/cloud/provider security analysis; v0.1 provides detection and Security Pack contracts only.
-- Autonomous exploit generation or production penetration testing.
-- General runtime enforcement/eBPF.
-- Full verification sandbox and `FIX_VERIFIED` execution pipeline.
-- VS Code/Cursor/JetBrains/GitHub App UI integrations.
-- Automatic application of security fixes.
-- Competing on total rule count or replacing mature SAST/SCA/IaC ecosystems.
+- Universal CPG/compiler semantics for all languages.
+- Full Supabase/Firebase/cloud/provider security; R1 detection/contract only, Supabase static posture is R2.
+- Remote/Streamable HTTP MCP gateway.
+- Autonomous exploit generation/production pentesting.
+- eBPF/runtime enforcement.
+- Full verification sandbox / FIX_VERIFIED execution.
+- VS Code/Cursor/JetBrains/GitHub App UI.
+- Automatic fix application.
+- Competing on total rule count/replacing mature SAST/SCA/IaC.
 
 ## Assumptions
 
-- Initial supported host platforms for review/init are Linux, macOS, and Windows where Rust capabilities permit; enforcement fidelity may vary by seam and MUST be reported honestly.
-- MCP gateway behavior will target current standard transports supported by the selected Rust MCP implementation after source qualification.
-- Core project licensing remains open-source; the exact repository license is a release-governance decision and MUST be frozen before donor source is copied or the first release is published.
+- Review/init target Linux, macOS, Windows where Rust capabilities permit; enforcement fidelity varies and is reported.
+- R1 MCP gateway is stdio-only even if upstream SDK supports remote transports.
+- Sentrdel Core is licensed under Apache-2.0; exact donor compatibility remains per-source qualification.
