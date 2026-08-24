@@ -11,7 +11,7 @@ use sentrdel_schema::{
     project::ProjectProfile,
 };
 
-use crate::Store;
+use crate::{PersistentSink, RedactionError, Store};
 
 const COVERAGE_KIND: &str = "coverage";
 const ENGINE_RUN_KIND: &str = "engine_run";
@@ -28,6 +28,7 @@ pub enum StateStoreError {
     Json(serde_json::Error),
     Canonical(CanonicalError),
     FindingValidation(FindingError),
+    Redaction(RedactionError),
     UnsupportedSchemaVersion {
         object_kind: &'static str,
         found: String,
@@ -61,6 +62,7 @@ impl fmt::Display for StateStoreError {
                     "stored Finding failed authority validation: {error}"
                 )
             }
+            Self::Redaction(error) => write!(formatter, "state persistence redaction failed: {error}"),
             Self::UnsupportedSchemaVersion { object_kind, found } => write!(
                 formatter,
                 "unsupported {object_kind} schema version {found:?}; R1 requires {SCHEMA_V1:?}"
@@ -98,6 +100,7 @@ impl Error for StateStoreError {
             Self::Json(error) => Some(error),
             Self::Canonical(error) => Some(error),
             Self::FindingValidation(error) => Some(error),
+            Self::Redaction(error) => Some(error),
             Self::UnsupportedSchemaVersion { .. }
             | Self::EmptyIdentity { .. }
             | Self::ImmutableConflict { .. }
@@ -131,6 +134,12 @@ impl From<FindingError> for StateStoreError {
     }
 }
 
+impl From<RedactionError> for StateStoreError {
+    fn from(error: RedactionError) -> Self {
+        Self::Redaction(error)
+    }
+}
+
 impl Store {
     /// Persist the current reconciled Finding projection and append an immutable
     /// history revision atomically. Byte-identical replay is a no-op.
@@ -140,6 +149,7 @@ impl Store {
         require_identity("Finding", &record.finding_id)?;
         let finding_id = record.finding_id.clone();
         let canonical = canonical_json_bytes(&record)?;
+        self.require_persistable(PersistentSink::Sqlite, &canonical)?;
 
         let transaction = self
             .connection
@@ -328,6 +338,7 @@ impl Store {
         require_schema("ProjectProfile", &profile.schema_version)?;
         require_identity("ProjectProfile", &profile.repository_id)?;
         let canonical = canonical_json_bytes(profile)?;
+        self.require_persistable(PersistentSink::Sqlite, &canonical)?;
         let changed = self.connection.execute(
             "INSERT INTO sentrdel_project_profiles(repository_id, canonical_json) VALUES (?1, ?2) ON CONFLICT(repository_id) DO UPDATE SET canonical_json = excluded.canonical_json WHERE sentrdel_project_profiles.canonical_json <> excluded.canonical_json",
             params![profile.repository_id, canonical],
@@ -460,6 +471,7 @@ impl Store {
         object_key: &str,
         canonical: Vec<u8>,
     ) -> StateStoreResult<bool> {
+        self.require_persistable(PersistentSink::Sqlite, &canonical)?;
         let inserted = self.connection.execute(
             "INSERT INTO sentrdel_state_objects(object_kind, object_key, canonical_json) VALUES (?1, ?2, ?3) ON CONFLICT(object_kind, object_key) DO NOTHING",
             params![object_kind, object_key, canonical],
