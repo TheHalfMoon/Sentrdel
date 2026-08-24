@@ -95,7 +95,7 @@ pub(crate) fn migrate(connection: &mut Connection) -> StoreResult<()> {
     // connection configuration, but migration itself also refuses bad state.
     preflight(connection)?;
 
-    let mut ledger_version = if migration_ledger_exists(connection)? {
+    let ledger_version = if migration_ledger_exists(connection)? {
         validate_ledger_schema(connection)?;
         migration_ledger_version(connection)?
     } else {
@@ -116,7 +116,6 @@ pub(crate) fn migrate(connection: &mut Connection) -> StoreResult<()> {
         .filter(|migration| migration.version > ledger_version)
     {
         apply_migration(connection, migration)?;
-        ledger_version = migration.version;
     }
 
     let final_version = user_version(connection)?;
