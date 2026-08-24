@@ -855,7 +855,7 @@ mod tests {
     #[test]
     fn typed_canonicality_rejects_missing_optional_fields() {
         let temp = TempDb::new("typed-canonicality");
-        let mut store = Store::open(&temp.path).expect("store opens");
+        let store = Store::open(&temp.path).expect("store opens");
 
         let mut coverage_value = serde_json::to_value(coverage()).expect("coverage value");
         coverage_value
