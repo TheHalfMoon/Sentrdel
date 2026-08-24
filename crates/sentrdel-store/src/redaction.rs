@@ -1,4 +1,4 @@
-use std::{error::Error, fmt};
+use std::{cmp::Reverse, error::Error, fmt};
 
 use sha2::{Digest, Sha256};
 
@@ -184,7 +184,7 @@ impl PersistenceRedactionBoundary {
 
     fn sort_longest_first(&mut self) {
         self.patterns
-            .sort_by(|left, right| right.bytes.len().cmp(&left.bytes.len()));
+            .sort_by_key(|pattern| Reverse(pattern.bytes.len()));
     }
 }
 
