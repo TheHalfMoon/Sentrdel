@@ -1,6 +1,6 @@
 # Contract — Canonical Evidence, Findings, Coverage, and ASEL
 
-**Version:** draft-v1.2  
+**Version:** draft-v1.3  
 **Status:** BINDING_FOR_R1_IMPLEMENTATION
 
 ## 1. Canonical serialization
@@ -22,6 +22,12 @@ Unknown fields MAY be rejected for security-critical R1 envelopes; extension poi
 A producer submits candidate Evidence to schema validation. It never submits a Finding.
 
 Evidence separates a direct `observation`/basis from optional `security_interpretation`.
+
+### Runtime authority trust boundary
+
+`EvidenceAuthority`, `TrustedPolicyAuthority`, `ReconcilerAuthority`, and `WorkflowAuthorization` are capabilities constructed only by trusted in-process Sentrdel core/bootstrap code from configuration already admitted by the TCB. They are **not** cryptographic isolation against arbitrary malicious Rust code linked into the same process. Untrusted repositories, external engines, MCP peers, provider responses, and LLM output remain data/process boundaries and MUST NOT be allowed to invoke authority constructors as plugins or deserialize authority capabilities from their payloads.
+
+Future dynamically loaded or third-party in-process code requires a separate trust/admission design; R1 does not treat arbitrary linked code as untrusted isolation-safe extension code.
 
 ### FACT rule
 
