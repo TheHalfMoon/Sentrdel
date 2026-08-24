@@ -10,8 +10,11 @@
 - Registry/source: crates.io, locked by exact package version + registry checksum in committed `Cargo.lock`
 - Repository metadata: `rusqlite/rusqlite`
 - `rusqlite`: **0.40.2**, published 2026-08-08, MIT
+- `rusqlite 0.40.2` registry checksum: `23f2a97da3e3873c73cb2a2e71b35c40ff95e0b1eefa8d72d8499a6928c3b5b3`
 - Native target dependency: **`libsqlite3-sys 0.38.2`**, published 2026-08-08, MIT
+- `libsqlite3-sys 0.38.2` registry checksum: `f1d20bef17f513b9b3004532233187769cd072d790971f4e4da0e346eb6401e8`
 - Bundled SQLite documented for this pair: **3.53.2**
+- Rust 1.98 resolver lockfile artifact SHA-256 before commit: `fbbd67b254f3cbd8dc91e4453a2cd6241469e95b0e20380808a915bbc6ee36fb`
 - `libsqlite3-sys 0.38.2` package contains the SQLite amalgamation and build script used by the selected `bundled` feature
 
 The live GitHub default branch observed during qualification does not present a release tree identical to the already-published crates.io `rusqlite 0.40.2` package. Therefore Sentrdel does **not** invent a Git commit binding for this package release. The authoritative source identity for T016 is the crates.io package version plus checksum recorded by Cargo in the committed lockfile. Upstream repository metadata remains provenance/context, not the package-byte identity.
@@ -103,7 +106,7 @@ It does **not** authorize T017+ Evidence persistence, repository-provided SQL, e
 
 ## Lockfile gate
 
-T016 is not qualified for merge until a Rust 1.98 Cargo resolver produces and Sentrdel commits `Cargo.lock` containing exact registry checksums for `rusqlite 0.40.2`, `libsqlite3-sys 0.38.2`, and the resolved transitive build/runtime graph. All final CI runs must use `--locked` after the temporary lockfile-capture step has been removed.
+**PASS for dependency capture.** Rust 1.98 generated the committed `Cargo.lock`; it contains exact registry checksums for `rusqlite 0.40.2`, `libsqlite3-sys 0.38.2`, and the resolved transitive build/runtime graph. The temporary lockfile-capture workflow step was removed before final qualification. All final CI runs use the canonical `--locked` workflow.
 
 ## Requalification triggers
 
