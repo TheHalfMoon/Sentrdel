@@ -14,6 +14,34 @@ const CREATE_LEDGER_SQL: &str = r#"
     ) STRICT;
 "#;
 
+const EVIDENCE_TABLE_SQL: &str = r#"
+    CREATE TABLE sentrdel_evidence_objects (
+        evidence_id   TEXT PRIMARY KEY NOT NULL
+            CHECK (
+                length(evidence_id) = 71
+                AND substr(evidence_id, 1, 7) = 'sha256:'
+                AND substr(evidence_id, 8) NOT GLOB '*[^0-9a-f]*'
+            ),
+        canonical_json BLOB NOT NULL CHECK (length(canonical_json) > 0)
+    ) STRICT
+"#;
+
+const EVIDENCE_UPDATE_TRIGGER_SQL: &str = r#"
+    CREATE TRIGGER sentrdel_evidence_immutable_update
+    BEFORE UPDATE ON sentrdel_evidence_objects
+    BEGIN
+        SELECT RAISE(ABORT, 'Sentrdel Evidence objects are immutable');
+    END
+"#;
+
+const EVIDENCE_DELETE_TRIGGER_SQL: &str = r#"
+    CREATE TRIGGER sentrdel_evidence_immutable_delete
+    BEFORE DELETE ON sentrdel_evidence_objects
+    BEGIN
+        SELECT RAISE(ABORT, 'Sentrdel Evidence objects are immutable');
+    END
+"#;
+
 struct Migration {
     version: i64,
     name: &'static str,
@@ -371,38 +399,32 @@ fn validate_v2_schema(connection: &Connection) -> StoreResult<()> {
         [],
         |row| row.get(0),
     )?;
-    let update_trigger: i64 = connection.query_row(
-        r#"
-        SELECT COUNT(*)
-        FROM sqlite_schema
-        WHERE type = 'trigger'
-          AND name = 'sentrdel_evidence_immutable_update'
-          AND tbl_name = 'sentrdel_evidence_objects'
-          AND upper(sql) LIKE '%BEFORE UPDATE%'
-          AND upper(sql) LIKE '%RAISE(ABORT%'
-        "#,
-        [],
-        |row| row.get(0),
+
+    let table_sql_matches = schema_sql_matches(
+        connection,
+        "table",
+        "sentrdel_evidence_objects",
+        EVIDENCE_TABLE_SQL,
     )?;
-    let delete_trigger: i64 = connection.query_row(
-        r#"
-        SELECT COUNT(*)
-        FROM sqlite_schema
-        WHERE type = 'trigger'
-          AND name = 'sentrdel_evidence_immutable_delete'
-          AND tbl_name = 'sentrdel_evidence_objects'
-          AND upper(sql) LIKE '%BEFORE DELETE%'
-          AND upper(sql) LIKE '%RAISE(ABORT%'
-        "#,
-        [],
-        |row| row.get(0),
+    let update_trigger_matches = schema_sql_matches(
+        connection,
+        "trigger",
+        "sentrdel_evidence_immutable_update",
+        EVIDENCE_UPDATE_TRIGGER_SQL,
+    )?;
+    let delete_trigger_matches = schema_sql_matches(
+        connection,
+        "trigger",
+        "sentrdel_evidence_immutable_delete",
+        EVIDENCE_DELETE_TRIGGER_SQL,
     )?;
 
     if column_count != 2
         || matching_columns != 2
         || strict != 1
-        || update_trigger != 1
-        || delete_trigger != 1
+        || !table_sql_matches
+        || !update_trigger_matches
+        || !delete_trigger_matches
     {
         return Err(StoreError::MigrationIntegrity {
             version: 2,
@@ -413,13 +435,48 @@ fn validate_v2_schema(connection: &Connection) -> StoreResult<()> {
     Ok(())
 }
 
+fn schema_sql_matches(
+    connection: &Connection,
+    object_type: &str,
+    name: &str,
+    expected: &str,
+) -> StoreResult<bool> {
+    let actual: Option<String> = connection
+        .query_row(
+            "SELECT sql FROM sqlite_schema WHERE type = ?1 AND name = ?2",
+            params![object_type, name],
+            |row| row.get(0),
+        )
+        .optional()?;
+
+    Ok(actual
+        .as_deref()
+        .map(normalize_schema_sql)
+        .is_some_and(|actual| actual == normalize_schema_sql(expected)))
+}
+
+fn normalize_schema_sql(sql: &str) -> String {
+    sql.trim()
+        .trim_end_matches(';')
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .to_ascii_lowercase()
+}
+
 pub(crate) fn user_version(connection: &Connection) -> StoreResult<i64> {
     Ok(connection.pragma_query_value(None, "user_version", |row| row.get(0))?)
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{LATEST_SCHEMA_VERSION, MIGRATIONS};
+    use rusqlite::Connection;
+
+    use super::{
+        EVIDENCE_UPDATE_TRIGGER_SQL, LATEST_SCHEMA_VERSION, MIGRATIONS, SENTRDEL_APPLICATION_ID,
+        normalize_schema_sql, preflight,
+    };
+    use crate::StoreError;
 
     #[test]
     fn migration_plan_is_contiguous_and_latest_is_derived() {
@@ -433,5 +490,68 @@ mod tests {
                 .expect("migration plan is non-empty")
                 .version
         );
+    }
+
+    #[test]
+    fn conditional_spoofed_update_trigger_is_rejected() {
+        let connection = Connection::open_in_memory().expect("fixture database");
+        connection
+            .execute_batch(
+                r#"
+                PRAGMA application_id = 1397642308;
+                PRAGMA user_version = 2;
+                CREATE TABLE sentrdel_schema_migrations (
+                    version INTEGER PRIMARY KEY NOT NULL CHECK (version > 0),
+                    name TEXT NOT NULL UNIQUE
+                ) STRICT;
+                INSERT INTO sentrdel_schema_migrations(version, name) VALUES
+                    (1, 'bootstrap_store_metadata'),
+                    (2, 'immutable_evidence_objects');
+                CREATE TABLE sentrdel_store_metadata (
+                    key TEXT PRIMARY KEY NOT NULL,
+                    value TEXT NOT NULL
+                ) STRICT;
+                CREATE TABLE sentrdel_evidence_objects (
+                    evidence_id TEXT PRIMARY KEY NOT NULL
+                        CHECK (
+                            length(evidence_id) = 71
+                            AND substr(evidence_id, 1, 7) = 'sha256:'
+                            AND substr(evidence_id, 8) NOT GLOB '*[^0-9a-f]*'
+                        ),
+                    canonical_json BLOB NOT NULL CHECK (length(canonical_json) > 0)
+                ) STRICT;
+                CREATE TRIGGER sentrdel_evidence_immutable_update
+                BEFORE UPDATE ON sentrdel_evidence_objects
+                WHEN 0
+                BEGIN
+                    SELECT RAISE(ABORT, 'Sentrdel Evidence objects are immutable');
+                END;
+                CREATE TRIGGER sentrdel_evidence_immutable_delete
+                BEFORE DELETE ON sentrdel_evidence_objects
+                BEGIN
+                    SELECT RAISE(ABORT, 'Sentrdel Evidence objects are immutable');
+                END;
+                "#,
+            )
+            .expect("spoofed fixture");
+
+        assert_eq!(SENTRDEL_APPLICATION_ID, 0x534E_5444);
+        assert_ne!(
+            normalize_schema_sql(EVIDENCE_UPDATE_TRIGGER_SQL),
+            normalize_schema_sql(
+                r#"
+                CREATE TRIGGER sentrdel_evidence_immutable_update
+                BEFORE UPDATE ON sentrdel_evidence_objects
+                WHEN 0
+                BEGIN
+                    SELECT RAISE(ABORT, 'Sentrdel Evidence objects are immutable');
+                END
+                "#
+            )
+        );
+        assert!(matches!(
+            preflight(&connection),
+            Err(StoreError::MigrationIntegrity { version: 2, .. })
+        ));
     }
 }
