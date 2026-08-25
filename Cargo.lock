@@ -404,6 +404,9 @@ version = "0.0.0"
 [[package]]
 name = "sentrdel-engine"
 version = "0.0.0"
+dependencies = [
+ "sentrdel-schema",
+]
 
 [[package]]
 name = "sentrdel-graph"
@@ -525,7 +528,7 @@ checksum = "f8fadd59c855ef2080decdef8ff161eb6661b86933c9d82e5ba29dc602a55aba"
 name = "smallvec"
 version = "1.15.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8ed6a63f02c8539c91a8685a86f4099661ba3da017932f6ebbea6de3f0fa7c90"
+checksum = "8ed6a63f02c8539c91a8685a86f4099661ba3da017932e5ba29dc602a55aba"
 
 [[package]]
 name = "spin"
@@ -592,4 +595,4 @@ checksum = "f0805222e57f7521d6a62e36fa9163bc891acd422f971defe97d64e70d0a4fe5"
 name = "zmij"
 version = "1.0.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "29666d0abbfad1e3dc4dcf6144730dd3a3ab225bbbdac83319345b1b44ccfc1b"
+checksum = "29666d0abbfad1e3dc4f6144730dd3a3ab225bbbdac83319345b1b44ccfc1b"
