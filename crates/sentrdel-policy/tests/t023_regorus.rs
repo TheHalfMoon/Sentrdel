@@ -53,6 +53,23 @@ decision := "allow" if object["get"](input, "action", "") == "read"
 }
 
 #[test]
+fn debug_output_redacts_loaded_policy_and_data() {
+    const POLICY_SECRET: &str = "T023_POLICY_DEBUG_SECRET";
+    const DATA_SECRET: &str = "T023_DATA_DEBUG_SECRET";
+    let source = format!(
+        "package sentrdel.t023\nimport rego.v1\n# {POLICY_SECRET}\ndecision := \"allow\"\n"
+    );
+    let data = format!(r#"{{"secret":"{DATA_SECRET}"}}"#);
+    let policy = BoundedRegoPolicy::compile(&source, ENTRYPOINT, Some(&data))
+        .expect("debug redaction fixture should compile");
+
+    let debug = format!("{policy:?}");
+    assert!(debug.contains("<redacted>"));
+    assert!(!debug.contains(POLICY_SECRET));
+    assert!(!debug.contains(DATA_SECRET));
+}
+
+#[test]
 fn deep_fixture_is_undecidable_not_allow() {
     let policy = BoundedRegoPolicy::compile(VALID, ENTRYPOINT, None).expect("valid fixture");
     let result = policy.evaluate_json(DEEP_INPUT.trim());
