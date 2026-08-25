@@ -18,17 +18,17 @@ pub enum RepositoryNarrowingError {
     /// Repository policy evaluation was unavailable, so narrowing cannot be proven.
     IndeterminateRepositoryPolicy,
     /// The repository result is less restrictive than the trusted/base policy result.
-    PermissionWidening {
-        base: Verdict,
-        repository: Verdict,
-    },
+    PermissionWidening { base: Verdict, repository: Verdict },
 }
 
 impl fmt::Display for RepositoryNarrowingError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::EvidenceLoggingDisabled => {
-                write!(formatter, "repository policy cannot disable evidence logging")
+                write!(
+                    formatter,
+                    "repository policy cannot disable evidence logging"
+                )
             }
             Self::IndeterminateBasePolicy => write!(
                 formatter,
@@ -65,8 +65,8 @@ pub fn validate_repository_narrowing(
     }
 
     let base_rank = ordered_rank(base).ok_or(RepositoryNarrowingError::IndeterminateBasePolicy)?;
-    let repository_rank = ordered_rank(repository)
-        .ok_or(RepositoryNarrowingError::IndeterminateRepositoryPolicy)?;
+    let repository_rank =
+        ordered_rank(repository).ok_or(RepositoryNarrowingError::IndeterminateRepositoryPolicy)?;
 
     if repository_rank < base_rank {
         return Err(RepositoryNarrowingError::PermissionWidening { base, repository });
