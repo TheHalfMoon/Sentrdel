@@ -36,6 +36,23 @@ fn disallowed_http_fixture_is_rejected_before_engine_installation() {
 }
 
 #[test]
+fn bracket_call_cannot_evade_builtin_allowlist() {
+    let source = r#"
+package sentrdel.t023
+import rego.v1
+
+default decision := "deny"
+decision := "allow" if object["get"](input, "action", "") == "read"
+"#;
+
+    assert_eq!(
+        BoundedRegoPolicy::compile(source, ENTRYPOINT, None)
+            .expect_err("bracket-form builtin call must be rejected before engine installation"),
+        RegoPolicyError::UnsupportedCall("object.get".to_owned())
+    );
+}
+
+#[test]
 fn deep_fixture_is_undecidable_not_allow() {
     let policy = BoundedRegoPolicy::compile(VALID, ENTRYPOINT, None).expect("valid fixture");
     let result = policy.evaluate_json(DEEP_INPUT.trim());
