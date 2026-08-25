@@ -1,9 +1,9 @@
 //! Rust-owned security invariants that repository policy and external evaluators cannot replace.
 //!
-//! The caller is responsible for deriving these narrow states from trusted boundary validation.
-//! This module deliberately does not deserialize repository-controlled policy into kernel state.
-//! T022 establishes the decision primitive only; later bootstrap/guard integration must derive these
-//! states from trusted validators and must apply the kernel floor before an action is authorized.
+//! T022 keeps trusted classifications and state construction inside `sentrdel-policy`. Downstream
+//! repository policy, plugins, engines, tool output, and model output can observe a `KernelDecision`
+//! but cannot mint the trusted state that produces one. Later bootstrap/guard integration must
+//! derive these crate-private classifications from Rust-owned validators before authorization.
 
 use crate::Verdict;
 
@@ -42,8 +42,10 @@ impl KernelInvariant {
 }
 
 /// Trusted workspace-boundary classification for the exact normalized action scope.
+///
+/// Crate-private by design: arbitrary downstream callers cannot assert that an action is in scope.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum WorkspaceIntegrity {
+pub(crate) enum WorkspaceIntegrity {
     /// The action is proven to remain inside the approved workspace boundary.
     WithinApprovedWorkspace,
     /// The action reaches outside the approved workspace boundary.
@@ -52,7 +54,7 @@ pub enum WorkspaceIntegrity {
 
 /// Whether the controlled path preserves mandatory security Evidence capture.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum EvidenceCaptureIntegrity {
+pub(crate) enum EvidenceCaptureIntegrity {
     /// Required Evidence capture remains enabled.
     Enabled,
     /// Required Evidence capture has been disabled or bypassed.
@@ -61,7 +63,7 @@ pub enum EvidenceCaptureIntegrity {
 
 /// Authority attempting to create a canonical Finding.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum FindingAuthorityIntegrity {
+pub(crate) enum FindingAuthorityIntegrity {
     /// The canonical Finding is created through the trusted reconciler boundary.
     Reconciler,
     /// A producer, plugin, repository policy, model, or other non-reconciler path attempts creation.
@@ -70,7 +72,7 @@ pub enum FindingAuthorityIntegrity {
 
 /// Truthfulness of coverage handling for unavailable, missing, failed, or timed-out capability.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum CoverageIntegrity {
+pub(crate) enum CoverageIntegrity {
     /// Coverage limitations remain explicit and are not presented as evidence of cleanliness.
     Explicit,
     /// A missing/failed capability is being coerced into an implicit clean result.
@@ -79,11 +81,10 @@ pub enum CoverageIntegrity {
 
 /// Narrow trusted state consumed by the Rust kernel invariant evaluator.
 ///
-/// This is authority-bearing trusted-core input, not an authorization token to derive directly from
-/// repository text. It has no serde/deserialization surface; callers must construct it only after
-/// the applicable Rust boundary validator has established each classification.
+/// Both the type and its constructor are crate-private. Repository-controlled or other downstream
+/// code therefore cannot manufacture a healthy kernel state through the public Rust API.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct KernelIntegrityState {
+pub(crate) struct KernelIntegrityState {
     workspace: WorkspaceIntegrity,
     evidence_capture: EvidenceCaptureIntegrity,
     finding_authority: FindingAuthorityIntegrity,
@@ -91,8 +92,8 @@ pub struct KernelIntegrityState {
 }
 
 impl KernelIntegrityState {
-    /// Build the exact trusted-state snapshot to evaluate for one policy decision boundary.
-    pub const fn new(
+    /// Build a trusted-state snapshot after Rust-owned boundary validation has classified each axis.
+    pub(crate) const fn new(
         workspace: WorkspaceIntegrity,
         evidence_capture: EvidenceCaptureIntegrity,
         finding_authority: FindingAuthorityIntegrity,
@@ -109,9 +110,9 @@ impl KernelIntegrityState {
 
 /// Opaque result of the compiled Rust kernel invariant evaluation.
 ///
-/// Fields are private so downstream repository policy, plugins, engines, tool output, or model
-/// output cannot directly construct a forged "kernel allowed" object. A decision is created only by
-/// `evaluate_kernel_invariants` inside this crate.
+/// Fields are private and the evaluator is crate-private, so downstream code cannot directly mint a
+/// forged clear decision. Trusted integration code may receive this type only from policy-owned
+/// validation/evaluation paths.
 #[must_use = "kernel decisions must be applied before a later policy candidate can authorize an action"]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct KernelDecision {
@@ -122,8 +123,8 @@ pub struct KernelDecision {
 impl KernelDecision {
     /// Return `DENY` when any Rust-owned invariant failed, otherwise `ALLOW`.
     ///
-    /// `ALLOW` here means only "no T022 kernel invariant denied this state"; later user/repository
-    /// policy may still make the action stricter.
+    /// `ALLOW` here means only "all T022 kernel classifications supplied by the trusted policy core
+    /// were clear"; later user/repository policy may still make the action stricter.
     pub const fn verdict(&self) -> Verdict {
         self.verdict
     }
@@ -149,9 +150,10 @@ impl KernelDecision {
 
 /// Evaluate the compiled T022 kernel invariants in deterministic catalogue order.
 ///
-/// Any violation yields `DENY`. All violations are retained so audit/event layers can explain every
-/// core boundary that failed without trusting external policy text for the reason identifiers.
-pub fn evaluate_kernel_invariants(state: KernelIntegrityState) -> KernelDecision {
+/// This evaluator is crate-private because its input is authority-bearing trusted state. Any
+/// violation yields `DENY`. All violations are retained so later audit/event layers can explain
+/// every core boundary that failed without trusting external policy text for reason identifiers.
+pub(crate) fn evaluate_kernel_invariants(state: KernelIntegrityState) -> KernelDecision {
     let mut violated = Vec::with_capacity(4);
 
     if state.workspace == WorkspaceIntegrity::OutsideApprovedWorkspace {
@@ -181,11 +183,10 @@ pub fn evaluate_kernel_invariants(state: KernelIntegrityState) -> KernelDecision
 
 /// Apply the non-overridable kernel floor to a later policy candidate.
 ///
-/// A kernel `DENY` remains `DENY` against every candidate, including `ALLOW`, `ASK`, and
-/// `UNDECIDABLE`. When the kernel has no violation, this function deliberately passes the candidate
-/// through unchanged; T024 owns broader user/repository policy composition and narrowing semantics.
+/// Kept crate-private so the public enforcement API in the crate root is the single policy-owned
+/// path that converts a composed policy candidate into an enforceable verdict.
 #[must_use = "ignoring the enforced verdict can bypass an absorbing kernel DENY"]
-pub fn enforce_kernel_floor(kernel: &KernelDecision, candidate: Verdict) -> Verdict {
+pub(crate) fn enforce_kernel_floor(kernel: &KernelDecision, candidate: Verdict) -> Verdict {
     if kernel.is_deny() {
         Verdict::Deny
     } else {
@@ -227,7 +228,7 @@ mod tests {
         assert_eq!(decision.verdict(), Verdict::Deny);
         assert_eq!(
             decision.invariant_ids().collect::<Vec<_>>(),
-            vec!["SENTRDEL-KERNEL-WORKSPACE-BOUNDARY"]
+            vec![WORKSPACE_BOUNDARY_INVARIANT_ID]
         );
     }
 
