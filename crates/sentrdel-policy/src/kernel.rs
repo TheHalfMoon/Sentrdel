@@ -1,9 +1,9 @@
 //! Rust-owned security invariants that repository policy and external evaluators cannot replace.
 //!
-//! T022 keeps trusted classifications and state construction inside `sentrdel-policy`. Downstream
-//! repository policy, plugins, engines, tool output, and model output can observe a `KernelDecision`
-//! but cannot mint the trusted state that produces one. Later bootstrap/guard integration must
-//! derive these crate-private classifications from Rust-owned validators before authorization.
+//! `KernelIntegrityState` is an opaque capability-bearing snapshot. Downstream crates can carry it
+//! into the policy enforcement boundary, but safe downstream Rust cannot construct a trusted-clear
+//! state because all fields are private and there is no public constructor. T036/T052 will add the
+//! Rust-owned validators/integration that produce this state from concrete trusted boundaries.
 
 use crate::Verdict;
 
@@ -41,78 +41,40 @@ impl KernelInvariant {
     }
 }
 
-/// Trusted workspace-boundary classification for the exact normalized action scope.
+/// Opaque trusted-core snapshot consumed by the policy enforcement boundary.
 ///
-/// Crate-private by design: arbitrary downstream callers cannot assert that an action is in scope.
+/// There is intentionally no public constructor, `Default`, `Deserialize`, or public field. The
+/// later trusted validators that own each concrete boundary will be implemented inside this crate
+/// and will be the only production source of a `KernelIntegrityState`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum WorkspaceIntegrity {
-    /// The action is proven to remain inside the approved workspace boundary.
-    WithinApprovedWorkspace,
-    /// The action reaches outside the approved workspace boundary.
-    OutsideApprovedWorkspace,
+pub struct KernelIntegrityState {
+    workspace_within_approved: bool,
+    evidence_capture_enabled: bool,
+    finding_from_reconciler: bool,
+    coverage_truth_explicit: bool,
 }
 
-/// Whether the controlled path preserves mandatory security Evidence capture.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum EvidenceCaptureIntegrity {
-    /// Required Evidence capture remains enabled.
-    Enabled,
-    /// Required Evidence capture has been disabled or bypassed.
-    Disabled,
-}
-
-/// Authority attempting to create a canonical Finding.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum FindingAuthorityIntegrity {
-    /// The canonical Finding is created through the trusted reconciler boundary.
-    Reconciler,
-    /// A producer, plugin, repository policy, model, or other non-reconciler path attempts creation.
-    NonReconciler,
-}
-
-/// Truthfulness of coverage handling for unavailable, missing, failed, or timed-out capability.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum CoverageIntegrity {
-    /// Coverage limitations remain explicit and are not presented as evidence of cleanliness.
-    Explicit,
-    /// A missing/failed capability is being coerced into an implicit clean result.
-    ImplicitCleanFromGap,
-}
-
-/// Narrow trusted state consumed by the Rust kernel invariant evaluator.
-///
-/// Both the type and its constructor are crate-private. Repository-controlled or other downstream
-/// code therefore cannot manufacture a healthy kernel state through the public Rust API.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) struct KernelIntegrityState {
-    workspace: WorkspaceIntegrity,
-    evidence_capture: EvidenceCaptureIntegrity,
-    finding_authority: FindingAuthorityIntegrity,
-    coverage: CoverageIntegrity,
-}
-
+#[cfg(test)]
 impl KernelIntegrityState {
-    /// Build a trusted-state snapshot after Rust-owned boundary validation has classified each axis.
-    pub(crate) const fn new(
-        workspace: WorkspaceIntegrity,
-        evidence_capture: EvidenceCaptureIntegrity,
-        finding_authority: FindingAuthorityIntegrity,
-        coverage: CoverageIntegrity,
+    pub(crate) const fn for_test(
+        workspace_within_approved: bool,
+        evidence_capture_enabled: bool,
+        finding_from_reconciler: bool,
+        coverage_truth_explicit: bool,
     ) -> Self {
         Self {
-            workspace,
-            evidence_capture,
-            finding_authority,
-            coverage,
+            workspace_within_approved,
+            evidence_capture_enabled,
+            finding_from_reconciler,
+            coverage_truth_explicit,
         }
     }
 }
 
 /// Opaque result of the compiled Rust kernel invariant evaluation.
 ///
-/// Fields are private and the evaluator is crate-private, so downstream code cannot directly mint a
-/// forged clear decision. Trusted integration code may receive this type only from policy-owned
-/// validation/evaluation paths.
+/// Fields are private, so downstream repository policy, plugins, engines, tool output, or model
+/// output cannot directly mint a forged clear decision or remove violated invariant identifiers.
 #[must_use = "kernel decisions must be applied before a later policy candidate can authorize an action"]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct KernelDecision {
@@ -122,9 +84,6 @@ pub struct KernelDecision {
 
 impl KernelDecision {
     /// Return `DENY` when any Rust-owned invariant failed, otherwise `ALLOW`.
-    ///
-    /// `ALLOW` here means only "all T022 kernel classifications supplied by the trusted policy core
-    /// were clear"; later user/repository policy may still make the action stricter.
     pub const fn verdict(&self) -> Verdict {
         self.verdict
     }
@@ -148,24 +107,24 @@ impl KernelDecision {
     }
 }
 
-/// Evaluate the compiled T022 kernel invariants in deterministic catalogue order.
+/// Evaluate all compiled T022 invariants in deterministic catalogue order.
 ///
-/// This evaluator is crate-private because its input is authority-bearing trusted state. Any
-/// violation yields `DENY`. All violations are retained so later audit/event layers can explain
-/// every core boundary that failed without trusting external policy text for reason identifiers.
+/// This function is crate-private so the public enforcement boundary owns evaluation and floor
+/// application as one operation. Any violation yields `DENY`; all violations are retained for later
+/// PolicyDecision/ASEL binding.
 pub(crate) fn evaluate_kernel_invariants(state: KernelIntegrityState) -> KernelDecision {
     let mut violated = Vec::with_capacity(4);
 
-    if state.workspace == WorkspaceIntegrity::OutsideApprovedWorkspace {
+    if !state.workspace_within_approved {
         violated.push(KernelInvariant::WorkspaceBoundary);
     }
-    if state.evidence_capture == EvidenceCaptureIntegrity::Disabled {
+    if !state.evidence_capture_enabled {
         violated.push(KernelInvariant::EvidenceCapture);
     }
-    if state.finding_authority == FindingAuthorityIntegrity::NonReconciler {
+    if !state.finding_from_reconciler {
         violated.push(KernelInvariant::FindingAuthority);
     }
-    if state.coverage == CoverageIntegrity::ImplicitCleanFromGap {
+    if !state.coverage_truth_explicit {
         violated.push(KernelInvariant::CoverageTruth);
     }
 
@@ -182,9 +141,6 @@ pub(crate) fn evaluate_kernel_invariants(state: KernelIntegrityState) -> KernelD
 }
 
 /// Apply the non-overridable kernel floor to a later policy candidate.
-///
-/// Kept crate-private so the public enforcement API in the crate root is the single policy-owned
-/// path that converts a composed policy candidate into an enforceable verdict.
 #[must_use = "ignoring the enforced verdict can bypass an absorbing kernel DENY"]
 pub(crate) fn enforce_kernel_floor(kernel: &KernelDecision, candidate: Verdict) -> Verdict {
     if kernel.is_deny() {
@@ -199,12 +155,7 @@ mod tests {
     use super::*;
 
     fn healthy_state() -> KernelIntegrityState {
-        KernelIntegrityState::new(
-            WorkspaceIntegrity::WithinApprovedWorkspace,
-            EvidenceCaptureIntegrity::Enabled,
-            FindingAuthorityIntegrity::Reconciler,
-            CoverageIntegrity::Explicit,
-        )
+        KernelIntegrityState::for_test(true, true, true, true)
     }
 
     #[test]
@@ -218,11 +169,8 @@ mod tests {
 
     #[test]
     fn outside_workspace_uses_binding_quickstart_invariant_id() {
-        let decision = evaluate_kernel_invariants(KernelIntegrityState::new(
-            WorkspaceIntegrity::OutsideApprovedWorkspace,
-            EvidenceCaptureIntegrity::Enabled,
-            FindingAuthorityIntegrity::Reconciler,
-            CoverageIntegrity::Explicit,
+        let decision = evaluate_kernel_invariants(KernelIntegrityState::for_test(
+            false, true, true, true,
         ));
 
         assert_eq!(decision.verdict(), Verdict::Deny);
@@ -234,11 +182,8 @@ mod tests {
 
     #[test]
     fn evidence_capture_cannot_be_disabled() {
-        let decision = evaluate_kernel_invariants(KernelIntegrityState::new(
-            WorkspaceIntegrity::WithinApprovedWorkspace,
-            EvidenceCaptureIntegrity::Disabled,
-            FindingAuthorityIntegrity::Reconciler,
-            CoverageIntegrity::Explicit,
+        let decision = evaluate_kernel_invariants(KernelIntegrityState::for_test(
+            true, false, true, true,
         ));
 
         assert_eq!(
@@ -250,11 +195,8 @@ mod tests {
 
     #[test]
     fn non_reconciler_cannot_create_canonical_finding() {
-        let decision = evaluate_kernel_invariants(KernelIntegrityState::new(
-            WorkspaceIntegrity::WithinApprovedWorkspace,
-            EvidenceCaptureIntegrity::Enabled,
-            FindingAuthorityIntegrity::NonReconciler,
-            CoverageIntegrity::Explicit,
+        let decision = evaluate_kernel_invariants(KernelIntegrityState::for_test(
+            true, true, false, true,
         ));
 
         assert_eq!(
@@ -266,11 +208,8 @@ mod tests {
 
     #[test]
     fn coverage_gap_cannot_masquerade_as_clean() {
-        let decision = evaluate_kernel_invariants(KernelIntegrityState::new(
-            WorkspaceIntegrity::WithinApprovedWorkspace,
-            EvidenceCaptureIntegrity::Enabled,
-            FindingAuthorityIntegrity::Reconciler,
-            CoverageIntegrity::ImplicitCleanFromGap,
+        let decision = evaluate_kernel_invariants(KernelIntegrityState::for_test(
+            true, true, true, false,
         ));
 
         assert_eq!(
@@ -282,11 +221,8 @@ mod tests {
 
     #[test]
     fn multiple_violations_are_retained_in_stable_kernel_order() {
-        let decision = evaluate_kernel_invariants(KernelIntegrityState::new(
-            WorkspaceIntegrity::OutsideApprovedWorkspace,
-            EvidenceCaptureIntegrity::Disabled,
-            FindingAuthorityIntegrity::NonReconciler,
-            CoverageIntegrity::ImplicitCleanFromGap,
+        let decision = evaluate_kernel_invariants(KernelIntegrityState::for_test(
+            false, false, false, false,
         ));
 
         assert_eq!(
@@ -303,11 +239,8 @@ mod tests {
 
     #[test]
     fn kernel_deny_cannot_be_downgraded_by_any_later_candidate() {
-        let denied = evaluate_kernel_invariants(KernelIntegrityState::new(
-            WorkspaceIntegrity::OutsideApprovedWorkspace,
-            EvidenceCaptureIntegrity::Enabled,
-            FindingAuthorityIntegrity::Reconciler,
-            CoverageIntegrity::Explicit,
+        let denied = evaluate_kernel_invariants(KernelIntegrityState::for_test(
+            false, true, true, true,
         ));
 
         for candidate in [
