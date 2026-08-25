@@ -1,12 +1,14 @@
 #![forbid(unsafe_code)]
-//! Monotonic policy primitives for normalized action identity and guard verdict composition.
+//! Monotonic policy primitives for normalized action identity, Rust-owned invariants, and verdict composition.
 //!
-//! T021 deliberately keeps repository policy evaluation and Rust-owned kernel invariants out of
-//! this slice. It provides the canonical action digest and the explicit verdict lattice those later
-//! layers compose through.
+//! T021 provides canonical action identity and the explicit verdict lattice. T022 adds compiled
+//! workspace/evidence/enforcement invariants that later policy layers may only make stricter.
+
+pub mod kernel;
 
 use std::{collections::BTreeMap, error::Error, fmt};
 
+use kernel::{KernelDecision, KernelIntegrityState};
 use sentrdel_schema::canonical::{CanonicalError, content_id};
 pub use sentrdel_schema::policy::Verdict;
 
@@ -127,12 +129,15 @@ pub enum UndecidableResolution {
     Deny,
 }
 
-/// Compose policy verdicts without assigning `UNDECIDABLE` an implicit lattice rank.
+/// Compose non-kernel policy verdicts without assigning `UNDECIDABLE` an implicit lattice rank.
 ///
 /// `ALLOW < ASK < DENY` is the ordered policy lattice. `DENY` is absorbing. If no `DENY` exists
 /// but any producer is `UNDECIDABLE`, the combined verdict remains `UNDECIDABLE` so the caller must
 /// resolve uncertainty explicitly. An empty input is also `UNDECIDABLE`; absence of policy results
 /// is never treated as permission.
+///
+/// This result is a policy candidate, not an authorization decision. Enforcement MUST pass the
+/// candidate through [`resolve_for_enforcement`].
 pub fn compose_verdicts<I>(verdicts: I) -> Verdict
 where
     I: IntoIterator<Item = Verdict>,
@@ -160,18 +165,51 @@ where
     }
 }
 
-/// Resolve a composed verdict at an enforcement seam.
+/// Result emitted by the policy-owned enforcement boundary.
 ///
-/// Ordered verdicts pass through unchanged. `UNDECIDABLE` can only become `ASK` or `DENY`, which
-/// structurally prevents a fail-open conversion into `ALLOW`.
-pub fn resolve_for_enforcement(verdict: Verdict, resolution: UndecidableResolution) -> Verdict {
-    match verdict {
+/// The final verdict and the exact kernel decision stay coupled so later PolicyDecision/ASEL code
+/// can bind the non-overridable invariant identifiers to the same enforcement result.
+#[must_use = "an enforcement decision must be consumed by the controlled authorization boundary"]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct EnforcementDecision {
+    verdict: Verdict,
+    kernel: KernelDecision,
+}
+
+impl EnforcementDecision {
+    /// Return the final enforceable verdict after the kernel floor and uncertainty resolution.
+    pub const fn verdict(&self) -> Verdict {
+        self.verdict
+    }
+
+    /// Return the kernel decision that established the non-overridable floor.
+    pub const fn kernel(&self) -> &KernelDecision {
+        &self.kernel
+    }
+}
+
+/// Evaluate the Rust kernel and resolve a policy candidate at the policy-owned enforcement boundary.
+///
+/// The opaque `KernelIntegrityState` is evaluated inside this function, then its DENY floor is
+/// applied before any `UNDECIDABLE` resolution. Safe downstream Rust cannot construct a trusted
+/// state directly, and there is no public enforcement helper in this crate that skips evaluation or
+/// floor application. T036/T052 will wire the Rust-owned validators that produce the opaque state.
+pub fn resolve_for_enforcement(
+    kernel_state: KernelIntegrityState,
+    verdict: Verdict,
+    resolution: UndecidableResolution,
+) -> EnforcementDecision {
+    let kernel = kernel::evaluate_kernel_invariants(kernel_state);
+    let verdict = kernel::enforce_kernel_floor(&kernel, verdict);
+    let verdict = match verdict {
         Verdict::Undecidable => match resolution {
             UndecidableResolution::Ask => Verdict::Ask,
             UndecidableResolution::Deny => Verdict::Deny,
         },
         ordered => ordered,
-    }
+    };
+
+    EnforcementDecision { verdict, kernel }
 }
 
 #[cfg(test)]
@@ -183,6 +221,14 @@ mod tests {
             .iter()
             .map(|(key, value)| ((*key).to_owned(), (*value).to_owned()))
             .collect()
+    }
+
+    fn healthy_kernel_state() -> KernelIntegrityState {
+        KernelIntegrityState::for_test(true, true, true, true)
+    }
+
+    fn denied_kernel_state() -> KernelIntegrityState {
+        KernelIntegrityState::for_test(false, true, true, true)
     }
 
     fn ordered_rank(verdict: Verdict) -> u8 {
@@ -340,17 +386,53 @@ mod tests {
     #[test]
     fn enforcement_resolution_cannot_fail_open() {
         assert_eq!(
-            resolve_for_enforcement(Verdict::Undecidable, UndecidableResolution::default()),
+            resolve_for_enforcement(
+                healthy_kernel_state(),
+                Verdict::Undecidable,
+                UndecidableResolution::default()
+            )
+            .verdict(),
             Verdict::Ask
         );
         assert_eq!(
-            resolve_for_enforcement(Verdict::Undecidable, UndecidableResolution::Deny),
+            resolve_for_enforcement(
+                healthy_kernel_state(),
+                Verdict::Undecidable,
+                UndecidableResolution::Deny
+            )
+            .verdict(),
             Verdict::Deny
         );
         assert_eq!(
-            resolve_for_enforcement(Verdict::Allow, UndecidableResolution::Deny),
+            resolve_for_enforcement(
+                healthy_kernel_state(),
+                Verdict::Allow,
+                UndecidableResolution::Deny
+            )
+            .verdict(),
             Verdict::Allow
         );
+    }
+
+    #[test]
+    fn enforcement_boundary_evaluates_and_applies_absorbing_kernel_deny() {
+        for candidate in [
+            Verdict::Allow,
+            Verdict::Ask,
+            Verdict::Deny,
+            Verdict::Undecidable,
+        ] {
+            let decision = resolve_for_enforcement(
+                denied_kernel_state(),
+                candidate,
+                UndecidableResolution::default(),
+            );
+            assert_eq!(decision.verdict(), Verdict::Deny);
+            assert_eq!(
+                decision.kernel().invariant_ids().collect::<Vec<_>>(),
+                vec![kernel::WORKSPACE_BOUNDARY_INVARIANT_ID]
+            );
+        }
     }
 
     #[test]
