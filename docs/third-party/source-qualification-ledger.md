@@ -12,6 +12,7 @@ The repository does **not** currently contain source-specific private permission
 |---|---|---|---|---|---|
 | actions/checkout | `11d5960a326750d5838078e36cf38b85af677262` (v4.4.0 release line) | CI_ACTION | repository action consumed by immutable commit SHA | ADOPT for bootstrap CI | `persist-credentials: false`; immutable pin avoids mutable-tag drift; this commit contains backported fork/`pull_request_target` checkout hardening |
 | Graphify-Labs/graphify | `b2cd36267456c166788c95be6e68574064a92a42` (`v8`, package `0.9.48`) | FOUNDER_ATTESTED_DONOR | current package is Apache-2.0; NOTICE retains older MIT-contributed portions; selected-file qualification conservatively uses Apache-2.0 | `QUALIFIED_FOR_SELECTIVE_RUST_PORT` via GQ-001; implementation remains separate | graph diff + affected/blast-radius traversal + validation concepts only; no Python/NetworkX/MCP/provider runtime; Sentrdel authority remains canonical |
+| microsoft/regorus | `regorus-v0.11.0` / crates.io `regorus 0.11.0` | RUST_LIBRARY_DEPENDENCY | upstream package declares `MIT AND Apache-2.0 AND BSD-3-Clause` | `QUALIFIED_FOR_BOUNDED_IN_PROCESS_POLICY_ONLY` via RQ-001 | exact pin, defaults disabled, only `std` + `arc`; no HTTP/net/time/YAML/OPA-runtime/RVM authority; privileged `build.rs` reviewed; Rust kernel remains authoritative |
 | vitali87/code-graph-rag | UNPINNED — exact qualification required before import | FOUNDER_ATTESTED_DONOR | repository-level MIT observed; file-level record still required | QUALIFICATION_PENDING / selective port or adapter | permission basis currently `FOUNDER_ATTESTATION_2026-08-24`; source-specific proof not stored; resource/data-flow/static-runtime merge is high-value; Python/Memgraph is not the Sentrdel trusted base runtime |
 | deepseek-ai/deepseek-harness | UNPINNED — exact qualification required before import | FOUNDER_ATTESTED_DONOR | repository-level MIT observed | QUALIFICATION_PENDING / selective port | permission basis currently `FOUNDER_ATTESTATION_2026-08-24`; source-specific proof not stored; durable events/tool guards/approval seams; do not inherit the whole rapidly evolving agent runtime |
 | continuedev/continue | UNPINNED — exact qualification required before import | FOUNDER_ATTESTED_DONOR | repository-level Apache-2.0 observed | QUALIFICATION_PENDING / integration-layer reuse | permission basis currently `FOUNDER_ATTESTATION_2026-08-24`; source-specific proof not stored; VS Code/JetBrains/CLI/diff plumbing may be reused selectively; no need for a wholesale product fork |
@@ -50,6 +51,32 @@ modifications: future port must strengthen graph diff to surface attribute/confi
 qualified_by: Sentrdel source qualification review
 qualified_at: 2026-08-24
 qualification_report: docs/third-party/graphify-source-qualification.md
+```
+
+## RQ-001 — Regorus dependency qualification record
+
+```text
+source_id: RQ-001
+repository: microsoft/regorus
+exact_ref: regorus-v0.11.0
+crate: regorus =0.11.0
+files_or_artifacts: crates.io package and upstream tag used for feature/build-script/API qualification
+permission_basis: public package license grants
+source_specific_permission_reference: N/A
+license_expression: MIT AND Apache-2.0 AND BSD-3-Clause
+notices: follow upstream package/license requirements; no donor source copied into Sentrdel
+integration_mode: exact-pinned Rust library behind sentrdel-policy bounded wrapper
+features: default-features=false; std; arc
+executes_at_build: build.rs present and elevated-review complete; checkout-hook paths require upstream .git checkout and are not active in normal crates.io dependency builds; git rev-parse path is behind disabled opa-runtime feature
+procedural_macro: none directly admitted as a Regorus feature authority; transitive Rust proc macros remain lockfile governed
+native_code: no Regorus native-code feature admitted; normal existing workspace SQLite bundled native dependency is unrelated
+ downloads_artifacts: no Regorus artifact download path admitted by qualified feature set
+security_notes: no HTTP/net/time/YAML/UUID/regex/RVM/Azure/OPA-runtime features; policy/input/data caps precede parsing; fixed entrypoint; small lexical subset; execution timer; failures map to UNDECIDABLE; Rust kernel remains non-overridable
+maintenance_notes: version or feature changes require a new qualification delta and lockfile review
+modifications: Sentrdel wrapper adds stricter depth/size limits and authority boundaries; upstream source is not modified/copied
+qualified_by: Sentrdel dependency qualification review
+qualified_at: 2026-08-25
+qualification_report: docs/third-party/regorus-qualification.md
 ```
 
 ## Record template
