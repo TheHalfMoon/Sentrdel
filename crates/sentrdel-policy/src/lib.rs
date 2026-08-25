@@ -4,9 +4,11 @@
 //! T021 provides canonical action identity and the explicit verdict lattice. T022 adds compiled
 //! workspace/evidence/enforcement invariants that later policy layers may only make stricter. T023
 //! adds a bounded Regorus-backed repository-policy candidate evaluator without moving kernel
-//! authority into Rego.
+//! authority into Rego. T024 adds Rust-owned repository-policy narrowing validation and layered
+//! monotonic composition without weakening the kernel enforcement floor.
 
 pub mod kernel;
+pub mod narrowing;
 pub mod rego;
 
 use std::{collections::BTreeMap, error::Error, fmt};
