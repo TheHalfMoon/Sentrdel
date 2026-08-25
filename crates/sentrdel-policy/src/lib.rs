@@ -1,9 +1,10 @@
 #![forbid(unsafe_code)]
-//! Monotonic policy primitives for normalized action identity and guard verdict composition.
+//! Monotonic policy primitives for normalized action identity, Rust-owned invariants, and verdict composition.
 //!
-//! T021 deliberately keeps repository policy evaluation and Rust-owned kernel invariants out of
-//! this slice. It provides the canonical action digest and the explicit verdict lattice those later
-//! layers compose through.
+//! T021 provides canonical action identity and the explicit verdict lattice. T022 adds compiled
+//! workspace/evidence/enforcement invariants that later policy layers may only make stricter.
+
+pub mod kernel;
 
 use std::{collections::BTreeMap, error::Error, fmt};
 
