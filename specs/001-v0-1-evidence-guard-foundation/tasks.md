@@ -62,7 +62,7 @@
 
 ### Engine boundary
 
-- [ ] T026 Implement `Engine` trait, request/limits/result types and adapter registry.
+- [x] T026 Implement `Engine` trait, request/limits/result types and adapter registry.
 - [ ] T027 Implement the only allowed external-engine process runner using argv arrays, trusted executable resolution, bounded cwd/time/stdout/stderr, and **deny-by-default/scrubbed child environment with explicit allowlist**.
 - [ ] T028 Implement strict raw-result/SARIF adapter boundary and repo-relative location normalization.
 - [ ] T029 Add malformed JSON, flood, timeout, non-zero, missing executable, out-of-root path and inherited-secret canary fixtures/tests; prove cloud/model/signing/SSH credentials are absent by default.
