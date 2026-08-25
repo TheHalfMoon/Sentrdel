@@ -27,7 +27,7 @@ pub use runner::{
 };
 
 const _: () = {
-    assert!(!boundary::EXTERNAL_ENGINE_EXECUTION_IMPLEMENTED);
+    assert!(!boundary::BOUNDARY_CONTAINS_PROCESS_SPAWN_IMPLEMENTATION);
 };
 
 /// T027 has installed the bounded external-engine process runner.
