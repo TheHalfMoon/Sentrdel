@@ -6,7 +6,7 @@
 //! intentionally unimplemented until T027.
 
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{BTreeMap, BTreeSet, btree_map::Entry},
     error::Error,
     fmt,
     future::Future,
@@ -35,7 +35,10 @@ pub struct EngineScope {
 }
 
 impl EngineScope {
-    pub fn new(kind: impl Into<String>, value: impl Into<String>) -> Result<Self, EngineRequestError> {
+    pub fn new(
+        kind: impl Into<String>,
+        value: impl Into<String>,
+    ) -> Result<Self, EngineRequestError> {
         let kind = kind.into();
         let value = value.into();
 
@@ -84,7 +87,10 @@ impl EngineInputRef {
         if reference.trim().is_empty() {
             return Err(EngineRequestError::BlankInputReference);
         }
-        if digest.as_deref().is_some_and(|value| value.trim().is_empty()) {
+        if digest
+            .as_deref()
+            .is_some_and(|value| value.trim().is_empty())
+        {
             return Err(EngineRequestError::BlankInputDigest);
         }
 
@@ -173,7 +179,9 @@ impl fmt::Display for EngineRequestError {
             Self::BlankInputKind => "engine input kind must not be blank",
             Self::BlankInputReference => "engine input reference must not be blank",
             Self::BlankInputDigest => "engine input digest must not be blank when present",
-            Self::UnboundedRequest => "engine request must contain an explicit scope or input reference",
+            Self::UnboundedRequest => {
+                "engine request must contain an explicit scope or input reference"
+            }
         };
         formatter.write_str(message)
     }
@@ -236,7 +244,8 @@ impl EngineLimits {
                 working_directory,
             ));
         }
-        if contains_parent_component(&workspace_root) || contains_parent_component(&working_directory)
+        if contains_parent_component(&workspace_root)
+            || contains_parent_component(&working_directory)
         {
             return Err(EngineLimitsError::ParentTraversal);
         }
@@ -379,7 +388,7 @@ impl EngineDiagnostic {
 ///
 /// Raw engine bytes are not represented here. T028 must validate/map raw
 /// output before constructing this envelope.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct EngineRunResult {
     run: EngineRun,
     evidence: Vec<Evidence>,
@@ -523,12 +532,16 @@ impl EngineRegistry {
         if engine_id.is_empty() || engine_id.trim() != engine_id {
             return Err(EngineRegistryError::InvalidEngineId);
         }
-        if self.engines.contains_key(&engine_id) {
-            return Err(EngineRegistryError::DuplicateEngineId(engine_id));
-        }
 
-        self.engines.insert(engine_id, engine);
-        Ok(())
+        match self.engines.entry(engine_id) {
+            Entry::Vacant(slot) => {
+                slot.insert(engine);
+                Ok(())
+            }
+            Entry::Occupied(slot) => Err(EngineRegistryError::DuplicateEngineId(
+                slot.key().clone(),
+            )),
+        }
     }
 
     pub fn get(&self, engine_id: &str) -> Option<Arc<dyn Engine>> {
@@ -662,12 +675,12 @@ mod tests {
 
     #[test]
     fn limits_reject_parent_traversal_outside_cwd_and_bad_environment_names() {
-        let manifest = manifest("fixture");
+        let fixture_manifest = manifest("fixture");
         let workspace = std::env::temp_dir().join("sentrdel-t026-workspace");
 
         assert_eq!(
             EngineLimits::from_manifest(
-                &manifest,
+                &fixture_manifest,
                 &workspace,
                 workspace.join("..").join("escape"),
                 NetworkAccessPolicy::Deny,
@@ -678,7 +691,7 @@ mod tests {
         let outside = std::env::temp_dir().join("sentrdel-t026-outside");
         assert_eq!(
             EngineLimits::from_manifest(
-                &manifest,
+                &fixture_manifest,
                 &workspace,
                 outside,
                 NetworkAccessPolicy::Deny,
@@ -687,7 +700,8 @@ mod tests {
         );
 
         let mut duplicate_environment = manifest("fixture");
-        duplicate_environment.allowed_environment_names = vec!["PATH".to_owned(), "PATH".to_owned()];
+        duplicate_environment.allowed_environment_names =
+            vec!["PATH".to_owned(), "PATH".to_owned()];
         assert_eq!(
             EngineLimits::from_manifest(
                 &duplicate_environment,
