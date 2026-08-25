@@ -2,6 +2,8 @@
 //!
 //! The caller is responsible for deriving these narrow states from trusted boundary validation.
 //! This module deliberately does not deserialize repository-controlled policy into kernel state.
+//! T022 establishes the decision primitive only; later bootstrap/guard integration must derive these
+//! states from trusted validators and must apply the kernel floor before an action is authorized.
 
 use crate::Verdict;
 
@@ -77,8 +79,9 @@ pub enum CoverageIntegrity {
 
 /// Narrow trusted state consumed by the Rust kernel invariant evaluator.
 ///
-/// This value has no serde/deserialization surface. Repository-controlled text cannot manufacture
-/// an authoritative kernel decision merely by spelling these enum variants in configuration.
+/// This is authority-bearing trusted-core input, not an authorization token to derive directly from
+/// repository text. It has no serde/deserialization surface; callers must construct it only after
+/// the applicable Rust boundary validator has established each classification.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct KernelIntegrityState {
     workspace: WorkspaceIntegrity,
@@ -109,6 +112,7 @@ impl KernelIntegrityState {
 /// Fields are private so downstream repository policy, plugins, engines, tool output, or model
 /// output cannot directly construct a forged "kernel allowed" object. A decision is created only by
 /// `evaluate_kernel_invariants` inside this crate.
+#[must_use = "kernel decisions must be applied before a later policy candidate can authorize an action"]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct KernelDecision {
     verdict: Verdict,
@@ -180,6 +184,7 @@ pub fn evaluate_kernel_invariants(state: KernelIntegrityState) -> KernelDecision
 /// A kernel `DENY` remains `DENY` against every candidate, including `ALLOW`, `ASK`, and
 /// `UNDECIDABLE`. When the kernel has no violation, this function deliberately passes the candidate
 /// through unchanged; T024 owns broader user/repository policy composition and narrowing semantics.
+#[must_use = "ignoring the enforced verdict can bypass an absorbing kernel DENY"]
 pub fn enforce_kernel_floor(kernel: &KernelDecision, candidate: Verdict) -> Verdict {
     if kernel.is_deny() {
         Verdict::Deny
