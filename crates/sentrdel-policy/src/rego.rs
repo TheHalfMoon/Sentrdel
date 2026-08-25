@@ -672,7 +672,7 @@ default decision := "deny"
                 None,
             )
             .expect_err("statement compaction must not evade import validation"),
-            RegoPolicyError::UnsupportedKeyword("semicolon")
+            RegoPolicyError::UnsupportedImport
         );
     }
 
