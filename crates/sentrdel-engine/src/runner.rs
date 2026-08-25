@@ -29,8 +29,8 @@ use std::{
 use sentrdel_schema::engine::{EngineManifest, NetworkRequirement, TerminationReason};
 
 use crate::{
-    process_tree::{ContainedChild, spawn_contained_process},
     EngineLimits, NetworkAccessPolicy,
+    process_tree::{ContainedChild, spawn_contained_process},
 };
 
 pub const MAX_ENGINE_ARGUMENTS: usize = 1_024;
@@ -344,7 +344,10 @@ impl fmt::Display for EngineProcessError {
                 write!(formatter, "engine process status poll failed: {kind:?}")
             }
             Self::KillFailed(kind) => {
-                write!(formatter, "engine process-tree termination failed: {kind:?}")
+                write!(
+                    formatter,
+                    "engine process-tree termination failed: {kind:?}"
+                )
             }
             Self::WaitFailed(kind) => {
                 write!(formatter, "engine process wait failed: {kind:?}")
@@ -974,8 +977,11 @@ mod tests {
             16_384,
             vec![FIXTURE_MODE.to_owned(), SURVIVOR_MARKER.to_owned()],
         );
-        let descendant_limits =
-            limits_for(&descendant_manifest, "descendant", NetworkAccessPolicy::Deny);
+        let descendant_limits = limits_for(
+            &descendant_manifest,
+            "descendant",
+            NetworkAccessPolicy::Deny,
+        );
         let marker = descendant_limits
             .workspace_root()
             .join("descendant-survived-after-return");
