@@ -30,6 +30,14 @@ jobs:
           rustc +1.98.0 --version
           cargo +1.98.0 --version
 
+      - name: Generate T023 qualification lockfile
+        run: |
+          cargo +1.98.0 generate-lockfile
+          echo 'T023_LOCKFILE_BASE64_BEGIN'
+          base64 -w0 Cargo.lock
+          echo
+          echo 'T023_LOCKFILE_BASE64_END'
+
       - name: Format
         run: cargo +1.98.0 fmt --all -- --check
 
