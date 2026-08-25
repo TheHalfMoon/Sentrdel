@@ -985,8 +985,11 @@ mod tests {
         assert!(flood.stdout().len() <= 128);
 
         let descendant_manifest = manifest(75, 16_384, 16_384, vec![FIXTURE_MODE.to_owned()]);
-        let descendant_limits =
-            limits_for(&descendant_manifest, "descendant", NetworkAccessPolicy::Deny);
+        let descendant_limits = limits_for(
+            &descendant_manifest,
+            "descendant",
+            NetworkAccessPolicy::Deny,
+        );
         let started = Instant::now();
         let descendant = run_engine_process(
             &descendant_manifest,
