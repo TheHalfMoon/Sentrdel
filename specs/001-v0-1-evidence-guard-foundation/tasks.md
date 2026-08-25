@@ -57,7 +57,7 @@
 - [x] T021 Implement normalized action digest and `ALLOW < ASK < DENY` lattice plus UNDECIDABLE handling.
 - [x] T022 Implement Rust-owned kernel invariants for workspace/evidence/enforcement integrity.
 - [x] T023 Qualify/pin **Regorus >=0.11.0** and integrate behind `sentrdel-policy`: policy/input byte+depth caps, tested builtin/subset allowlist, precompiled policy path and bounded failure semantics; add deep/oversized adversarial fixtures.
-- [ ] T024 Implement monotonic policy composition and repository-policy narrowing validation.
+- [x] T024 Implement monotonic policy composition and repository-policy narrowing validation.
 - [ ] T025 Add property/adversarial tests proving no ordering can downgrade kernel DENY or turn policy-evaluation failure into silent ALLOW.
 
 ### Engine boundary
@@ -87,7 +87,6 @@
 ## Phase 3 — US1: Review an AI-generated change
 
 **Goal:** High-signal evidence-backed diff review across coding-agent vendors.
-
 - [ ] T037 [US1] Implement read-only Git discovery/diff using minimal qualified `gix` features; explicitly disable/avoid hooks, external diff/textconv/filter drivers, submodule fetch, credential helpers and network remotes; fixtures cover hostile config, rename/delete/binary/shallow repos.
 - [ ] T038 [P] [US1] Implement bounded repository/file view and path normalization with symlink/confusable/oversized tests; target Cargo/npm/pip metadata commands are never run.
 - [ ] T039 [P] [US1] Integrate tree-sitter/`ast-grep-core` native producer framework and Sentrdel-owned rule format.
