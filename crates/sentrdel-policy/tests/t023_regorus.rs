@@ -4,8 +4,7 @@ use sentrdel_policy::{
 };
 
 const VALID: &str = include_str!("../../../fixtures/policies/t023_valid.rego");
-const DISALLOWED_HTTP: &str =
-    include_str!("../../../fixtures/policies/t023_disallowed_http.rego");
+const DISALLOWED_HTTP: &str = include_str!("../../../fixtures/policies/t023_disallowed_http.rego");
 const DEEP_INPUT: &str = include_str!("../../../fixtures/policies/t023_deep_input.json");
 const ENTRYPOINT: &str = "data.sentrdel.t023.decision";
 
@@ -13,7 +12,10 @@ const ENTRYPOINT: &str = "data.sentrdel.t023.decision";
 fn valid_fixture_returns_only_bounded_candidates() {
     let policy = BoundedRegoPolicy::compile(VALID, ENTRYPOINT, None).expect("valid fixture");
 
-    assert_eq!(policy.evaluate_json(r#"{"action":"read"}"#).verdict(), Verdict::Allow);
+    assert_eq!(
+        policy.evaluate_json(r#"{"action":"read"}"#).verdict(),
+        Verdict::Allow
+    );
     assert_eq!(
         policy.evaluate_json(r#"{"action":"delete"}"#).verdict(),
         Verdict::Deny
