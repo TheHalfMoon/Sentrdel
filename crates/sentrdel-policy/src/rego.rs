@@ -76,7 +76,9 @@ impl fmt::Display for RegoPolicyError {
         match self {
             Self::PolicyTooLarge => write!(formatter, "policy source exceeds the byte limit"),
             Self::TooManyPolicyLines => write!(formatter, "policy source exceeds the line limit"),
-            Self::PolicyColumnTooLong => write!(formatter, "policy source exceeds the column limit"),
+            Self::PolicyColumnTooLong => {
+                write!(formatter, "policy source exceeds the column limit")
+            }
             Self::DataTooLarge => write!(formatter, "policy data exceeds the byte limit"),
             Self::DataTooDeep => write!(formatter, "policy data exceeds the JSON depth limit"),
             Self::MalformedData => write!(formatter, "policy data is malformed JSON"),
@@ -515,8 +517,7 @@ fn function_calls(source: &str) -> Vec<String> {
 
         let start = index;
         index += 1;
-        while index < bytes.len()
-            && (is_identifier_continue(bytes[index]) || bytes[index] == b'.')
+        while index < bytes.len() && (is_identifier_continue(bytes[index]) || bytes[index] == b'.')
         {
             index += 1;
         }
@@ -596,9 +597,8 @@ default decision := "deny"
     #[test]
     fn disallowed_capability_calls_are_rejected_before_engine_load() {
         for call in ["http.send", "net.lookup_ip_addr", "time.now_ns", "print"] {
-            let source = format!(
-                "package sentrdel.t023\nimport rego.v1\ndecision := {call}({{}})\n"
-            );
+            let source =
+                format!("package sentrdel.t023\nimport rego.v1\ndecision := {call}({{}})\n");
             assert_eq!(
                 BoundedRegoPolicy::compile(&source, ENTRYPOINT, None)
                     .expect_err("unqualified call must be rejected"),
@@ -686,7 +686,12 @@ default decision := "deny"
 
     #[test]
     fn invalid_entrypoint_is_rejected_before_installation() {
-        for entrypoint in ["decision", "data.onlypackage", "data.bad-name.rule", "input.x.y"] {
+        for entrypoint in [
+            "decision",
+            "data.onlypackage",
+            "data.bad-name.rule",
+            "input.x.y",
+        ] {
             assert_eq!(
                 BoundedRegoPolicy::compile(SIMPLE_POLICY, entrypoint, None)
                     .expect_err("invalid entrypoint must fail"),
@@ -803,8 +808,8 @@ import rego.v1
 decision := "allow" if 1 / input.divisor > 0
 default decision := "deny"
 "#;
-        let policy = BoundedRegoPolicy::compile(source, ENTRYPOINT, None)
-            .expect("policy should compile");
+        let policy =
+            BoundedRegoPolicy::compile(source, ENTRYPOINT, None).expect("policy should compile");
         let result = policy.evaluate_json(r#"{"divisor":0}"#);
         assert_eq!(result.verdict(), Verdict::Undecidable);
         assert_eq!(result.failure(), Some(RegoFailure::EvaluationFailed));
