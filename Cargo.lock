@@ -224,6 +224,9 @@ version = "0.0.0"
 [[package]]
 name = "sentrdel-policy"
 version = "0.0.0"
+dependencies = [
+ "sentrdel-schema",
+]
 
 [[package]]
 name = "sentrdel-review"
