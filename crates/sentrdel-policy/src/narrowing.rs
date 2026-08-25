@@ -101,9 +101,7 @@ const fn ordered_rank(verdict: Verdict) -> Option<u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        UndecidableResolution, kernel::KernelIntegrityState, resolve_for_enforcement,
-    };
+    use crate::{UndecidableResolution, kernel::KernelIntegrityState, resolve_for_enforcement};
 
     fn for_each_verdict_sequence(max_len: usize, mut assertion: impl FnMut(&[Verdict])) {
         const VERDICTS: [Verdict; 4] = [
@@ -258,9 +256,7 @@ mod tests {
     #[test]
     fn t025_policy_failure_never_resolves_to_silent_allow() {
         for_each_verdict_sequence(5, |sequence| {
-            if !sequence.contains(&Verdict::Undecidable)
-                || sequence.contains(&Verdict::Deny)
-            {
+            if !sequence.contains(&Verdict::Undecidable) || sequence.contains(&Verdict::Deny) {
                 return;
             }
 
