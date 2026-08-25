@@ -6,12 +6,12 @@
 //! clears the inherited environment before adding explicitly allowlisted
 //! entries, and bounds cwd, wall-clock time, stdout, and stderr.
 //!
-//! `NetworkAccessPolicy` is a declaration gate, not an OS network sandbox.
-//! When network is denied, engines declaring OPTIONAL or REQUIRED network are
-//! not started. T027 also does not claim process-tree isolation: a qualified
-//! external engine remains a trust-boundary process. Reader collection is
-//! nevertheless deadline-bounded so descendants cannot keep inherited pipes
-//! open and make the Sentrdel runner wait past its wall-clock limit.
+//! External engines are contained in a POSIX process group on Unix and a
+//! Windows Job Object on Windows. That containment is used for timeout,
+//! output-cap, I/O-failure, and root-exit cleanup so ordinary descendants do
+//! not outlive the Sentrdel invocation or retain stdout/stderr pipe handles.
+//! This is process-tree lifecycle containment, not a hostile-code sandbox or
+//! network-isolation claim.
 
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -20,7 +20,7 @@ use std::{
     fmt, fs,
     io::{self, Read},
     path::{Component, Path, PathBuf},
-    process::{Child, Command, ExitStatus, Stdio},
+    process::ExitStatus,
     sync::mpsc::{self, Sender, TryRecvError},
     thread::{self, JoinHandle},
     time::{Duration, Instant},
@@ -28,7 +28,10 @@ use std::{
 
 use sentrdel_schema::engine::{EngineManifest, NetworkRequirement, TerminationReason};
 
-use crate::{EngineLimits, NetworkAccessPolicy};
+use crate::{
+    process_tree::{ContainedChild, spawn_contained_process},
+    EngineLimits, NetworkAccessPolicy,
+};
 
 pub const MAX_ENGINE_ARGUMENTS: usize = 1_024;
 pub const MAX_ENGINE_ARGUMENT_BYTES: usize = 1_048_576;
@@ -36,6 +39,7 @@ pub const MAX_ENGINE_ENVIRONMENT_ENTRIES: usize = 256;
 pub const MAX_ENGINE_ENVIRONMENT_BYTES: usize = 262_144;
 
 const PROCESS_POLL_INTERVAL: Duration = Duration::from_millis(25);
+const MAX_CLEANUP_RESERVE: Duration = Duration::from_millis(50);
 const READER_CHUNK_BYTES: usize = 8_192;
 
 /// Canonical executable identity admitted from trusted user/system
@@ -252,16 +256,6 @@ impl EngineProcessOutcome {
         }
     }
 
-    fn without_capture(reason: TerminationReason, exit_status: Option<i32>) -> Self {
-        Self {
-            termination_reason: reason,
-            exit_status,
-            stdout: Vec::new(),
-            stderr: Vec::new(),
-            io_error_kind: None,
-        }
-    }
-
     pub fn termination_reason(&self) -> &TerminationReason {
         &self.termination_reason
     }
@@ -350,7 +344,7 @@ impl fmt::Display for EngineProcessError {
                 write!(formatter, "engine process status poll failed: {kind:?}")
             }
             Self::KillFailed(kind) => {
-                write!(formatter, "engine process termination failed: {kind:?}")
+                write!(formatter, "engine process-tree termination failed: {kind:?}")
             }
             Self::WaitFailed(kind) => {
                 write!(formatter, "engine process wait failed: {kind:?}")
@@ -365,6 +359,12 @@ impl fmt::Display for EngineProcessError {
 impl Error for EngineProcessError {}
 
 /// Run one qualified external engine process with the T027 bounds.
+///
+/// The call owns the contained process boundary synchronously. Before returning
+/// it has either observed normal root completion and terminated remaining group
+/// members, or terminated the entire process group/job because of timeout,
+/// output cap, or I/O failure. Reader threads are then joined after containment
+/// cleanup so Sentrdel does not intentionally detach a supervisor/reader worker.
 pub fn run_engine_process(
     manifest: &EngineManifest,
     spec: &EngineProcessSpec,
@@ -381,23 +381,20 @@ pub fn run_engine_process(
         ));
     }
 
-    let deadline = Instant::now()
+    let started = Instant::now();
+    let overall_deadline = started
         .checked_add(limits.wall_clock_timeout())
         .ok_or(EngineProcessError::TimeoutOverflow)?;
+    let execution_deadline = overall_deadline
+        .checked_sub(cleanup_reserve(limits.wall_clock_timeout()))
+        .unwrap_or(overall_deadline);
 
-    let mut command = Command::new(spec.executable.path());
-    command
-        .args(spec.arguments())
-        .current_dir(limits.working_directory())
-        .stdin(Stdio::null())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .env_clear();
-    for (name, value) in &spec.environment {
-        command.env(name, value);
-    }
-
-    let mut child = match command.spawn() {
+    let mut child = match spawn_contained_process(
+        spec.executable.path(),
+        spec.arguments(),
+        limits.working_directory(),
+        &spec.environment,
+    ) {
         Ok(child) => child,
         Err(error) => {
             return Ok(EngineProcessOutcome::without_process(
@@ -410,14 +407,14 @@ pub fn run_engine_process(
     let stdout = match child.stdout.take() {
         Some(stdout) => stdout,
         None => {
-            let _ = terminate_and_wait(&mut child);
+            let _ = force_kill_and_wait(&mut child);
             return Err(EngineProcessError::MissingPipe(EngineOutputStream::Stdout));
         }
     };
     let stderr = match child.stderr.take() {
         Some(stderr) => stderr,
         None => {
-            let _ = terminate_and_wait(&mut child);
+            let _ = force_kill_and_wait(&mut child);
             return Err(EngineProcessError::MissingPipe(EngineOutputStream::Stderr));
         }
     };
@@ -436,14 +433,14 @@ pub fn run_engine_process(
         event_tx,
     );
 
-    let (status, forced_reason) = monitor_child(&mut child, deadline, &event_rx)?;
-    let captures = collect_readers_before_deadline(stdout_reader, stderr_reader, deadline)?;
-    let Some((stdout_capture, stderr_capture)) = captures else {
-        return Ok(EngineProcessOutcome::without_capture(
-            forced_reason.unwrap_or(TerminationReason::Timeout),
-            status.code(),
-        ));
-    };
+    let (status, forced_reason) = monitor_child(&mut child, execution_deadline, &event_rx)?;
+
+    // The contained group/job has been terminated before reader joins. Normal
+    // descendants therefore cannot retain inherited pipe writers beyond this
+    // point. The overall deadline is retained as an observable budget check;
+    // cleanup starts before it via `cleanup_reserve`.
+    let stdout_capture = join_reader(stdout_reader, EngineOutputStream::Stdout)?;
+    let stderr_capture = join_reader(stderr_reader, EngineOutputStream::Stderr)?;
 
     let output_capped = stdout_capture.capped || stderr_capture.capped;
     let termination_reason = match forced_reason {
@@ -453,6 +450,17 @@ pub fn run_engine_process(
         None => TerminationReason::NonZero,
     };
 
+    // Do not convert a successful/non-zero engine result into hidden success if
+    // containment cleanup unexpectedly consumed the entire budget. Timeout is
+    // explicit and fail-closed at the process boundary.
+    let termination_reason = if Instant::now() > overall_deadline
+        && !matches!(termination_reason, TerminationReason::OutputCap)
+    {
+        TerminationReason::Timeout
+    } else {
+        termination_reason
+    };
+
     Ok(EngineProcessOutcome {
         termination_reason,
         exit_status: status.code(),
@@ -460,6 +468,12 @@ pub fn run_engine_process(
         stderr: stderr_capture.bytes,
         io_error_kind: None,
     })
+}
+
+fn cleanup_reserve(timeout: Duration) -> Duration {
+    let quarter_ms = timeout.as_millis() / 4;
+    let reserve_ms = quarter_ms.min(MAX_CLEANUP_RESERVE.as_millis());
+    Duration::from_millis(u64::try_from(reserve_ms).unwrap_or(u64::MAX))
 }
 
 fn validate_manifest_binding(
@@ -650,25 +664,30 @@ where
 }
 
 fn monitor_child(
-    child: &mut Child,
-    deadline: Instant,
+    child: &mut ContainedChild,
+    execution_deadline: Instant,
     event_rx: &mpsc::Receiver<ReaderEvent>,
 ) -> Result<(ExitStatus, Option<TerminationReason>), EngineProcessError> {
     loop {
         match event_rx.try_recv() {
             Ok(ReaderEvent::Capped) => {
-                let status = terminate_and_wait(child)?;
+                let status = force_kill_and_wait(child)?;
                 return Ok((status, Some(TerminationReason::OutputCap)));
             }
             Ok(ReaderEvent::Failed(stream, kind)) => {
-                terminate_and_wait(child)?;
+                force_kill_and_wait(child)?;
                 return Err(EngineProcessError::PipeReadFailed(stream, kind));
             }
             Err(TryRecvError::Empty | TryRecvError::Disconnected) => {}
         }
 
         match child.try_wait() {
-            Ok(Some(status)) => return Ok((status, None)),
+            Ok(Some(status)) => {
+                child
+                    .terminate_remaining()
+                    .map_err(|error| EngineProcessError::KillFailed(error.kind()))?;
+                return Ok((status, None));
+            }
             Ok(None) => {}
             Err(error) => {
                 let poll_error = error.kind();
@@ -678,56 +697,19 @@ fn monitor_child(
         }
 
         let now = Instant::now();
-        if now >= deadline {
-            let status = terminate_and_wait(child)?;
+        if now >= execution_deadline {
+            let status = force_kill_and_wait(child)?;
             return Ok((status, Some(TerminationReason::Timeout)));
         }
-        thread::sleep(PROCESS_POLL_INTERVAL.min(deadline.saturating_duration_since(now)));
+        thread::sleep(PROCESS_POLL_INTERVAL.min(execution_deadline.saturating_duration_since(now)));
     }
 }
 
-fn collect_readers_before_deadline(
-    stdout: JoinHandle<Result<BoundedCapture, EngineProcessError>>,
-    stderr: JoinHandle<Result<BoundedCapture, EngineProcessError>>,
-    deadline: Instant,
-) -> Result<Option<(BoundedCapture, BoundedCapture)>, EngineProcessError> {
-    loop {
-        if stdout.is_finished() && stderr.is_finished() {
-            return Ok(Some((
-                join_reader(stdout, EngineOutputStream::Stdout)?,
-                join_reader(stderr, EngineOutputStream::Stderr)?,
-            )));
-        }
-
-        let now = Instant::now();
-        if now >= deadline {
-            return Ok(None);
-        }
-        thread::sleep(PROCESS_POLL_INTERVAL.min(deadline.saturating_duration_since(now)));
-    }
-}
-
-fn terminate_and_wait(child: &mut Child) -> Result<ExitStatus, EngineProcessError> {
-    match child.try_wait() {
-        Ok(Some(status)) => Ok(status),
-        Ok(None) => force_kill_and_wait(child),
-        Err(error) => {
-            let poll_error = error.kind();
-            force_kill_and_wait(child)?;
-            Err(EngineProcessError::TryWaitFailed(poll_error))
-        }
-    }
-}
-
-fn force_kill_and_wait(child: &mut Child) -> Result<ExitStatus, EngineProcessError> {
-    if let Err(error) = child.kill() {
-        match child.try_wait() {
-            Ok(Some(status)) => return Ok(status),
-            Ok(None) => return Err(EngineProcessError::KillFailed(error.kind())),
-            Err(wait_error) => {
-                return Err(EngineProcessError::TryWaitFailed(wait_error.kind()));
-            }
-        }
+fn force_kill_and_wait(child: &mut ContainedChild) -> Result<ExitStatus, EngineProcessError> {
+    match child.start_kill() {
+        Ok(()) => {}
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+        Err(error) => return Err(EngineProcessError::KillFailed(error.kind())),
     }
     child
         .wait()
@@ -747,12 +729,14 @@ fn join_reader(
 mod tests {
     use super::*;
     use std::{
-        env, process,
+        env,
+        process::{self, Command},
         sync::atomic::{AtomicU64, Ordering},
     };
 
     const FIXTURE_MODE: &str = "SENTRDEL_T027_FIXTURE_MODE";
     const FORBIDDEN_ENV_NAME: &str = "SENTRDEL_T027_FORBIDDEN_ENV_NAME";
+    const SURVIVOR_MARKER: &str = "SENTRDEL_T027_SURVIVOR_MARKER";
     static NEXT_FIXTURE_ID: AtomicU64 = AtomicU64::new(0);
 
     fn manifest(
@@ -934,7 +918,7 @@ mod tests {
         let inherited_name = env::vars_os()
             .map(|(name, _)| name)
             .find(|name| name != OsStr::new(FIXTURE_MODE) && name != OsStr::new(FORBIDDEN_ENV_NAME))
-            .expect("test process should expose an inherited environment name");
+            .expect("test process should expose at least one inherited environment name");
         let manifest = manifest(
             2_000,
             16_384,
@@ -962,8 +946,8 @@ mod tests {
     }
 
     #[test]
-    fn runner_enforces_wall_clock_output_caps_and_pipe_drain_deadline() {
-        let timeout_manifest = manifest(25, 16_384, 16_384, vec![FIXTURE_MODE.to_owned()]);
+    fn runner_enforces_wall_clock_output_caps_and_kills_descendants() {
+        let timeout_manifest = manifest(50, 16_384, 16_384, vec![FIXTURE_MODE.to_owned()]);
         let timeout_limits = limits_for(&timeout_manifest, "timeout", NetworkAccessPolicy::Deny);
         let timeout = run_engine_process(
             &timeout_manifest,
@@ -984,21 +968,40 @@ mod tests {
         assert_eq!(flood.termination_reason(), &TerminationReason::OutputCap);
         assert!(flood.stdout().len() <= 128);
 
-        let descendant_manifest = manifest(75, 16_384, 16_384, vec![FIXTURE_MODE.to_owned()]);
-        let descendant_limits = limits_for(
-            &descendant_manifest,
-            "descendant",
-            NetworkAccessPolicy::Deny,
+        let descendant_manifest = manifest(
+            120,
+            16_384,
+            16_384,
+            vec![FIXTURE_MODE.to_owned(), SURVIVOR_MARKER.to_owned()],
         );
+        let descendant_limits =
+            limits_for(&descendant_manifest, "descendant", NetworkAccessPolicy::Deny);
+        let marker = descendant_limits
+            .workspace_root()
+            .join("descendant-survived-after-return");
         let started = Instant::now();
         let descendant = run_engine_process(
             &descendant_manifest,
-            &process_spec("spawn-pipe-holder", BTreeMap::new()),
+            &process_spec(
+                "spawn-pipe-holder",
+                BTreeMap::from([(
+                    SURVIVOR_MARKER.to_owned(),
+                    marker.as_os_str().to_os_string(),
+                )]),
+            ),
             &descendant_limits,
         )
-        .expect("descendant-held pipes should remain deadline bounded");
+        .expect("descendant-held pipes should be contained and terminated");
         assert_eq!(descendant.termination_reason(), &TerminationReason::Timeout);
         assert!(started.elapsed() < Duration::from_millis(300));
+
+        // If the descendant escaped containment it writes this marker after
+        // 500 ms. Wait beyond that point to prove it did not outlive Sentrdel.
+        thread::sleep(Duration::from_millis(550));
+        assert!(
+            !marker.exists(),
+            "descendant process survived the T027 process boundary"
+        );
     }
 
     #[test]
@@ -1036,7 +1039,12 @@ mod tests {
                     let _ = descendant.wait();
                 });
             }
-            "hold-pipes" => thread::sleep(Duration::from_millis(500)),
+            "hold-pipes" => {
+                thread::sleep(Duration::from_millis(500));
+                if let Some(marker) = env::var_os(SURVIVOR_MARKER) {
+                    fs::write(marker, b"survived").expect("write survivor marker");
+                }
+            }
             other => panic!("unknown T027 fixture mode: {other}"),
         }
     }
