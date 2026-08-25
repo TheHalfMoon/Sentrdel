@@ -169,9 +169,8 @@ mod tests {
 
     #[test]
     fn outside_workspace_uses_binding_quickstart_invariant_id() {
-        let decision = evaluate_kernel_invariants(KernelIntegrityState::for_test(
-            false, true, true, true,
-        ));
+        let decision =
+            evaluate_kernel_invariants(KernelIntegrityState::for_test(false, true, true, true));
 
         assert_eq!(decision.verdict(), Verdict::Deny);
         assert_eq!(
@@ -182,9 +181,8 @@ mod tests {
 
     #[test]
     fn evidence_capture_cannot_be_disabled() {
-        let decision = evaluate_kernel_invariants(KernelIntegrityState::for_test(
-            true, false, true, true,
-        ));
+        let decision =
+            evaluate_kernel_invariants(KernelIntegrityState::for_test(true, false, true, true));
 
         assert_eq!(
             decision.invariant_ids().collect::<Vec<_>>(),
@@ -195,9 +193,8 @@ mod tests {
 
     #[test]
     fn non_reconciler_cannot_create_canonical_finding() {
-        let decision = evaluate_kernel_invariants(KernelIntegrityState::for_test(
-            true, true, false, true,
-        ));
+        let decision =
+            evaluate_kernel_invariants(KernelIntegrityState::for_test(true, true, false, true));
 
         assert_eq!(
             decision.invariant_ids().collect::<Vec<_>>(),
@@ -208,9 +205,8 @@ mod tests {
 
     #[test]
     fn coverage_gap_cannot_masquerade_as_clean() {
-        let decision = evaluate_kernel_invariants(KernelIntegrityState::for_test(
-            true, true, true, false,
-        ));
+        let decision =
+            evaluate_kernel_invariants(KernelIntegrityState::for_test(true, true, true, false));
 
         assert_eq!(
             decision.invariant_ids().collect::<Vec<_>>(),
@@ -221,9 +217,8 @@ mod tests {
 
     #[test]
     fn multiple_violations_are_retained_in_stable_kernel_order() {
-        let decision = evaluate_kernel_invariants(KernelIntegrityState::for_test(
-            false, false, false, false,
-        ));
+        let decision =
+            evaluate_kernel_invariants(KernelIntegrityState::for_test(false, false, false, false));
 
         assert_eq!(
             decision.invariant_ids().collect::<Vec<_>>(),
@@ -239,9 +234,8 @@ mod tests {
 
     #[test]
     fn kernel_deny_cannot_be_downgraded_by_any_later_candidate() {
-        let denied = evaluate_kernel_invariants(KernelIntegrityState::for_test(
-            false, true, true, true,
-        ));
+        let denied =
+            evaluate_kernel_invariants(KernelIntegrityState::for_test(false, true, true, true));
 
         for candidate in [
             Verdict::Allow,
