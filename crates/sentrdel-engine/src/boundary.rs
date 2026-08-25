@@ -2,8 +2,9 @@
 //! Trusted boundary types for optional external evidence engines.
 //!
 //! T026 defines the object-safe adapter contract, bounded request/limit types,
-//! validated result envelope, and registry. T027 consumes these limits for the
-//! sole external-engine process runner.
+//! validated result envelope, and registry. This module remains data-only;
+//! T027 consumes these limits from `runner.rs`, which owns the sole external-
+//! engine process-spawning implementation.
 
 use std::{
     collections::{BTreeMap, BTreeSet, btree_map::Entry},
@@ -22,7 +23,7 @@ use sentrdel_schema::{
     evidence::Evidence,
 };
 
-pub(crate) const EXTERNAL_ENGINE_EXECUTION_IMPLEMENTED: bool = false;
+pub(crate) const BOUNDARY_CONTAINS_PROCESS_SPAWN_IMPLEMENTATION: bool = false;
 
 /// Hard R1 ceilings for manifest-controlled process resources.
 pub const MAX_ENGINE_TIMEOUT_MS: u64 = 15 * 60 * 1_000;
