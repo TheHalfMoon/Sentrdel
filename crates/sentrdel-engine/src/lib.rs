@@ -8,7 +8,7 @@
 use std::{
     collections::{BTreeMap, BTreeSet, btree_map::Entry},
     error::Error,
-    fmt,
+    fmt, fs,
     future::Future,
     path::{Component, Path, PathBuf},
     pin::Pin,
@@ -41,11 +41,13 @@ impl EngineScope {
     ) -> Result<Self, EngineRequestError> {
         let kind = kind.into();
         let value = value.into();
+        let kind = kind.trim().to_owned();
+        let value = value.trim().to_owned();
 
-        if kind.trim().is_empty() {
+        if kind.is_empty() {
             return Err(EngineRequestError::BlankScopeKind);
         }
-        if value.trim().is_empty() {
+        if value.is_empty() {
             return Err(EngineRequestError::BlankScopeValue);
         }
 
@@ -80,17 +82,17 @@ impl EngineInputRef {
     ) -> Result<Self, EngineRequestError> {
         let kind = kind.into();
         let reference = reference.into();
+        let kind = kind.trim().to_owned();
+        let reference = reference.trim().to_owned();
+        let digest = digest.map(|value| value.trim().to_owned());
 
-        if kind.trim().is_empty() {
+        if kind.is_empty() {
             return Err(EngineRequestError::BlankInputKind);
         }
-        if reference.trim().is_empty() {
+        if reference.is_empty() {
             return Err(EngineRequestError::BlankInputReference);
         }
-        if digest
-            .as_deref()
-            .is_some_and(|value| value.trim().is_empty())
-        {
+        if digest.as_deref().is_some_and(|value| value.is_empty()) {
             return Err(EngineRequestError::BlankInputDigest);
         }
 
@@ -132,7 +134,8 @@ impl EngineRequest {
         input_refs: Vec<EngineInputRef>,
     ) -> Result<Self, EngineRequestError> {
         let request_id = request_id.into();
-        if request_id.trim().is_empty() {
+        let request_id = request_id.trim().to_owned();
+        if request_id.is_empty() {
             return Err(EngineRequestError::BlankRequestId);
         }
         if scopes.is_empty() && input_refs.is_empty() {
@@ -202,8 +205,10 @@ pub enum NetworkAccessPolicy {
 /// Trusted execution bounds derived from an `EngineManifest` plus an approved
 /// workspace/cwd and command-level network policy.
 ///
-/// This type intentionally contains no executable or argv fields; those belong
-/// to T027 trusted executable resolution and process invocation.
+/// Workspace and cwd must already exist and are stored in canonical form so a
+/// symlinked cwd cannot escape the approved canonical workspace. This type
+/// intentionally contains no executable or argv fields; those belong to T027
+/// trusted executable resolution and process invocation.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct EngineLimits {
     wall_clock_timeout: Duration,
@@ -249,13 +254,35 @@ impl EngineLimits {
         {
             return Err(EngineLimitsError::ParentTraversal);
         }
-        if !working_directory.starts_with(&workspace_root) {
+
+        let canonical_workspace_root = fs::canonicalize(&workspace_root).map_err(|_| {
+            EngineLimitsError::WorkspaceRootNotCanonicalizable(workspace_root.clone())
+        })?;
+        if !canonical_workspace_root.is_dir() {
+            return Err(EngineLimitsError::WorkspaceRootNotCanonicalizable(
+                workspace_root,
+            ));
+        }
+
+        let canonical_working_directory = fs::canonicalize(&working_directory).map_err(|_| {
+            EngineLimitsError::WorkingDirectoryNotCanonicalizable(working_directory.clone())
+        })?;
+        if !canonical_working_directory.is_dir() {
+            return Err(EngineLimitsError::WorkingDirectoryNotCanonicalizable(
+                working_directory,
+            ));
+        }
+        if !canonical_working_directory.starts_with(&canonical_workspace_root) {
             return Err(EngineLimitsError::WorkingDirectoryOutsideWorkspace);
         }
 
         let mut allowed_environment_names = BTreeSet::new();
         for name in &manifest.allowed_environment_names {
-            if name.is_empty() || name.contains('=') || name.contains('\0') {
+            if name.is_empty()
+                || name.trim() != name
+                || name.contains('=')
+                || name.chars().any(char::is_control)
+            {
                 return Err(EngineLimitsError::InvalidEnvironmentName(name.clone()));
             }
             if !allowed_environment_names.insert(name.clone()) {
@@ -267,8 +294,8 @@ impl EngineLimits {
             wall_clock_timeout: Duration::from_millis(manifest.timeout_ms),
             max_stdout_bytes: manifest.max_stdout_bytes,
             max_stderr_bytes: manifest.max_stderr_bytes,
-            workspace_root,
-            working_directory,
+            workspace_root: canonical_workspace_root,
+            working_directory: canonical_working_directory,
             allowed_environment_names,
             network_requirement: manifest.network_requirement.clone(),
             network_access_policy,
@@ -320,6 +347,8 @@ pub enum EngineLimitsError {
     ZeroStderrCap,
     WorkspaceRootNotAbsolute(PathBuf),
     WorkingDirectoryNotAbsolute(PathBuf),
+    WorkspaceRootNotCanonicalizable(PathBuf),
+    WorkingDirectoryNotCanonicalizable(PathBuf),
     ParentTraversal,
     WorkingDirectoryOutsideWorkspace,
     InvalidEnvironmentName(String),
@@ -336,15 +365,19 @@ impl fmt::Display for EngineLimitsError {
             Self::ZeroStderrCap => {
                 formatter.write_str("engine stderr cap must be greater than zero")
             }
-            Self::WorkspaceRootNotAbsolute(path) => write!(
+            Self::WorkspaceRootNotAbsolute(path) => {
+                write!(formatter, "engine workspace root must be absolute: {path:?}")
+            }
+            Self::WorkingDirectoryNotAbsolute(path) => {
+                write!(formatter, "engine working directory must be absolute: {path:?}")
+            }
+            Self::WorkspaceRootNotCanonicalizable(path) => write!(
                 formatter,
-                "engine workspace root must be absolute: {}",
-                path.display()
+                "engine workspace root must exist as a canonical directory: {path:?}"
             ),
-            Self::WorkingDirectoryNotAbsolute(path) => write!(
+            Self::WorkingDirectoryNotCanonicalizable(path) => write!(
                 formatter,
-                "engine working directory must be absolute: {}",
-                path.display()
+                "engine working directory must exist as a canonical directory: {path:?}"
             ),
             Self::ParentTraversal => {
                 formatter.write_str("engine workspace/cwd may not contain parent traversal")
@@ -360,7 +393,7 @@ impl fmt::Display for EngineLimitsError {
             Self::DuplicateEnvironmentName(name) => {
                 write!(
                     formatter,
-                    "duplicate engine environment allowlist name: {name}"
+                    "duplicate engine environment allowlist name: {name:?}"
                 )
             }
         }
@@ -510,11 +543,11 @@ pub enum EngineRegistryError {
 impl fmt::Display for EngineRegistryError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::InvalidEngineId => {
-                formatter.write_str("engine manifest id must be non-empty and already normalized")
-            }
+            Self::InvalidEngineId => formatter.write_str(
+                "engine manifest id must be non-empty, normalized, and free of control characters",
+            ),
             Self::DuplicateEngineId(engine_id) => {
-                write!(formatter, "engine id already registered: {engine_id}")
+                write!(formatter, "engine id already registered: {engine_id:?}")
             }
         }
     }
@@ -535,7 +568,10 @@ impl EngineRegistry {
 
     pub fn register(&mut self, engine: Arc<dyn Engine>) -> Result<(), EngineRegistryError> {
         let engine_id = engine.manifest().engine_id.clone();
-        if engine_id.is_empty() || engine_id.trim() != engine_id {
+        if engine_id.is_empty()
+            || engine_id.trim() != engine_id
+            || engine_id.chars().any(char::is_control)
+        {
             return Err(EngineRegistryError::InvalidEngineId);
         }
 
@@ -574,6 +610,9 @@ impl EngineRegistry {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static NEXT_FIXTURE_ID: AtomicU64 = AtomicU64::new(0);
 
     struct FixtureEngine {
         manifest: EngineManifest,
@@ -618,6 +657,21 @@ mod tests {
         }
     }
 
+    fn unique_temp_path(label: &str) -> PathBuf {
+        let fixture_id = NEXT_FIXTURE_ID.fetch_add(1, Ordering::Relaxed);
+        std::env::temp_dir().join(format!(
+            "sentrdel-t026-{label}-{}-{fixture_id}",
+            std::process::id()
+        ))
+    }
+
+    fn existing_workspace(label: &str) -> (PathBuf, PathBuf) {
+        let workspace = unique_temp_path(label);
+        let working_directory = workspace.join("subdir");
+        fs::create_dir_all(&working_directory).expect("create T026 workspace fixture");
+        (workspace, working_directory)
+    }
+
     fn explicit_request() -> EngineRequest {
         EngineRequest::new(
             "request-1",
@@ -631,11 +685,11 @@ mod tests {
     }
 
     fn limits(manifest: &EngineManifest) -> EngineLimits {
-        let workspace = std::env::temp_dir().join("sentrdel-t026-workspace");
+        let (workspace, working_directory) = existing_workspace("limits");
         EngineLimits::from_manifest(
             manifest,
             &workspace,
-            workspace.join("subdir"),
+            &working_directory,
             NetworkAccessPolicy::Deny,
         )
         .expect("trusted fixture limits")
@@ -655,6 +709,24 @@ mod tests {
             EngineInputRef::new("tree", " ", None),
             Err(EngineRequestError::BlankInputReference)
         );
+
+        let scope = EngineScope::new(" repository ", " . ").expect("normalized scope");
+        assert_eq!(scope.kind(), "repository");
+        assert_eq!(scope.value(), ".");
+
+        let input = EngineInputRef::new(
+            " tree ",
+            " sha256:fixture ",
+            Some(" sha256:digest ".to_owned()),
+        )
+        .expect("normalized input reference");
+        assert_eq!(input.kind(), "tree");
+        assert_eq!(input.reference(), "sha256:fixture");
+        assert_eq!(input.digest(), Some("sha256:digest"));
+
+        let request = EngineRequest::new(" request-1 ", vec![scope], vec![input])
+            .expect("normalized request");
+        assert_eq!(request.request_id(), "request-1");
     }
 
     #[test]
@@ -665,6 +737,8 @@ mod tests {
         assert_eq!(limits.wall_clock_timeout(), Duration::from_millis(2_500));
         assert_eq!(limits.max_stdout_bytes(), 8_192);
         assert_eq!(limits.max_stderr_bytes(), 4_096);
+        assert!(limits.workspace_root().is_absolute());
+        assert!(limits.working_directory().starts_with(limits.workspace_root()));
         assert_eq!(limits.network_requirement(), &NetworkRequirement::None);
         assert_eq!(limits.network_access_policy(), NetworkAccessPolicy::Deny);
         assert_eq!(
@@ -680,7 +754,7 @@ mod tests {
     #[test]
     fn limits_reject_parent_traversal_outside_cwd_and_bad_environment_names() {
         let fixture_manifest = manifest("fixture");
-        let workspace = std::env::temp_dir().join("sentrdel-t026-workspace");
+        let (workspace, working_directory) = existing_workspace("reject");
 
         assert_eq!(
             EngineLimits::from_manifest(
@@ -692,12 +766,13 @@ mod tests {
             Err(EngineLimitsError::ParentTraversal)
         );
 
-        let outside = std::env::temp_dir().join("sentrdel-t026-outside");
+        let outside = unique_temp_path("outside");
+        fs::create_dir_all(&outside).expect("create outside fixture");
         assert_eq!(
             EngineLimits::from_manifest(
                 &fixture_manifest,
                 &workspace,
-                outside,
+                &outside,
                 NetworkAccessPolicy::Deny,
             ),
             Err(EngineLimitsError::WorkingDirectoryOutsideWorkspace)
@@ -710,12 +785,143 @@ mod tests {
             EngineLimits::from_manifest(
                 &duplicate_environment,
                 &workspace,
-                &workspace,
+                &working_directory,
                 NetworkAccessPolicy::Deny,
             ),
             Err(EngineLimitsError::DuplicateEnvironmentName(
                 "PATH".to_owned()
             ))
+        );
+
+        for invalid_name in ["PATH=/attacker/bin", "PATH\n", " PATH"] {
+            let mut invalid_environment = manifest("fixture");
+            invalid_environment.allowed_environment_names = vec![invalid_name.to_owned()];
+            assert_eq!(
+                EngineLimits::from_manifest(
+                    &invalid_environment,
+                    &workspace,
+                    &working_directory,
+                    NetworkAccessPolicy::Deny,
+                ),
+                Err(EngineLimitsError::InvalidEnvironmentName(
+                    invalid_name.to_owned()
+                ))
+            );
+        }
+    }
+
+    #[test]
+    fn limits_reject_invalid_paths_and_zero_resource_caps() {
+        let fixture_manifest = manifest("fixture");
+        let (workspace, working_directory) = existing_workspace("path-errors");
+
+        let relative_workspace = PathBuf::from("relative/workspace");
+        assert_eq!(
+            EngineLimits::from_manifest(
+                &fixture_manifest,
+                &relative_workspace,
+                &working_directory,
+                NetworkAccessPolicy::Deny,
+            ),
+            Err(EngineLimitsError::WorkspaceRootNotAbsolute(
+                relative_workspace
+            ))
+        );
+
+        let relative_cwd = PathBuf::from("relative/cwd");
+        assert_eq!(
+            EngineLimits::from_manifest(
+                &fixture_manifest,
+                &workspace,
+                &relative_cwd,
+                NetworkAccessPolicy::Deny,
+            ),
+            Err(EngineLimitsError::WorkingDirectoryNotAbsolute(relative_cwd))
+        );
+
+        let missing_workspace = unique_temp_path("missing-workspace");
+        assert_eq!(
+            EngineLimits::from_manifest(
+                &fixture_manifest,
+                &missing_workspace,
+                &working_directory,
+                NetworkAccessPolicy::Deny,
+            ),
+            Err(EngineLimitsError::WorkspaceRootNotCanonicalizable(
+                missing_workspace
+            ))
+        );
+
+        let missing_cwd = workspace.join("missing-cwd");
+        assert_eq!(
+            EngineLimits::from_manifest(
+                &fixture_manifest,
+                &workspace,
+                &missing_cwd,
+                NetworkAccessPolicy::Deny,
+            ),
+            Err(EngineLimitsError::WorkingDirectoryNotCanonicalizable(
+                missing_cwd
+            ))
+        );
+
+        let mut zero_timeout = manifest("fixture");
+        zero_timeout.timeout_ms = 0;
+        assert_eq!(
+            EngineLimits::from_manifest(
+                &zero_timeout,
+                &workspace,
+                &working_directory,
+                NetworkAccessPolicy::Deny,
+            ),
+            Err(EngineLimitsError::ZeroTimeout)
+        );
+
+        let mut zero_stdout = manifest("fixture");
+        zero_stdout.max_stdout_bytes = 0;
+        assert_eq!(
+            EngineLimits::from_manifest(
+                &zero_stdout,
+                &workspace,
+                &working_directory,
+                NetworkAccessPolicy::Deny,
+            ),
+            Err(EngineLimitsError::ZeroStdoutCap)
+        );
+
+        let mut zero_stderr = manifest("fixture");
+        zero_stderr.max_stderr_bytes = 0;
+        assert_eq!(
+            EngineLimits::from_manifest(
+                &zero_stderr,
+                &workspace,
+                &working_directory,
+                NetworkAccessPolicy::Deny,
+            ),
+            Err(EngineLimitsError::ZeroStderrCap)
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn limits_reject_symlink_workspace_escape() {
+        use std::os::unix::fs::symlink;
+
+        let workspace = unique_temp_path("symlink-workspace");
+        let outside = unique_temp_path("symlink-outside");
+        fs::create_dir_all(&workspace).expect("create symlink workspace");
+        fs::create_dir_all(&outside).expect("create symlink outside directory");
+        let escaped_cwd = workspace.join("escaped-cwd");
+        symlink(&outside, &escaped_cwd).expect("create escape symlink");
+
+        assert_eq!(
+            EngineLimits::from_manifest(
+                &manifest("fixture"),
+                &workspace,
+                &escaped_cwd,
+                NetworkAccessPolicy::Deny,
+            ),
+            Err(EngineLimitsError::WorkingDirectoryOutsideWorkspace)
         );
     }
 
@@ -745,6 +951,16 @@ mod tests {
             Err(EngineRegistryError::DuplicateEngineId("fixture".to_owned()))
         );
         assert_eq!(registry.len(), 1);
+
+        for invalid_id in ["", " padded ", "bad\nid"] {
+            let mut invalid_registry = EngineRegistry::new();
+            assert_eq!(
+                invalid_registry.register(Arc::new(FixtureEngine {
+                    manifest: manifest(invalid_id),
+                })),
+                Err(EngineRegistryError::InvalidEngineId)
+            );
+        }
     }
 
     #[test]
