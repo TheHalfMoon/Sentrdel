@@ -3,8 +3,9 @@ use sentrdel_policy::{
     rego::{BoundedRegoPolicy, RegoFailure, RegoPolicyError},
 };
 
-const VALID: &str = include_str!("../../../fixtures/policies/t023_valid.rego");
-const DISALLOWED_HTTP: &str = include_str!("../../../fixtures/policies/t023_disallowed_http.rego");
+const VALID: &str = include_str!("../../../fixtures/policies/sentrdel/t023/t023_valid.rego");
+const DISALLOWED_HTTP: &str =
+    include_str!("../../../fixtures/policies/sentrdel/t023/t023_disallowed_http.rego");
 const DEEP_INPUT: &str = include_str!("../../../fixtures/policies/t023_deep_input.json");
 const ENTRYPOINT: &str = "data.sentrdel.t023.decision";
 
