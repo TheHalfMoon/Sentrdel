@@ -416,6 +416,11 @@ fn validate_policy_source(source: &str) -> Result<(), RegoPolicyError> {
 }
 
 fn validate_imports(masked: &str) -> Result<(), RegoPolicyError> {
+    let import_token_count = identifier_tokens(masked)
+        .filter(|token| *token == "import")
+        .count();
+    let mut validated_import_count = 0usize;
+
     for line in masked.lines() {
         let trimmed = line.trim();
         let Some(rest) = trimmed.strip_prefix("import") else {
@@ -424,10 +429,16 @@ fn validate_imports(masked: &str) -> Result<(), RegoPolicyError> {
         if rest.is_empty() || !rest.as_bytes()[0].is_ascii_whitespace() {
             continue;
         }
+        validated_import_count += 1;
         if rest.trim() != "rego.v1" {
             return Err(RegoPolicyError::UnsupportedImport);
         }
     }
+
+    if validated_import_count != import_token_count {
+        return Err(RegoPolicyError::UnsupportedImport);
+    }
+
     Ok(())
 }
 
@@ -616,6 +627,24 @@ default decision := "deny"
                 None,
             )
             .expect_err("repository data import is outside the subset"),
+            RegoPolicyError::UnsupportedImport
+        );
+        assert_eq!(
+            BoundedRegoPolicy::compile(
+                "package sentrdel.t023 import data.external decision := \"allow\"",
+                ENTRYPOINT,
+                None,
+            )
+            .expect_err("same-line imports must not evade the lexical allowlist"),
+            RegoPolicyError::UnsupportedImport
+        );
+        assert_eq!(
+            BoundedRegoPolicy::compile(
+                "package sentrdel.t023\nimport\n data.external\ndecision := \"allow\"\n",
+                ENTRYPOINT,
+                None,
+            )
+            .expect_err("split imports must not evade the lexical allowlist"),
             RegoPolicyError::UnsupportedImport
         );
         assert_eq!(
