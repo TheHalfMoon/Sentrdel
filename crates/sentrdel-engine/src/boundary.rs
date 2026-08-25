@@ -359,25 +359,40 @@ impl fmt::Display for EngineLimitsError {
         match self {
             Self::ZeroTimeout => formatter.write_str("engine timeout must be greater than zero"),
             Self::TimeoutAboveMaximum { value, max } => {
-                write!(formatter, "engine timeout {value}ms exceeds hard maximum {max}ms")
+                write!(
+                    formatter,
+                    "engine timeout {value}ms exceeds hard maximum {max}ms"
+                )
             }
             Self::ZeroStdoutCap => {
                 formatter.write_str("engine stdout cap must be greater than zero")
             }
             Self::StdoutCapAboveMaximum { value, max } => {
-                write!(formatter, "engine stdout cap {value} exceeds hard maximum {max}")
+                write!(
+                    formatter,
+                    "engine stdout cap {value} exceeds hard maximum {max}"
+                )
             }
             Self::ZeroStderrCap => {
                 formatter.write_str("engine stderr cap must be greater than zero")
             }
             Self::StderrCapAboveMaximum { value, max } => {
-                write!(formatter, "engine stderr cap {value} exceeds hard maximum {max}")
+                write!(
+                    formatter,
+                    "engine stderr cap {value} exceeds hard maximum {max}"
+                )
             }
             Self::WorkspaceRootNotAbsolute(path) => {
-                write!(formatter, "engine workspace root must be absolute: {path:?}")
+                write!(
+                    formatter,
+                    "engine workspace root must be absolute: {path:?}"
+                )
             }
             Self::WorkingDirectoryNotAbsolute(path) => {
-                write!(formatter, "engine working directory must be absolute: {path:?}")
+                write!(
+                    formatter,
+                    "engine working directory must be absolute: {path:?}"
+                )
             }
             Self::WorkspaceRootNotCanonicalizable(path) => write!(
                 formatter,
@@ -393,10 +408,16 @@ impl fmt::Display for EngineLimitsError {
             Self::WorkingDirectoryOutsideWorkspace => formatter
                 .write_str("engine working directory must remain inside the approved workspace"),
             Self::InvalidEnvironmentName(name) => {
-                write!(formatter, "invalid engine environment allowlist name: {name:?}")
+                write!(
+                    formatter,
+                    "invalid engine environment allowlist name: {name:?}"
+                )
             }
             Self::DuplicateEnvironmentName(name) => {
-                write!(formatter, "duplicate engine environment allowlist name: {name:?}")
+                write!(
+                    formatter,
+                    "duplicate engine environment allowlist name: {name:?}"
+                )
             }
         }
     }
@@ -724,7 +745,11 @@ mod tests {
         let fixture = manifest("fixture");
         let limits = limits(&fixture);
         assert!(limits.workspace_root().is_absolute());
-        assert!(limits.working_directory().starts_with(limits.workspace_root()));
+        assert!(
+            limits
+                .working_directory()
+                .starts_with(limits.workspace_root())
+        );
         assert_eq!(limits.wall_clock_timeout(), Duration::from_millis(2_500));
 
         let (root, cwd) = workspace("environment");
@@ -733,7 +758,9 @@ mod tests {
             bad.allowed_environment_names = vec![invalid.to_owned()];
             assert_eq!(
                 EngineLimits::from_manifest(&bad, &root, &cwd, NetworkAccessPolicy::Deny),
-                Err(EngineLimitsError::InvalidEnvironmentName(invalid.to_owned()))
+                Err(EngineLimitsError::InvalidEnvironmentName(
+                    invalid.to_owned()
+                ))
             );
         }
     }
