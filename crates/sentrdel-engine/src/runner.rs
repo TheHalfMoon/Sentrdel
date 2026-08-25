@@ -604,7 +604,7 @@ struct BoundedCapture {
 
 #[derive(Clone, Copy, Debug)]
 enum ReaderEvent {
-    Capped(EngineOutputStream),
+    Capped,
     Failed(EngineOutputStream, io::ErrorKind),
 }
 
@@ -638,7 +638,7 @@ where
             if read as u64 > remaining {
                 let keep = usize::try_from(remaining).unwrap_or(usize::MAX).min(read);
                 bytes.extend_from_slice(&buffer[..keep]);
-                let _ = event_tx.send(ReaderEvent::Capped(stream));
+                let _ = event_tx.send(ReaderEvent::Capped);
                 return Ok(BoundedCapture {
                     bytes,
                     capped: true,
@@ -656,7 +656,7 @@ fn monitor_child(
 ) -> Result<(ExitStatus, Option<TerminationReason>), EngineProcessError> {
     loop {
         match event_rx.try_recv() {
-            Ok(ReaderEvent::Capped(_)) => {
+            Ok(ReaderEvent::Capped) => {
                 let status = terminate_and_wait(child)?;
                 return Ok((status, Some(TerminationReason::OutputCap)));
             }
@@ -1026,11 +1026,14 @@ mod tests {
                 stdout.flush().expect("flush flood fixture");
             }
             "spawn-pipe-holder" => {
-                Command::new(env::current_exe().expect("current test executable"))
+                let mut descendant = Command::new(env::current_exe().expect("current test executable"))
                     .args(fixture_arguments())
                     .env(FIXTURE_MODE, "hold-pipes")
                     .spawn()
                     .expect("spawn descendant pipe-holder fixture");
+                thread::spawn(move || {
+                    let _ = descendant.wait();
+                });
             }
             "hold-pipes" => thread::sleep(Duration::from_millis(500)),
             other => panic!("unknown T027 fixture mode: {other}"),
