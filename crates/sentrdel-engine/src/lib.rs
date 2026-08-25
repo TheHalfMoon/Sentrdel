@@ -3,14 +3,15 @@
 //!
 //! T026 owns the normalized adapter boundary and registry. T027 adds the only
 //! R1 process-spawning implementation: trusted executable resolution,
-//! argv-only invocation, canonical cwd, wall-clock/output bounds, and a
-//! deny-by-default explicit child environment.
+//! argv-only invocation, canonical cwd, bounded process-tree containment,
+//! wall-clock/output bounds, and a deny-by-default child environment.
 
 #[path = "boundary.rs"]
 mod boundary;
+mod process_tree;
 mod runner;
 
-use std::{error::Error, fmt, sync::mpsc, thread};
+use std::{error::Error, fmt};
 
 use sentrdel_schema::engine::EngineManifest;
 
@@ -39,17 +40,11 @@ pub const EXTERNAL_ENGINE_EXECUTION_IMPLEMENTED: bool = true;
 /// Public invocation failures at the T027 authority boundary.
 ///
 /// Digest/version constraints are deliberately fail-closed until a qualified
-/// adapter can provide a verified identity binding. `SupervisorDeadlineExceeded`
-/// also prevents a descendant-held stdout/stderr pipe from extending the
-/// public invocation past the manifest wall-clock timeout. T027 does not claim
-/// process-tree isolation; external engines remain qualified trust-boundary
-/// processes.
+/// adapter can provide a verified identity binding.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum EngineInvocationError {
     ExecutableDigestRequiresVerifiedBinding,
     VersionConstraintRequiresVerifiedBinding,
-    SupervisorDeadlineExceeded,
-    SupervisorDisconnected,
     Process(EngineProcessError),
 }
 
@@ -62,11 +57,6 @@ impl fmt::Display for EngineInvocationError {
             Self::VersionConstraintRequiresVerifiedBinding => formatter.write_str(
                 "engine version constraint is declared but no verified version binding was supplied",
             ),
-            Self::SupervisorDeadlineExceeded => formatter.write_str(
-                "engine process boundary did not complete before the manifest wall-clock deadline",
-            ),
-            Self::SupervisorDisconnected => formatter
-                .write_str("engine process supervisor terminated without returning an outcome"),
             Self::Process(error) => write!(formatter, "{error}"),
         }
     }
@@ -77,9 +67,7 @@ impl Error for EngineInvocationError {
         match self {
             Self::Process(error) => Some(error),
             Self::ExecutableDigestRequiresVerifiedBinding
-            | Self::VersionConstraintRequiresVerifiedBinding
-            | Self::SupervisorDeadlineExceeded
-            | Self::SupervisorDisconnected => None,
+            | Self::VersionConstraintRequiresVerifiedBinding => None,
         }
     }
 }
@@ -98,47 +86,16 @@ impl From<EngineProcessError> for EngineInvocationError {
 /// until a later qualified adapter supplies a verified binding rather than
 /// silently weakening the manifest claim.
 ///
-/// The private process runner already enforces timeout/kill behavior. This
-/// public supervisor independently bounds the call itself so descendant
-/// processes retaining inherited pipe handles cannot turn reader collection
-/// into an unbounded wait.
+/// Process ownership stays on the calling thread. The private runner owns the
+/// process group / Windows Job Object, terminates remaining descendants before
+/// returning, and does not leave a detached Sentrdel supervisor worker behind.
 pub fn run_engine_process(
     manifest: &EngineManifest,
     spec: &EngineProcessSpec,
     limits: &EngineLimits,
 ) -> Result<EngineProcessOutcome, EngineInvocationError> {
     require_verified_identity_binding(manifest)?;
-
-    let timeout = limits.wall_clock_timeout();
-    let manifest = manifest.clone();
-    let spec = spec.clone();
-    let limits = limits.clone();
-    supervise_process(timeout, move || {
-        runner::run_engine_process(&manifest, &spec, &limits)
-    })
-}
-
-fn supervise_process<F>(
-    timeout: std::time::Duration,
-    work: F,
-) -> Result<EngineProcessOutcome, EngineInvocationError>
-where
-    F: FnOnce() -> Result<EngineProcessOutcome, EngineProcessError> + Send + 'static,
-{
-    let (sender, receiver) = mpsc::sync_channel(1);
-    thread::spawn(move || {
-        let _ = sender.send(work());
-    });
-
-    match receiver.recv_timeout(timeout) {
-        Ok(result) => result.map_err(EngineInvocationError::from),
-        Err(mpsc::RecvTimeoutError::Timeout) => {
-            Err(EngineInvocationError::SupervisorDeadlineExceeded)
-        }
-        Err(mpsc::RecvTimeoutError::Disconnected) => {
-            Err(EngineInvocationError::SupervisorDisconnected)
-        }
-    }
+    runner::run_engine_process(manifest, spec, limits).map_err(EngineInvocationError::from)
 }
 
 fn require_verified_identity_binding(
@@ -157,7 +114,6 @@ fn require_verified_identity_binding(
 mod tests {
     use super::*;
     use sentrdel_schema::engine::NetworkRequirement;
-    use std::time::{Duration, Instant};
 
     fn manifest() -> EngineManifest {
         EngineManifest {
@@ -198,20 +154,5 @@ mod tests {
             require_verified_identity_binding(&fixture),
             Err(EngineInvocationError::VersionConstraintRequiresVerifiedBinding)
         );
-    }
-
-    #[test]
-    fn supervisor_bounds_a_worker_that_does_not_return() {
-        let started = Instant::now();
-        let result = supervise_process(Duration::from_millis(20), || {
-            thread::sleep(Duration::from_millis(200));
-            Err(EngineProcessError::TimeoutOverflow)
-        });
-
-        assert_eq!(
-            result,
-            Err(EngineInvocationError::SupervisorDeadlineExceeded)
-        );
-        assert!(started.elapsed() < Duration::from_millis(150));
     }
 }
