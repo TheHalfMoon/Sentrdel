@@ -46,7 +46,7 @@ Explicitly not enabled by Sentrdel T023:
 - `azure_policy`
 - allocator/mimalloc features
 
-Sentrdel additionally accepts only a deliberately small source subset and builtin-call allowlist before policy source reaches Regorus. Import validation is fail-closed for line-oriented, same-line, and split-token forms so Regorus' whitespace-tolerant top-level grammar cannot bypass the Sentrdel import allowlist.
+Sentrdel additionally accepts only a deliberately small source subset and builtin-call allowlist before policy source reaches Regorus. Import validation is fail-closed for line-oriented, same-line, and split-token forms so Regorus' whitespace-tolerant top-level grammar cannot bypass the Sentrdel import allowlist. String-bracket function references such as `object["get"](...)` are excluded from the R1 subset because Regorus resolves string `RefBrack` calls as normal function paths; excluding that alternate spelling prevents it from bypassing the direct-call allowlist.
 
 ## Privileged dependency review
 
@@ -89,11 +89,12 @@ Regorus is not exposed as Sentrdel's policy authority. `sentrdel-policy` owns a 
 - object-only data/input documents;
 - Rego v1;
 - a fixed validated `data.<package>.<rule>` entrypoint;
-- a small tested import/subset/builtin allowlist;
+- a small tested import/subset/builtin allowlist, including rejection of string-bracket function-call aliases;
 - strict builtin errors;
 - compile/entrypoint validation outside the action hot path;
 - an engine-specific execution timer;
-- fail-closed mapping of evaluation/parse/output failures to `UNDECIDABLE`.
+- fail-closed mapping of evaluation/parse/output failures to `UNDECIDABLE`;
+- redacted `Debug` output that does not traverse or print loaded Regorus engine/compiled-policy internals.
 
 The wrapper does not expose arbitrary query evaluation, file policy loading, extensions, target compilation, or network-capable builtins.
 
