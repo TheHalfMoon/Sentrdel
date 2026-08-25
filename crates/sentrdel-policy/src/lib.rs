@@ -2,9 +2,12 @@
 //! Monotonic policy primitives for normalized action identity, Rust-owned invariants, and verdict composition.
 //!
 //! T021 provides canonical action identity and the explicit verdict lattice. T022 adds compiled
-//! workspace/evidence/enforcement invariants that later policy layers may only make stricter.
+//! workspace/evidence/enforcement invariants that later policy layers may only make stricter. T023
+//! adds a bounded Regorus-backed repository-policy candidate evaluator without moving kernel
+//! authority into Rego.
 
 pub mod kernel;
+pub mod rego;
 
 use std::{collections::BTreeMap, error::Error, fmt};
 

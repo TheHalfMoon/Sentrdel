@@ -12,6 +12,7 @@ The repository does **not** currently contain source-specific private permission
 |---|---|---|---|---|---|
 | actions/checkout | `11d5960a326750d5838078e36cf38b85af677262` (v4.4.0 release line) | CI_ACTION | repository action consumed by immutable commit SHA | ADOPT for bootstrap CI | `persist-credentials: false`; immutable pin avoids mutable-tag drift; this commit contains backported fork/`pull_request_target` checkout hardening |
 | Graphify-Labs/graphify | `b2cd36267456c166788c95be6e68574064a92a42` (`v8`, package `0.9.48`) | FOUNDER_ATTESTED_DONOR | current package is Apache-2.0; NOTICE retains older MIT-contributed portions; selected-file qualification conservatively uses Apache-2.0 | `QUALIFIED_FOR_SELECTIVE_RUST_PORT` via GQ-001; implementation remains separate | graph diff + affected/blast-radius traversal + validation concepts only; no Python/NetworkX/MCP/provider runtime; Sentrdel authority remains canonical |
+| microsoft/regorus | `f98865fc980b9919d201e20969d9b28685ee72bc` (`regorus-v0.11.0`; crates.io `regorus 0.11.0`) | NATIVE_DEP | upstream package declares `MIT AND Apache-2.0 AND BSD-3-Clause` | `QUALIFIED_FOR_BOUNDED_IN_PROCESS_POLICY_ONLY` via RQ-001 | exact pin/checksum; defaults disabled; only `std` + `arc`; no HTTP/net/time/YAML/OPA-runtime/RVM policy authority; Regorus `build.rs`, transitive proc-macro/build surfaces, and `msvc_spectre_libs` native-link behavior recorded; Rust kernel remains authoritative |
 | vitali87/code-graph-rag | UNPINNED — exact qualification required before import | FOUNDER_ATTESTED_DONOR | repository-level MIT observed; file-level record still required | QUALIFICATION_PENDING / selective port or adapter | permission basis currently `FOUNDER_ATTESTATION_2026-08-24`; source-specific proof not stored; resource/data-flow/static-runtime merge is high-value; Python/Memgraph is not the Sentrdel trusted base runtime |
 | deepseek-ai/deepseek-harness | UNPINNED — exact qualification required before import | FOUNDER_ATTESTED_DONOR | repository-level MIT observed | QUALIFICATION_PENDING / selective port | permission basis currently `FOUNDER_ATTESTATION_2026-08-24`; source-specific proof not stored; durable events/tool guards/approval seams; do not inherit the whole rapidly evolving agent runtime |
 | continuedev/continue | UNPINNED — exact qualification required before import | FOUNDER_ATTESTED_DONOR | repository-level Apache-2.0 observed | QUALIFICATION_PENDING / integration-layer reuse | permission basis currently `FOUNDER_ATTESTATION_2026-08-24`; source-specific proof not stored; VS Code/JetBrains/CLI/diff plumbing may be reused selectively; no need for a wholesale product fork |
@@ -50,6 +51,39 @@ modifications: future port must strengthen graph diff to surface attribute/confi
 qualified_by: Sentrdel source qualification review
 qualified_at: 2026-08-24
 qualification_report: docs/third-party/graphify-source-qualification.md
+```
+
+## RQ-001 — Regorus dependency qualification record
+
+```text
+source_id: RQ-001
+repository: microsoft/regorus
+exact_ref: f98865fc980b9919d201e20969d9b28685ee72bc
+tag: regorus-v0.11.0
+annotated_tag_object: dd544d82a8a307b543fc31965e27ca8ba8f61e01
+crate: regorus =0.11.0
+crate_checksum: 3cc4dc91481b1d4001ba7f2e81f7faf674142e0ac36d37d79e5f02764d06571e
+files_or_artifacts:
+  - crates.io regorus 0.11.0 package
+  - upstream Cargo.toml @ f98865fc980b9919d201e20969d9b28685ee72bc
+  - upstream build.rs @ f98865fc980b9919d201e20969d9b28685ee72bc
+  - committed Sentrdel Cargo.lock dependency closure
+permission_basis: public package license grants
+source_specific_permission_reference: N/A
+license_expression: MIT AND Apache-2.0 AND BSD-3-Clause
+notices: follow upstream package/license requirements; no donor source copied into Sentrdel
+integration_mode: NATIVE_DEP
+features: default-features=false; std; arc
+executes_at_build: YES — Regorus build.rs is elevated-review complete; checkout-hook paths require an upstream .git checkout and are inactive in normal crates.io dependency builds; git rev-parse path is behind disabled opa-runtime; transitive build-script surfaces remain exact-lockfile governed
+procedural_macro: YES, TRANSITIVE — compile-time proc-macro dependencies including thiserror-impl are admitted only as exact-lockfile Regorus closure and receive no runtime/policy authority
+native_code: CONDITIONAL TRANSITIVE — Regorus std activates msvc_spectre_libs 0.1.3 (checksum 29e871a9861f3664f18b7e04e9301d4edd55090c2dadb4b1c602e26ab32b1f5b), which locates/links Spectre-mitigated libraries on Windows MSVC; Ubuntu exact-head CI does not prove Windows-MSVC qualification
+downloads_artifacts: no Regorus or qualified transitive artifact-download path is admitted by T023
+security_notes: no HTTP/net/time/YAML/UUID/regex/RVM/Azure/OPA-runtime policy features; policy/input/data caps precede parsing; fixed entrypoint; import/subset/builtin allowlists fail closed; execution timer; failures map to UNDECIDABLE; Rust kernel remains non-overridable
+maintenance_notes: version or feature changes require a new qualification delta and lockfile/privileged-surface review; Windows-MSVC release claims require a separate proven build gate or dependency-strategy change
+modifications: Sentrdel wrapper adds stricter depth/size/subset limits and authority boundaries; upstream source is not modified/copied
+qualified_by: Sentrdel dependency qualification review
+qualified_at: 2026-08-25
+qualification_report: docs/third-party/regorus-qualification.md
 ```
 
 ## Record template
