@@ -1026,11 +1026,12 @@ mod tests {
                 stdout.flush().expect("flush flood fixture");
             }
             "spawn-pipe-holder" => {
-                let mut descendant = Command::new(env::current_exe().expect("current test executable"))
-                    .args(fixture_arguments())
-                    .env(FIXTURE_MODE, "hold-pipes")
-                    .spawn()
-                    .expect("spawn descendant pipe-holder fixture");
+                let mut descendant =
+                    Command::new(env::current_exe().expect("current test executable"))
+                        .args(fixture_arguments())
+                        .env(FIXTURE_MODE, "hold-pipes")
+                        .spawn()
+                        .expect("spawn descendant pipe-holder fixture");
                 thread::spawn(move || {
                     let _ = descendant.wait();
                 });
