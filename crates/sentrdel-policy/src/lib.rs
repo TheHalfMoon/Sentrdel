@@ -44,7 +44,10 @@ impl fmt::Display for ActionNormalizationError {
                 write!(formatter, "normalized action target keys must not be empty")
             }
             Self::EmptyParamsDigest => {
-                write!(formatter, "normalized action params digest must not be empty")
+                write!(
+                    formatter,
+                    "normalized action params digest must not be empty"
+                )
             }
         }
     }
@@ -215,7 +218,10 @@ mod tests {
         .expect("second action should normalize");
 
         assert_eq!(first, second);
-        assert_eq!(first.digest().expect("first digest"), second.digest().expect("second digest"));
+        assert_eq!(
+            first.digest().expect("first digest"),
+            second.digest().expect("second digest")
+        );
     }
 
     #[test]
@@ -247,8 +253,14 @@ mod tests {
 
         let baseline_digest = baseline.digest().expect("baseline digest");
         assert_ne!(baseline_digest, changed_kind.digest().expect("kind digest"));
-        assert_ne!(baseline_digest, changed_target.digest().expect("target digest"));
-        assert_ne!(baseline_digest, changed_params.digest().expect("params digest"));
+        assert_ne!(
+            baseline_digest,
+            changed_target.digest().expect("target digest")
+        );
+        assert_ne!(
+            baseline_digest,
+            changed_params.digest().expect("params digest")
+        );
         assert!(baseline_digest.starts_with("sha256:"));
         assert_eq!(baseline_digest.len(), 71);
     }
@@ -264,11 +276,7 @@ mod tests {
             Err(ActionNormalizationError::EmptyTargetKey)
         );
         assert_eq!(
-            NormalizedAction::new(
-                "mcp.invocation",
-                BTreeMap::new(),
-                Some(" ".to_owned())
-            ),
+            NormalizedAction::new("mcp.invocation", BTreeMap::new(), Some(" ".to_owned())),
             Err(ActionNormalizationError::EmptyParamsDigest)
         );
 
