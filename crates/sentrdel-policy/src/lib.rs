@@ -8,6 +8,7 @@ pub mod kernel;
 
 use std::{collections::BTreeMap, error::Error, fmt};
 
+use kernel::KernelDecision;
 use sentrdel_schema::canonical::{CanonicalError, content_id};
 pub use sentrdel_schema::policy::Verdict;
 
@@ -128,12 +129,15 @@ pub enum UndecidableResolution {
     Deny,
 }
 
-/// Compose policy verdicts without assigning `UNDECIDABLE` an implicit lattice rank.
+/// Compose non-kernel policy verdicts without assigning `UNDECIDABLE` an implicit lattice rank.
 ///
 /// `ALLOW < ASK < DENY` is the ordered policy lattice. `DENY` is absorbing. If no `DENY` exists
 /// but any producer is `UNDECIDABLE`, the combined verdict remains `UNDECIDABLE` so the caller must
 /// resolve uncertainty explicitly. An empty input is also `UNDECIDABLE`; absence of policy results
 /// is never treated as permission.
+///
+/// This result is a policy candidate, not an authorization decision. Enforcement MUST pass the
+/// candidate through [`resolve_for_enforcement`], which requires a policy-owned [`KernelDecision`].
 pub fn compose_verdicts<I>(verdicts: I) -> Verdict
 where
     I: IntoIterator<Item = Verdict>,
@@ -161,11 +165,19 @@ where
     }
 }
 
-/// Resolve a composed verdict at an enforcement seam.
+/// Resolve a policy candidate at the policy-owned enforcement boundary.
 ///
-/// Ordered verdicts pass through unchanged. `UNDECIDABLE` can only become `ASK` or `DENY`, which
-/// structurally prevents a fail-open conversion into `ALLOW`.
-pub fn resolve_for_enforcement(verdict: Verdict, resolution: UndecidableResolution) -> Verdict {
+/// The kernel floor is applied first, so a kernel `DENY` is absorbing against every later policy
+/// candidate. Only after that floor is applied may `UNDECIDABLE` resolve to `ASK` or `DENY`.
+/// There is no public enforcement helper in this crate that omits the kernel decision.
+#[must_use = "the returned verdict is the policy-owned enforcement result"]
+pub fn resolve_for_enforcement(
+    kernel: &KernelDecision,
+    verdict: Verdict,
+    resolution: UndecidableResolution,
+) -> Verdict {
+    let verdict = kernel::enforce_kernel_floor(kernel, verdict);
+
     match verdict {
         Verdict::Undecidable => match resolution {
             UndecidableResolution::Ask => Verdict::Ask,
@@ -178,12 +190,34 @@ pub fn resolve_for_enforcement(verdict: Verdict, resolution: UndecidableResoluti
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::kernel::{
+        CoverageIntegrity, EvidenceCaptureIntegrity, FindingAuthorityIntegrity,
+        KernelIntegrityState, WorkspaceIntegrity, evaluate_kernel_invariants,
+    };
 
     fn target(entries: &[(&str, &str)]) -> BTreeMap<String, String> {
         entries
             .iter()
             .map(|(key, value)| ((*key).to_owned(), (*value).to_owned()))
             .collect()
+    }
+
+    fn healthy_kernel() -> KernelDecision {
+        evaluate_kernel_invariants(KernelIntegrityState::new(
+            WorkspaceIntegrity::WithinApprovedWorkspace,
+            EvidenceCaptureIntegrity::Enabled,
+            FindingAuthorityIntegrity::Reconciler,
+            CoverageIntegrity::Explicit,
+        ))
+    }
+
+    fn denied_kernel() -> KernelDecision {
+        evaluate_kernel_invariants(KernelIntegrityState::new(
+            WorkspaceIntegrity::OutsideApprovedWorkspace,
+            EvidenceCaptureIntegrity::Enabled,
+            FindingAuthorityIntegrity::Reconciler,
+            CoverageIntegrity::Explicit,
+        ))
     }
 
     fn ordered_rank(verdict: Verdict) -> u8 {
@@ -340,18 +374,40 @@ mod tests {
 
     #[test]
     fn enforcement_resolution_cannot_fail_open() {
+        let kernel = healthy_kernel();
         assert_eq!(
-            resolve_for_enforcement(Verdict::Undecidable, UndecidableResolution::default()),
+            resolve_for_enforcement(
+                &kernel,
+                Verdict::Undecidable,
+                UndecidableResolution::default()
+            ),
             Verdict::Ask
         );
         assert_eq!(
-            resolve_for_enforcement(Verdict::Undecidable, UndecidableResolution::Deny),
+            resolve_for_enforcement(&kernel, Verdict::Undecidable, UndecidableResolution::Deny),
             Verdict::Deny
         );
         assert_eq!(
-            resolve_for_enforcement(Verdict::Allow, UndecidableResolution::Deny),
+            resolve_for_enforcement(&kernel, Verdict::Allow, UndecidableResolution::Deny),
             Verdict::Allow
         );
+    }
+
+    #[test]
+    fn enforcement_boundary_applies_absorbing_kernel_deny() {
+        let kernel = denied_kernel();
+
+        for candidate in [
+            Verdict::Allow,
+            Verdict::Ask,
+            Verdict::Deny,
+            Verdict::Undecidable,
+        ] {
+            assert_eq!(
+                resolve_for_enforcement(&kernel, candidate, UndecidableResolution::default()),
+                Verdict::Deny
+            );
+        }
     }
 
     #[test]
