@@ -58,7 +58,7 @@
 - [x] T022 Implement Rust-owned kernel invariants for workspace/evidence/enforcement integrity.
 - [x] T023 Qualify/pin **Regorus >=0.11.0** and integrate behind `sentrdel-policy`: policy/input byte+depth caps, tested builtin/subset allowlist, precompiled policy path and bounded failure semantics; add deep/oversized adversarial fixtures.
 - [x] T024 Implement monotonic policy composition and repository-policy narrowing validation.
-- [ ] T025 Add property/adversarial tests proving no ordering can downgrade kernel DENY or turn policy-evaluation failure into silent ALLOW.
+- [x] T025 Add property/adversarial tests proving no ordering can downgrade kernel DENY or turn policy-evaluation failure into silent ALLOW.
 
 ### Engine boundary
 
