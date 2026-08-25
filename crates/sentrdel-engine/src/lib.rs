@@ -10,12 +10,7 @@
 mod boundary;
 mod runner;
 
-use std::{
-    error::Error,
-    fmt,
-    sync::mpsc,
-    thread,
-};
+use std::{error::Error, fmt, sync::mpsc, thread};
 
 use sentrdel_schema::engine::EngineManifest;
 
@@ -137,8 +132,12 @@ where
 
     match receiver.recv_timeout(timeout) {
         Ok(result) => result.map_err(EngineInvocationError::from),
-        Err(mpsc::RecvTimeoutError::Timeout) => Err(EngineInvocationError::SupervisorDeadlineExceeded),
-        Err(mpsc::RecvTimeoutError::Disconnected) => Err(EngineInvocationError::SupervisorDisconnected),
+        Err(mpsc::RecvTimeoutError::Timeout) => {
+            Err(EngineInvocationError::SupervisorDeadlineExceeded)
+        }
+        Err(mpsc::RecvTimeoutError::Disconnected) => {
+            Err(EngineInvocationError::SupervisorDisconnected)
+        }
     }
 }
 
@@ -209,7 +208,10 @@ mod tests {
             Err(EngineProcessError::TimeoutOverflow)
         });
 
-        assert_eq!(result, Err(EngineInvocationError::SupervisorDeadlineExceeded));
+        assert_eq!(
+            result,
+            Err(EngineInvocationError::SupervisorDeadlineExceeded)
+        );
         assert!(started.elapsed() < Duration::from_millis(150));
     }
 }
