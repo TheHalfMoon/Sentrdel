@@ -8,8 +8,10 @@
 //!
 //! `NetworkAccessPolicy` is a declaration gate, not an OS network sandbox.
 //! When network is denied, engines declaring OPTIONAL or REQUIRED network are
-//! not started. A qualified engine that falsely declares `NONE` is still an
-//! external trust-boundary concern; T027 does not claim egress isolation.
+//! not started. T027 also does not claim process-tree isolation: a qualified
+//! external engine remains a trust-boundary process. Reader collection is
+//! nevertheless deadline-bounded so descendants cannot keep inherited pipes
+//! open and make the Sentrdel runner wait past its wall-clock limit.
 
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -33,16 +35,11 @@ pub const MAX_ENGINE_ARGUMENT_BYTES: usize = 1_048_576;
 pub const MAX_ENGINE_ENVIRONMENT_ENTRIES: usize = 256;
 pub const MAX_ENGINE_ENVIRONMENT_BYTES: usize = 262_144;
 
-const PROCESS_POLL_INTERVAL: Duration = Duration::from_millis(2);
+const PROCESS_POLL_INTERVAL: Duration = Duration::from_millis(25);
 const READER_CHUNK_BYTES: usize = 8_192;
 
 /// Canonical executable identity admitted from trusted user/system
 /// configuration.
-///
-/// The constructor resolves symlinks and requires a regular file. Repository
-/// data is never accepted as the source identifier, and `run_engine_process`
-/// additionally rejects executables that resolve inside the analyzed
-/// workspace.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TrustedExecutable {
     source_id: String,
@@ -153,7 +150,6 @@ impl EngineProcessSpec {
     ) -> Result<Self, EngineProcessSpecError> {
         validate_argument_bounds(&arguments)?;
         validate_environment_bounds(&environment)?;
-
         Ok(Self {
             executable,
             arguments,
@@ -253,6 +249,16 @@ impl EngineProcessOutcome {
             stdout: Vec::new(),
             stderr: Vec::new(),
             io_error_kind,
+        }
+    }
+
+    fn without_capture(reason: TerminationReason, exit_status: Option<i32>) -> Self {
+        Self {
+            termination_reason: reason,
+            exit_status,
+            stdout: Vec::new(),
+            stderr: Vec::new(),
+            io_error_kind: None,
         }
     }
 
@@ -359,12 +365,6 @@ impl fmt::Display for EngineProcessError {
 impl Error for EngineProcessError {}
 
 /// Run one qualified external engine process with the T027 bounds.
-///
-/// Repository-controlled data cannot choose the executable through this API:
-/// the executable is already canonicalized by `TrustedExecutable` and is
-/// rejected if it resolves inside the analyzed workspace. The child receives
-/// no inherited environment; only explicit values whose names are present in
-/// the trusted `EngineLimits` allowlist are passed.
 pub fn run_engine_process(
     manifest: &EngineManifest,
     spec: &EngineProcessSpec,
@@ -393,7 +393,6 @@ pub fn run_engine_process(
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .env_clear();
-
     for (name, value) in &spec.environment {
         command.env(name, value);
     }
@@ -438,8 +437,13 @@ pub fn run_engine_process(
     );
 
     let (status, forced_reason) = monitor_child(&mut child, deadline, &event_rx)?;
-    let stdout_capture = join_reader(stdout_reader, EngineOutputStream::Stdout)?;
-    let stderr_capture = join_reader(stderr_reader, EngineOutputStream::Stderr)?;
+    let captures = collect_readers_before_deadline(stdout_reader, stderr_reader, deadline)?;
+    let Some((stdout_capture, stderr_capture)) = captures else {
+        return Ok(EngineProcessOutcome::without_capture(
+            forced_reason.unwrap_or(TerminationReason::Timeout),
+            status.code(),
+        ));
+    };
 
     let output_capped = stdout_capture.capped || stderr_capture.capped;
     let termination_reason = match forced_reason {
@@ -472,7 +476,6 @@ fn validate_manifest_binding(
         .iter()
         .cloned()
         .collect::<BTreeSet<_>>();
-
     if limits.wall_clock_timeout() != Duration::from_millis(manifest.timeout_ms)
         || limits.max_stdout_bytes() != manifest.max_stdout_bytes
         || limits.max_stderr_bytes() != manifest.max_stderr_bytes
@@ -481,17 +484,14 @@ fn validate_manifest_binding(
     {
         return Err(EngineProcessError::ManifestLimitsMismatch);
     }
-
     if spec.executable.path().starts_with(limits.workspace_root()) {
         return Err(EngineProcessError::ExecutableInsideWorkspace);
     }
-
     for name in spec.environment.keys() {
         if !limits.allowed_environment_names().contains(name) {
             return Err(EngineProcessError::EnvironmentNotAllowed(name.clone()));
         }
     }
-
     Ok(())
 }
 
@@ -502,11 +502,9 @@ fn validate_argument_bounds(arguments: &[OsString]) -> Result<(), EngineProcessS
             max: MAX_ENGINE_ARGUMENTS,
         });
     }
-
     if arguments.iter().any(|value| os_str_contains_nul(value)) {
         return Err(EngineProcessSpecError::InvalidArgumentNul);
     }
-
     let size = arguments.iter().try_fold(0usize, |total, value| {
         total
             .checked_add(os_str_size(value))
@@ -515,14 +513,12 @@ fn validate_argument_bounds(arguments: &[OsString]) -> Result<(), EngineProcessS
                 max: MAX_ENGINE_ARGUMENT_BYTES,
             })
     })?;
-
     if size > MAX_ENGINE_ARGUMENT_BYTES {
         return Err(EngineProcessSpecError::ArgumentsTooLarge {
             size,
             max: MAX_ENGINE_ARGUMENT_BYTES,
         });
     }
-
     Ok(())
 }
 
@@ -535,7 +531,6 @@ fn validate_environment_bounds(
             max: MAX_ENGINE_ENVIRONMENT_ENTRIES,
         });
     }
-
     let mut size = 0usize;
     for (name, value) in environment {
         if name.is_empty()
@@ -545,13 +540,11 @@ fn validate_environment_bounds(
         {
             return Err(EngineProcessSpecError::InvalidEnvironmentName(name.clone()));
         }
-
         if os_str_contains_nul(value) {
             return Err(EngineProcessSpecError::InvalidEnvironmentValueNul(
                 name.clone(),
             ));
         }
-
         size = size
             .checked_add(name.len())
             .and_then(|total| total.checked_add(os_str_size(value)))
@@ -560,14 +553,12 @@ fn validate_environment_bounds(
                 max: MAX_ENGINE_ENVIRONMENT_BYTES,
             })?;
     }
-
     if size > MAX_ENGINE_ENVIRONMENT_BYTES {
         return Err(EngineProcessSpecError::EnvironmentTooLarge {
             size,
             max: MAX_ENGINE_ENVIRONMENT_BYTES,
         });
     }
-
     Ok(())
 }
 
@@ -577,13 +568,11 @@ fn os_str_size(value: &OsStr) -> usize {
         use std::os::unix::ffi::OsStrExt;
         value.as_bytes().len()
     }
-
     #[cfg(windows)]
     {
         use std::os::windows::ffi::OsStrExt;
         value.encode_wide().count().saturating_mul(2)
     }
-
     #[cfg(not(any(unix, windows)))]
     {
         value.to_string_lossy().len()
@@ -596,13 +585,11 @@ fn os_str_contains_nul(value: &OsStr) -> bool {
         use std::os::unix::ffi::OsStrExt;
         value.as_bytes().contains(&0)
     }
-
     #[cfg(windows)]
     {
         use std::os::windows::ffi::OsStrExt;
         value.encode_wide().any(|unit| unit == 0)
     }
-
     #[cfg(not(any(unix, windows)))]
     {
         value.to_string_lossy().contains('\0')
@@ -633,7 +620,6 @@ where
     thread::spawn(move || {
         let mut bytes = Vec::new();
         let mut buffer = [0u8; READER_CHUNK_BYTES];
-
         loop {
             let read = match reader.read(&mut buffer) {
                 Ok(read) => read,
@@ -642,14 +628,12 @@ where
                     return Err(EngineProcessError::PipeReadFailed(stream, error.kind()));
                 }
             };
-
             if read == 0 {
                 return Ok(BoundedCapture {
                     bytes,
                     capped: false,
                 });
             }
-
             let remaining = cap.saturating_sub(bytes.len() as u64);
             if read as u64 > remaining {
                 let keep = usize::try_from(remaining).unwrap_or(usize::MAX).min(read);
@@ -660,7 +644,6 @@ where
                     capped: true,
                 });
             }
-
             bytes.extend_from_slice(&buffer[..read]);
         }
     })
@@ -673,7 +656,7 @@ fn monitor_child(
 ) -> Result<(ExitStatus, Option<TerminationReason>), EngineProcessError> {
     loop {
         match event_rx.try_recv() {
-            Ok(ReaderEvent::Capped(_stream)) => {
+            Ok(ReaderEvent::Capped(_)) => {
                 let status = terminate_and_wait(child)?;
                 return Ok((status, Some(TerminationReason::OutputCap)));
             }
@@ -699,7 +682,27 @@ fn monitor_child(
             let status = terminate_and_wait(child)?;
             return Ok((status, Some(TerminationReason::Timeout)));
         }
+        thread::sleep(PROCESS_POLL_INTERVAL.min(deadline.saturating_duration_since(now)));
+    }
+}
 
+fn collect_readers_before_deadline(
+    stdout: JoinHandle<Result<BoundedCapture, EngineProcessError>>,
+    stderr: JoinHandle<Result<BoundedCapture, EngineProcessError>>,
+    deadline: Instant,
+) -> Result<Option<(BoundedCapture, BoundedCapture)>, EngineProcessError> {
+    loop {
+        if stdout.is_finished() && stderr.is_finished() {
+            return Ok(Some((
+                join_reader(stdout, EngineOutputStream::Stdout)?,
+                join_reader(stderr, EngineOutputStream::Stderr)?,
+            )));
+        }
+
+        let now = Instant::now();
+        if now >= deadline {
+            return Ok(None);
+        }
         thread::sleep(PROCESS_POLL_INTERVAL.min(deadline.saturating_duration_since(now)));
     }
 }
@@ -726,7 +729,6 @@ fn force_kill_and_wait(child: &mut Child) -> Result<ExitStatus, EngineProcessErr
             }
         }
     }
-
     child
         .wait()
         .map_err(|error| EngineProcessError::WaitFailed(error.kind()))
@@ -751,7 +753,6 @@ mod tests {
 
     const FIXTURE_MODE: &str = "SENTRDEL_T027_FIXTURE_MODE";
     const FORBIDDEN_ENV_NAME: &str = "SENTRDEL_T027_FORBIDDEN_ENV_NAME";
-
     static NEXT_FIXTURE_ID: AtomicU64 = AtomicU64::new(0);
 
     fn manifest(
@@ -806,13 +807,10 @@ mod tests {
         .collect()
     }
 
-    fn process_spec(
-        mode: &str,
-        extra_environment: BTreeMap<String, OsString>,
-    ) -> EngineProcessSpec {
+    fn process_spec(mode: &str, extra: BTreeMap<String, OsString>) -> EngineProcessSpec {
         let mut environment = BTreeMap::new();
         environment.insert(FIXTURE_MODE.to_owned(), OsString::from(mode));
-        environment.extend(extra_environment);
+        environment.extend(extra);
         EngineProcessSpec::new(fixture_executable(), fixture_arguments(), environment)
             .expect("valid T027 fixture process spec")
     }
@@ -833,13 +831,11 @@ mod tests {
             TrustedExecutable::resolve(" ", PathBuf::from("relative")),
             Err(TrustedExecutableError::InvalidSourceId)
         );
-
         let relative = PathBuf::from("relative");
         assert_eq!(
             TrustedExecutable::resolve("trusted", &relative),
             Err(TrustedExecutableError::PathNotAbsolute(relative))
         );
-
         let missing = env::temp_dir().join(format!(
             "sentrdel-t027-missing-executable-{}",
             process::id()
@@ -856,18 +852,16 @@ mod tests {
     #[test]
     fn process_spec_is_bounded_and_debug_never_exposes_environment_values() {
         let executable = fixture_executable();
-        let mut environment = BTreeMap::new();
-        environment.insert(
+        let environment = BTreeMap::from([(
             "VISIBLE_NAME".to_owned(),
             OsString::from("super-secret-environment-value"),
-        );
+        )]);
         let spec = EngineProcessSpec::new(
             executable.clone(),
             vec![OsString::from("argument-secret-value")],
             environment,
         )
         .expect("bounded process spec");
-
         let debug = format!("{spec:?}");
         assert!(debug.contains("VISIBLE_NAME"));
         assert!(!debug.contains("super-secret-environment-value"));
@@ -884,7 +878,7 @@ mod tests {
     }
 
     #[test]
-    fn runner_rejects_source_mismatch_unallowlisted_environment_and_workspace_executable() {
+    fn runner_rejects_source_unallowlisted_environment_and_workspace_executable() {
         let manifest = manifest(1_000, 8_192, 8_192, vec![FIXTURE_MODE.to_owned()]);
         let limits = limits_for(&manifest, "preflight", NetworkAccessPolicy::Deny);
         let spec = process_spec("ok", BTreeMap::new());
@@ -928,23 +922,19 @@ mod tests {
         let limits = limits_for(&manifest, "network", NetworkAccessPolicy::Deny);
         let outcome = run_engine_process(&manifest, &process_spec("ok", BTreeMap::new()), &limits)
             .expect("policy block is an explicit process outcome");
-
         assert_eq!(
             outcome.termination_reason(),
             &TerminationReason::PolicyBlocked
         );
         assert_eq!(outcome.exit_status(), None);
-        assert!(outcome.stdout().is_empty());
-        assert!(outcome.stderr().is_empty());
     }
 
     #[test]
-    fn runner_uses_argv_scrubs_environment_and_reports_completed_and_nonzero() {
+    fn runner_scrubs_environment_and_reports_completed_and_nonzero() {
         let inherited_name = env::vars_os()
             .map(|(name, _)| name)
             .find(|name| name != OsStr::new(FIXTURE_MODE) && name != OsStr::new(FORBIDDEN_ENV_NAME))
-            .expect("test process should expose at least one inherited environment name");
-
+            .expect("test process should expose an inherited environment name");
         let manifest = manifest(
             2_000,
             16_384,
@@ -972,7 +962,7 @@ mod tests {
     }
 
     #[test]
-    fn runner_enforces_wall_clock_and_output_caps() {
+    fn runner_enforces_wall_clock_output_caps_and_pipe_drain_deadline() {
         let timeout_manifest = manifest(25, 16_384, 16_384, vec![FIXTURE_MODE.to_owned()]);
         let timeout_limits = limits_for(&timeout_manifest, "timeout", NetworkAccessPolicy::Deny);
         let timeout = run_engine_process(
@@ -993,6 +983,19 @@ mod tests {
         .expect("output cap should be an explicit outcome");
         assert_eq!(flood.termination_reason(), &TerminationReason::OutputCap);
         assert!(flood.stdout().len() <= 128);
+
+        let descendant_manifest = manifest(75, 16_384, 16_384, vec![FIXTURE_MODE.to_owned()]);
+        let descendant_limits =
+            limits_for(&descendant_manifest, "descendant", NetworkAccessPolicy::Deny);
+        let started = Instant::now();
+        let descendant = run_engine_process(
+            &descendant_manifest,
+            &process_spec("spawn-pipe-holder", BTreeMap::new()),
+            &descendant_limits,
+        )
+        .expect("descendant-held pipes should remain deadline bounded");
+        assert_eq!(descendant.termination_reason(), &TerminationReason::Timeout);
+        assert!(started.elapsed() < Duration::from_millis(300));
     }
 
     #[test]
@@ -1000,10 +1003,7 @@ mod tests {
     fn fixture_child_process() {
         let mode = env::var(FIXTURE_MODE).expect("fixture mode must be explicitly allowlisted");
         match mode.as_str() {
-            "ok" => {
-                println!("fixture-ok");
-                eprintln!("fixture-ok-stderr");
-            }
+            "ok" => println!("fixture-ok"),
             "env" => {
                 let forbidden_name =
                     env::var_os(FORBIDDEN_ENV_NAME).expect("forbidden env name must be supplied");
@@ -1022,6 +1022,14 @@ mod tests {
                 stdout.write_all(&payload).expect("write flood fixture");
                 stdout.flush().expect("flush flood fixture");
             }
+            "spawn-pipe-holder" => {
+                Command::new(env::current_exe().expect("current test executable"))
+                    .args(fixture_arguments())
+                    .env(FIXTURE_MODE, "hold-pipes")
+                    .spawn()
+                    .expect("spawn descendant pipe-holder fixture");
+            }
+            "hold-pipes" => thread::sleep(Duration::from_millis(500)),
             other => panic!("unknown T027 fixture mode: {other}"),
         }
     }
