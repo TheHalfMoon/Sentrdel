@@ -330,8 +330,12 @@ impl fmt::Display for EngineLimitsError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::ZeroTimeout => formatter.write_str("engine timeout must be greater than zero"),
-            Self::ZeroStdoutCap => formatter.write_str("engine stdout cap must be greater than zero"),
-            Self::ZeroStderrCap => formatter.write_str("engine stderr cap must be greater than zero"),
+            Self::ZeroStdoutCap => {
+                formatter.write_str("engine stdout cap must be greater than zero")
+            }
+            Self::ZeroStderrCap => {
+                formatter.write_str("engine stderr cap must be greater than zero")
+            }
             Self::WorkspaceRootNotAbsolute(path) => write!(
                 formatter,
                 "engine workspace root must be absolute: {}",
@@ -348,10 +352,16 @@ impl fmt::Display for EngineLimitsError {
             Self::WorkingDirectoryOutsideWorkspace => formatter
                 .write_str("engine working directory must remain inside the approved workspace"),
             Self::InvalidEnvironmentName(name) => {
-                write!(formatter, "invalid engine environment allowlist name: {name:?}")
+                write!(
+                    formatter,
+                    "invalid engine environment allowlist name: {name:?}"
+                )
             }
             Self::DuplicateEnvironmentName(name) => {
-                write!(formatter, "duplicate engine environment allowlist name: {name}")
+                write!(
+                    formatter,
+                    "duplicate engine environment allowlist name: {name}"
+                )
             }
         }
     }
@@ -488,11 +498,7 @@ pub type EngineRunFuture<'a> =
 pub trait Engine: Send + Sync {
     fn manifest(&self) -> &EngineManifest;
 
-    fn run<'a>(
-        &'a self,
-        request: EngineRequest,
-        limits: EngineLimits,
-    ) -> EngineRunFuture<'a>;
+    fn run<'a>(&'a self, request: EngineRequest, limits: EngineLimits) -> EngineRunFuture<'a>;
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -504,9 +510,9 @@ pub enum EngineRegistryError {
 impl fmt::Display for EngineRegistryError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::InvalidEngineId => formatter.write_str(
-                "engine manifest id must be non-empty and already normalized",
-            ),
+            Self::InvalidEngineId => {
+                formatter.write_str("engine manifest id must be non-empty and already normalized")
+            }
             Self::DuplicateEngineId(engine_id) => {
                 write!(formatter, "engine id already registered: {engine_id}")
             }
@@ -538,9 +544,9 @@ impl EngineRegistry {
                 slot.insert(engine);
                 Ok(())
             }
-            Entry::Occupied(slot) => Err(EngineRegistryError::DuplicateEngineId(
-                slot.key().clone(),
-            )),
+            Entry::Occupied(slot) => {
+                Err(EngineRegistryError::DuplicateEngineId(slot.key().clone()))
+            }
         }
     }
 
@@ -616,12 +622,10 @@ mod tests {
         EngineRequest::new(
             "request-1",
             vec![EngineScope::new("repository", ".").expect("valid explicit scope")],
-            vec![EngineInputRef::new(
-                "tree",
-                "sha256:fixture",
-                Some("sha256:fixture".to_owned()),
-            )
-            .expect("valid input reference")],
+            vec![
+                EngineInputRef::new("tree", "sha256:fixture", Some("sha256:fixture".to_owned()))
+                    .expect("valid input reference"),
+            ],
         )
         .expect("explicit request")
     }
@@ -738,15 +742,13 @@ mod tests {
             registry.register(Arc::new(FixtureEngine {
                 manifest: manifest("fixture"),
             })),
-            Err(EngineRegistryError::DuplicateEngineId(
-                "fixture".to_owned()
-            ))
+            Err(EngineRegistryError::DuplicateEngineId("fixture".to_owned()))
         );
         assert_eq!(registry.len(), 1);
     }
 
     #[test]
     fn t026_does_not_enable_external_execution() {
-        assert!(!EXTERNAL_ENGINE_EXECUTION_IMPLEMENTED);
+        const { assert!(!EXTERNAL_ENGINE_EXECUTION_IMPLEMENTED) };
     }
 }
