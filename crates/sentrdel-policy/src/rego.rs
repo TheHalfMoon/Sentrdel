@@ -390,6 +390,9 @@ fn validate_policy_source(source: &str) -> Result<(), RegoPolicyError> {
 
     let masked = mask_literals_and_comments(source)?;
     validate_imports(&masked)?;
+    if contains_bracket_call(&masked) {
+        return Err(RegoPolicyError::UnsupportedKeyword("bracket-call"));
+    }
 
     for (token, error_name) in [
         ("with", "with"),
@@ -503,6 +506,28 @@ fn mask_literals_and_comments(source: &str) -> Result<String, RegoPolicyError> {
     }
 
     Ok(masked)
+}
+
+fn contains_bracket_call(source: &str) -> bool {
+    let bytes = source.as_bytes();
+    let mut index = 0usize;
+
+    while index < bytes.len() {
+        if bytes[index] != b']' {
+            index += 1;
+            continue;
+        }
+
+        index += 1;
+        while index < bytes.len() && bytes[index].is_ascii_whitespace() {
+            index += 1;
+        }
+        if index < bytes.len() && bytes[index] == b'(' {
+            return true;
+        }
+    }
+
+    false
 }
 
 fn contains_identifier_token(source: &str, wanted: &str) -> bool {
