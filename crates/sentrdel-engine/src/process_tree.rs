@@ -1,0 +1,99 @@
+//! Cross-platform process-tree containment for the T027 engine boundary.
+//!
+//! This module is intentionally private. It wraps the single external-engine
+//! spawn with a POSIX process group on Unix and a Windows Job Object on Windows.
+//! Repository data never chooses the containment mode and no shell is involved.
+
+use std::{
+    collections::BTreeMap,
+    ffi::{OsStr, OsString},
+    io,
+    path::Path,
+    process::{ChildStderr, ChildStdout, ExitStatus, Stdio},
+};
+
+use process_wrap::std::{ChildWrapper, CommandWrap};
+#[cfg(windows)]
+use process_wrap::std::JobObject;
+#[cfg(unix)]
+use process_wrap::std::ProcessGroup;
+
+#[derive(Debug)]
+pub(crate) struct ContainedChild {
+    inner: Box<dyn ChildWrapper>,
+    pub(crate) stdout: Option<ChildStdout>,
+    pub(crate) stderr: Option<ChildStderr>,
+}
+
+impl ContainedChild {
+    pub(crate) fn try_wait(&mut self) -> io::Result<Option<ExitStatus>> {
+        self.inner.try_wait()
+    }
+
+    pub(crate) fn start_kill(&mut self) -> io::Result<()> {
+        self.inner.start_kill()
+    }
+
+    pub(crate) fn wait(&mut self) -> io::Result<ExitStatus> {
+        self.inner.wait()
+    }
+
+    /// Terminate any remaining members of the admitted process boundary after
+    /// the root process has already reported an exit status.
+    ///
+    /// `NotFound` means the process group/job has already drained and is safe
+    /// to treat as quiescent. Other failures remain fail-closed.
+    pub(crate) fn terminate_remaining(&mut self) -> io::Result<()> {
+        match self.inner.start_kill() {
+            Ok(()) => Ok(()),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+            Err(error) => Err(error),
+        }
+    }
+}
+
+pub(crate) fn spawn_contained_process(
+    executable: &Path,
+    arguments: &[OsString],
+    working_directory: &Path,
+    environment: &BTreeMap<String, OsString>,
+) -> io::Result<ContainedChild> {
+    #[cfg(not(any(unix, windows)))]
+    {
+        let _ = (executable, arguments, working_directory, environment);
+        return Err(io::Error::new(
+            io::ErrorKind::Unsupported,
+            "T027 process-tree containment is supported only on Unix and Windows",
+        ));
+    }
+
+    #[cfg(any(unix, windows))]
+    {
+        let mut command = CommandWrap::with_new(executable, |command| {
+            command
+                .args(arguments)
+                .current_dir(working_directory)
+                .stdin(Stdio::null())
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
+                .env_clear();
+            for (name, value) in environment {
+                command.env(OsStr::new(name), value);
+            }
+        });
+
+        #[cfg(unix)]
+        command.wrap(ProcessGroup::leader());
+        #[cfg(windows)]
+        command.wrap(JobObject);
+
+        let mut child = command.spawn()?;
+        let stdout = child.stdout().take();
+        let stderr = child.stderr().take();
+        Ok(ContainedChild {
+            inner: child,
+            stdout,
+            stderr,
+        })
+    }
+}
