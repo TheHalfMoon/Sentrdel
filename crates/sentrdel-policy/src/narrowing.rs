@@ -101,6 +101,35 @@ const fn ordered_rank(verdict: Verdict) -> Option<u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{
+        UndecidableResolution, kernel::KernelIntegrityState, resolve_for_enforcement,
+    };
+
+    fn for_each_verdict_sequence(max_len: usize, mut assertion: impl FnMut(&[Verdict])) {
+        const VERDICTS: [Verdict; 4] = [
+            Verdict::Allow,
+            Verdict::Ask,
+            Verdict::Deny,
+            Verdict::Undecidable,
+        ];
+
+        for len in 0..=max_len {
+            let cases = VERDICTS.len().pow(len as u32);
+            for encoded in 0..cases {
+                let mut value = encoded;
+                let mut sequence = Vec::with_capacity(len);
+                for _ in 0..len {
+                    sequence.push(VERDICTS[value % VERDICTS.len()]);
+                    value /= VERDICTS.len();
+                }
+                assertion(&sequence);
+            }
+        }
+    }
+
+    fn healthy_kernel_state() -> KernelIntegrityState {
+        KernelIntegrityState::for_test(true, true, true, true)
+    }
 
     #[test]
     fn equal_or_stricter_repository_verdict_is_valid_narrowing() {
@@ -200,6 +229,95 @@ mod tests {
             Verdict::Undecidable,
         ] {
             assert_eq!(compose_base_and_repository(base, None), base);
+        }
+    }
+
+    #[test]
+    fn t025_all_policy_orderings_preserve_deny_and_failure_semantics() {
+        for_each_verdict_sequence(5, |sequence| {
+            let composed = compose_verdicts(sequence.iter().copied());
+            let has_deny = sequence.contains(&Verdict::Deny);
+            let has_failure = sequence.contains(&Verdict::Undecidable);
+
+            if has_deny {
+                assert_eq!(
+                    composed,
+                    Verdict::Deny,
+                    "DENY must remain absorbing for ordering {sequence:?}"
+                );
+            } else if has_failure || sequence.is_empty() {
+                assert_eq!(
+                    composed,
+                    Verdict::Undecidable,
+                    "policy failure or missing policy must remain explicit for ordering {sequence:?}"
+                );
+            }
+        });
+    }
+
+    #[test]
+    fn t025_policy_failure_never_resolves_to_silent_allow() {
+        for_each_verdict_sequence(5, |sequence| {
+            if !sequence.contains(&Verdict::Undecidable)
+                || sequence.contains(&Verdict::Deny)
+            {
+                return;
+            }
+
+            let candidate = compose_verdicts(sequence.iter().copied());
+            assert_eq!(candidate, Verdict::Undecidable);
+            assert_eq!(
+                resolve_for_enforcement(
+                    healthy_kernel_state(),
+                    candidate,
+                    UndecidableResolution::Ask,
+                )
+                .verdict(),
+                Verdict::Ask,
+                "interactive fail-closed resolution must never ALLOW ordering {sequence:?}"
+            );
+            assert_eq!(
+                resolve_for_enforcement(
+                    healthy_kernel_state(),
+                    candidate,
+                    UndecidableResolution::Deny,
+                )
+                .verdict(),
+                Verdict::Deny,
+                "hard fail-closed resolution must never ALLOW ordering {sequence:?}"
+            );
+        });
+    }
+
+    #[test]
+    fn t025_every_kernel_violation_is_absorbing_across_policy_orderings() {
+        for mask in 0_u8..16 {
+            if mask == 0b1111 {
+                continue;
+            }
+
+            let state = KernelIntegrityState::for_test(
+                mask & 0b0001 != 0,
+                mask & 0b0010 != 0,
+                mask & 0b0100 != 0,
+                mask & 0b1000 != 0,
+            );
+
+            for_each_verdict_sequence(4, |sequence| {
+                let candidate = compose_verdicts(sequence.iter().copied());
+                for resolution in [UndecidableResolution::Ask, UndecidableResolution::Deny] {
+                    let decision = resolve_for_enforcement(state, candidate, resolution);
+                    assert_eq!(
+                        decision.verdict(),
+                        Verdict::Deny,
+                        "kernel violation mask {mask:04b} was downgraded by ordering {sequence:?} with {resolution:?}"
+                    );
+                    assert!(
+                        decision.kernel().is_deny(),
+                        "kernel violation mask {mask:04b} must retain a DENY kernel decision"
+                    );
+                }
+            });
         }
     }
 }
