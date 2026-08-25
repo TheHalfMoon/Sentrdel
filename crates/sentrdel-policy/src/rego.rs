@@ -172,7 +172,6 @@ impl RegoEvaluation {
 /// Policy parsing, static-data loading, and entrypoint compilation occur once in [`Self::compile`].
 /// Per-action evaluation clones the already prepared engine, sets one bounded input document, and
 /// evaluates only the fixed rule. The engine-specific execution timer remains active on the clone.
-#[derive(Debug)]
 pub struct BoundedRegoPolicy {
     engine: Engine,
     entrypoint: String,
@@ -180,6 +179,17 @@ pub struct BoundedRegoPolicy {
     // evaluation uses the prepared Engine because Regorus 0.11.0 does not carry an engine-specific
     // ExecutionTimerConfig into CompiledPolicy::eval_with_input.
     _compiled: regorus::CompiledPolicy,
+}
+
+impl fmt::Debug for BoundedRegoPolicy {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("BoundedRegoPolicy")
+            .field("engine", &"<redacted>")
+            .field("entrypoint", &self.entrypoint)
+            .field("compiled", &"<redacted>")
+            .finish()
+    }
 }
 
 impl BoundedRegoPolicy {
