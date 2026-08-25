@@ -112,7 +112,10 @@ impl fmt::Display for TrustedExecutableError {
                 "trusted executable source id must be normalized and free of control characters",
             ),
             Self::PathNotAbsolute(path) => {
-                write!(formatter, "trusted executable path must be absolute: {path:?}")
+                write!(
+                    formatter,
+                    "trusted executable path must be absolute: {path:?}"
+                )
             }
             Self::ParentTraversal => {
                 formatter.write_str("trusted executable path may not contain parent traversal")
@@ -213,11 +216,12 @@ impl fmt::Display for EngineProcessSpecError {
                 formatter,
                 "engine explicit environment size {size} exceeds cap {max}"
             ),
-            Self::InvalidArgumentNul => {
-                formatter.write_str("engine argv contains a NUL code unit")
-            }
+            Self::InvalidArgumentNul => formatter.write_str("engine argv contains a NUL code unit"),
             Self::InvalidEnvironmentName(name) => {
-                write!(formatter, "invalid explicit engine environment name: {name:?}")
+                write!(
+                    formatter,
+                    "invalid explicit engine environment name: {name:?}"
+                )
             }
             Self::InvalidEnvironmentValueNul(name) => write!(
                 formatter,
@@ -310,20 +314,28 @@ pub enum EngineProcessError {
 impl fmt::Display for EngineProcessError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::ManifestExecutableSourceMismatch => formatter
-                .write_str("trusted executable source does not match the engine manifest"),
-            Self::ManifestLimitsMismatch => formatter
-                .write_str("engine limits do not match the trusted engine manifest"),
+            Self::ManifestExecutableSourceMismatch => {
+                formatter.write_str("trusted executable source does not match the engine manifest")
+            }
+            Self::ManifestLimitsMismatch => {
+                formatter.write_str("engine limits do not match the trusted engine manifest")
+            }
             Self::ExecutableInsideWorkspace => formatter
                 .write_str("trusted external engine executable may not resolve inside workspace"),
             Self::EnvironmentNotAllowed(name) => {
-                write!(formatter, "engine environment name is not allowlisted: {name:?}")
+                write!(
+                    formatter,
+                    "engine environment name is not allowlisted: {name:?}"
+                )
             }
             Self::TimeoutOverflow => {
                 formatter.write_str("engine wall-clock timeout cannot be represented")
             }
             Self::MissingPipe(stream) => {
-                write!(formatter, "engine {stream:?} pipe was not available after spawn")
+                write!(
+                    formatter,
+                    "engine {stream:?} pipe was not available after spawn"
+                )
             }
             Self::PipeReadFailed(stream, kind) => {
                 write!(formatter, "engine {stream:?} pipe read failed: {kind:?}")
@@ -496,12 +508,12 @@ fn validate_argument_bounds(arguments: &[OsString]) -> Result<(), EngineProcessS
     }
 
     let size = arguments.iter().try_fold(0usize, |total, value| {
-        total.checked_add(os_str_size(value)).ok_or(
-            EngineProcessSpecError::ArgumentsTooLarge {
+        total
+            .checked_add(os_str_size(value))
+            .ok_or(EngineProcessSpecError::ArgumentsTooLarge {
                 size: usize::MAX,
                 max: MAX_ENGINE_ARGUMENT_BYTES,
-            },
-        )
+            })
     })?;
 
     if size > MAX_ENGINE_ARGUMENT_BYTES {
@@ -531,9 +543,7 @@ fn validate_environment_bounds(
             || name.contains('=')
             || name.chars().any(char::is_control)
         {
-            return Err(EngineProcessSpecError::InvalidEnvironmentName(
-                name.clone(),
-            ));
+            return Err(EngineProcessSpecError::InvalidEnvironmentName(name.clone()));
         }
 
         if os_str_contains_nul(value) {
@@ -735,8 +745,7 @@ fn join_reader(
 mod tests {
     use super::*;
     use std::{
-        env,
-        process,
+        env, process,
         sync::atomic::{AtomicU64, Ordering},
     };
 
@@ -771,10 +780,7 @@ mod tests {
 
     fn workspace(label: &str) -> (PathBuf, PathBuf) {
         let id = NEXT_FIXTURE_ID.fetch_add(1, Ordering::Relaxed);
-        let root = env::temp_dir().join(format!(
-            "sentrdel-t027-{label}-{}-{id}",
-            process::id()
-        ));
+        let root = env::temp_dir().join(format!("sentrdel-t027-{label}-{}-{id}", process::id()));
         let cwd = root.join("cwd");
         fs::create_dir_all(&cwd).expect("create T027 fixture workspace");
         (root, cwd)
@@ -800,7 +806,10 @@ mod tests {
         .collect()
     }
 
-    fn process_spec(mode: &str, extra_environment: BTreeMap<String, OsString>) -> EngineProcessSpec {
+    fn process_spec(
+        mode: &str,
+        extra_environment: BTreeMap<String, OsString>,
+    ) -> EngineProcessSpec {
         let mut environment = BTreeMap::new();
         environment.insert(FIXTURE_MODE.to_owned(), OsString::from(mode));
         environment.extend(extra_environment);
@@ -864,10 +873,8 @@ mod tests {
         assert!(!debug.contains("super-secret-environment-value"));
         assert!(!debug.contains("argument-secret-value"));
 
-        let invalid_environment = BTreeMap::from([(
-            "BAD\nNAME".to_owned(),
-            OsString::from("value"),
-        )]);
+        let invalid_environment =
+            BTreeMap::from([("BAD\nNAME".to_owned(), OsString::from("value"))]);
         assert_eq!(
             EngineProcessSpec::new(executable, Vec::new(), invalid_environment),
             Err(EngineProcessSpecError::InvalidEnvironmentName(
@@ -878,12 +885,7 @@ mod tests {
 
     #[test]
     fn runner_rejects_source_mismatch_unallowlisted_environment_and_workspace_executable() {
-        let manifest = manifest(
-            1_000,
-            8_192,
-            8_192,
-            vec![FIXTURE_MODE.to_owned()],
-        );
+        let manifest = manifest(1_000, 8_192, 8_192, vec![FIXTURE_MODE.to_owned()]);
         let limits = limits_for(&manifest, "preflight", NetworkAccessPolicy::Deny);
         let spec = process_spec("ok", BTreeMap::new());
 
@@ -921,17 +923,11 @@ mod tests {
 
     #[test]
     fn denied_declared_network_fails_closed_without_spawn() {
-        let mut manifest = manifest(
-            1_000,
-            8_192,
-            8_192,
-            vec![FIXTURE_MODE.to_owned()],
-        );
+        let mut manifest = manifest(1_000, 8_192, 8_192, vec![FIXTURE_MODE.to_owned()]);
         manifest.network_requirement = NetworkRequirement::Optional;
         let limits = limits_for(&manifest, "network", NetworkAccessPolicy::Deny);
-        let outcome =
-            run_engine_process(&manifest, &process_spec("ok", BTreeMap::new()), &limits)
-                .expect("policy block is an explicit process outcome");
+        let outcome = run_engine_process(&manifest, &process_spec("ok", BTreeMap::new()), &limits)
+            .expect("policy block is an explicit process outcome");
 
         assert_eq!(
             outcome.termination_reason(),
@@ -946,9 +942,7 @@ mod tests {
     fn runner_uses_argv_scrubs_environment_and_reports_completed_and_nonzero() {
         let inherited_name = env::vars_os()
             .map(|(name, _)| name)
-            .find(|name| {
-                name != OsStr::new(FIXTURE_MODE) && name != OsStr::new(FORBIDDEN_ENV_NAME)
-            })
+            .find(|name| name != OsStr::new(FIXTURE_MODE) && name != OsStr::new(FORBIDDEN_ENV_NAME))
             .expect("test process should expose at least one inherited environment name");
 
         let manifest = manifest(
@@ -958,10 +952,7 @@ mod tests {
             vec![FIXTURE_MODE.to_owned(), FORBIDDEN_ENV_NAME.to_owned()],
         );
         let limits = limits_for(&manifest, "environment", NetworkAccessPolicy::Deny);
-        let environment = BTreeMap::from([(
-            FORBIDDEN_ENV_NAME.to_owned(),
-            inherited_name.clone(),
-        )]);
+        let environment = BTreeMap::from([(FORBIDDEN_ENV_NAME.to_owned(), inherited_name.clone())]);
         let outcome = run_engine_process(&manifest, &process_spec("env", environment), &limits)
             .expect("environment fixture should run");
         assert_eq!(outcome.termination_reason(), &TerminationReason::Completed);
@@ -969,10 +960,10 @@ mod tests {
 
         let nonzero = run_engine_process(
             &manifest,
-            &process_spec("nonzero", BTreeMap::from([(
-                FORBIDDEN_ENV_NAME.to_owned(),
-                inherited_name,
-            )])),
+            &process_spec(
+                "nonzero",
+                BTreeMap::from([(FORBIDDEN_ENV_NAME.to_owned(), inherited_name)]),
+            ),
             &limits,
         )
         .expect("non-zero is an explicit outcome");
@@ -982,14 +973,8 @@ mod tests {
 
     #[test]
     fn runner_enforces_wall_clock_and_output_caps() {
-        let timeout_manifest = manifest(
-            25,
-            16_384,
-            16_384,
-            vec![FIXTURE_MODE.to_owned()],
-        );
-        let timeout_limits =
-            limits_for(&timeout_manifest, "timeout", NetworkAccessPolicy::Deny);
+        let timeout_manifest = manifest(25, 16_384, 16_384, vec![FIXTURE_MODE.to_owned()]);
+        let timeout_limits = limits_for(&timeout_manifest, "timeout", NetworkAccessPolicy::Deny);
         let timeout = run_engine_process(
             &timeout_manifest,
             &process_spec("timeout", BTreeMap::new()),
@@ -998,12 +983,7 @@ mod tests {
         .expect("timeout should be an explicit outcome");
         assert_eq!(timeout.termination_reason(), &TerminationReason::Timeout);
 
-        let flood_manifest = manifest(
-            2_000,
-            128,
-            16_384,
-            vec![FIXTURE_MODE.to_owned()],
-        );
+        let flood_manifest = manifest(2_000, 128, 16_384, vec![FIXTURE_MODE.to_owned()]);
         let flood_limits = limits_for(&flood_manifest, "flood", NetworkAccessPolicy::Deny);
         let flood = run_engine_process(
             &flood_manifest,

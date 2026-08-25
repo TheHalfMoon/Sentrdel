@@ -94,7 +94,9 @@ pub fn run_engine_process(
     runner::run_engine_process(manifest, spec, limits).map_err(EngineInvocationError::from)
 }
 
-fn require_verified_identity_binding(manifest: &EngineManifest) -> Result<(), EngineInvocationError> {
+fn require_verified_identity_binding(
+    manifest: &EngineManifest,
+) -> Result<(), EngineInvocationError> {
     if manifest.executable_digest.is_some() {
         return Err(EngineInvocationError::ExecutableDigestRequiresVerifiedBinding);
     }
