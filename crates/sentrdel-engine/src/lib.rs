@@ -366,10 +366,16 @@ impl fmt::Display for EngineLimitsError {
                 formatter.write_str("engine stderr cap must be greater than zero")
             }
             Self::WorkspaceRootNotAbsolute(path) => {
-                write!(formatter, "engine workspace root must be absolute: {path:?}")
+                write!(
+                    formatter,
+                    "engine workspace root must be absolute: {path:?}"
+                )
             }
             Self::WorkingDirectoryNotAbsolute(path) => {
-                write!(formatter, "engine working directory must be absolute: {path:?}")
+                write!(
+                    formatter,
+                    "engine working directory must be absolute: {path:?}"
+                )
             }
             Self::WorkspaceRootNotCanonicalizable(path) => write!(
                 formatter,
@@ -738,7 +744,11 @@ mod tests {
         assert_eq!(limits.max_stdout_bytes(), 8_192);
         assert_eq!(limits.max_stderr_bytes(), 4_096);
         assert!(limits.workspace_root().is_absolute());
-        assert!(limits.working_directory().starts_with(limits.workspace_root()));
+        assert!(
+            limits
+                .working_directory()
+                .starts_with(limits.workspace_root())
+        );
         assert_eq!(limits.network_requirement(), &NetworkRequirement::None);
         assert_eq!(limits.network_access_policy(), NetworkAccessPolicy::Deny);
         assert_eq!(
