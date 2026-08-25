@@ -12,11 +12,11 @@ use std::{
     process::{ChildStderr, ChildStdout, ExitStatus, Stdio},
 };
 
-use process_wrap::std::{ChildWrapper, CommandWrap};
 #[cfg(windows)]
 use process_wrap::std::JobObject;
 #[cfg(unix)]
 use process_wrap::std::ProcessGroup;
+use process_wrap::std::{ChildWrapper, CommandWrap};
 
 #[derive(Debug)]
 pub(crate) struct ContainedChild {
