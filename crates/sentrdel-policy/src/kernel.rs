@@ -131,7 +131,10 @@ impl KernelDecision {
 
     /// Iterate stable invariant IDs suitable for PolicyDecision/ASEL reason binding.
     pub fn invariant_ids(&self) -> impl ExactSizeIterator<Item = &'static str> + '_ {
-        self.violated_invariants.iter().copied().map(KernelInvariant::id)
+        self.violated_invariants
+            .iter()
+            .copied()
+            .map(KernelInvariant::id)
     }
 
     /// Whether the Rust kernel has established an absorbing DENY floor.
