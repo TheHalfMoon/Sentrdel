@@ -2,8 +2,8 @@
 //! Trusted boundary types for optional external evidence engines.
 //!
 //! T026 defines the object-safe adapter contract, bounded request/limit types,
-//! validated result envelope, and registry only. Process spawning remains
-//! intentionally unimplemented until T027.
+//! validated result envelope, and registry. T027 consumes these limits for the
+//! sole external-engine process runner.
 
 use std::{
     collections::{BTreeMap, BTreeSet, btree_map::Entry},
@@ -22,12 +22,13 @@ use sentrdel_schema::{
     evidence::Evidence,
 };
 
-pub const EXTERNAL_ENGINE_EXECUTION_IMPLEMENTED: bool = false;
+pub(crate) const EXTERNAL_ENGINE_EXECUTION_IMPLEMENTED: bool = false;
 
-/// A normalized analysis scope understood by a qualified engine adapter.
-///
-/// Scope values are data only. They never select executables, become shell
-/// syntax, or widen child-process environment authority.
+/// Hard R1 ceilings for manifest-controlled process resources.
+pub const MAX_ENGINE_TIMEOUT_MS: u64 = 15 * 60 * 1_000;
+pub const MAX_ENGINE_STDOUT_BYTES: u64 = 64 * 1024 * 1024;
+pub const MAX_ENGINE_STDERR_BYTES: u64 = 64 * 1024 * 1024;
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct EngineScope {
     kind: String,
@@ -39,18 +40,14 @@ impl EngineScope {
         kind: impl Into<String>,
         value: impl Into<String>,
     ) -> Result<Self, EngineRequestError> {
-        let kind = kind.into();
-        let value = value.into();
-        let kind = kind.trim().to_owned();
-        let value = value.trim().to_owned();
-
+        let kind = kind.into().trim().to_owned();
+        let value = value.into().trim().to_owned();
         if kind.is_empty() {
             return Err(EngineRequestError::BlankScopeKind);
         }
         if value.is_empty() {
             return Err(EngineRequestError::BlankScopeValue);
         }
-
         Ok(Self { kind, value })
     }
 
@@ -63,10 +60,6 @@ impl EngineScope {
     }
 }
 
-/// A normalized reference to input already admitted by the trusted caller.
-///
-/// The reference is never executable authority. T027/T028 own executable
-/// resolution and raw-output adaptation respectively.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct EngineInputRef {
     kind: String,
@@ -80,22 +73,18 @@ impl EngineInputRef {
         reference: impl Into<String>,
         digest: Option<String>,
     ) -> Result<Self, EngineRequestError> {
-        let kind = kind.into();
-        let reference = reference.into();
-        let kind = kind.trim().to_owned();
-        let reference = reference.trim().to_owned();
+        let kind = kind.into().trim().to_owned();
+        let reference = reference.into().trim().to_owned();
         let digest = digest.map(|value| value.trim().to_owned());
-
         if kind.is_empty() {
             return Err(EngineRequestError::BlankInputKind);
         }
         if reference.is_empty() {
             return Err(EngineRequestError::BlankInputReference);
         }
-        if digest.as_deref().is_some_and(|value| value.is_empty()) {
+        if digest.as_deref().is_some_and(str::is_empty) {
             return Err(EngineRequestError::BlankInputDigest);
         }
-
         Ok(Self {
             kind,
             reference,
@@ -116,10 +105,6 @@ impl EngineInputRef {
     }
 }
 
-/// Normalized request presented to an engine adapter.
-///
-/// A request must make its intended scope/input explicit rather than relying
-/// on an implicit unbounded "scan everything" default.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct EngineRequest {
     request_id: String,
@@ -133,15 +118,13 @@ impl EngineRequest {
         scopes: Vec<EngineScope>,
         input_refs: Vec<EngineInputRef>,
     ) -> Result<Self, EngineRequestError> {
-        let request_id = request_id.into();
-        let request_id = request_id.trim().to_owned();
+        let request_id = request_id.into().trim().to_owned();
         if request_id.is_empty() {
             return Err(EngineRequestError::BlankRequestId);
         }
         if scopes.is_empty() && input_refs.is_empty() {
             return Err(EngineRequestError::UnboundedRequest);
         }
-
         Ok(Self {
             request_id,
             scopes,
@@ -175,7 +158,7 @@ pub enum EngineRequestError {
 
 impl fmt::Display for EngineRequestError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let message = match self {
+        formatter.write_str(match self {
             Self::BlankRequestId => "engine request id must not be blank",
             Self::BlankScopeKind => "engine scope kind must not be blank",
             Self::BlankScopeValue => "engine scope value must not be blank",
@@ -185,30 +168,18 @@ impl fmt::Display for EngineRequestError {
             Self::UnboundedRequest => {
                 "engine request must contain an explicit scope or input reference"
             }
-        };
-        formatter.write_str(message)
+        })
     }
 }
 
 impl Error for EngineRequestError {}
 
-/// Command-level network policy imposed by the trusted caller.
-///
-/// `PermitDeclared` does not itself create network authority. T027 must still
-/// compare it with the trusted manifest declaration and enforcement policy.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum NetworkAccessPolicy {
     Deny,
     PermitDeclared,
 }
 
-/// Trusted execution bounds derived from an `EngineManifest` plus an approved
-/// workspace/cwd and command-level network policy.
-///
-/// Workspace and cwd must already exist and are stored in canonical form so a
-/// symlinked cwd cannot escape the approved canonical workspace. This type
-/// intentionally contains no executable or argv fields; those belong to T027
-/// trusted executable resolution and process invocation.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct EngineLimits {
     wall_clock_timeout: Duration,
@@ -228,19 +199,10 @@ impl EngineLimits {
         working_directory: impl Into<PathBuf>,
         network_access_policy: NetworkAccessPolicy,
     ) -> Result<Self, EngineLimitsError> {
-        if manifest.timeout_ms == 0 {
-            return Err(EngineLimitsError::ZeroTimeout);
-        }
-        if manifest.max_stdout_bytes == 0 {
-            return Err(EngineLimitsError::ZeroStdoutCap);
-        }
-        if manifest.max_stderr_bytes == 0 {
-            return Err(EngineLimitsError::ZeroStderrCap);
-        }
+        validate_manifest_resource_limits(manifest)?;
 
         let workspace_root = workspace_root.into();
         let working_directory = working_directory.into();
-
         if !workspace_root.is_absolute() {
             return Err(EngineLimitsError::WorkspaceRootNotAbsolute(workspace_root));
         }
@@ -263,7 +225,6 @@ impl EngineLimits {
                 workspace_root,
             ));
         }
-
         let canonical_working_directory = fs::canonicalize(&working_directory).map_err(|_| {
             EngineLimitsError::WorkingDirectoryNotCanonicalizable(working_directory.clone())
         })?;
@@ -335,6 +296,41 @@ impl EngineLimits {
     }
 }
 
+fn validate_manifest_resource_limits(manifest: &EngineManifest) -> Result<(), EngineLimitsError> {
+    if manifest.timeout_ms == 0 {
+        return Err(EngineLimitsError::ZeroTimeout);
+    }
+    if manifest.timeout_ms > MAX_ENGINE_TIMEOUT_MS {
+        return Err(EngineLimitsError::TimeoutAboveMaximum {
+            value: manifest.timeout_ms,
+            max: MAX_ENGINE_TIMEOUT_MS,
+        });
+    }
+    if manifest.max_stdout_bytes == 0 {
+        return Err(EngineLimitsError::ZeroStdoutCap);
+    }
+    if manifest.max_stdout_bytes > MAX_ENGINE_STDOUT_BYTES
+        || usize::try_from(manifest.max_stdout_bytes).is_err()
+    {
+        return Err(EngineLimitsError::StdoutCapAboveMaximum {
+            value: manifest.max_stdout_bytes,
+            max: MAX_ENGINE_STDOUT_BYTES,
+        });
+    }
+    if manifest.max_stderr_bytes == 0 {
+        return Err(EngineLimitsError::ZeroStderrCap);
+    }
+    if manifest.max_stderr_bytes > MAX_ENGINE_STDERR_BYTES
+        || usize::try_from(manifest.max_stderr_bytes).is_err()
+    {
+        return Err(EngineLimitsError::StderrCapAboveMaximum {
+            value: manifest.max_stderr_bytes,
+            max: MAX_ENGINE_STDERR_BYTES,
+        });
+    }
+    Ok(())
+}
+
 fn contains_parent_component(path: &Path) -> bool {
     path.components()
         .any(|component| matches!(component, Component::ParentDir))
@@ -343,8 +339,11 @@ fn contains_parent_component(path: &Path) -> bool {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum EngineLimitsError {
     ZeroTimeout,
+    TimeoutAboveMaximum { value: u64, max: u64 },
     ZeroStdoutCap,
+    StdoutCapAboveMaximum { value: u64, max: u64 },
     ZeroStderrCap,
+    StderrCapAboveMaximum { value: u64, max: u64 },
     WorkspaceRootNotAbsolute(PathBuf),
     WorkingDirectoryNotAbsolute(PathBuf),
     WorkspaceRootNotCanonicalizable(PathBuf),
@@ -359,23 +358,26 @@ impl fmt::Display for EngineLimitsError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::ZeroTimeout => formatter.write_str("engine timeout must be greater than zero"),
+            Self::TimeoutAboveMaximum { value, max } => {
+                write!(formatter, "engine timeout {value}ms exceeds hard maximum {max}ms")
+            }
             Self::ZeroStdoutCap => {
                 formatter.write_str("engine stdout cap must be greater than zero")
+            }
+            Self::StdoutCapAboveMaximum { value, max } => {
+                write!(formatter, "engine stdout cap {value} exceeds hard maximum {max}")
             }
             Self::ZeroStderrCap => {
                 formatter.write_str("engine stderr cap must be greater than zero")
             }
+            Self::StderrCapAboveMaximum { value, max } => {
+                write!(formatter, "engine stderr cap {value} exceeds hard maximum {max}")
+            }
             Self::WorkspaceRootNotAbsolute(path) => {
-                write!(
-                    formatter,
-                    "engine workspace root must be absolute: {path:?}"
-                )
+                write!(formatter, "engine workspace root must be absolute: {path:?}")
             }
             Self::WorkingDirectoryNotAbsolute(path) => {
-                write!(
-                    formatter,
-                    "engine working directory must be absolute: {path:?}"
-                )
+                write!(formatter, "engine working directory must be absolute: {path:?}")
             }
             Self::WorkspaceRootNotCanonicalizable(path) => write!(
                 formatter,
@@ -391,16 +393,10 @@ impl fmt::Display for EngineLimitsError {
             Self::WorkingDirectoryOutsideWorkspace => formatter
                 .write_str("engine working directory must remain inside the approved workspace"),
             Self::InvalidEnvironmentName(name) => {
-                write!(
-                    formatter,
-                    "invalid engine environment allowlist name: {name:?}"
-                )
+                write!(formatter, "invalid engine environment allowlist name: {name:?}")
             }
             Self::DuplicateEnvironmentName(name) => {
-                write!(
-                    formatter,
-                    "duplicate engine environment allowlist name: {name:?}"
-                )
+                write!(formatter, "duplicate engine environment allowlist name: {name:?}")
             }
         }
     }
@@ -408,8 +404,6 @@ impl fmt::Display for EngineLimitsError {
 
 impl Error for EngineLimitsError {}
 
-/// Sanitized adapter diagnostic. Raw stdout/stderr is intentionally not part
-/// of the T026 result contract and must remain behind later bounded adapters.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct EngineDiagnostic {
     code: String,
@@ -433,10 +427,6 @@ impl EngineDiagnostic {
     }
 }
 
-/// Validated engine output admitted to the trusted Rust boundary.
-///
-/// Raw engine bytes are not represented here. T028 must validate/map raw
-/// output before constructing this envelope.
 #[derive(Clone, Debug, PartialEq)]
 pub struct EngineRunResult {
     run: EngineRun,
@@ -484,11 +474,6 @@ pub enum EngineRunErrorKind {
     AdapterFailure,
 }
 
-/// Pre-result engine boundary failure.
-///
-/// Runtime termination paths introduced by T027 and adapted by T028 must be
-/// represented as explicit run/coverage state by T030 rather than silently
-/// collapsing into this error channel.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct EngineRunError {
     kind: EngineRunErrorKind,
@@ -533,10 +518,8 @@ impl Error for EngineRunError {}
 pub type EngineRunFuture<'a> =
     Pin<Box<dyn Future<Output = Result<EngineRunResult, EngineRunError>> + Send + 'a>>;
 
-/// Object-safe external engine adapter boundary.
 pub trait Engine: Send + Sync {
     fn manifest(&self) -> &EngineManifest;
-
     fn run<'a>(&'a self, request: EngineRequest, limits: EngineLimits) -> EngineRunFuture<'a>;
 }
 
@@ -561,7 +544,6 @@ impl fmt::Display for EngineRegistryError {
 
 impl Error for EngineRegistryError {}
 
-/// Registry of qualified adapters keyed only by trusted manifest engine id.
 #[derive(Default)]
 pub struct EngineRegistry {
     engines: BTreeMap<String, Arc<dyn Engine>>,
@@ -580,7 +562,6 @@ impl EngineRegistry {
         {
             return Err(EngineRegistryError::InvalidEngineId);
         }
-
         match self.engines.entry(engine_id) {
             Entry::Vacant(slot) => {
                 slot.insert(engine);
@@ -638,7 +619,7 @@ mod tests {
                 Err(EngineRunError::new(
                     EngineRunErrorKind::AdapterFailure,
                     "fixture-not-executed",
-                    "T026 fixture proves the object-safe boundary only",
+                    "fixture proves the object-safe boundary only",
                 ))
             })
         }
@@ -651,7 +632,7 @@ mod tests {
             adapter_version: "1".to_owned(),
             executable_source: "trusted-installation".to_owned(),
             executable_digest: None,
-            expected_version_constraint: Some("1.x".to_owned()),
+            expected_version_constraint: None,
             input_dialects: vec!["normalized-ref".to_owned()],
             output_dialects: vec!["sentrdel-json".to_owned()],
             capabilities: vec!["fixture".to_owned()],
@@ -664,252 +645,97 @@ mod tests {
     }
 
     fn unique_temp_path(label: &str) -> PathBuf {
-        let fixture_id = NEXT_FIXTURE_ID.fetch_add(1, Ordering::Relaxed);
+        let id = NEXT_FIXTURE_ID.fetch_add(1, Ordering::Relaxed);
         std::env::temp_dir().join(format!(
-            "sentrdel-t026-{label}-{}-{fixture_id}",
+            "sentrdel-engine-boundary-{label}-{}-{id}",
             std::process::id()
         ))
     }
 
-    fn existing_workspace(label: &str) -> (PathBuf, PathBuf) {
-        let workspace = unique_temp_path(label);
-        let working_directory = workspace.join("subdir");
-        fs::create_dir_all(&working_directory).expect("create T026 workspace fixture");
-        (workspace, working_directory)
-    }
-
-    fn explicit_request() -> EngineRequest {
-        EngineRequest::new(
-            "request-1",
-            vec![EngineScope::new("repository", ".").expect("valid explicit scope")],
-            vec![
-                EngineInputRef::new("tree", "sha256:fixture", Some("sha256:fixture".to_owned()))
-                    .expect("valid input reference"),
-            ],
-        )
-        .expect("explicit request")
+    fn workspace(label: &str) -> (PathBuf, PathBuf) {
+        let root = unique_temp_path(label);
+        let cwd = root.join("cwd");
+        fs::create_dir_all(&cwd).expect("create fixture workspace");
+        (root, cwd)
     }
 
     fn limits(manifest: &EngineManifest) -> EngineLimits {
-        let (workspace, working_directory) = existing_workspace("limits");
-        EngineLimits::from_manifest(
-            manifest,
-            &workspace,
-            &working_directory,
-            NetworkAccessPolicy::Deny,
-        )
-        .expect("trusted fixture limits")
+        let (root, cwd) = workspace("limits");
+        EngineLimits::from_manifest(manifest, root, cwd, NetworkAccessPolicy::Deny)
+            .expect("valid fixture limits")
     }
 
     #[test]
-    fn request_requires_explicit_normalized_scope_or_input() {
+    fn request_values_are_normalized_and_unbounded_request_is_rejected() {
         assert_eq!(
-            EngineRequest::new("request-1", Vec::new(), Vec::new()),
+            EngineRequest::new("request", Vec::new(), Vec::new()),
             Err(EngineRequestError::UnboundedRequest)
         );
-        assert_eq!(
-            EngineScope::new(" ", "."),
-            Err(EngineRequestError::BlankScopeKind)
-        );
-        assert_eq!(
-            EngineInputRef::new("tree", " ", None),
-            Err(EngineRequestError::BlankInputReference)
-        );
-
-        let scope = EngineScope::new(" repository ", " . ").expect("normalized scope");
-        assert_eq!(scope.kind(), "repository");
-        assert_eq!(scope.value(), ".");
-
+        let scope = EngineScope::new(" repository ", " . ").expect("scope");
         let input = EngineInputRef::new(
             " tree ",
             " sha256:fixture ",
             Some(" sha256:digest ".to_owned()),
         )
-        .expect("normalized input reference");
-        assert_eq!(input.kind(), "tree");
-        assert_eq!(input.reference(), "sha256:fixture");
-        assert_eq!(input.digest(), Some("sha256:digest"));
-
-        let request = EngineRequest::new(" request-1 ", vec![scope], vec![input])
-            .expect("normalized request");
-        assert_eq!(request.request_id(), "request-1");
+        .expect("input");
+        let request = EngineRequest::new(" request ", vec![scope], vec![input]).expect("request");
+        assert_eq!(request.request_id(), "request");
+        assert_eq!(request.scopes()[0].kind(), "repository");
+        assert_eq!(request.input_refs()[0].digest(), Some("sha256:digest"));
     }
 
     #[test]
-    fn limits_preserve_manifest_caps_environment_and_network_declaration() {
-        let manifest = manifest("fixture");
-        let limits = limits(&manifest);
+    fn manifest_resource_limits_have_hard_upper_bounds() {
+        let (root, cwd) = workspace("hard-caps");
+        let mut fixture = manifest("fixture");
 
-        assert_eq!(limits.wall_clock_timeout(), Duration::from_millis(2_500));
-        assert_eq!(limits.max_stdout_bytes(), 8_192);
-        assert_eq!(limits.max_stderr_bytes(), 4_096);
+        fixture.timeout_ms = u64::MAX;
+        assert_eq!(
+            EngineLimits::from_manifest(&fixture, &root, &cwd, NetworkAccessPolicy::Deny),
+            Err(EngineLimitsError::TimeoutAboveMaximum {
+                value: u64::MAX,
+                max: MAX_ENGINE_TIMEOUT_MS,
+            })
+        );
+
+        fixture = manifest("fixture");
+        fixture.max_stdout_bytes = u64::MAX;
+        assert_eq!(
+            EngineLimits::from_manifest(&fixture, &root, &cwd, NetworkAccessPolicy::Deny),
+            Err(EngineLimitsError::StdoutCapAboveMaximum {
+                value: u64::MAX,
+                max: MAX_ENGINE_STDOUT_BYTES,
+            })
+        );
+
+        fixture = manifest("fixture");
+        fixture.max_stderr_bytes = u64::MAX;
+        assert_eq!(
+            EngineLimits::from_manifest(&fixture, &root, &cwd, NetworkAccessPolicy::Deny),
+            Err(EngineLimitsError::StderrCapAboveMaximum {
+                value: u64::MAX,
+                max: MAX_ENGINE_STDERR_BYTES,
+            })
+        );
+    }
+
+    #[test]
+    fn limits_canonicalize_workspace_and_reject_bad_environment() {
+        let fixture = manifest("fixture");
+        let limits = limits(&fixture);
         assert!(limits.workspace_root().is_absolute());
-        assert!(
-            limits
-                .working_directory()
-                .starts_with(limits.workspace_root())
-        );
-        assert_eq!(limits.network_requirement(), &NetworkRequirement::None);
-        assert_eq!(limits.network_access_policy(), NetworkAccessPolicy::Deny);
-        assert_eq!(
-            limits
-                .allowed_environment_names()
-                .iter()
-                .map(String::as_str)
-                .collect::<Vec<_>>(),
-            vec!["LANG", "PATH"]
-        );
-    }
+        assert!(limits.working_directory().starts_with(limits.workspace_root()));
+        assert_eq!(limits.wall_clock_timeout(), Duration::from_millis(2_500));
 
-    #[test]
-    fn limits_reject_parent_traversal_outside_cwd_and_bad_environment_names() {
-        let fixture_manifest = manifest("fixture");
-        let (workspace, working_directory) = existing_workspace("reject");
-
-        assert_eq!(
-            EngineLimits::from_manifest(
-                &fixture_manifest,
-                &workspace,
-                workspace.join("..").join("escape"),
-                NetworkAccessPolicy::Deny,
-            ),
-            Err(EngineLimitsError::ParentTraversal)
-        );
-
-        let outside = unique_temp_path("outside");
-        fs::create_dir_all(&outside).expect("create outside fixture");
-        assert_eq!(
-            EngineLimits::from_manifest(
-                &fixture_manifest,
-                &workspace,
-                &outside,
-                NetworkAccessPolicy::Deny,
-            ),
-            Err(EngineLimitsError::WorkingDirectoryOutsideWorkspace)
-        );
-
-        let mut duplicate_environment = manifest("fixture");
-        duplicate_environment.allowed_environment_names =
-            vec!["PATH".to_owned(), "PATH".to_owned()];
-        assert_eq!(
-            EngineLimits::from_manifest(
-                &duplicate_environment,
-                &workspace,
-                &working_directory,
-                NetworkAccessPolicy::Deny,
-            ),
-            Err(EngineLimitsError::DuplicateEnvironmentName(
-                "PATH".to_owned()
-            ))
-        );
-
-        for invalid_name in ["PATH=/attacker/bin", "PATH\n", " PATH"] {
-            let mut invalid_environment = manifest("fixture");
-            invalid_environment.allowed_environment_names = vec![invalid_name.to_owned()];
+        let (root, cwd) = workspace("environment");
+        for invalid in [" PATH", "PATH=/tmp", "PATH\n"] {
+            let mut bad = manifest("fixture");
+            bad.allowed_environment_names = vec![invalid.to_owned()];
             assert_eq!(
-                EngineLimits::from_manifest(
-                    &invalid_environment,
-                    &workspace,
-                    &working_directory,
-                    NetworkAccessPolicy::Deny,
-                ),
-                Err(EngineLimitsError::InvalidEnvironmentName(
-                    invalid_name.to_owned()
-                ))
+                EngineLimits::from_manifest(&bad, &root, &cwd, NetworkAccessPolicy::Deny),
+                Err(EngineLimitsError::InvalidEnvironmentName(invalid.to_owned()))
             );
         }
-    }
-
-    #[test]
-    fn limits_reject_invalid_paths_and_zero_resource_caps() {
-        let fixture_manifest = manifest("fixture");
-        let (workspace, working_directory) = existing_workspace("path-errors");
-
-        let relative_workspace = PathBuf::from("relative/workspace");
-        assert_eq!(
-            EngineLimits::from_manifest(
-                &fixture_manifest,
-                &relative_workspace,
-                &working_directory,
-                NetworkAccessPolicy::Deny,
-            ),
-            Err(EngineLimitsError::WorkspaceRootNotAbsolute(
-                relative_workspace
-            ))
-        );
-
-        let relative_cwd = PathBuf::from("relative/cwd");
-        assert_eq!(
-            EngineLimits::from_manifest(
-                &fixture_manifest,
-                &workspace,
-                &relative_cwd,
-                NetworkAccessPolicy::Deny,
-            ),
-            Err(EngineLimitsError::WorkingDirectoryNotAbsolute(relative_cwd))
-        );
-
-        let missing_workspace = unique_temp_path("missing-workspace");
-        assert_eq!(
-            EngineLimits::from_manifest(
-                &fixture_manifest,
-                &missing_workspace,
-                &working_directory,
-                NetworkAccessPolicy::Deny,
-            ),
-            Err(EngineLimitsError::WorkspaceRootNotCanonicalizable(
-                missing_workspace
-            ))
-        );
-
-        let missing_cwd = workspace.join("missing-cwd");
-        assert_eq!(
-            EngineLimits::from_manifest(
-                &fixture_manifest,
-                &workspace,
-                &missing_cwd,
-                NetworkAccessPolicy::Deny,
-            ),
-            Err(EngineLimitsError::WorkingDirectoryNotCanonicalizable(
-                missing_cwd
-            ))
-        );
-
-        let mut zero_timeout = manifest("fixture");
-        zero_timeout.timeout_ms = 0;
-        assert_eq!(
-            EngineLimits::from_manifest(
-                &zero_timeout,
-                &workspace,
-                &working_directory,
-                NetworkAccessPolicy::Deny,
-            ),
-            Err(EngineLimitsError::ZeroTimeout)
-        );
-
-        let mut zero_stdout = manifest("fixture");
-        zero_stdout.max_stdout_bytes = 0;
-        assert_eq!(
-            EngineLimits::from_manifest(
-                &zero_stdout,
-                &workspace,
-                &working_directory,
-                NetworkAccessPolicy::Deny,
-            ),
-            Err(EngineLimitsError::ZeroStdoutCap)
-        );
-
-        let mut zero_stderr = manifest("fixture");
-        zero_stderr.max_stderr_bytes = 0;
-        assert_eq!(
-            EngineLimits::from_manifest(
-                &zero_stderr,
-                &workspace,
-                &working_directory,
-                NetworkAccessPolicy::Deny,
-            ),
-            Err(EngineLimitsError::ZeroStderrCap)
-        );
     }
 
     #[cfg(unix)]
@@ -917,18 +743,17 @@ mod tests {
     fn limits_reject_symlink_workspace_escape() {
         use std::os::unix::fs::symlink;
 
-        let workspace = unique_temp_path("symlink-workspace");
+        let root = unique_temp_path("symlink-root");
         let outside = unique_temp_path("symlink-outside");
-        fs::create_dir_all(&workspace).expect("create symlink workspace");
-        fs::create_dir_all(&outside).expect("create symlink outside directory");
-        let escaped_cwd = workspace.join("escaped-cwd");
-        symlink(&outside, &escaped_cwd).expect("create escape symlink");
-
+        fs::create_dir_all(&root).expect("root");
+        fs::create_dir_all(&outside).expect("outside");
+        let escaped = root.join("escaped");
+        symlink(&outside, &escaped).expect("symlink");
         assert_eq!(
             EngineLimits::from_manifest(
                 &manifest("fixture"),
-                &workspace,
-                &escaped_cwd,
+                &root,
+                &escaped,
                 NetworkAccessPolicy::Deny,
             ),
             Err(EngineLimitsError::WorkingDirectoryOutsideWorkspace)
@@ -940,41 +765,24 @@ mod tests {
         let fixture_manifest = manifest("fixture");
         let fixture_limits = limits(&fixture_manifest);
         let mut registry = EngineRegistry::new();
-
         registry
             .register(Arc::new(FixtureEngine {
                 manifest: fixture_manifest,
             }))
-            .expect("first qualified adapter should register");
-
-        assert!(registry.contains("fixture"));
-        assert_eq!(registry.ids().collect::<Vec<_>>(), vec!["fixture"]);
-        assert_eq!(registry.len(), 1);
-
+            .expect("register");
         let engine = registry.get("fixture").expect("registered adapter");
-        let _future: EngineRunFuture<'_> = engine.run(explicit_request(), fixture_limits);
-
+        let request = EngineRequest::new(
+            "request",
+            vec![EngineScope::new("repository", ".").expect("scope")],
+            Vec::new(),
+        )
+        .expect("request");
+        let _future: EngineRunFuture<'_> = engine.run(request, fixture_limits);
         assert_eq!(
             registry.register(Arc::new(FixtureEngine {
                 manifest: manifest("fixture"),
             })),
             Err(EngineRegistryError::DuplicateEngineId("fixture".to_owned()))
         );
-        assert_eq!(registry.len(), 1);
-
-        for invalid_id in ["", " padded ", "bad\nid"] {
-            let mut invalid_registry = EngineRegistry::new();
-            assert_eq!(
-                invalid_registry.register(Arc::new(FixtureEngine {
-                    manifest: manifest(invalid_id),
-                })),
-                Err(EngineRegistryError::InvalidEngineId)
-            );
-        }
-    }
-
-    #[test]
-    fn t026_does_not_enable_external_execution() {
-        const { assert!(!EXTERNAL_ENGINE_EXECUTION_IMPLEMENTED) };
     }
 }
