@@ -54,7 +54,7 @@
 
 ### Policy kernel
 
-- [ ] T021 Implement normalized action digest and `ALLOW < ASK < DENY` lattice plus UNDECIDABLE handling.
+- [x] T021 Implement normalized action digest and `ALLOW < ASK < DENY` lattice plus UNDECIDABLE handling.
 - [ ] T022 Implement Rust-owned kernel invariants for workspace/evidence/enforcement integrity.
 - [ ] T023 Qualify/pin **Regorus >=0.11.0** and integrate behind `sentrdel-policy`: policy/input byte+depth caps, tested builtin/subset allowlist, precompiled policy path and bounded failure semantics; add deep/oversized adversarial fixtures.
 - [ ] T024 Implement monotonic policy composition and repository-policy narrowing validation.
