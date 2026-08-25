@@ -48,7 +48,7 @@ decision := "allow" if object["get"](input, "action", "") == "read"
     assert_eq!(
         BoundedRegoPolicy::compile(source, ENTRYPOINT, None)
             .expect_err("bracket-form builtin call must be rejected before engine installation"),
-        RegoPolicyError::UnsupportedCall("object.get".to_owned())
+        RegoPolicyError::UnsupportedKeyword("bracket-call")
     );
 }
 
