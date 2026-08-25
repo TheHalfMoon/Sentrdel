@@ -30,6 +30,18 @@ jobs:
           rustc +1.98.0 --version
           cargo +1.98.0 --version
 
+      - name: Reconcile exact T023 lockfile
+        run: |
+          cp Cargo.lock /tmp/committed-Cargo.lock
+          cargo +1.98.0 generate-lockfile
+          echo 'T023_LOCK_DIFF_BEGIN'
+          diff -u /tmp/committed-Cargo.lock Cargo.lock || true
+          echo 'T023_LOCK_DIFF_END'
+          echo 'T023_LOCKFILE_BASE64_BEGIN'
+          base64 -w0 Cargo.lock
+          echo
+          echo 'T023_LOCKFILE_BASE64_END'
+
       - name: Prepare exact T023 qualification source
         run: |
           python3 - <<'PY'
