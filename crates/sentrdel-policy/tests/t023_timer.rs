@@ -1,6 +1,6 @@
 use sentrdel_policy::{
     Verdict,
-    rego::{BoundedRegoPolicy, RegoFailure, MAX_INPUT_BYTES},
+    rego::{BoundedRegoPolicy, MAX_INPUT_BYTES, RegoFailure},
 };
 
 const ENTRYPOINT: &str = "data.sentrdel.t023.decision";
