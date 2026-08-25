@@ -11,8 +11,8 @@ use std::{
     time::Duration,
 };
 
-use regorus::{Engine, PolicyLengthConfig};
 use regorus::utils::limits::ExecutionTimerConfig;
+use regorus::{Engine, PolicyLengthConfig};
 
 use crate::Verdict;
 
@@ -61,6 +61,8 @@ pub enum RegoPolicyError {
     UnsupportedImport,
     /// Policy used a language feature deliberately excluded from the R1 subset.
     UnsupportedKeyword(&'static str),
+    /// Executable policy code used non-ASCII bytes that the bounded lexer will not normalize.
+    NonAsciiCode,
     /// Policy called a builtin or helper function outside the tested allowlist.
     UnsupportedCall(String),
     /// Regorus rejected the policy/data while loading.
@@ -80,12 +82,24 @@ impl fmt::Display for RegoPolicyError {
             Self::MalformedData => write!(formatter, "policy data is malformed JSON"),
             Self::DataMustBeObject => write!(formatter, "policy data must be a JSON object"),
             Self::InvalidEntrypoint => write!(formatter, "policy entrypoint is invalid"),
-            Self::UnsupportedImport => write!(formatter, "policy import is outside the supported subset"),
-            Self::UnsupportedKeyword(keyword) => {
-                write!(formatter, "policy keyword `{keyword}` is outside the supported subset")
+            Self::UnsupportedImport => {
+                write!(formatter, "policy import is outside the supported subset")
             }
+            Self::UnsupportedKeyword(keyword) => {
+                write!(
+                    formatter,
+                    "policy keyword `{keyword}` is outside the supported subset"
+                )
+            }
+            Self::NonAsciiCode => write!(
+                formatter,
+                "non-ASCII executable policy code is outside the supported subset"
+            ),
             Self::UnsupportedCall(call) => {
-                write!(formatter, "policy call `{call}` is outside the supported allowlist")
+                write!(
+                    formatter,
+                    "policy call `{call}` is outside the supported allowlist"
+                )
             }
             Self::EngineLoadRejected => write!(formatter, "policy engine rejected policy or data"),
             Self::EntrypointCompileRejected => {
@@ -156,12 +170,13 @@ impl RegoEvaluation {
 /// Policy parsing, static-data loading, and entrypoint compilation occur once in [`Self::compile`].
 /// Per-action evaluation clones the already prepared engine, sets one bounded input document, and
 /// evaluates only the fixed rule. The engine-specific execution timer remains active on the clone.
+#[derive(Debug)]
 pub struct BoundedRegoPolicy {
     engine: Engine,
     entrypoint: String,
-    // Keep the compiled artifact as proof that the fixed entrypoint compiled successfully before
-    // installation. Hot-path evaluation uses the prepared Engine because Regorus 0.11.0 does not
-    // carry an engine-specific ExecutionTimerConfig into CompiledPolicy::eval_with_input.
+    // Kept as proof that the fixed entrypoint compiled successfully before installation. Hot-path
+    // evaluation uses the prepared Engine because Regorus 0.11.0 does not carry an engine-specific
+    // ExecutionTimerConfig into CompiledPolicy::eval_with_input.
     _compiled: regorus::CompiledPolicy,
 }
 
@@ -218,7 +233,7 @@ impl BoundedRegoPolicy {
         })
     }
 
-    /// Evaluate a single bounded JSON object and return a fail-closed candidate verdict.
+    /// Evaluate one bounded JSON object and return a fail-closed candidate verdict.
     pub fn evaluate_json(&self, input_json: &str) -> RegoEvaluation {
         if let Err(error) = validate_json_object(input_json, MAX_INPUT_BYTES) {
             return RegoEvaluation::undecidable(map_input_boundary_error(error));
@@ -233,7 +248,6 @@ impl BoundedRegoPolicy {
             Ok(value) => value,
             Err(_) => return RegoEvaluation::undecidable(RegoFailure::EvaluationFailed),
         };
-
         let output = match value.as_string() {
             Ok(output) => output.as_ref(),
             Err(_) => return RegoEvaluation::undecidable(RegoFailure::InvalidOutput),
@@ -372,11 +386,20 @@ fn validate_policy_source(source: &str) -> Result<(), RegoPolicyError> {
         return Err(RegoPolicyError::TooManyPolicyLines);
     }
 
-    let masked = mask_literals_and_comments(source);
+    let masked = mask_literals_and_comments(source)?;
     validate_imports(&masked)?;
 
-    for (token, error_name) in [("with", "with"), ("__target__", "__target__")] {
-        if contains_identifier_token(&masked, token) {
+    for (token, error_name) in [
+        ("with", "with"),
+        ("__target__", "__target__"),
+        (";", "semicolon"),
+    ] {
+        let present = if token == ";" {
+            masked.contains(token)
+        } else {
+            contains_identifier_token(&masked, token)
+        };
+        if present {
             return Err(RegoPolicyError::UnsupportedKeyword(error_name));
         }
     }
@@ -406,7 +429,7 @@ fn validate_imports(masked: &str) -> Result<(), RegoPolicyError> {
     Ok(())
 }
 
-fn mask_literals_and_comments(source: &str) -> String {
+fn mask_literals_and_comments(source: &str) -> Result<String, RegoPolicyError> {
     #[derive(Clone, Copy)]
     enum Mode {
         Code,
@@ -437,14 +460,10 @@ fn mask_literals_and_comments(source: &str) -> String {
                 }
                 b'\n' => masked.push('\n'),
                 byte if byte.is_ascii() => masked.push(byte as char),
-                _ => masked.push(' '),
+                _ => return Err(RegoPolicyError::NonAsciiCode),
             },
             Mode::Quoted => {
-                if byte == b'\n' {
-                    masked.push('\n');
-                } else {
-                    masked.push(' ');
-                }
+                masked.push(if byte == b'\n' { '\n' } else { ' ' });
                 if escaped {
                     escaped = false;
                 } else if byte == b'\\' {
@@ -454,11 +473,7 @@ fn mask_literals_and_comments(source: &str) -> String {
                 }
             }
             Mode::Raw => {
-                if byte == b'\n' {
-                    masked.push('\n');
-                } else {
-                    masked.push(' ');
-                }
+                masked.push(if byte == b'\n' { '\n' } else { ' ' });
                 if byte == b'`' {
                     mode = Mode::Code;
                 }
@@ -474,7 +489,7 @@ fn mask_literals_and_comments(source: &str) -> String {
         }
     }
 
-    masked
+    Ok(masked)
 }
 
 fn contains_identifier_token(source: &str, wanted: &str) -> bool {
@@ -532,6 +547,7 @@ const fn is_identifier_continue(byte: u8) -> bool {
 mod tests {
     use super::*;
 
+    const ENTRYPOINT: &str = "data.sentrdel.t023.decision";
     const SIMPLE_POLICY: &str = r#"
 package sentrdel.t023
 import rego.v1
@@ -543,7 +559,7 @@ decision := "deny" if input.action == "delete"
 
     #[test]
     fn bounded_policy_returns_only_explicit_candidate_strings() {
-        let policy = BoundedRegoPolicy::compile(SIMPLE_POLICY, "data.sentrdel.t023.decision", None)
+        let policy = BoundedRegoPolicy::compile(SIMPLE_POLICY, ENTRYPOINT, None)
             .expect("valid bounded policy");
 
         assert_eq!(
@@ -562,14 +578,14 @@ decision := "deny" if input.action == "delete"
 
     #[test]
     fn tested_allowlist_builtin_is_accepted() {
-        let policy = r#"
+        let source = r#"
 package sentrdel.t023
 import rego.v1
 
 decision := "allow" if count(input.items) > 0
 default decision := "deny"
 "#;
-        let policy = BoundedRegoPolicy::compile(policy, "data.sentrdel.t023.decision", None)
+        let policy = BoundedRegoPolicy::compile(source, ENTRYPOINT, None)
             .expect("count is in the T023 builtin allowlist");
         assert_eq!(
             policy.evaluate_json(r#"{"items":["x"]}"#).verdict(),
@@ -580,11 +596,11 @@ default decision := "deny"
     #[test]
     fn disallowed_capability_calls_are_rejected_before_engine_load() {
         for call in ["http.send", "net.lookup_ip_addr", "time.now_ns", "print"] {
-            let policy = format!(
+            let source = format!(
                 "package sentrdel.t023\nimport rego.v1\ndecision := {call}({{}})\n"
             );
             assert_eq!(
-                BoundedRegoPolicy::compile(&policy, "data.sentrdel.t023.decision", None)
+                BoundedRegoPolicy::compile(&source, ENTRYPOINT, None)
                     .expect_err("unqualified call must be rejected"),
                 RegoPolicyError::UnsupportedCall(call.to_owned())
             );
@@ -592,48 +608,79 @@ default decision := "deny"
     }
 
     #[test]
-    fn imports_with_and_target_extensions_are_rejected() {
+    fn imports_with_targets_and_semicolons_are_rejected() {
         assert_eq!(
             BoundedRegoPolicy::compile(
                 "package sentrdel.t023\nimport data.external\ndecision := \"allow\"\n",
-                "data.sentrdel.t023.decision",
+                ENTRYPOINT,
                 None,
             )
             .expect_err("repository data import is outside the subset"),
             RegoPolicyError::UnsupportedImport
         );
-
         assert_eq!(
             BoundedRegoPolicy::compile(
                 "package sentrdel.t023\nimport rego.v1\ndecision := input.x with input.x as true\n",
-                "data.sentrdel.t023.decision",
+                ENTRYPOINT,
                 None,
             )
             .expect_err("with is deliberately excluded"),
             RegoPolicyError::UnsupportedKeyword("with")
         );
-
         assert_eq!(
             BoundedRegoPolicy::compile(
                 "package sentrdel.t023\nimport rego.v1\n__target__ := `target.example`\ndecision := \"allow\"\n",
-                "data.sentrdel.t023.decision",
+                ENTRYPOINT,
                 None,
             )
             .expect_err("targets are deliberately excluded"),
             RegoPolicyError::UnsupportedKeyword("__target__")
         );
+        assert_eq!(
+            BoundedRegoPolicy::compile(
+                "package sentrdel.t023; import data.external\ndecision := \"allow\"\n",
+                ENTRYPOINT,
+                None,
+            )
+            .expect_err("statement compaction must not evade import validation"),
+            RegoPolicyError::UnsupportedKeyword("semicolon")
+        );
+    }
+
+    #[test]
+    fn non_ascii_code_is_rejected_but_literals_and_comments_remain_valid() {
+        assert_eq!(
+            BoundedRegoPolicy::compile(
+                "package sentrdel.t023\nimport rego.v1\ndécision := \"allow\"\n",
+                ENTRYPOINT,
+                None,
+            )
+            .expect_err("non-ASCII executable identifiers must fail closed"),
+            RegoPolicyError::NonAsciiCode
+        );
+
+        let source = r#"
+package sentrdel.t023
+import rego.v1
+# Unicode in a comment: أهلاً
+
+decision := "allow" if input.note == "مرحباً"
+default decision := "deny"
+"#;
+        BoundedRegoPolicy::compile(source, ENTRYPOINT, None)
+            .expect("Unicode data inside comments/literals is not executable code");
     }
 
     #[test]
     fn comments_and_literals_cannot_fake_disallowed_calls() {
-        let policy = r#"
+        let source = r#"
 package sentrdel.t023
 import rego.v1
 # http.send({}) and with are comments, not capabilities.
 decision := "allow" if input.note == "print(\"x\") with http.send({})"
 default decision := "deny"
 "#;
-        BoundedRegoPolicy::compile(policy, "data.sentrdel.t023.decision", None)
+        BoundedRegoPolicy::compile(source, ENTRYPOINT, None)
             .expect("masked literals/comments must not create false capability matches");
     }
 
@@ -657,21 +704,24 @@ default decision := "deny"
     fn policy_length_limits_fail_before_engine_load() {
         let oversized = "#".repeat(MAX_POLICY_BYTES + 1);
         assert_eq!(
-            BoundedRegoPolicy::compile(&oversized, "data.sentrdel.t023.decision", None)
+            BoundedRegoPolicy::compile(&oversized, ENTRYPOINT, None)
                 .expect_err("oversized source must fail"),
             RegoPolicyError::PolicyTooLarge
         );
 
         let too_many_lines = "#\n".repeat(MAX_POLICY_LINES + 1);
         assert_eq!(
-            BoundedRegoPolicy::compile(&too_many_lines, "data.sentrdel.t023.decision", None)
+            BoundedRegoPolicy::compile(&too_many_lines, ENTRYPOINT, None)
                 .expect_err("too many lines must fail"),
             RegoPolicyError::TooManyPolicyLines
         );
 
-        let long_column = format!("package sentrdel.t023\n#{}\n", "x".repeat(MAX_POLICY_COLUMN_BYTES));
+        let long_column = format!(
+            "package sentrdel.t023\n#{}\n",
+            "x".repeat(MAX_POLICY_COLUMN_BYTES)
+        );
         assert_eq!(
-            BoundedRegoPolicy::compile(&long_column, "data.sentrdel.t023.decision", None)
+            BoundedRegoPolicy::compile(&long_column, ENTRYPOINT, None)
                 .expect_err("long source line must fail"),
             RegoPolicyError::PolicyColumnTooLong
         );
@@ -679,7 +729,7 @@ default decision := "deny"
 
     #[test]
     fn deep_or_oversized_runtime_input_is_undecidable_not_allow() {
-        let policy = BoundedRegoPolicy::compile(SIMPLE_POLICY, "data.sentrdel.t023.decision", None)
+        let policy = BoundedRegoPolicy::compile(SIMPLE_POLICY, ENTRYPOINT, None)
             .expect("valid bounded policy");
 
         let mut deep = String::new();
@@ -704,7 +754,7 @@ default decision := "deny"
 
     #[test]
     fn malformed_or_non_object_input_is_undecidable() {
-        let policy = BoundedRegoPolicy::compile(SIMPLE_POLICY, "data.sentrdel.t023.decision", None)
+        let policy = BoundedRegoPolicy::compile(SIMPLE_POLICY, ENTRYPOINT, None)
             .expect("valid bounded policy");
         assert_eq!(
             policy.evaluate_json("{"),
@@ -727,20 +777,16 @@ default decision := "deny"
             deep.push('}');
         }
         assert_eq!(
-            BoundedRegoPolicy::compile(
-                SIMPLE_POLICY,
-                "data.sentrdel.t023.decision",
-                Some(&deep),
-            )
-            .expect_err("deep static data must fail before Regorus"),
+            BoundedRegoPolicy::compile(SIMPLE_POLICY, ENTRYPOINT, Some(&deep))
+                .expect_err("deep static data must fail before Regorus"),
             RegoPolicyError::DataTooDeep
         );
     }
 
     #[test]
     fn invalid_rule_output_is_undecidable() {
-        let policy = "package sentrdel.t023\nimport rego.v1\ndecision := true\n";
-        let policy = BoundedRegoPolicy::compile(policy, "data.sentrdel.t023.decision", None)
+        let source = "package sentrdel.t023\nimport rego.v1\ndecision := true\n";
+        let policy = BoundedRegoPolicy::compile(source, ENTRYPOINT, None)
             .expect("boolean output policy still compiles");
         assert_eq!(
             policy.evaluate_json("{}"),
@@ -750,14 +796,14 @@ default decision := "deny"
 
     #[test]
     fn engine_evaluation_error_is_undecidable() {
-        let policy = r#"
+        let source = r#"
 package sentrdel.t023
 import rego.v1
 
 decision := "allow" if 1 / input.divisor > 0
 default decision := "deny"
 "#;
-        let policy = BoundedRegoPolicy::compile(policy, "data.sentrdel.t023.decision", None)
+        let policy = BoundedRegoPolicy::compile(source, ENTRYPOINT, None)
             .expect("policy should compile");
         let result = policy.evaluate_json(r#"{"divisor":0}"#);
         assert_eq!(result.verdict(), Verdict::Undecidable);
