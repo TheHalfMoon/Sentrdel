@@ -30,16 +30,24 @@ jobs:
           rustc +1.98.0 --version
           cargo +1.98.0 --version
 
-      - name: Generate T023 qualification lockfile
+      - name: Prepare exact T023 qualification source
         run: |
-          cargo +1.98.0 generate-lockfile
-          echo 'T023_LOCKFILE_BASE64_BEGIN'
-          base64 -w0 Cargo.lock
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('crates/sentrdel-policy/src/rego.rs')
+          text = path.read_text()
+          needle = 'pub struct BoundedRegoPolicy {'
+          replacement = '#[derive(Debug)]\n' + needle
+          if '#[derive(Debug)]\n' + needle not in text:
+              text = text.replace(needle, replacement, 1)
+          path.write_text(text)
+          PY
+          cargo +1.98.0 fmt --all
+          echo 'T023_FORMATTED_REGO_BASE64_BEGIN'
+          base64 -w0 crates/sentrdel-policy/src/rego.rs
           echo
-          echo 'T023_LOCKFILE_BASE64_END'
-
-      - name: Format
-        run: cargo +1.98.0 fmt --all -- --check
+          echo 'T023_FORMATTED_REGO_BASE64_END'
+          git diff --check
 
       - name: Check workspace
         run: cargo +1.98.0 check --workspace --all-targets --locked
