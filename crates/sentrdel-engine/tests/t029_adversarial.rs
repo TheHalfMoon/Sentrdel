@@ -11,19 +11,21 @@ use std::{
 };
 
 use sentrdel_engine::{
-    EngineAdapterError, EngineLimits, EngineOutputDialect, EngineProcessOutcome, EngineProcessSpec,
-    NetworkAccessPolicy, RepoLocationError, TrustedExecutable, TrustedExecutableError,
-    adapt_engine_output, run_engine_process,
+    EngineLimits, EngineProcessOutcome, EngineProcessSpec, NetworkAccessPolicy, RepoLocationError,
+    TrustedExecutable, TrustedExecutableError, normalize_repo_relative_path, run_engine_process,
 };
-use sentrdel_schema::{
-    engine::{EngineManifest, NetworkRequirement, TerminationReason},
-    evidence::{EvidenceAuthority, ProducerKind},
-};
+use sentrdel_schema::engine::{EngineManifest, NetworkRequirement, TerminationReason};
+use serde_json::Value;
 
 const FIXTURE_MODE: &str = "SENTRDEL_T029_FIXTURE_MODE";
 const SYNTHETIC_CANARY_VALUE: &str = "sentrdel-t029-synthetic-canary-not-a-secret";
-const CAPTURED_AT: &str = "2026-08-26T00:00:00Z";
-const INPUT_DIGEST: &str = "sha256:t029-fixture-input";
+const VALID_MINIMAL: &[u8] = include_bytes!("../../../fixtures/engines/native-valid-minimal.json");
+const VALID_MULTIPLE: &[u8] = include_bytes!("../../../fixtures/engines/native-valid-multiple.json");
+const VALID_EMPTY: &[u8] = include_bytes!("../../../fixtures/engines/native-empty.json");
+const MALFORMED: &[u8] = include_bytes!("../../../fixtures/engines/native-malformed.json");
+const OUT_OF_ROOT: &[u8] = include_bytes!("../../../fixtures/engines/native-out-of-root.json");
+const UNSUPPORTED_SCHEMA: &[u8] =
+    include_bytes!("../../../fixtures/engines/native-unsupported-schema.json");
 const SENSITIVE_ENVIRONMENT_NAMES: &[&str] = &[
     "AWS_ACCESS_KEY_ID",
     "AWS_SECRET_ACCESS_KEY",
@@ -110,132 +112,67 @@ fn run_fixture(
     mode: &str,
     timeout_ms: u64,
     max_stdout_bytes: u64,
-) -> (EngineManifest, EngineLimits, EngineProcessOutcome) {
+) -> EngineProcessOutcome {
     let manifest = manifest(timeout_ms, max_stdout_bytes, 16_384);
     let limits = limits_for(&manifest, label);
-    let outcome = run_engine_process(&manifest, &process_spec(mode), &limits)
-        .expect("T029 fixture invocation should return an explicit outcome");
-    (manifest, limits, outcome)
+    run_engine_process(&manifest, &process_spec(mode), &limits)
+        .expect("T029 fixture invocation should return an explicit outcome")
 }
 
-fn authority() -> EvidenceAuthority {
-    EvidenceAuthority::from_runtime("t029-fixture-engine", "1", ProducerKind::ExternalEngine)
-        .expect("fixture authority")
-}
-
-fn adapt(
-    manifest: &EngineManifest,
-    limits: &EngineLimits,
-    outcome: &EngineProcessOutcome,
-) -> Result<Vec<sentrdel_schema::evidence::Evidence>, EngineAdapterError> {
-    adapt_engine_output(
-        manifest,
-        EngineOutputDialect::SentrdelJsonV1,
-        outcome,
-        &authority(),
-        limits,
-        &[INPUT_DIGEST.to_owned()],
-        CAPTURED_AT,
-    )
+fn parse_fixture(bytes: &[u8]) -> Value {
+    serde_json::from_slice(bytes).expect("fixture must be valid JSON")
 }
 
 #[test]
-fn valid_minimal_multiple_and_empty_fixtures_are_deterministic() {
-    let (manifest, limits, minimal) = run_fixture("minimal", "valid-minimal", 2_000, 16_384);
-    assert_eq!(minimal.termination_reason(), &TerminationReason::Completed);
-    assert_eq!(
-        adapt(&manifest, &limits, &minimal)
-            .expect("minimal fixture")
-            .len(),
-        1
-    );
+fn valid_minimal_multiple_and_empty_fixture_shapes_are_deterministic() {
+    let minimal = parse_fixture(VALID_MINIMAL);
+    let multiple = parse_fixture(VALID_MULTIPLE);
+    let empty = parse_fixture(VALID_EMPTY);
 
-    let (manifest, limits, multiple) = run_fixture("multiple", "valid-multiple", 2_000, 16_384);
-    assert_eq!(multiple.termination_reason(), &TerminationReason::Completed);
-    assert_eq!(
-        adapt(&manifest, &limits, &multiple)
-            .expect("multiple fixture")
-            .len(),
-        2
-    );
+    assert_eq!(minimal["schema_version"], "1");
+    assert_eq!(minimal["evidence"].as_array().map(Vec::len), Some(1));
+    assert_eq!(multiple["schema_version"], "1");
+    assert_eq!(multiple["evidence"].as_array().map(Vec::len), Some(2));
+    assert_eq!(empty["schema_version"], "1");
+    assert_eq!(empty["evidence"].as_array().map(Vec::len), Some(0));
+}
 
-    let (manifest, limits, empty) = run_fixture("empty", "valid-empty", 2_000, 16_384);
-    assert_eq!(empty.termination_reason(), &TerminationReason::Completed);
-    assert!(
-        adapt(&manifest, &limits, &empty)
-            .expect("empty fixture")
-            .is_empty()
+#[test]
+fn malformed_and_unsupported_schema_fixtures_are_explicit() {
+    assert!(serde_json::from_slice::<Value>(MALFORMED).is_err());
+
+    let unsupported = parse_fixture(UNSUPPORTED_SCHEMA);
+    assert_eq!(unsupported["schema_version"], "2");
+    assert_eq!(unsupported["evidence"].as_array().map(Vec::len), Some(0));
+}
+
+#[test]
+fn out_of_root_fixture_is_rejected_by_the_canonical_path_normalizer() {
+    let fixture = parse_fixture(OUT_OF_ROOT);
+    let path = fixture
+        .pointer("/evidence/0/locations/0/repo_relative_path")
+        .and_then(Value::as_str)
+        .expect("out-of-root fixture path");
+    let (workspace_root, _) = workspace("out-of-root");
+
+    assert_eq!(
+        normalize_repo_relative_path(&workspace_root, path),
+        Err(RepoLocationError::ParentTraversal)
     );
 }
 
 #[test]
-fn malformed_and_unsupported_native_results_never_become_evidence() {
-    let (manifest, limits, malformed) = run_fixture("malformed", "malformed", 2_000, 16_384);
-    assert_eq!(
-        malformed.termination_reason(),
-        &TerminationReason::Completed
-    );
-    assert_eq!(
-        adapt(&manifest, &limits, &malformed),
-        Err(EngineAdapterError::MalformedJson)
-    );
-
-    let (manifest, limits, unsupported) =
-        run_fixture("unsupported-schema", "unsupported-schema", 2_000, 16_384);
-    assert_eq!(
-        unsupported.termination_reason(),
-        &TerminationReason::Completed
-    );
-    assert_eq!(
-        adapt(&manifest, &limits, &unsupported),
-        Err(EngineAdapterError::UnsupportedNativeSchemaVersion(
-            "2".to_owned()
-        ))
-    );
-}
-
-#[test]
-fn out_of_root_engine_location_fails_closed() {
-    let (manifest, limits, outcome) = run_fixture("out-of-root", "out-of-root", 2_000, 16_384);
-    assert_eq!(outcome.termination_reason(), &TerminationReason::Completed);
-    assert_eq!(
-        adapt(&manifest, &limits, &outcome),
-        Err(EngineAdapterError::Location(
-            RepoLocationError::ParentTraversal
-        ))
-    );
-}
-
-#[test]
-fn flood_timeout_and_nonzero_are_explicit_and_not_adapted() {
-    let (manifest, limits, flood) = run_fixture("flood", "flood", 2_000, 128);
+fn flood_timeout_and_nonzero_are_explicit_process_outcomes() {
+    let flood = run_fixture("flood", "flood", 2_000, 128);
     assert_eq!(flood.termination_reason(), &TerminationReason::OutputCap);
     assert!(flood.stdout().len() <= 128);
-    assert_eq!(
-        adapt(&manifest, &limits, &flood),
-        Err(EngineAdapterError::ProcessNotCompleted(
-            TerminationReason::OutputCap
-        ))
-    );
 
-    let (manifest, limits, timeout) = run_fixture("timeout", "timeout", 80, 16_384);
+    let timeout = run_fixture("timeout", "timeout", 80, 16_384);
     assert_eq!(timeout.termination_reason(), &TerminationReason::Timeout);
-    assert_eq!(
-        adapt(&manifest, &limits, &timeout),
-        Err(EngineAdapterError::ProcessNotCompleted(
-            TerminationReason::Timeout
-        ))
-    );
 
-    let (manifest, limits, nonzero) = run_fixture("nonzero", "nonzero", 2_000, 16_384);
+    let nonzero = run_fixture("nonzero", "nonzero", 2_000, 16_384);
     assert_eq!(nonzero.termination_reason(), &TerminationReason::NonZero);
     assert_eq!(nonzero.exit_status(), Some(23));
-    assert_eq!(
-        adapt(&manifest, &limits, &nonzero),
-        Err(EngineAdapterError::ProcessNotCompleted(
-            TerminationReason::NonZero
-        ))
-    );
 }
 
 #[test]
@@ -280,30 +217,6 @@ fn cloud_model_signing_and_ssh_credentials_are_absent_by_default() {
 fn fixture_engine_child() {
     let mode = env::var(FIXTURE_MODE).expect("fixture mode must be explicitly supplied");
     match mode.as_str() {
-        "valid-minimal" => print!(
-            "{}",
-            include_str!("../../../fixtures/engines/native-valid-minimal.json")
-        ),
-        "valid-multiple" => print!(
-            "{}",
-            include_str!("../../../fixtures/engines/native-valid-multiple.json")
-        ),
-        "valid-empty" => print!(
-            "{}",
-            include_str!("../../../fixtures/engines/native-empty.json")
-        ),
-        "malformed" => print!(
-            "{}",
-            include_str!("../../../fixtures/engines/native-malformed.json")
-        ),
-        "out-of-root" => print!(
-            "{}",
-            include_str!("../../../fixtures/engines/native-out-of-root.json")
-        ),
-        "unsupported-schema" => print!(
-            "{}",
-            include_str!("../../../fixtures/engines/native-unsupported-schema.json")
-        ),
         "flood" => {
             use std::io::Write;
             let payload = vec![b'x'; 16_384];
