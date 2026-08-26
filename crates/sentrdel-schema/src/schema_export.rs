@@ -333,7 +333,7 @@ mod tests {
             .expect("evidence schema");
         let classes = evidence
             .pointer("/$defs/EpistemicClass/enum")
-            .and_then(|value| value.as_array_mut())
+            .and_then(|value| value.as_array())
             .expect("epistemic enum");
         assert!(
             !classes
