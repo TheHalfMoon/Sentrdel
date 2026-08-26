@@ -12,6 +12,8 @@ use std::{
     process::{ChildStderr, ChildStdout, ExitStatus, Stdio},
 };
 
+#[cfg(unix)]
+use nix::errno::Errno;
 #[cfg(windows)]
 use process_wrap::std::JobObject;
 #[cfg(unix)]
@@ -41,15 +43,31 @@ impl ContainedChild {
     /// Terminate any remaining members of the admitted process boundary after
     /// the root process has already reported an exit status.
     ///
-    /// `NotFound` means the process group/job has already drained and is safe
-    /// to treat as quiescent. Other failures remain fail-closed.
+    /// An absent Unix process group means the entire group has already drained.
+    /// Windows `NotFound` is likewise treated as quiescent. Every other failure
+    /// remains fail-closed so permission or containment errors are never hidden.
     pub(crate) fn terminate_remaining(&mut self) -> io::Result<()> {
         match self.inner.start_kill() {
             Ok(()) => Ok(()),
-            Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+            Err(error) if process_boundary_is_absent(&error) => Ok(()),
             Err(error) => Err(error),
         }
     }
+}
+
+#[cfg(unix)]
+fn process_boundary_is_absent(error: &io::Error) -> bool {
+    error.raw_os_error() == Some(Errno::ESRCH as i32)
+}
+
+#[cfg(windows)]
+fn process_boundary_is_absent(error: &io::Error) -> bool {
+    error.kind() == io::ErrorKind::NotFound
+}
+
+#[cfg(not(any(unix, windows)))]
+fn process_boundary_is_absent(_error: &io::Error) -> bool {
+    false
 }
 
 pub(crate) fn spawn_contained_process(
