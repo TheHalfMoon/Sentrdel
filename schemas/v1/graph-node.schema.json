@@ -1,0 +1,69 @@
+{
+  "$defs": {
+    "GraphNodeId": {
+      "description": "Stable content identity for one graph node.",
+      "type": "string"
+    },
+    "GraphNodeKind": {
+      "description": "Initial R1 node vocabulary. These classes describe graph shape only; they\ndo not confer Finding, policy, or epistemic authority.",
+      "enum": [
+        "PROJECT",
+        "FILE",
+        "SYMBOL",
+        "REFERENCE",
+        "RESOURCE",
+        "DEPENDENCY",
+        "WORKFLOW",
+        "PROVIDER",
+        "MCP_SERVER",
+        "MCP_TOOL",
+        "AGENT_ACTION",
+        "EVIDENCE",
+        "FINDING",
+        "INVARIANT"
+      ],
+      "type": "string"
+    },
+    "GraphProvenanceId": {
+      "description": "Stable reference to evidence, an event, a producer record, or another\nprovenance-bearing canonical object.\n\nProvenance references are intentionally not restricted to one identifier\nnamespace. Callers must bind them to the authoritative object type at the\ningestion/reconciliation boundary that owns that object.",
+      "type": "string"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Canonical R1 graph node wire record.",
+  "properties": {
+    "attributes": {
+      "additionalProperties": true,
+      "type": "object"
+    },
+    "node_id": {
+      "$ref": "#/$defs/GraphNodeId"
+    },
+    "node_kind": {
+      "$ref": "#/$defs/GraphNodeKind"
+    },
+    "provenance_ids": {
+      "items": {
+        "$ref": "#/$defs/GraphProvenanceId"
+      },
+      "type": "array"
+    },
+    "schema_version": {
+      "type": "string"
+    },
+    "semantic_key": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "node_id",
+    "node_kind",
+    "semantic_key",
+    "attributes",
+    "provenance_ids"
+  ],
+  "title": "GraphNode",
+  "type": "object"
+}
