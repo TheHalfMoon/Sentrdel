@@ -59,8 +59,12 @@ impl fmt::Display for GraphStoreError {
             Self::Sqlite(error) => write!(formatter, "SQLite graph-store error: {error}"),
             Self::Json(error) => write!(formatter, "stored graph JSON is invalid: {error}"),
             Self::Canonical(error) => write!(formatter, "graph canonicalization failed: {error}"),
-            Self::GraphContract(error) => write!(formatter, "graph contract validation failed: {error}"),
-            Self::Redaction(error) => write!(formatter, "graph persistence redaction failed: {error}"),
+            Self::GraphContract(error) => {
+                write!(formatter, "graph contract validation failed: {error}")
+            }
+            Self::Redaction(error) => {
+                write!(formatter, "graph persistence redaction failed: {error}")
+            }
             Self::MissingEndpointNode { edge_id, node_id } => write!(
                 formatter,
                 "refusing graph edge {edge_id} because endpoint node {node_id} is not persisted"
@@ -172,12 +176,8 @@ impl Store {
                 Ok(GraphWriteOutcome::Inserted { revision: 1 })
             }
             Some((revision, stored)) => {
-                let stored_node = validate_node_projection(
-                    &transaction,
-                    &node_id,
-                    revision,
-                    &stored,
-                )?;
+                let stored_node =
+                    validate_node_projection(&transaction, &node_id, revision, &stored)?;
                 if stored_node.node_kind != node.node_kind
                     || stored_node.semantic_key != node.semantic_key
                 {
@@ -190,12 +190,13 @@ impl Store {
                     return Ok(GraphWriteOutcome::Unchanged { revision });
                 }
 
-                let next_revision = revision.checked_add(1).ok_or_else(|| {
-                    GraphStoreError::RevisionOverflow {
-                        object_kind: "graph node",
-                        object_id: node_id.clone(),
-                    }
-                })?;
+                let next_revision =
+                    revision
+                        .checked_add(1)
+                        .ok_or_else(|| GraphStoreError::RevisionOverflow {
+                            object_kind: "graph node",
+                            object_id: node_id.clone(),
+                        })?;
                 transaction.execute(
                     "UPDATE sentrdel_graph_node_projection SET revision = ?2, canonical_json = ?3 WHERE node_id = ?1 AND revision = ?4",
                     params![node_id, next_revision, canonical, revision],
@@ -322,12 +323,13 @@ impl Store {
                     return Ok(GraphWriteOutcome::Unchanged { revision });
                 }
 
-                let next_revision = revision.checked_add(1).ok_or_else(|| {
-                    GraphStoreError::RevisionOverflow {
-                        object_kind: "graph edge",
-                        object_id: edge_id.clone(),
-                    }
-                })?;
+                let next_revision =
+                    revision
+                        .checked_add(1)
+                        .ok_or_else(|| GraphStoreError::RevisionOverflow {
+                            object_kind: "graph edge",
+                            object_id: edge_id.clone(),
+                        })?;
                 transaction.execute(
                     "UPDATE sentrdel_graph_edge_projection SET revision = ?2, canonical_json = ?3 WHERE edge_id = ?1 AND revision = ?4",
                     params![edge_id, next_revision, canonical, revision],
@@ -405,11 +407,19 @@ fn validate_node_projection(
 ) -> GraphStoreResult<GraphNode> {
     let node: GraphNode = serde_json::from_slice(stored)?;
     if node.node_id.as_str() != node_id {
-        return Err(corrupt("graph node", node_id, "row key does not match node id"));
+        return Err(corrupt(
+            "graph node",
+            node_id,
+            "row key does not match node id",
+        ));
     }
     node.validate()?;
     if canonical_json_bytes(&node)? != stored {
-        return Err(corrupt("graph node", node_id, "stored bytes are not canonical JSON"));
+        return Err(corrupt(
+            "graph node",
+            node_id,
+            "stored bytes are not canonical JSON",
+        ));
     }
     validate_latest_history(
         connection,
@@ -433,7 +443,11 @@ fn validate_edge_projection(
 ) -> GraphStoreResult<GraphEdge> {
     let edge: GraphEdge = serde_json::from_slice(stored)?;
     if edge.edge_id.as_str() != edge_id {
-        return Err(corrupt("graph edge", edge_id, "row key does not match edge id"));
+        return Err(corrupt(
+            "graph edge",
+            edge_id,
+            "row key does not match edge id",
+        ));
     }
     if edge.source.as_str() != source || edge.target.as_str() != target {
         return Err(corrupt(
@@ -444,7 +458,11 @@ fn validate_edge_projection(
     }
     edge.validate()?;
     if canonical_json_bytes(&edge)? != stored {
-        return Err(corrupt("graph edge", edge_id, "stored bytes are not canonical JSON"));
+        return Err(corrupt(
+            "graph edge",
+            edge_id,
+            "stored bytes are not canonical JSON",
+        ));
     }
     validate_latest_history(
         connection,
@@ -467,9 +485,8 @@ fn validate_latest_history(
     projection: &[u8],
     object_kind: &'static str,
 ) -> GraphStoreResult<()> {
-    let sql = format!(
-        "SELECT canonical_json FROM {table} WHERE {id_column} = ?1 AND revision = ?2"
-    );
+    let sql =
+        format!("SELECT canonical_json FROM {table} WHERE {id_column} = ?1 AND revision = ?2");
     let historical: Option<Vec<u8>> = connection
         .query_row(&sql, params![object_id, revision], |row| row.get(0))
         .optional()?;
@@ -483,11 +500,7 @@ fn validate_latest_history(
     Ok(())
 }
 
-fn corrupt(
-    object_kind: &'static str,
-    object_id: &str,
-    detail: &'static str,
-) -> GraphStoreError {
+fn corrupt(object_kind: &'static str, object_id: &str, detail: &'static str) -> GraphStoreError {
     GraphStoreError::CorruptStoredObject {
         object_kind,
         object_id: object_id.to_owned(),
