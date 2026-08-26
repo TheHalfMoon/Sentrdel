@@ -405,7 +405,13 @@ fn validate_node_projection(
     revision: i64,
     stored: &[u8],
 ) -> GraphStoreResult<GraphNode> {
-    let node: GraphNode = serde_json::from_slice(stored)?;
+    let node: GraphNode = serde_json::from_slice(stored).map_err(|_| {
+        corrupt(
+            "graph node",
+            node_id,
+            "stored canonical JSON cannot be decoded as a graph node",
+        )
+    })?;
     if node.node_id.as_str() != node_id {
         return Err(corrupt(
             "graph node",
@@ -413,23 +419,28 @@ fn validate_node_projection(
             "row key does not match node id",
         ));
     }
-    node.validate()?;
-    if canonical_json_bytes(&node)? != stored {
+    node.validate().map_err(|_| {
+        corrupt(
+            "graph node",
+            node_id,
+            "stored graph node fails contract validation",
+        )
+    })?;
+    let recanonical = canonical_json_bytes(&node).map_err(|_| {
+        corrupt(
+            "graph node",
+            node_id,
+            "stored graph node cannot be canonicalized",
+        )
+    })?;
+    if recanonical != stored {
         return Err(corrupt(
             "graph node",
             node_id,
             "stored bytes are not canonical JSON",
         ));
     }
-    validate_latest_history(
-        connection,
-        "sentrdel_graph_node_history",
-        "node_id",
-        node_id,
-        revision,
-        stored,
-        "graph node",
-    )?;
+    validate_latest_node_history(connection, node_id, revision, stored)?;
     Ok(node)
 }
 
@@ -441,7 +452,13 @@ fn validate_edge_projection(
     revision: i64,
     stored: &[u8],
 ) -> GraphStoreResult<GraphEdge> {
-    let edge: GraphEdge = serde_json::from_slice(stored)?;
+    let edge: GraphEdge = serde_json::from_slice(stored).map_err(|_| {
+        corrupt(
+            "graph edge",
+            edge_id,
+            "stored canonical JSON cannot be decoded as a graph edge",
+        )
+    })?;
     if edge.edge_id.as_str() != edge_id {
         return Err(corrupt(
             "graph edge",
@@ -456,44 +473,83 @@ fn validate_edge_projection(
             "stored endpoint columns do not match canonical edge JSON",
         ));
     }
-    edge.validate()?;
-    if canonical_json_bytes(&edge)? != stored {
+    edge.validate().map_err(|_| {
+        corrupt(
+            "graph edge",
+            edge_id,
+            "stored graph edge fails contract validation",
+        )
+    })?;
+    let recanonical = canonical_json_bytes(&edge).map_err(|_| {
+        corrupt(
+            "graph edge",
+            edge_id,
+            "stored graph edge cannot be canonicalized",
+        )
+    })?;
+    if recanonical != stored {
         return Err(corrupt(
             "graph edge",
             edge_id,
             "stored bytes are not canonical JSON",
         ));
     }
-    validate_latest_history(
-        connection,
-        "sentrdel_graph_edge_history",
-        "edge_id",
-        edge_id,
-        revision,
-        stored,
-        "graph edge",
-    )?;
+    validate_latest_edge_history(connection, edge_id, source, target, revision, stored)?;
     Ok(edge)
 }
 
-fn validate_latest_history(
+fn validate_latest_node_history(
     connection: &Connection,
-    table: &str,
-    id_column: &str,
-    object_id: &str,
+    node_id: &str,
     revision: i64,
     projection: &[u8],
-    object_kind: &'static str,
 ) -> GraphStoreResult<()> {
-    let sql =
-        format!("SELECT canonical_json FROM {table} WHERE {id_column} = ?1 AND revision = ?2");
     let historical: Option<Vec<u8>> = connection
-        .query_row(&sql, params![object_id, revision], |row| row.get(0))
+        .query_row(
+            "SELECT canonical_json FROM sentrdel_graph_node_history WHERE node_id = ?1 AND revision = ?2",
+            params![node_id, revision],
+            |row| row.get(0),
+        )
         .optional()?;
     if historical.as_deref() != Some(projection) {
         return Err(corrupt(
-            object_kind,
-            object_id,
+            "graph node",
+            node_id,
+            "current projection does not match its immutable history revision",
+        ));
+    }
+    Ok(())
+}
+
+fn validate_latest_edge_history(
+    connection: &Connection,
+    edge_id: &str,
+    source: &str,
+    target: &str,
+    revision: i64,
+    projection: &[u8],
+) -> GraphStoreResult<()> {
+    let historical: Option<(String, String, Vec<u8>)> = connection
+        .query_row(
+            "SELECT source_node_id, target_node_id, canonical_json FROM sentrdel_graph_edge_history WHERE edge_id = ?1 AND revision = ?2",
+            params![edge_id, revision],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        )
+        .optional()?;
+    let Some((historical_source, historical_target, historical_json)) = historical else {
+        return Err(corrupt(
+            "graph edge",
+            edge_id,
+            "current projection has no matching immutable history revision",
+        ));
+    };
+    if historical_source != source
+        || historical_target != target
+        || historical_json.as_slice() != projection
+    {
+        return Err(corrupt(
+            "graph edge",
+            edge_id,
             "current projection does not match its immutable history revision",
         ));
     }
@@ -692,23 +748,34 @@ mod tests {
     }
 
     #[test]
-    fn registered_secret_is_rejected_before_graph_persistence() {
+    fn registered_secret_is_rejected_before_node_and_edge_persistence() {
         let temp = TempDb::new("redaction");
         let mut store = Store::open(&temp.path).expect("store");
+        let secret = "fixture-super-secret";
         store
-            .register_discovered_secret("fixture-super-secret")
+            .register_discovered_secret(secret)
             .expect("secret registration");
-        let secret_node = node("src/secret.rs", "fixture-super-secret");
+        let secret_node = node("src/secret.rs", secret);
 
         assert!(matches!(
             store.put_graph_node(&secret_node),
             Err(GraphStoreError::Redaction(_))
         ));
-        assert!(store.list_graph_nodes().expect("list").is_empty());
+
+        let source = node("src/a.rs", "safe-a");
+        let target = node("src/b.rs", "safe-b");
+        store.put_graph_node(&source).expect("source");
+        store.put_graph_node(&target).expect("target");
+        let secret_edge = edge(&source, &target, secret);
+        assert!(matches!(
+            store.put_graph_edge(&secret_edge),
+            Err(GraphStoreError::Redaction(_))
+        ));
+        assert!(store.list_graph_edges().expect("edge list").is_empty());
     }
 
     #[test]
-    fn read_detects_projection_history_divergence() {
+    fn read_classifies_projection_corruption_with_object_identity() {
         let temp = TempDb::new("corruption");
         let mut store = Store::open(&temp.path).expect("store");
         let value = node("src/lib.rs", "one");
@@ -722,20 +789,105 @@ mod tests {
             )
             .expect("corrupt projection");
 
-        assert!(store.get_graph_node(value.node_id.as_str()).is_err());
+        assert!(matches!(
+            store.get_graph_node(value.node_id.as_str()),
+            Err(GraphStoreError::CorruptStoredObject {
+                object_kind: "graph node",
+                object_id,
+                ..
+            }) if object_id == value.node_id.as_str()
+        ));
     }
 
     #[test]
-    fn history_rows_are_immutable() {
+    fn history_rows_are_immutable_and_future_revisions_are_rejected() {
         let temp = TempDb::new("immutable-history");
         let mut store = Store::open(&temp.path).expect("store");
         let value = node("src/lib.rs", "one");
         store.put_graph_node(&value).expect("insert");
 
-        let result = store.connection.execute(
+        let canonical: Vec<u8> = store
+            .connection
+            .query_row(
+                "SELECT canonical_json FROM sentrdel_graph_node_projection WHERE node_id = ?1",
+                params![value.node_id.as_str()],
+                |row| row.get(0),
+            )
+            .expect("node canonical bytes");
+        let future_insert = store.connection.execute(
+            "INSERT INTO sentrdel_graph_node_history(node_id, revision, canonical_json) VALUES (?1, 2, ?2)",
+            params![value.node_id.as_str(), canonical],
+        );
+        assert!(future_insert.is_err());
+
+        let update = store.connection.execute(
             "UPDATE sentrdel_graph_node_history SET canonical_json = canonical_json WHERE node_id = ?1 AND revision = 1",
             params![value.node_id.as_str()],
         );
-        assert!(result.is_err());
+        assert!(update.is_err());
+    }
+
+    #[test]
+    fn edge_history_rejects_future_revision_poisoning() {
+        let temp = TempDb::new("edge-history-poison");
+        let mut store = Store::open(&temp.path).expect("store");
+        let source = node("src/a.rs", "a");
+        let target = node("src/b.rs", "b");
+        store.put_graph_node(&source).expect("source");
+        store.put_graph_node(&target).expect("target");
+        let value = edge(&source, &target, "one");
+        store.put_graph_edge(&value).expect("edge");
+
+        let canonical: Vec<u8> = store
+            .connection
+            .query_row(
+                "SELECT canonical_json FROM sentrdel_graph_edge_projection WHERE edge_id = ?1",
+                params![value.edge_id.as_str()],
+                |row| row.get(0),
+            )
+            .expect("edge canonical bytes");
+        let future_insert = store.connection.execute(
+            "INSERT INTO sentrdel_graph_edge_history(edge_id, revision, source_node_id, target_node_id, canonical_json) VALUES (?1, 2, ?2, ?3, ?4)",
+            params![
+                value.edge_id.as_str(),
+                source.node_id.as_str(),
+                target.node_id.as_str(),
+                canonical
+            ],
+        );
+        assert!(future_insert.is_err());
+    }
+
+    #[test]
+    fn edge_read_detects_corrupt_history_endpoint_columns() {
+        let temp = TempDb::new("edge-history-corruption");
+        let mut store = Store::open(&temp.path).expect("store");
+        let source = node("src/a.rs", "a");
+        let target = node("src/b.rs", "b");
+        store.put_graph_node(&source).expect("source");
+        store.put_graph_node(&target).expect("target");
+        let value = edge(&source, &target, "one");
+        store.put_graph_edge(&value).expect("edge");
+
+        store
+            .connection
+            .execute_batch("DROP TRIGGER sentrdel_graph_edge_history_immutable_update;")
+            .expect("remove history update guard for corruption fixture");
+        store
+            .connection
+            .execute(
+                "UPDATE sentrdel_graph_edge_history SET source_node_id = ?2 WHERE edge_id = ?1 AND revision = 1",
+                params![value.edge_id.as_str(), target.node_id.as_str()],
+            )
+            .expect("corrupt history endpoint");
+
+        assert!(matches!(
+            store.get_graph_edge(value.edge_id.as_str()),
+            Err(GraphStoreError::CorruptStoredObject {
+                object_kind: "graph edge",
+                object_id,
+                ..
+            }) if object_id == value.edge_id.as_str()
+        ));
     }
 }
