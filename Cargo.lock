@@ -437,6 +437,8 @@ dependencies = [
  "nix",
  "process-wrap",
  "sentrdel-schema",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

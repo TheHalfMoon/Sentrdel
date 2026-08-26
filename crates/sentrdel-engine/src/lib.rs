@@ -1,13 +1,17 @@
 #![forbid(unsafe_code)]
-//! Trusted external-engine boundary and bounded process runner.
+//! Trusted external-engine boundary, bounded process runner, and strict result adapters.
 //!
 //! T026 owns the normalized adapter boundary and registry. T027 adds the only
 //! R1 process-spawning implementation: trusted executable resolution,
 //! argv-only invocation, canonical cwd, bounded process-tree containment,
-//! wall-clock/output bounds, and a deny-by-default child environment.
+//! wall-clock/output bounds, and a deny-by-default child environment. T028
+//! adds strict Sentrdel-native JSON/SARIF adaptation and repository-relative
+//! location normalization while keeping Findings and coverage outside this seam.
 
+mod adapter;
 #[path = "boundary.rs"]
 mod boundary;
+mod bounded_json;
 mod process_tree;
 mod runner;
 
@@ -15,6 +19,14 @@ use std::{error::Error, fmt};
 
 use sentrdel_schema::engine::EngineManifest;
 
+pub use adapter::{
+    EngineAdapterError, EngineOutputDialect, MAX_ENGINE_ADAPTER_ITEMS,
+    MAX_ENGINE_ADAPTER_JSON_BYTES, MAX_ENGINE_ADAPTER_RUNS, MAX_ENGINE_ATTRIBUTES_PER_ITEM,
+    MAX_ENGINE_IDENTIFIER_BYTES, MAX_ENGINE_LOCATION_BYTES, MAX_ENGINE_LOCATIONS_PER_ITEM,
+    MAX_ENGINE_RESULT_TEXT_BYTES, MAX_ENGINE_SUBJECTS_PER_ITEM, RepoLocationError,
+    SARIF_V2_1_0_DIALECT, SENTRDEL_JSON_V1_DIALECT, adapt_engine_output,
+    normalize_repo_relative_path,
+};
 pub use boundary::{
     Engine, EngineDiagnostic, EngineInputRef, EngineLimits, EngineLimitsError, EngineRegistry,
     EngineRegistryError, EngineRequest, EngineRequestError, EngineRunError, EngineRunErrorKind,
@@ -31,11 +43,19 @@ const _: () = {
     assert!(!boundary::BOUNDARY_CONTAINS_PROCESS_SPAWN_IMPLEMENTATION);
 };
 
-/// T027 has installed the bounded external-engine process runner.
+/// T027 installed the bounded external-engine process runner.
 ///
-/// This does not authorize T028 raw-result adaptation, T030 coverage mapping,
-/// T036 bootstrap/DI wiring, target build execution, or shell evaluation.
+/// This flag describes process execution only. It does not authorize T030
+/// coverage mapping, T036 bootstrap/DI wiring, target build execution, or
+/// shell evaluation.
 pub const EXTERNAL_ENGINE_EXECUTION_IMPLEMENTED: bool = true;
+
+/// T028 installed strict bounded result adaptation for explicitly supported
+/// Sentrdel-native JSON and SARIF 2.1.0 dialects.
+///
+/// This does not create Findings, infer clean coverage, or wire engines into
+/// review orchestration. T030 and T036 retain those separate authorities.
+pub const RAW_ENGINE_RESULT_ADAPTATION_IMPLEMENTED: bool = true;
 
 /// Public invocation failures at the T027 authority boundary.
 ///
@@ -137,6 +157,11 @@ mod tests {
     #[test]
     fn t027_enables_the_bounded_process_runner_surface() {
         const { assert!(EXTERNAL_ENGINE_EXECUTION_IMPLEMENTED) };
+    }
+
+    #[test]
+    fn t028_enables_strict_result_adaptation_surface() {
+        const { assert!(RAW_ENGINE_RESULT_ADAPTATION_IMPLEMENTED) };
     }
 
     #[test]

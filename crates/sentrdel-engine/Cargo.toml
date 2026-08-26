@@ -11,6 +11,12 @@ publish.workspace = true
 [dependencies]
 process-wrap = { version = "=9.1.0", default-features = false, features = ["std", "process-group", "job-object"] }
 sentrdel-schema = { version = "=0.0.0", path = "../sentrdel-schema" }
+# T028 strict result adaptation only: typed decoding after Sentrdel-owned bounded preflight.
+# Privileged build-time/proc-macro surface; elevated manual review required. See docs/third-party/engine-adapter-dependency-qualification.md.
+serde.workspace = true
+# T028 strict JSON/SARIF decoding after bounded preflight; no process/network/policy authority.
+# Privileged build-time surface; elevated manual review required. See docs/third-party/engine-adapter-dependency-qualification.md.
+serde_json.workspace = true
 
 [target.'cfg(unix)'.dependencies]
 nix = { version = "=0.31.3", default-features = false }

@@ -171,6 +171,7 @@ pub enum EvidenceValidationError {
     LlmAuthorityEscalation(EpistemicClass),
     VerifiedNotAuthorizedInR1,
     RuntimeAuthorityMismatch(EpistemicClass),
+    ReproductionInputDigestNotTrusted(String),
     ForgedEvidenceId,
     Canonical(String),
 }
@@ -205,6 +206,10 @@ impl fmt::Display for EvidenceValidationError {
                     "producer kind is not authorized to emit epistemic class {class:?}"
                 )
             }
+            Self::ReproductionInputDigestNotTrusted(digest) => write!(
+                f,
+                "reproduction input digest is not bound to a declared evidence input digest: {digest}"
+            ),
             Self::ForgedEvidenceId => {
                 write!(f, "evidence id does not match validated canonical content")
             }
@@ -318,6 +323,19 @@ fn validate_claim(
             claim.epistemic_class.clone(),
         ));
     }
+    if let Some(reproduction_input_digest) = claim
+        .reproduction
+        .as_ref()
+        .and_then(|reproduction| reproduction.input_digest.as_ref())
+        && !claim
+            .input_digests
+            .iter()
+            .any(|trusted_digest| trusted_digest == reproduction_input_digest)
+    {
+        return Err(EvidenceValidationError::ReproductionInputDigestNotTrusted(
+            reproduction_input_digest.clone(),
+        ));
+    }
     Ok(())
 }
 
@@ -415,5 +433,29 @@ mod tests {
             native.seal(value),
             Err(EvidenceValidationError::FactContainsInterpretation)
         ));
+    }
+
+    #[test]
+    fn reproduction_input_digest_must_bind_to_declared_inputs() {
+        let external = EvidenceAuthority::from_runtime("engine", "1", ProducerKind::ExternalEngine)
+            .expect("authority");
+        let mut value = claim(EpistemicClass::Inference);
+        value.reproduction = Some(ReproductionMetadata {
+            method: "fixture".to_owned(),
+            input_digest: Some("sha256:untrusted-input".to_owned()),
+            notes: None,
+        });
+        assert!(matches!(
+            external.seal(value.clone()),
+            Err(EvidenceValidationError::ReproductionInputDigestNotTrusted(digest))
+                if digest == "sha256:untrusted-input"
+        ));
+
+        value
+            .reproduction
+            .as_mut()
+            .expect("reproduction")
+            .input_digest = Some("sha256:input".to_owned());
+        assert!(external.seal(value).is_ok());
     }
 }
