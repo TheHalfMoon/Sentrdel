@@ -10,7 +10,7 @@ publish.workspace = true
 
 [dependencies]
 regorus.workspace = true
-sentrdel-schema = { path = "../sentrdel-schema" }
+sentrdel-schema = { version = "=0.0.0", path = "../sentrdel-schema" }
 serde_json.workspace = true
 
 [lints]
