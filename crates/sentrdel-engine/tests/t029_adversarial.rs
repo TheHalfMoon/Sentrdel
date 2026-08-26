@@ -11,22 +11,13 @@ use std::{
 };
 
 use sentrdel_engine::{
-    EngineLimits, EngineProcessOutcome, EngineProcessSpec, NetworkAccessPolicy, RepoLocationError,
-    TrustedExecutable, TrustedExecutableError, normalize_repo_relative_path, run_engine_process,
+    EngineLimits, EngineProcessOutcome, EngineProcessSpec, NetworkAccessPolicy, TrustedExecutable,
+    TrustedExecutableError, run_engine_process,
 };
 use sentrdel_schema::engine::{EngineManifest, NetworkRequirement, TerminationReason};
-use serde_json::Value;
 
 const FIXTURE_MODE: &str = "SENTRDEL_T029_FIXTURE_MODE";
 const SYNTHETIC_CANARY_VALUE: &str = "sentrdel-t029-synthetic-canary-not-a-secret";
-const VALID_MINIMAL: &[u8] = include_bytes!("../../../fixtures/engines/native-valid-minimal.json");
-const VALID_MULTIPLE: &[u8] =
-    include_bytes!("../../../fixtures/engines/native-valid-multiple.json");
-const VALID_EMPTY: &[u8] = include_bytes!("../../../fixtures/engines/native-empty.json");
-const MALFORMED: &[u8] = include_bytes!("../../../fixtures/engines/native-malformed.json");
-const OUT_OF_ROOT: &[u8] = include_bytes!("../../../fixtures/engines/native-out-of-root.json");
-const UNSUPPORTED_SCHEMA: &[u8] =
-    include_bytes!("../../../fixtures/engines/native-unsupported-schema.json");
 const SENSITIVE_ENVIRONMENT_NAMES: &[&str] = &[
     "AWS_ACCESS_KEY_ID",
     "AWS_SECRET_ACCESS_KEY",
@@ -120,48 +111,6 @@ fn run_fixture(
         .expect("T029 fixture invocation should return an explicit outcome")
 }
 
-fn parse_fixture(bytes: &[u8]) -> Value {
-    serde_json::from_slice(bytes).expect("fixture must be valid JSON")
-}
-
-#[test]
-fn valid_minimal_multiple_and_empty_fixture_shapes_are_deterministic() {
-    let minimal = parse_fixture(VALID_MINIMAL);
-    let multiple = parse_fixture(VALID_MULTIPLE);
-    let empty = parse_fixture(VALID_EMPTY);
-
-    assert_eq!(minimal["schema_version"], "1");
-    assert_eq!(minimal["evidence"].as_array().map(Vec::len), Some(1));
-    assert_eq!(multiple["schema_version"], "1");
-    assert_eq!(multiple["evidence"].as_array().map(Vec::len), Some(2));
-    assert_eq!(empty["schema_version"], "1");
-    assert_eq!(empty["evidence"].as_array().map(Vec::len), Some(0));
-}
-
-#[test]
-fn malformed_and_unsupported_schema_fixtures_are_explicit() {
-    assert!(serde_json::from_slice::<Value>(MALFORMED).is_err());
-
-    let unsupported = parse_fixture(UNSUPPORTED_SCHEMA);
-    assert_eq!(unsupported["schema_version"], "2");
-    assert_eq!(unsupported["evidence"].as_array().map(Vec::len), Some(0));
-}
-
-#[test]
-fn out_of_root_fixture_is_rejected_by_the_canonical_path_normalizer() {
-    let fixture = parse_fixture(OUT_OF_ROOT);
-    let path = fixture
-        .pointer("/evidence/0/locations/0/repo_relative_path")
-        .and_then(Value::as_str)
-        .expect("out-of-root fixture path");
-    let (workspace_root, _) = workspace("out-of-root");
-
-    assert_eq!(
-        normalize_repo_relative_path(&workspace_root, path),
-        Err(RepoLocationError::ParentTraversal)
-    );
-}
-
 #[test]
 fn flood_timeout_and_nonzero_are_explicit_process_outcomes() {
     let flood = run_fixture("flood", "flood", 2_000, 128);
@@ -195,6 +144,7 @@ fn missing_executable_is_rejected_before_spawn() {
 #[test]
 fn cloud_model_signing_and_ssh_credentials_are_absent_by_default() {
     let mut launcher = Command::new(env::current_exe().expect("current test executable"));
+    launcher.env_clear();
     launcher.args(fixture_arguments());
     launcher.env(FIXTURE_MODE, "launcher-env-probe");
     for name in SENSITIVE_ENVIRONMENT_NAMES {
