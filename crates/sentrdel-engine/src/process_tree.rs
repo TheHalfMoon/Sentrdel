@@ -33,7 +33,11 @@ impl ContainedChild {
     }
 
     pub(crate) fn start_kill(&mut self) -> io::Result<()> {
-        self.inner.start_kill()
+        match self.inner.start_kill() {
+            Ok(()) => Ok(()),
+            Err(error) if process_boundary_is_absent(&error) => Ok(()),
+            Err(error) => Err(error),
+        }
     }
 
     pub(crate) fn wait(&mut self) -> io::Result<ExitStatus> {
@@ -47,11 +51,7 @@ impl ContainedChild {
     /// Windows `NotFound` is likewise treated as quiescent. Every other failure
     /// remains fail-closed so permission or containment errors are never hidden.
     pub(crate) fn terminate_remaining(&mut self) -> io::Result<()> {
-        match self.inner.start_kill() {
-            Ok(()) => Ok(()),
-            Err(error) if process_boundary_is_absent(&error) => Ok(()),
-            Err(error) => Err(error),
-        }
+        self.start_kill()
     }
 }
 
