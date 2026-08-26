@@ -1,0 +1,1 @@
+{"schema_version":"1","evidence":[{"observation":"out of root fixture","security_interpretation":null,"category":"fixture:path","epistemic_class":"INFERENCE","confidence_band":null,"subjects":[],"locations":[{"repo_relative_path":"../outside.rs","start_line":1,"start_column":1,"end_line":1,"end_column":2,"symbol":null,"content_digest":null}],"attributes":{},"reproduction":null}]}
