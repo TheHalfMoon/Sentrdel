@@ -444,6 +444,9 @@ dependencies = [
 [[package]]
 name = "sentrdel-graph"
 version = "0.0.0"
+dependencies = [
+ "sentrdel-schema",
+]
 
 [[package]]
 name = "sentrdel-guard"
