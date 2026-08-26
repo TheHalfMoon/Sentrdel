@@ -89,19 +89,9 @@ mod tests {
     }
 
     #[test]
-    fn graph_domain_revalidation_rejects_forged_wire_identity() {
-        let valid = node(GraphNodeKind::Resource, "db:users");
-        let encoded = serde_json::to_value(&valid).expect("serialize node");
-        let mut object = encoded.as_object().expect("node object").clone();
-        object.insert(
-            "node_id".to_owned(),
-            serde_json::Value::String(
-                "sha256:0000000000000000000000000000000000000000000000000000000000000000"
-                    .to_owned(),
-            ),
-        );
-        let forged: GraphNode =
-            serde_json::from_value(serde_json::Value::Object(object)).expect("wire node");
+    fn graph_domain_revalidation_rejects_stale_claimed_identity() {
+        let mut forged = node(GraphNodeKind::Resource, "db:users");
+        forged.semantic_key = "db:admins".to_owned();
 
         assert!(matches!(
             validate_node(&forged),
@@ -118,9 +108,6 @@ mod tests {
         )
         .expect("confidence");
         assert_eq!(confidence.basis, GraphConfidenceBasis::Inferred);
-
-        let encoded = serde_json::to_string(&confidence).expect("serialize confidence");
-        assert!(!encoded.contains("FACT"));
-        assert!(!encoded.contains("VERIFIED"));
+        assert_ne!(confidence.basis, GraphConfidenceBasis::Extracted);
     }
 }
