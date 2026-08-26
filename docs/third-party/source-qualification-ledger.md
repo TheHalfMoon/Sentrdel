@@ -13,6 +13,7 @@ The repository does **not** currently contain source-specific private permission
 | actions/checkout | `11d5960a326750d5838078e36cf38b85af677262` (v4.4.0 release line) | CI_ACTION | repository action consumed by immutable commit SHA | ADOPT for bootstrap CI | `persist-credentials: false`; immutable pin avoids mutable-tag drift; this commit contains backported fork/`pull_request_target` checkout hardening |
 | Graphify-Labs/graphify | `b2cd36267456c166788c95be6e68574064a92a42` (`v8`, package `0.9.48`) | FOUNDER_ATTESTED_DONOR | current package is Apache-2.0; NOTICE retains older MIT-contributed portions; selected-file qualification conservatively uses Apache-2.0 | `QUALIFIED_FOR_SELECTIVE_RUST_PORT` via GQ-001; implementation remains separate | graph diff + affected/blast-radius traversal + validation concepts only; no Python/NetworkX/MCP/provider runtime; Sentrdel authority remains canonical |
 | microsoft/regorus | `f98865fc980b9919d201e20969d9b28685ee72bc` (`regorus-v0.11.0`; crates.io `regorus 0.11.0`) | NATIVE_DEP | upstream package declares `MIT AND Apache-2.0 AND BSD-3-Clause` | `QUALIFIED_FOR_BOUNDED_IN_PROCESS_POLICY_ONLY` via RQ-001 | exact pin/checksum; defaults disabled; only `std` + `arc`; no HTTP/net/time/YAML/OPA-runtime/RVM policy authority; Regorus `build.rs`, transitive proc-macro/build surfaces, and `msvc_spectre_libs` native-link behavior recorded; Rust kernel remains authoritative |
+| watchexec/process-wrap | `3d856eebd02799d025237134db51d05bbc4f1434` (`v9.1.0`; crates.io `process-wrap 9.1.0`) | NATIVE_DEP | upstream package declares `Apache-2.0 OR MIT` | `QUALIFIED_FOR_T027_UNIX_PROCESS_LIFECYCLE_CONTAINMENT` via PWQ-001 | exact pin/checksum; defaults disabled; `std` + `process-group` + `job-object`; Unix process-group behavior proven on Ubuntu; `nix 0.31.3` privileged syscall/build surface recorded; Windows Job Object closure is lockfile-governed but not runtime-qualified by current evidence |
 | vitali87/code-graph-rag | UNPINNED — exact qualification required before import | FOUNDER_ATTESTED_DONOR | repository-level MIT observed; file-level record still required | QUALIFICATION_PENDING / selective port or adapter | permission basis currently `FOUNDER_ATTESTATION_2026-08-24`; source-specific proof not stored; resource/data-flow/static-runtime merge is high-value; Python/Memgraph is not the Sentrdel trusted base runtime |
 | deepseek-ai/deepseek-harness | UNPINNED — exact qualification required before import | FOUNDER_ATTESTED_DONOR | repository-level MIT observed | QUALIFICATION_PENDING / selective port | permission basis currently `FOUNDER_ATTESTATION_2026-08-24`; source-specific proof not stored; durable events/tool guards/approval seams; do not inherit the whole rapidly evolving agent runtime |
 | continuedev/continue | UNPINNED — exact qualification required before import | FOUNDER_ATTESTED_DONOR | repository-level Apache-2.0 observed | QUALIFICATION_PENDING / integration-layer reuse | permission basis currently `FOUNDER_ATTESTATION_2026-08-24`; source-specific proof not stored; VS Code/JetBrains/CLI/diff plumbing may be reused selectively; no need for a wholesale product fork |
@@ -84,6 +85,45 @@ modifications: Sentrdel wrapper adds stricter depth/size/subset limits and autho
 qualified_by: Sentrdel dependency qualification review
 qualified_at: 2026-08-25
 qualification_report: docs/third-party/regorus-qualification.md
+```
+
+## PWQ-001 — process containment dependency qualification record
+
+```text
+source_id: PWQ-001
+repository: watchexec/process-wrap
+exact_ref: 3d856eebd02799d025237134db51d05bbc4f1434
+tag: v9.1.0
+annotated_tag_object: d61729ff63bb9e5c731c8c5720bfffbc9350d167
+crate: process-wrap =9.1.0
+crate_checksum: 2e842efad9119158434d193c6682e2ebee4b44d6ad801d7b349623b3f57cdf55
+subsidiary_dependency: nix =0.31.3 @ b5933ca178802b558a667514f717a86b3a1cedcc; tag v0.31.3; annotated tag object 9cd968a1af35b46b05ed41e05acfcca5d02a5645; checksum cf20d2fde8ff38632c426f1165ed7436270b44f199fc55284c38276f9db47c3d
+files_or_artifacts:
+  - crates.io process-wrap 9.1.0 package
+  - process-wrap Cargo.toml @ 3d856eebd02799d025237134db51d05bbc4f1434
+  - process-wrap src/std/process_group.rs @ v9.1.0
+  - process-wrap src/std/job_object.rs @ v9.1.0
+  - crates.io nix 0.31.3 package
+  - nix Cargo.toml @ b5933ca178802b558a667514f717a86b3a1cedcc
+  - nix build.rs @ b5933ca178802b558a667514f717a86b3a1cedcc
+  - committed Sentrdel Cargo.lock dependency closure
+permission_basis: public package license grants
+source_specific_permission_reference: N/A
+license_expression: process-wrap Apache-2.0 OR MIT; nix MIT
+notices: follow upstream package/license requirements; no donor implementation source copied into Sentrdel
+integration_mode: NATIVE_DEP behind private sentrdel-engine process_tree boundary
+features: process-wrap default-features=false; std; process-group; job-object. nix direct dependency default-features=false and used only for exact ESRCH identity; process-wrap activates its required Unix nix features.
+executes_at_build: process-wrap NO package build.rs. nix YES — qualified build.rs only declares cfg aliases/rustc-check-cfg metadata; no subprocess/download/network/credential behavior observed.
+procedural_macro: CONDITIONAL TRANSITIVE — Windows target closure includes windows interface/implementation proc macros; lockfile governed. No proc macro receives Sentrdel policy or repository authority.
+native_code: YES / PRIVILEGED OS SURFACE — process containment uses POSIX group signaling/waiting on Unix and Windows Job Object APIs on Windows; dependency implementations contain platform FFI/unsafe code while sentrdel-engine itself forbids unsafe code.
+downloads_artifacts: no runtime/build artifact-download path admitted by the qualified process-wrap/nix feature set; normal crates.io dependency resolution occurs only for Sentrdel's trusted workspace.
+security_notes: executable selection, argv, cwd confinement, env_clear allowlist, hard limits, network declaration admission, termination policy, and output interpretation remain Rust-owned Sentrdel authority. Exact Ubuntu qualification proves Unix descendant termination; Windows runtime correctness is not claimed.
+maintenance_notes: process-wrap 10.0.0 was released 2026-08-24 with breaking wrapper and Windows fixes. Any version/feature change or Windows release claim requires a fresh qualification delta and lockfile review.
+modifications: no upstream source modified/copied; Sentrdel adds a private containment wrapper and lifecycle regression tests.
+qualified_by: Sentrdel dependency qualification review
+qualified_at: 2026-08-26
+qualification_evidence: GitHub Actions run 32916506528 on Sentrdel head f61b71cae9f66168863da6768d24dbd2822f0160; Rust 1.98 semantic PASS; cargo-audit 0.22.0 PASS; cargo-deny 0.20.2 PASS without waiver
+qualification_report: docs/third-party/process-wrap-qualification.md
 ```
 
 ## Record template
