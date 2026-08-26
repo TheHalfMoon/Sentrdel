@@ -319,12 +319,16 @@ mod tests {
         let edge = schemas
             .get("graph-edge.schema.json")
             .expect("graph edge schema");
-        let encoded = serde_json::to_string(edge).expect("encode graph edge schema");
-        assert!(encoded.contains("EXTRACTED"));
-        assert!(encoded.contains("INFERRED"));
-        assert!(encoded.contains("AMBIGUOUS"));
-        assert!(!encoded.contains("VERIFIED"));
-        assert!(!encoded.contains("EpistemicClass"));
+        let bases = edge
+            .pointer("/$defs/GraphConfidenceBasis/enum")
+            .and_then(|value| value.as_array())
+            .expect("graph confidence enum");
+        assert_eq!(bases.len(), 3);
+        for expected in ["EXTRACTED", "INFERRED", "AMBIGUOUS"] {
+            assert!(bases.iter().any(|value| value.as_str() == Some(expected)));
+        }
+        assert!(!bases.iter().any(|value| value.as_str() == Some("VERIFIED")));
+        assert!(edge.pointer("/$defs/EpistemicClass").is_none());
     }
 
     #[test]
