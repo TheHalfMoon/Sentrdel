@@ -26,5 +26,10 @@ name = "t029_adversarial"
 path = "tests/t029_adversarial.rs"
 harness = false
 
+[[test]]
+name = "t030_coverage_finalization"
+path = "tests/t030_coverage_finalization.rs"
+harness = false
+
 [lints]
 workspace = true
