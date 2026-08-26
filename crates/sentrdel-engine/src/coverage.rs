@@ -122,7 +122,7 @@ impl EngineCoverageContext {
 /// accepts the same completed process output. `RejectedOutput` retains the
 /// adapter error for diagnostics while its CoverageRecord remains an explicit
 /// gap. `TerminationGap` represents every non-completed T027 outcome.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum EngineCoverageOutcome {
     Covered {
         evidence: Vec<Evidence>,
