@@ -10,6 +10,7 @@ use crate::{
     engine::{EngineManifest, EngineRun},
     evidence::EvidenceRecord,
     finding::FindingRecord,
+    graph::{GraphEdge, GraphNode},
     pack::SecurityPackManifest,
     policy::PolicyDecisionRecord,
     project::ProjectProfile,
@@ -259,6 +260,8 @@ pub fn export_all() -> Result<BTreeMap<&'static str, Value>, serde_json::Error> 
     schemas.insert("finding.schema.json", finding);
 
     schemas.insert("coverage.schema.json", schema_value::<CoverageRecord>()?);
+    schemas.insert("graph-node.schema.json", schema_value::<GraphNode>()?);
+    schemas.insert("graph-edge.schema.json", schema_value::<GraphEdge>()?);
 
     let mut asel = schema_value::<AgentSecurityEventRecord>()?;
     harden_asel_schema(&mut asel);
@@ -299,7 +302,7 @@ mod tests {
     #[test]
     fn all_public_schemas_generate_as_objects() {
         let schemas = export_all().expect("schema generation");
-        assert_eq!(schemas.len(), 10);
+        assert_eq!(schemas.len(), 12);
         for (name, schema) in schemas {
             assert!(name.ends_with(".schema.json"));
             assert!(schema.is_object());
@@ -311,6 +314,18 @@ mod tests {
     }
 
     #[test]
+    fn graph_schema_keeps_confidence_separate_from_epistemic_authority() {
+        let schemas = export_all().expect("schema generation");
+        let edge = schemas.get("graph-edge.schema.json").expect("graph edge schema");
+        let encoded = serde_json::to_string(edge).expect("encode graph edge schema");
+        assert!(encoded.contains("EXTRACTED"));
+        assert!(encoded.contains("INFERRED"));
+        assert!(encoded.contains("AMBIGUOUS"));
+        assert!(!encoded.contains("VERIFIED"));
+        assert!(!encoded.contains("EpistemicClass"));
+    }
+
+    #[test]
     fn evidence_schema_enforces_r1_authority_limits() {
         let schemas = export_all().expect("schema generation");
         let evidence = schemas
@@ -318,7 +333,7 @@ mod tests {
             .expect("evidence schema");
         let classes = evidence
             .pointer("/$defs/EpistemicClass/enum")
-            .and_then(|value| value.as_array())
+            .and_then(|value| value.as_array_mut())
             .expect("epistemic enum");
         assert!(
             !classes
