@@ -97,12 +97,8 @@ fn manifest(timeout_ms: u64, max_stdout_bytes: u64, max_stderr_bytes: u64) -> En
 }
 
 fn authority() -> EvidenceAuthority {
-    EvidenceAuthority::from_runtime(
-        "t029-fixture-engine",
-        "1",
-        ProducerKind::ExternalEngine,
-    )
-    .expect("external engine authority")
+    EvidenceAuthority::from_runtime("t029-fixture-engine", "1", ProducerKind::ExternalEngine)
+        .expect("external engine authority")
 }
 
 fn workspace(label: &str) -> (PathBuf, PathBuf) {
