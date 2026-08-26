@@ -65,9 +65,8 @@
 - [x] T026 Implement `Engine` trait, request/limits/result types and adapter registry.
 - [x] T027 Implement the only allowed external-engine process runner using argv arrays, trusted executable resolution, bounded cwd/time/stdout/stderr, and **deny-by-default/scrubbed child environment with explicit allowlist**.
 - [x] T028 Implement strict raw-result/SARIF adapter boundary and repo-relative location normalization.
-- [ ] T029 Add malformed JSON, flood, timeout, non-zero, missing executable, out-of-root path and inherited-secret canary fixtures/tests; prove cloud/model/signing/SSH credentials are absent by default.
+- [x] T029 Add malformed JSON, flood, timeout, non-zero, missing executable, out-of-root path and inherited-secret canary fixtures/tests; prove cloud/model/signing/SSH credentials are absent by default.
 - [ ] T030 Prove every engine termination path emits explicit CoverageRecord state.
-
 ### Evidence graph
 
 - [ ] T031 Implement stable graph node/edge identities, provenance and confidence-source types.
