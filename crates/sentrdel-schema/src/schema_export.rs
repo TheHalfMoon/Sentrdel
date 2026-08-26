@@ -67,11 +67,7 @@ fn set_schema_version_const(schema: &mut Value) {
 }
 
 fn harden_graph_provenance(schema: &mut Value) {
-    set_string_pattern(
-        schema,
-        "/$defs/GraphProvenanceId",
-        NONBLANK_PATTERN,
-    );
+    set_string_pattern(schema, "/$defs/GraphProvenanceId", NONBLANK_PATTERN);
     let provenance = schema
         .pointer_mut("/properties/provenance_ids")
         .and_then(Value::as_object_mut)
