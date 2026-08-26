@@ -243,12 +243,13 @@ impl Parser<'_> {
                     Context::SarifRun
                 }
                 Context::SarifResultsArray => {
-                    self.sarif_items = self.sarif_items.checked_add(1).ok_or(
-                        BoundedJsonError::TooManyItems {
-                            count: usize::MAX,
-                            max: self.max_items,
-                        },
-                    )?;
+                    self.sarif_items =
+                        self.sarif_items
+                            .checked_add(1)
+                            .ok_or(BoundedJsonError::TooManyItems {
+                                count: usize::MAX,
+                                max: self.max_items,
+                            })?;
                     if self.sarif_items > self.max_items {
                         return Err(BoundedJsonError::TooManyItems {
                             count: self.sarif_items,
@@ -348,10 +349,7 @@ impl Parser<'_> {
                         b'u' => {
                             self.position += 1;
                             for _ in 0..4 {
-                                if !self
-                                    .peek()
-                                    .is_some_and(|value| value.is_ascii_hexdigit())
-                                {
+                                if !self.peek().is_some_and(|value| value.is_ascii_hexdigit()) {
                                     return Err(BoundedJsonError::Malformed);
                                 }
                                 self.position += 1;
@@ -453,10 +451,7 @@ impl Parser<'_> {
         if let Some(limit) = local_depth_limit
             && depth > limit
         {
-            return Err(BoundedJsonError::AttributeValueTooDeep {
-                depth,
-                max: limit,
-            });
+            return Err(BoundedJsonError::AttributeValueTooDeep { depth, max: limit });
         }
         Ok(())
     }
@@ -545,9 +540,8 @@ mod tests {
         for _ in 0..=MAX_ATTRIBUTE_VALUE_DEPTH {
             nested.push(']');
         }
-        let raw = format!(
-            r#"{{"schema_version":"1","evidence":[{{"attributes":{{"x":{nested}}}}}]}}"#
-        );
+        let raw =
+            format!(r#"{{"schema_version":"1","evidence":[{{"attributes":{{"x":{nested}}}}}]}}"#);
         assert!(matches!(
             preflight_json(raw.as_bytes(), BoundedJsonDialect::Native, 4, 4, 4, 4, 4),
             Err(BoundedJsonError::AttributeValueTooDeep { .. })

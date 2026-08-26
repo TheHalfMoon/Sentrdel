@@ -28,9 +28,8 @@ use serde_json::Value;
 use crate::{
     EngineLimits, EngineProcessOutcome,
     bounded_json::{
-        BoundedJsonDialect, BoundedJsonError, MAX_ATTRIBUTE_VALUE_BYTES,
-        MAX_ATTRIBUTE_VALUE_DEPTH, MAX_ATTRIBUTE_VALUE_NODES, MAX_JSON_DEPTH, MAX_JSON_NODES,
-        preflight_json,
+        BoundedJsonDialect, BoundedJsonError, MAX_ATTRIBUTE_VALUE_BYTES, MAX_ATTRIBUTE_VALUE_DEPTH,
+        MAX_ATTRIBUTE_VALUE_NODES, preflight_json,
     },
 };
 
@@ -956,8 +955,7 @@ fn validate_location_metadata(location: &EvidenceLocation) -> Result<(), RepoLoc
             return Err(RepoLocationError::InvalidRange);
         }
     } else if location.end_line.is_none()
-        && let (Some(start_column), Some(end_column)) =
-            (location.start_column, location.end_column)
+        && let (Some(start_column), Some(end_column)) = (location.start_column, location.end_column)
         && end_column < start_column
     {
         return Err(RepoLocationError::InvalidRange);
@@ -1260,7 +1258,10 @@ mod tests {
 
         assert_eq!(evidence.len(), 1);
         assert_eq!(evidence[0].producer().kind, ProducerKind::ExternalEngine);
-        assert_eq!(evidence[0].claim().locations[0].repo_relative_path, "src/lib.rs");
+        assert_eq!(
+            evidence[0].claim().locations[0].repo_relative_path,
+            "src/lib.rs"
+        );
     }
 
     #[test]
