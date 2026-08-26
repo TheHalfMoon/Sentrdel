@@ -8,5 +8,8 @@ license.workspace = true
 repository.workspace = true
 publish.workspace = true
 
+[dependencies]
+sentrdel-schema = { version = "=0.0.0", path = "../sentrdel-schema" }
+
 [lints]
 workspace = true
