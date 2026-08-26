@@ -20,7 +20,8 @@ use serde_json::Value;
 const FIXTURE_MODE: &str = "SENTRDEL_T029_FIXTURE_MODE";
 const SYNTHETIC_CANARY_VALUE: &str = "sentrdel-t029-synthetic-canary-not-a-secret";
 const VALID_MINIMAL: &[u8] = include_bytes!("../../../fixtures/engines/native-valid-minimal.json");
-const VALID_MULTIPLE: &[u8] = include_bytes!("../../../fixtures/engines/native-valid-multiple.json");
+const VALID_MULTIPLE: &[u8] =
+    include_bytes!("../../../fixtures/engines/native-valid-multiple.json");
 const VALID_EMPTY: &[u8] = include_bytes!("../../../fixtures/engines/native-empty.json");
 const MALFORMED: &[u8] = include_bytes!("../../../fixtures/engines/native-malformed.json");
 const OUT_OF_ROOT: &[u8] = include_bytes!("../../../fixtures/engines/native-out-of-root.json");
