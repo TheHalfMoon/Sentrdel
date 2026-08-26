@@ -316,7 +316,9 @@ mod tests {
     #[test]
     fn graph_schema_keeps_confidence_separate_from_epistemic_authority() {
         let schemas = export_all().expect("schema generation");
-        let edge = schemas.get("graph-edge.schema.json").expect("graph edge schema");
+        let edge = schemas
+            .get("graph-edge.schema.json")
+            .expect("graph edge schema");
         let encoded = serde_json::to_string(edge).expect("encode graph edge schema");
         assert!(encoded.contains("EXTRACTED"));
         assert!(encoded.contains("INFERRED"));
