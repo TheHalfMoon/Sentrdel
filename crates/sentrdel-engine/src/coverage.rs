@@ -10,11 +10,7 @@
 //! rejection yields an explicit `FAILED` / malformed-output coverage gap. Every
 //! non-completed T027 termination is mapped directly to an explicit gap.
 
-use std::{
-    collections::BTreeSet,
-    error::Error,
-    fmt,
-};
+use std::{collections::BTreeSet, error::Error, fmt};
 
 use sentrdel_schema::{
     SCHEMA_V1,
@@ -197,9 +193,8 @@ impl fmt::Display for EngineCoverageError {
                 formatter,
                 "engine coverage input digest is duplicated: {digest:?}"
             ),
-            Self::InvalidObservedAt => formatter.write_str(
-                "engine coverage observation time must use canonical UTC RFC3339 form",
-            ),
+            Self::InvalidObservedAt => formatter
+                .write_str("engine coverage observation time must use canonical UTC RFC3339 form"),
             Self::UndeclaredCapability(capability) => write!(
                 formatter,
                 "engine coverage capability is not declared by the trusted manifest: {capability:?}"
@@ -296,10 +291,9 @@ fn gap_mapping(termination: &TerminationReason) -> Option<(CoverageState, &'stat
         TerminationReason::MalformedOutput => {
             Some((CoverageState::Failed, ENGINE_MALFORMED_OUTPUT_REASON))
         }
-        TerminationReason::PolicyBlocked => Some((
-            CoverageState::SkippedByPolicy,
-            ENGINE_POLICY_BLOCKED_REASON,
-        )),
+        TerminationReason::PolicyBlocked => {
+            Some((CoverageState::SkippedByPolicy, ENGINE_POLICY_BLOCKED_REASON))
+        }
     }
 }
 
