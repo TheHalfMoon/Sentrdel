@@ -1044,6 +1044,7 @@ mod tests {
                 thread::spawn(move || {
                     let _ = descendant.wait();
                 });
+                thread::sleep(Duration::from_millis(500));
             }
             "hold-pipes" => {
                 thread::sleep(Duration::from_millis(500));
