@@ -70,6 +70,21 @@ const GRAPH_EDGE_HISTORY_SQL: &str = r#"
     ) STRICT
 "#;
 
+const GRAPH_NODE_HISTORY_INSERT_TRIGGER_SQL: &str = r#"
+    CREATE TRIGGER sentrdel_graph_node_history_projection_guard
+    BEFORE INSERT ON sentrdel_graph_node_history
+    WHEN NOT EXISTS (
+        SELECT 1
+        FROM sentrdel_graph_node_projection
+        WHERE node_id = NEW.node_id
+          AND revision = NEW.revision
+          AND canonical_json = NEW.canonical_json
+    )
+    BEGIN
+        SELECT RAISE(ABORT, 'Sentrdel graph node history must match the current projection revision');
+    END
+"#;
+
 const GRAPH_NODE_HISTORY_UPDATE_TRIGGER_SQL: &str = r#"
     CREATE TRIGGER sentrdel_graph_node_history_immutable_update
     BEFORE UPDATE ON sentrdel_graph_node_history
@@ -83,6 +98,23 @@ const GRAPH_NODE_HISTORY_DELETE_TRIGGER_SQL: &str = r#"
     BEFORE DELETE ON sentrdel_graph_node_history
     BEGIN
         SELECT RAISE(ABORT, 'Sentrdel graph node history is immutable');
+    END
+"#;
+
+const GRAPH_EDGE_HISTORY_INSERT_TRIGGER_SQL: &str = r#"
+    CREATE TRIGGER sentrdel_graph_edge_history_projection_guard
+    BEFORE INSERT ON sentrdel_graph_edge_history
+    WHEN NOT EXISTS (
+        SELECT 1
+        FROM sentrdel_graph_edge_projection
+        WHERE edge_id = NEW.edge_id
+          AND revision = NEW.revision
+          AND source_node_id = NEW.source_node_id
+          AND target_node_id = NEW.target_node_id
+          AND canonical_json = NEW.canonical_json
+    )
+    BEGIN
+        SELECT RAISE(ABORT, 'Sentrdel graph edge history must match the current projection revision');
     END
 "#;
 
@@ -107,8 +139,10 @@ pub(super) fn apply_v5_schema(connection: &Connection) -> StoreResult<()> {
     connection.execute_batch(GRAPH_NODE_HISTORY_SQL)?;
     connection.execute_batch(GRAPH_EDGE_PROJECTION_SQL)?;
     connection.execute_batch(GRAPH_EDGE_HISTORY_SQL)?;
+    connection.execute_batch(GRAPH_NODE_HISTORY_INSERT_TRIGGER_SQL)?;
     connection.execute_batch(GRAPH_NODE_HISTORY_UPDATE_TRIGGER_SQL)?;
     connection.execute_batch(GRAPH_NODE_HISTORY_DELETE_TRIGGER_SQL)?;
+    connection.execute_batch(GRAPH_EDGE_HISTORY_INSERT_TRIGGER_SQL)?;
     connection.execute_batch(GRAPH_EDGE_HISTORY_UPDATE_TRIGGER_SQL)?;
     connection.execute_batch(GRAPH_EDGE_HISTORY_DELETE_TRIGGER_SQL)?;
     Ok(())
@@ -137,12 +171,20 @@ pub(super) fn validate_v5_schema(connection: &Connection) -> StoreResult<()> {
 
     let triggers = [
         (
+            "sentrdel_graph_node_history_projection_guard",
+            GRAPH_NODE_HISTORY_INSERT_TRIGGER_SQL,
+        ),
+        (
             "sentrdel_graph_node_history_immutable_update",
             GRAPH_NODE_HISTORY_UPDATE_TRIGGER_SQL,
         ),
         (
             "sentrdel_graph_node_history_immutable_delete",
             GRAPH_NODE_HISTORY_DELETE_TRIGGER_SQL,
+        ),
+        (
+            "sentrdel_graph_edge_history_projection_guard",
+            GRAPH_EDGE_HISTORY_INSERT_TRIGGER_SQL,
         ),
         (
             "sentrdel_graph_edge_history_immutable_update",
