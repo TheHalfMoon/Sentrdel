@@ -11,6 +11,7 @@ pub mod coverage;
 pub mod engine;
 pub mod evidence;
 pub mod finding;
+pub mod graph;
 pub mod pack;
 pub mod policy;
 pub mod project;

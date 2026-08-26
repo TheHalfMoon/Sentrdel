@@ -1,0 +1,151 @@
+{
+  "$defs": {
+    "CanonicalGraphValue": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "string"
+        },
+        {
+          "maximum": 18446744073709551615,
+          "minimum": -9223372036854775808,
+          "type": "integer"
+        },
+        {
+          "items": {
+            "$ref": "#/$defs/CanonicalGraphValue"
+          },
+          "type": "array"
+        },
+        {
+          "additionalProperties": {
+            "$ref": "#/$defs/CanonicalGraphValue"
+          },
+          "type": "object"
+        }
+      ]
+    },
+    "GraphConfidenceBasis": {
+      "description": "Producer-local confidence vocabulary for a graph relationship.\n\nThis is not an `EpistemicClass`. `Extracted` does not mean FACT,\n`Inferred` does not gain deterministic authority, and no variant maps to\nVERIFIED. Evidence authority remains owned by the Evidence boundary.",
+      "enum": [
+        "EXTRACTED",
+        "INFERRED",
+        "AMBIGUOUS"
+      ],
+      "type": "string"
+    },
+    "GraphConfidenceSource": {
+      "additionalProperties": false,
+      "description": "Identifies who supplied an edge's confidence assertion and what local basis\nthat producer assigned to it.",
+      "properties": {
+        "basis": {
+          "$ref": "#/$defs/GraphConfidenceBasis"
+        },
+        "producer": {
+          "pattern": "\\S",
+          "type": "string"
+        },
+        "producer_version": {
+          "pattern": "\\S",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "producer",
+        "basis"
+      ],
+      "type": "object"
+    },
+    "GraphEdgeId": {
+      "description": "Stable content identity for one directed graph edge.",
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "GraphNodeId": {
+      "description": "Stable content identity for one graph node.",
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "GraphProvenanceId": {
+      "description": "Stable reference to evidence, an event, a producer record, or another\nprovenance-bearing canonical object.\n\nProvenance references are intentionally not restricted to one identifier\nnamespace. Callers must bind them to the authoritative object type at the\ningestion/reconciliation boundary that owns that object.",
+      "pattern": "\\S",
+      "type": "string"
+    },
+    "GraphRelation": {
+      "description": "Initial R1 directed relation vocabulary.",
+      "enum": [
+        "REFS",
+        "CALLS",
+        "DEPENDS_ON",
+        "READS_FROM",
+        "WRITES_TO",
+        "FLOWS_TO",
+        "AFFECTED_BY",
+        "SUPPORTS",
+        "CONTRADICTS",
+        "DETECTED_AS",
+        "INVOKES",
+        "CROSSES_TRUST_BOUNDARY"
+      ],
+      "type": "string"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Canonical R1 directed graph edge wire record.",
+  "properties": {
+    "attributes": {
+      "additionalProperties": {
+        "$ref": "#/$defs/CanonicalGraphValue"
+      },
+      "type": "object"
+    },
+    "confidence_source": {
+      "$ref": "#/$defs/GraphConfidenceSource"
+    },
+    "edge_id": {
+      "$ref": "#/$defs/GraphEdgeId"
+    },
+    "provenance_ids": {
+      "items": {
+        "$ref": "#/$defs/GraphProvenanceId"
+      },
+      "minItems": 1,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "relation": {
+      "$ref": "#/$defs/GraphRelation"
+    },
+    "schema_version": {
+      "const": "1",
+      "type": "string"
+    },
+    "source": {
+      "$ref": "#/$defs/GraphNodeId"
+    },
+    "target": {
+      "$ref": "#/$defs/GraphNodeId"
+    }
+  },
+  "required": [
+    "schema_version",
+    "edge_id",
+    "source",
+    "target",
+    "relation",
+    "confidence_source",
+    "provenance_ids",
+    "attributes"
+  ],
+  "title": "GraphEdge",
+  "type": "object"
+}
