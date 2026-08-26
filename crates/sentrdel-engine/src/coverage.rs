@@ -347,7 +347,9 @@ mod tests {
         );
 
         let mut duplicate_manifest = manifest();
-        duplicate_manifest.capabilities.push("static-analysis".to_owned());
+        duplicate_manifest
+            .capabilities
+            .push("static-analysis".to_owned());
         assert_eq!(
             coverage_record_for_engine_result(
                 &duplicate_manifest,
