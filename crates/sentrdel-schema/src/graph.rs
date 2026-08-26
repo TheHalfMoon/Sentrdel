@@ -18,7 +18,9 @@ const GRAPH_NODE_NAMESPACE: &str = "graph-node";
 const GRAPH_EDGE_NAMESPACE: &str = "graph-edge";
 
 /// Stable content identity for one graph node.
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema)]
+#[derive(
+    Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
+)]
 #[serde(transparent)]
 pub struct GraphNodeId(String);
 
@@ -29,7 +31,9 @@ impl GraphNodeId {
 }
 
 /// Stable content identity for one directed graph edge.
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema)]
+#[derive(
+    Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
+)]
 #[serde(transparent)]
 pub struct GraphEdgeId(String);
 
@@ -45,7 +49,9 @@ impl GraphEdgeId {
 /// Provenance references are intentionally not restricted to one identifier
 /// namespace. Callers must bind them to the authoritative object type at the
 /// ingestion/reconciliation boundary that owns that object.
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema)]
+#[derive(
+    Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
+)]
 #[serde(transparent)]
 pub struct GraphProvenanceId(String);
 
@@ -65,7 +71,9 @@ impl GraphProvenanceId {
 
 /// Initial R1 node vocabulary. These classes describe graph shape only; they
 /// do not confer Finding, policy, or epistemic authority.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema)]
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
+)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum GraphNodeKind {
     Project,
@@ -85,7 +93,9 @@ pub enum GraphNodeKind {
 }
 
 /// Initial R1 directed relation vocabulary.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema)]
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
+)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum GraphRelation {
     Refs,
@@ -107,7 +117,9 @@ pub enum GraphRelation {
 /// This is not an `EpistemicClass`. `Extracted` does not mean FACT,
 /// `Inferred` does not gain deterministic authority, and no variant maps to
 /// VERIFIED. Evidence authority remains owned by the Evidence boundary.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema)]
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
+)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum GraphConfidenceBasis {
     Extracted,
@@ -436,8 +448,7 @@ mod tests {
     fn node_identity_is_stable_domain_separated_and_kind_sensitive() {
         let file_a = derive_graph_node_id(GraphNodeKind::File, "src/lib.rs").expect("file id");
         let file_b = derive_graph_node_id(GraphNodeKind::File, "src/lib.rs").expect("file id");
-        let symbol =
-            derive_graph_node_id(GraphNodeKind::Symbol, "src/lib.rs").expect("symbol id");
+        let symbol = derive_graph_node_id(GraphNodeKind::Symbol, "src/lib.rs").expect("symbol id");
 
         assert_eq!(file_a, file_b);
         assert_ne!(file_a, symbol);
@@ -473,7 +484,10 @@ mod tests {
         .expect("first edge");
 
         let mut changed_attributes = BTreeMap::new();
-        changed_attributes.insert("call_site".to_owned(), Value::String("src/lib.rs:7".to_owned()));
+        changed_attributes.insert(
+            "call_site".to_owned(),
+            Value::String("src/lib.rs:7".to_owned()),
+        );
         let second = GraphEdge::new(
             source,
             target,
@@ -493,7 +507,9 @@ mod tests {
     #[test]
     fn untrusted_records_fail_closed_on_identity_and_provenance() {
         let mut valid = node(GraphNodeKind::Resource, "db:users");
-        valid.node_id = GraphNodeId("sha256:0000000000000000000000000000000000000000000000000000000000000000".to_owned());
+        valid.node_id = GraphNodeId(
+            "sha256:0000000000000000000000000000000000000000000000000000000000000000".to_owned(),
+        );
         assert!(matches!(
             valid.validate(),
             Err(GraphContractError::NodeIdentityMismatch)
