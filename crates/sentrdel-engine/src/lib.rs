@@ -15,13 +15,6 @@ mod bounded_json;
 mod process_tree;
 mod runner;
 
-#[cfg(test)]
-#[allow(dead_code)]
-mod t029_adapter_fixture_validation {
-    include!("adapter.rs");
-    include!("t029_adapter_fixture_validation.rs");
-}
-
 use std::{error::Error, fmt};
 
 use sentrdel_schema::engine::EngineManifest;

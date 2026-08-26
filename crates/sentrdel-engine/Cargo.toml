@@ -21,5 +21,10 @@ serde_json.workspace = true
 [target.'cfg(unix)'.dependencies]
 nix = { version = "=0.31.3", default-features = false }
 
+[[test]]
+name = "t029_adversarial"
+path = "tests/t029_adversarial.rs"
+harness = false
+
 [lints]
 workspace = true

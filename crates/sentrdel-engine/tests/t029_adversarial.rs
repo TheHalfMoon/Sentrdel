@@ -1,8 +1,9 @@
 use std::{
     collections::BTreeMap,
     env,
-    ffi::OsString,
+    ffi::{OsStr, OsString},
     fs, io,
+    io::Write,
     path::PathBuf,
     process::{self, Command},
     sync::atomic::{AtomicU64, Ordering},
@@ -11,13 +12,27 @@ use std::{
 };
 
 use sentrdel_engine::{
-    EngineLimits, EngineProcessOutcome, EngineProcessSpec, NetworkAccessPolicy, TrustedExecutable,
-    TrustedExecutableError, run_engine_process,
+    EngineAdapterError, EngineLimits, EngineOutputDialect, EngineProcessOutcome, EngineProcessSpec,
+    NetworkAccessPolicy, RepoLocationError, TrustedExecutable, TrustedExecutableError,
+    adapt_engine_output, run_engine_process,
 };
-use sentrdel_schema::engine::{EngineManifest, NetworkRequirement, TerminationReason};
+use sentrdel_schema::{
+    engine::{EngineManifest, NetworkRequirement, TerminationReason},
+    evidence::{EvidenceAuthority, ProducerKind},
+};
 
 const FIXTURE_MODE: &str = "SENTRDEL_T029_FIXTURE_MODE";
+const FIXTURE_CHILD_ARG: &str = "--sentrdel-t029-fixture-child";
+const CANARY_LAUNCHER_ARG: &str = "--sentrdel-t029-canary-launcher";
 const SYNTHETIC_CANARY_VALUE: &str = "sentrdel-t029-synthetic-canary-not-a-secret";
+const VALID_MINIMAL: &[u8] = include_bytes!("../../../fixtures/engines/native-valid-minimal.json");
+const VALID_MULTIPLE: &[u8] =
+    include_bytes!("../../../fixtures/engines/native-valid-multiple.json");
+const VALID_EMPTY: &[u8] = include_bytes!("../../../fixtures/engines/native-empty.json");
+const MALFORMED: &[u8] = include_bytes!("../../../fixtures/engines/native-malformed.json");
+const OUT_OF_ROOT: &[u8] = include_bytes!("../../../fixtures/engines/native-out-of-root.json");
+const UNSUPPORTED_SCHEMA: &[u8] =
+    include_bytes!("../../../fixtures/engines/native-unsupported-schema.json");
 const SENSITIVE_ENVIRONMENT_NAMES: &[&str] = &[
     "AWS_ACCESS_KEY_ID",
     "AWS_SECRET_ACCESS_KEY",
@@ -36,6 +51,31 @@ const SENSITIVE_ENVIRONMENT_NAMES: &[&str] = &[
 ];
 
 static NEXT_FIXTURE_ID: AtomicU64 = AtomicU64::new(0);
+
+fn main() {
+    if has_argument(FIXTURE_CHILD_ARG) {
+        let mode = env::var(FIXTURE_MODE).expect("fixture mode must be explicitly supplied");
+        fixture_engine_child(&mode);
+        return;
+    }
+
+    if has_argument(CANARY_LAUNCHER_ARG) {
+        synthetic_canary_launcher();
+        return;
+    }
+
+    valid_native_fixture_corpus_uses_canonical_adapter();
+    malformed_unsupported_and_out_of_root_use_canonical_adapter();
+    flood_timeout_and_nonzero_are_explicit_process_outcomes();
+    missing_executable_is_rejected_before_spawn();
+    cloud_model_signing_and_ssh_credentials_are_absent_by_default();
+}
+
+fn has_argument(expected: &str) -> bool {
+    env::args_os()
+        .skip(1)
+        .any(|argument| argument == OsStr::new(expected))
+}
 
 fn manifest(timeout_ms: u64, max_stdout_bytes: u64, max_stderr_bytes: u64) -> EngineManifest {
     EngineManifest {
@@ -56,6 +96,15 @@ fn manifest(timeout_ms: u64, max_stdout_bytes: u64, max_stderr_bytes: u64) -> En
     }
 }
 
+fn authority() -> EvidenceAuthority {
+    EvidenceAuthority::from_runtime(
+        "t029-fixture-engine",
+        "1",
+        ProducerKind::ExternalEngine,
+    )
+    .expect("external engine authority")
+}
+
 fn workspace(label: &str) -> (PathBuf, PathBuf) {
     let id = NEXT_FIXTURE_ID.fetch_add(1, Ordering::Relaxed);
     let root = env::temp_dir().join(format!("sentrdel-t029-{label}-{}-{id}", process::id()));
@@ -73,21 +122,13 @@ fn limits_for(manifest: &EngineManifest, label: &str) -> EngineLimits {
 fn fixture_executable() -> TrustedExecutable {
     TrustedExecutable::resolve(
         "trusted-t029-test-binary",
-        env::current_exe().expect("resolve current integration-test executable"),
+        env::current_exe().expect("resolve current T029 harness executable"),
     )
-    .expect("current integration-test executable is a trusted fixture")
+    .expect("current T029 harness executable is a trusted fixture")
 }
 
 fn fixture_arguments() -> Vec<OsString> {
-    [
-        "--ignored",
-        "--exact",
-        "fixture_engine_child",
-        "--nocapture",
-    ]
-    .into_iter()
-    .map(OsString::from)
-    .collect()
+    vec![OsString::from(FIXTURE_CHILD_ARG)]
 }
 
 fn process_spec(mode: &str) -> EngineProcessSpec {
@@ -104,28 +145,66 @@ fn run_fixture(
     mode: &str,
     timeout_ms: u64,
     max_stdout_bytes: u64,
-) -> EngineProcessOutcome {
+) -> (EngineManifest, EngineLimits, EngineProcessOutcome) {
     let manifest = manifest(timeout_ms, max_stdout_bytes, 16_384);
     let limits = limits_for(&manifest, label);
-    run_engine_process(&manifest, &process_spec(mode), &limits)
-        .expect("T029 fixture invocation should return an explicit outcome")
+    let outcome = run_engine_process(&manifest, &process_spec(mode), &limits)
+        .expect("T029 fixture invocation should return an explicit outcome");
+    (manifest, limits, outcome)
 }
 
-#[test]
+fn adapt_fixture(mode: &str, label: &str) -> Result<usize, EngineAdapterError> {
+    let (manifest, limits, outcome) = run_fixture(label, mode, 2_000, 1024 * 1024);
+    adapt_engine_output(
+        &manifest,
+        EngineOutputDialect::SentrdelJsonV1,
+        &outcome,
+        &authority(),
+        &limits,
+        &[],
+        "2026-08-26T00:00:00Z",
+    )
+    .map(|evidence| evidence.len())
+}
+
+fn valid_native_fixture_corpus_uses_canonical_adapter() {
+    assert_eq!(adapt_fixture("valid-minimal", "valid-minimal"), Ok(1));
+    assert_eq!(adapt_fixture("valid-multiple", "valid-multiple"), Ok(2));
+    assert_eq!(adapt_fixture("valid-empty", "valid-empty"), Ok(0));
+}
+
+fn malformed_unsupported_and_out_of_root_use_canonical_adapter() {
+    assert_eq!(
+        adapt_fixture("malformed", "malformed"),
+        Err(EngineAdapterError::MalformedJson)
+    );
+    assert_eq!(
+        adapt_fixture("unsupported-schema", "unsupported-schema"),
+        Err(EngineAdapterError::UnsupportedNativeSchemaVersion(
+            "2".to_owned()
+        ))
+    );
+    assert_eq!(
+        adapt_fixture("out-of-root", "out-of-root"),
+        Err(EngineAdapterError::Location(
+            RepoLocationError::ParentTraversal
+        ))
+    );
+}
+
 fn flood_timeout_and_nonzero_are_explicit_process_outcomes() {
-    let flood = run_fixture("flood", "flood", 2_000, 128);
+    let (_, _, flood) = run_fixture("flood", "flood", 2_000, 128);
     assert_eq!(flood.termination_reason(), &TerminationReason::OutputCap);
     assert!(flood.stdout().len() <= 128);
 
-    let timeout = run_fixture("timeout", "timeout", 80, 16_384);
+    let (_, _, timeout) = run_fixture("timeout", "timeout", 80, 16_384);
     assert_eq!(timeout.termination_reason(), &TerminationReason::Timeout);
 
-    let nonzero = run_fixture("nonzero", "nonzero", 2_000, 16_384);
+    let (_, _, nonzero) = run_fixture("nonzero", "nonzero", 2_000, 16_384);
     assert_eq!(nonzero.termination_reason(), &TerminationReason::NonZero);
     assert_eq!(nonzero.exit_status(), Some(23));
 }
 
-#[test]
 fn missing_executable_is_rejected_before_spawn() {
     let missing = env::temp_dir().join(format!(
         "sentrdel-t029-missing-executable-{}-{}",
@@ -141,11 +220,10 @@ fn missing_executable_is_rejected_before_spawn() {
     ));
 }
 
-#[test]
 fn cloud_model_signing_and_ssh_credentials_are_absent_by_default() {
-    let mut launcher = Command::new(env::current_exe().expect("current test executable"));
+    let mut launcher = Command::new(env::current_exe().expect("current T029 harness executable"));
     launcher.env_clear();
-    launcher.args(fixture_arguments());
+    launcher.arg(CANARY_LAUNCHER_ARG);
     launcher.env(FIXTURE_MODE, "launcher-env-probe");
     for name in SENSITIVE_ENVIRONMENT_NAMES {
         launcher.env(name, SYNTHETIC_CANARY_VALUE);
@@ -163,18 +241,41 @@ fn cloud_model_signing_and_ssh_credentials_are_absent_by_default() {
     );
 }
 
-#[test]
-#[ignore = "invoked only as a subprocess fixture by T029 adversarial tests"]
-fn fixture_engine_child() {
-    let mode = env::var(FIXTURE_MODE).expect("fixture mode must be explicitly supplied");
-    match mode.as_str() {
-        "flood" => {
-            use std::io::Write;
-            let payload = vec![b'x'; 16_384];
-            let mut stdout = io::stdout();
-            stdout.write_all(&payload).expect("write flood fixture");
-            stdout.flush().expect("flush flood fixture");
-        }
+fn synthetic_canary_launcher() {
+    assert_eq!(
+        env::var_os(FIXTURE_MODE).as_deref(),
+        Some(OsStr::new("launcher-env-probe")),
+        "launcher fixture mode was not explicitly supplied"
+    );
+    for name in SENSITIVE_ENVIRONMENT_NAMES {
+        assert_eq!(
+            env::var_os(name).as_deref(),
+            Some(OsStr::new(SYNTHETIC_CANARY_VALUE)),
+            "launcher is missing synthetic canary {name}"
+        );
+    }
+
+    let manifest = manifest(2_000, 16_384, 16_384);
+    let limits = limits_for(&manifest, "env-probe-child");
+    let outcome = run_engine_process(&manifest, &process_spec("env-probe"), &limits)
+        .expect("engine env probe should return an explicit outcome");
+    assert_eq!(outcome.termination_reason(), &TerminationReason::Completed);
+    assert!(
+        String::from_utf8_lossy(outcome.stdout()).contains("sensitive-environment-absent"),
+        "engine child did not confirm scrubbed environment"
+    );
+    println!("launcher-proved-environment-scrub");
+}
+
+fn fixture_engine_child(mode: &str) {
+    match mode {
+        "valid-minimal" => write_fixture(VALID_MINIMAL),
+        "valid-multiple" => write_fixture(VALID_MULTIPLE),
+        "valid-empty" => write_fixture(VALID_EMPTY),
+        "malformed" => write_fixture(MALFORMED),
+        "unsupported-schema" => write_fixture(UNSUPPORTED_SCHEMA),
+        "out-of-root" => write_fixture(OUT_OF_ROOT),
+        "flood" => write_fixture(&vec![b'x'; 16_384]),
         "timeout" => thread::sleep(Duration::from_millis(500)),
         "nonzero" => process::exit(23),
         "env-probe" => {
@@ -186,25 +287,12 @@ fn fixture_engine_child() {
             }
             println!("sensitive-environment-absent");
         }
-        "launcher-env-probe" => {
-            for name in SENSITIVE_ENVIRONMENT_NAMES {
-                assert_eq!(
-                    env::var_os(name).as_deref(),
-                    Some(std::ffi::OsStr::new(SYNTHETIC_CANARY_VALUE)),
-                    "launcher is missing synthetic canary {name}"
-                );
-            }
-            let manifest = manifest(2_000, 16_384, 16_384);
-            let limits = limits_for(&manifest, "env-probe-child");
-            let outcome = run_engine_process(&manifest, &process_spec("env-probe"), &limits)
-                .expect("engine env probe should return an explicit outcome");
-            assert_eq!(outcome.termination_reason(), &TerminationReason::Completed);
-            assert!(
-                String::from_utf8_lossy(outcome.stdout()).contains("sensitive-environment-absent"),
-                "engine child did not confirm scrubbed environment"
-            );
-            println!("launcher-proved-environment-scrub");
-        }
         other => panic!("unknown T029 fixture mode: {other}"),
     }
+}
+
+fn write_fixture(bytes: &[u8]) {
+    let mut stdout = io::stdout();
+    stdout.write_all(bytes).expect("write T029 fixture output");
+    stdout.flush().expect("flush T029 fixture output");
 }
