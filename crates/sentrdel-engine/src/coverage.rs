@@ -1,13 +1,14 @@
-//! T030 explicit external-engine termination-to-coverage mapping.
+//! T030 explicit external-engine termination-to-coverage finalization.
 //!
-//! Coverage is derived only from trusted Sentrdel process/adaptation state.
-//! External engine bytes cannot select coverage state, reason codes, producer
-//! identity, capability, scope, input provenance, or observation time.
+//! Coverage is derived only from trusted Sentrdel T027 process state and T028
+//! adaptation. External engine bytes cannot select coverage state, reason
+//! codes, producer identity, capability, scope, input provenance, or time.
 //!
 //! A raw `Completed` process outcome is deliberately insufficient to claim
-//! `COVERED`. The only public covered path requires an opaque receipt that this
-//! module creates only after the canonical T028 adapter accepts bounded output.
-//! All non-completed and malformed-output paths remain explicit coverage gaps.
+//! `COVERED`. The sole T030 finalizer invokes the canonical T028 adapter for a
+//! completed process; adapter acceptance yields `COVERED`, while adapter
+//! rejection yields an explicit `FAILED` / malformed-output coverage gap. Every
+//! non-completed T027 termination is mapped directly to an explicit gap.
 
 use std::{error::Error, fmt};
 
@@ -45,27 +46,53 @@ pub struct EngineCoverageContext {
     pub observed_at: String,
 }
 
-/// Opaque proof that the canonical T028 adapter accepted one completed engine
-/// output under a specific trusted manifest/input/time binding.
+/// Final T030 result for one actual T027 process outcome.
 ///
-/// Fields are intentionally private and there is no public constructor. Code
-/// outside this crate can obtain a receipt only through
-/// [`adapt_engine_output_for_coverage`], preventing a caller from fabricating
-/// an "accepted" bit and converting raw process completion into `COVERED`.
-#[derive(Debug, PartialEq, Eq)]
-pub struct EngineAdaptationReceipt {
-    engine_id: String,
-    adapter_version: String,
-    input_digests: Vec<String>,
-    captured_at: String,
+/// `Covered` is constructible by this module only after the canonical T028
+/// adapter accepts the same completed process output. `RejectedOutput` retains
+/// the adapter error for diagnostics while its CoverageRecord remains an
+/// explicit gap. `TerminationGap` represents every non-completed T027 outcome.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum EngineCoverageOutcome {
+    Covered {
+        evidence: Vec<Evidence>,
+        coverage: CoverageRecord,
+    },
+    RejectedOutput {
+        coverage: CoverageRecord,
+        adapter_error: EngineAdapterError,
+    },
+    TerminationGap {
+        coverage: CoverageRecord,
+    },
+}
+
+impl EngineCoverageOutcome {
+    pub fn coverage(&self) -> &CoverageRecord {
+        match self {
+            Self::Covered { coverage, .. }
+            | Self::RejectedOutput { coverage, .. }
+            | Self::TerminationGap { coverage } => coverage,
+        }
+    }
+
+    pub fn evidence(&self) -> &[Evidence] {
+        match self {
+            Self::Covered { evidence, .. } => evidence,
+            Self::RejectedOutput { .. } | Self::TerminationGap { .. } => &[],
+        }
+    }
+
+    pub fn adapter_error(&self) -> Option<&EngineAdapterError> {
+        match self {
+            Self::RejectedOutput { adapter_error, .. } => Some(adapter_error),
+            Self::Covered { .. } | Self::TerminationGap { .. } => None,
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum EngineCoverageError {
-    CompletedRequiresAcceptedAdaptation,
-    AdaptationReceiptManifestMismatch,
-    AdaptationReceiptInputMismatch,
-    AdaptationReceiptObservedAtMismatch,
     UndeclaredCapability(String),
     DuplicateCapabilityDeclaration(String),
 }
@@ -73,18 +100,6 @@ pub enum EngineCoverageError {
 impl fmt::Display for EngineCoverageError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::CompletedRequiresAcceptedAdaptation => formatter.write_str(
-                "completed engine process output requires an opaque T028 acceptance receipt before coverage can be marked covered",
-            ),
-            Self::AdaptationReceiptManifestMismatch => formatter.write_str(
-                "T028 adaptation receipt does not match the trusted engine manifest",
-            ),
-            Self::AdaptationReceiptInputMismatch => formatter.write_str(
-                "T028 adaptation receipt input provenance does not match the coverage context",
-            ),
-            Self::AdaptationReceiptObservedAtMismatch => formatter.write_str(
-                "T028 adaptation receipt capture time does not match the coverage observation time",
-            ),
             Self::UndeclaredCapability(capability) => write!(
                 formatter,
                 "engine coverage capability is not declared by the trusted manifest: {capability:?}"
@@ -99,97 +114,56 @@ impl fmt::Display for EngineCoverageError {
 
 impl Error for EngineCoverageError {}
 
-/// Run the canonical T028 adapter and mint an opaque acceptance receipt only on
-/// successful adaptation.
+/// Finalize one actual T027 engine process outcome into explicit coverage.
 ///
-/// The receipt contains only trusted manifest/provenance binding metadata; raw
-/// external output is neither persisted nor copied into the receipt. Adapter
-/// rejection returns the original `EngineAdapterError` and cannot mint proof.
-pub fn adapt_engine_output_for_coverage(
+/// This is the sole T030 covered path. For `Completed`, it invokes the
+/// canonical T028 adapter using the exact trusted manifest, input digests, and
+/// observation time carried by the coverage context. Successful adaptation
+/// yields `COVERED`. Any adapter rejection yields a `FAILED` malformed-output
+/// gap and retains the typed adapter error outside the persisted coverage
+/// record. Non-completed termination reasons bypass parsing and map directly to
+/// explicit gap states.
+pub fn finalize_engine_coverage(
     manifest: &EngineManifest,
     dialect: EngineOutputDialect,
     outcome: &EngineProcessOutcome,
     authority: &EvidenceAuthority,
     limits: &EngineLimits,
-    input_digests: &[String],
-    captured_at: &str,
-) -> Result<(Vec<Evidence>, EngineAdaptationReceipt), EngineAdapterError> {
-    let evidence = adapt_engine_output(
+    context: &EngineCoverageContext,
+) -> Result<EngineCoverageOutcome, EngineCoverageError> {
+    validate_capability_binding(manifest, &context.capability)?;
+
+    if outcome.termination_reason() != &TerminationReason::Completed {
+        let (state, reason_code) = gap_mapping(outcome.termination_reason())
+            .expect("non-completed termination must have an exhaustive T030 gap mapping");
+        return Ok(EngineCoverageOutcome::TerminationGap {
+            coverage: build_record(manifest, context, state, Some(reason_code)),
+        });
+    }
+
+    match adapt_engine_output(
         manifest,
         dialect,
         outcome,
         authority,
         limits,
-        input_digests,
-        captured_at,
-    )?;
-
-    Ok((
-        evidence,
-        EngineAdaptationReceipt {
-            engine_id: manifest.engine_id.clone(),
-            adapter_version: manifest.adapter_version.clone(),
-            input_digests: input_digests.to_vec(),
-            captured_at: captured_at.to_owned(),
-        },
-    ))
-}
-
-/// Emit `COVERED` only from an opaque receipt minted by a successful T028
-/// adaptation and bound to the same trusted manifest, inputs, and timestamp.
-pub fn coverage_record_for_adapted_output(
-    manifest: &EngineManifest,
-    context: &EngineCoverageContext,
-    receipt: &EngineAdaptationReceipt,
-) -> Result<CoverageRecord, EngineCoverageError> {
-    validate_capability_binding(manifest, &context.capability)?;
-    validate_receipt_binding(manifest, context, receipt)?;
-
-    Ok(build_record(
-        manifest,
-        context,
-        CoverageState::Covered,
-        None,
-    ))
-}
-
-/// Emit an explicit gap CoverageRecord for every non-completed final engine
-/// termination path.
-///
-/// `Completed` is rejected here by construction; callers must use
-/// [`coverage_record_for_adapted_output`] with an opaque T028 acceptance
-/// receipt. This prevents raw process success from masquerading as coverage.
-pub fn coverage_record_for_engine_termination(
-    manifest: &EngineManifest,
-    context: &EngineCoverageContext,
-    termination: &TerminationReason,
-) -> Result<CoverageRecord, EngineCoverageError> {
-    validate_capability_binding(manifest, &context.capability)?;
-    let (state, reason_code) = gap_mapping(termination)?;
-
-    Ok(build_record(
-        manifest,
-        context,
-        state,
-        Some(reason_code),
-    ))
-}
-
-fn validate_receipt_binding(
-    manifest: &EngineManifest,
-    context: &EngineCoverageContext,
-    receipt: &EngineAdaptationReceipt,
-) -> Result<(), EngineCoverageError> {
-    if receipt.engine_id != manifest.engine_id || receipt.adapter_version != manifest.adapter_version {
-        return Err(EngineCoverageError::AdaptationReceiptManifestMismatch);
+        &context.input_digests,
+        &context.observed_at,
+    ) {
+        Ok(evidence) => Ok(EngineCoverageOutcome::Covered {
+            evidence,
+            coverage: build_record(manifest, context, CoverageState::Covered, None),
+        }),
+        Err(adapter_error) => Ok(EngineCoverageOutcome::RejectedOutput {
+            coverage: build_record(
+                manifest,
+                context,
+                CoverageState::Failed,
+                Some(ENGINE_MALFORMED_OUTPUT_REASON),
+            ),
+            adapter_error,
+        }),
     }
-    if receipt.input_digests != context.input_digests {
-        return Err(EngineCoverageError::AdaptationReceiptInputMismatch);
-    }
-    if receipt.captured_at != context.observed_at {
-        return Err(EngineCoverageError::AdaptationReceiptObservedAtMismatch);
-    }
-    Ok(())
 }
 
 fn validate_capability_binding(
@@ -212,23 +186,22 @@ fn validate_capability_binding(
     }
 }
 
-fn gap_mapping(
-    termination: &TerminationReason,
-) -> Result<(CoverageState, &'static str), EngineCoverageError> {
+fn gap_mapping(termination: &TerminationReason) -> Option<(CoverageState, &'static str)> {
     match termination {
-        TerminationReason::Completed => Err(EngineCoverageError::CompletedRequiresAcceptedAdaptation),
-        TerminationReason::NonZero => Ok((CoverageState::Failed, ENGINE_NON_ZERO_REASON)),
-        TerminationReason::Timeout => Ok((CoverageState::TimedOut, ENGINE_TIMEOUT_REASON)),
-        TerminationReason::OutputCap => Ok((CoverageState::Failed, ENGINE_OUTPUT_CAP_REASON)),
+        TerminationReason::Completed => None,
+        TerminationReason::NonZero => Some((CoverageState::Failed, ENGINE_NON_ZERO_REASON)),
+        TerminationReason::Timeout => Some((CoverageState::TimedOut, ENGINE_TIMEOUT_REASON)),
+        TerminationReason::OutputCap => Some((CoverageState::Failed, ENGINE_OUTPUT_CAP_REASON)),
         TerminationReason::SpawnFailed => {
-            Ok((CoverageState::Unavailable, ENGINE_SPAWN_FAILED_REASON))
+            Some((CoverageState::Unavailable, ENGINE_SPAWN_FAILED_REASON))
         }
         TerminationReason::MalformedOutput => {
-            Ok((CoverageState::Failed, ENGINE_MALFORMED_OUTPUT_REASON))
+            Some((CoverageState::Failed, ENGINE_MALFORMED_OUTPUT_REASON))
         }
-        TerminationReason::PolicyBlocked => {
-            Ok((CoverageState::SkippedByPolicy, ENGINE_POLICY_BLOCKED_REASON))
-        }
+        TerminationReason::PolicyBlocked => Some((
+            CoverageState::SkippedByPolicy,
+            ENGINE_POLICY_BLOCKED_REASON,
+        )),
     }
 }
 
@@ -287,41 +260,13 @@ mod tests {
         }
     }
 
-    fn receipt() -> EngineAdaptationReceipt {
-        EngineAdaptationReceipt {
-            engine_id: "fixture-engine".to_owned(),
-            adapter_version: "1".to_owned(),
-            input_digests: vec!["sha256:fixture".to_owned()],
-            captured_at: "2026-08-26T00:00:00Z".to_owned(),
-        }
+    #[test]
+    fn completed_is_not_a_gap_mapping() {
+        assert_eq!(gap_mapping(&TerminationReason::Completed), None);
     }
 
     #[test]
-    fn raw_completed_termination_cannot_claim_coverage() {
-        assert_eq!(
-            coverage_record_for_engine_termination(
-                &manifest(),
-                &context(),
-                &TerminationReason::Completed,
-            ),
-            Err(EngineCoverageError::CompletedRequiresAcceptedAdaptation)
-        );
-    }
-
-    #[test]
-    fn opaque_adapter_receipt_is_the_only_covered_path() {
-        let record = coverage_record_for_adapted_output(&manifest(), &context(), &receipt())
-            .expect("bound adapter receipt should emit coverage");
-
-        assert_eq!(record.state, CoverageState::Covered);
-        assert_eq!(record.reason_code, None);
-        assert_eq!(record.producer.as_deref(), Some("fixture-engine"));
-        assert_eq!(record.capability, "static-analysis");
-        assert!(!record.is_gap());
-    }
-
-    #[test]
-    fn every_non_completed_termination_emits_an_explicit_gap_state() {
+    fn every_non_completed_termination_has_explicit_gap_mapping() {
         let cases = [
             (
                 TerminationReason::NonZero,
@@ -356,49 +301,35 @@ mod tests {
         ];
 
         for (termination, expected_state, expected_reason) in cases {
-            let record = coverage_record_for_engine_termination(&manifest(), &context(), &termination)
-                .expect("non-completed termination should emit coverage");
-
-            assert_eq!(record.state, expected_state, "termination={termination:?}");
-            assert_eq!(
-                record.reason_code.as_deref(),
-                Some(expected_reason),
-                "termination={termination:?}"
-            );
-            assert!(record.is_gap(), "termination={termination:?}");
+            let (state, reason_code) = gap_mapping(&termination)
+                .expect("non-completed termination must have an explicit gap mapping");
+            assert_eq!(state, expected_state, "termination={termination:?}");
+            assert_eq!(reason_code, expected_reason, "termination={termination:?}");
+            assert_ne!(state, CoverageState::Covered, "termination={termination:?}");
         }
     }
 
     #[test]
-    fn adapter_receipt_is_bound_to_manifest_inputs_and_time() {
-        let mut wrong_manifest = manifest();
-        wrong_manifest.adapter_version = "2".to_owned();
-        assert_eq!(
-            coverage_record_for_adapted_output(&wrong_manifest, &context(), &receipt()),
-            Err(EngineCoverageError::AdaptationReceiptManifestMismatch)
-        );
-
-        let mut wrong_inputs = context();
-        wrong_inputs.input_digests = vec!["sha256:different".to_owned()];
-        assert_eq!(
-            coverage_record_for_adapted_output(&manifest(), &wrong_inputs, &receipt()),
-            Err(EngineCoverageError::AdaptationReceiptInputMismatch)
-        );
-
-        let mut wrong_time = context();
-        wrong_time.observed_at = "2026-08-26T00:00:01Z".to_owned();
-        assert_eq!(
-            coverage_record_for_adapted_output(&manifest(), &wrong_time, &receipt()),
-            Err(EngineCoverageError::AdaptationReceiptObservedAtMismatch)
-        );
+    fn built_gap_records_never_look_complete() {
+        for termination in [
+            TerminationReason::NonZero,
+            TerminationReason::Timeout,
+            TerminationReason::OutputCap,
+            TerminationReason::SpawnFailed,
+            TerminationReason::MalformedOutput,
+            TerminationReason::PolicyBlocked,
+        ] {
+            let (state, reason_code) = gap_mapping(&termination).expect("gap mapping");
+            let record = build_record(&manifest(), &context(), state, Some(reason_code));
+            assert!(record.is_gap(), "termination={termination:?}");
+            assert!(record.reason_code.is_some(), "termination={termination:?}");
+        }
     }
 
     #[test]
     fn manifest_capability_binding_is_fail_closed() {
-        let mut undeclared = context();
-        undeclared.capability = "not-declared".to_owned();
         assert_eq!(
-            coverage_record_for_adapted_output(&manifest(), &undeclared, &receipt()),
+            validate_capability_binding(&manifest(), "not-declared"),
             Err(EngineCoverageError::UndeclaredCapability(
                 "not-declared".to_owned()
             ))
@@ -409,7 +340,7 @@ mod tests {
             .capabilities
             .push("static-analysis".to_owned());
         assert_eq!(
-            coverage_record_for_adapted_output(&duplicate_manifest, &context(), &receipt()),
+            validate_capability_binding(&duplicate_manifest, "static-analysis"),
             Err(EngineCoverageError::DuplicateCapabilityDeclaration(
                 "static-analysis".to_owned()
             ))
