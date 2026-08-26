@@ -11,6 +11,7 @@
 mod adapter;
 #[path = "boundary.rs"]
 mod boundary;
+mod bounded_json;
 mod process_tree;
 mod runner;
 
@@ -19,11 +20,12 @@ use std::{error::Error, fmt};
 use sentrdel_schema::engine::EngineManifest;
 
 pub use adapter::{
-    EngineAdapterError, EngineOutputDialect, MAX_ENGINE_ADAPTER_ITEMS, MAX_ENGINE_ADAPTER_JSON_BYTES,
-    MAX_ENGINE_ADAPTER_RUNS, MAX_ENGINE_ATTRIBUTES_PER_ITEM, MAX_ENGINE_IDENTIFIER_BYTES,
-    MAX_ENGINE_LOCATIONS_PER_ITEM, MAX_ENGINE_LOCATION_BYTES, MAX_ENGINE_RESULT_TEXT_BYTES,
-    MAX_ENGINE_SUBJECTS_PER_ITEM, RepoLocationError, SARIF_V2_1_0_DIALECT,
-    SENTRDEL_JSON_V1_DIALECT, adapt_engine_output, normalize_repo_relative_path,
+    EngineAdapterError, EngineOutputDialect, MAX_ENGINE_ADAPTER_ITEMS,
+    MAX_ENGINE_ADAPTER_JSON_BYTES, MAX_ENGINE_ADAPTER_RUNS, MAX_ENGINE_ATTRIBUTES_PER_ITEM,
+    MAX_ENGINE_IDENTIFIER_BYTES, MAX_ENGINE_LOCATION_BYTES, MAX_ENGINE_LOCATIONS_PER_ITEM,
+    MAX_ENGINE_RESULT_TEXT_BYTES, MAX_ENGINE_SUBJECTS_PER_ITEM, RepoLocationError,
+    SARIF_V2_1_0_DIALECT, SENTRDEL_JSON_V1_DIALECT, adapt_engine_output,
+    normalize_repo_relative_path,
 };
 pub use boundary::{
     Engine, EngineDiagnostic, EngineInputRef, EngineLimits, EngineLimitsError, EngineRegistry,
