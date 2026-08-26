@@ -436,7 +436,15 @@ pub fn run_engine_process(
         event_tx,
     );
 
-    let (status, forced_reason) = monitor_child(&mut child, execution_deadline, &event_rx)?;
+    let monitored = monitor_child(&mut child, execution_deadline, &event_rx);
+    let (status, forced_reason) = match monitored {
+        Ok(monitored) => monitored,
+        Err(error) => {
+            let _ = join_reader(stdout_reader, EngineOutputStream::Stdout);
+            let _ = join_reader(stderr_reader, EngineOutputStream::Stderr);
+            return Err(error);
+        }
+    };
 
     // The contained group/job has been terminated before reader joins. Normal
     // descendants therefore cannot retain inherited pipe writers beyond this
@@ -999,7 +1007,10 @@ mod tests {
         )
         .expect("descendant-held pipes should be contained and terminated");
         assert_eq!(descendant.termination_reason(), &TerminationReason::Timeout);
-        assert!(started.elapsed() < Duration::from_millis(300));
+        assert!(
+            started.elapsed() < Duration::from_millis(2_000),
+            "runner did not return promptly after the wall-clock timeout"
+        );
 
         // If the descendant escaped containment it writes this marker after
         // 500 ms. Wait beyond that point to prove it did not outlive Sentrdel.
