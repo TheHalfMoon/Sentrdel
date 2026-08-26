@@ -5,6 +5,7 @@
 //! persistence records that must be rebound to runtime authority before use.
 
 use crate::{
+    SCHEMA_V1,
     asel::AgentSecurityEventRecord,
     coverage::CoverageRecord,
     engine::{EngineManifest, EngineRun},
@@ -19,6 +20,9 @@ use crate::{
 use schemars::{JsonSchema, SchemaGenerator};
 use serde_json::{Value, json};
 use std::collections::BTreeMap;
+
+const CANONICAL_ID_PATTERN: &str = r"^sha256:[0-9a-f]{64}$";
+const NONBLANK_PATTERN: &str = r"\S";
 
 fn schema_value<T: JsonSchema>() -> Result<Value, serde_json::Error> {
     let schema = SchemaGenerator::default().into_root_schema_for::<T>();
@@ -44,6 +48,100 @@ fn set_i64_bounds(schema: &mut Value, pointer: &str) {
 
 fn set_i32_bounds(schema: &mut Value, pointer: &str) {
     set_integer_bounds(schema, pointer, json!(i32::MIN), json!(i32::MAX));
+}
+
+fn set_string_pattern(schema: &mut Value, pointer: &str, pattern: &str) {
+    let field = schema
+        .pointer_mut(pointer)
+        .and_then(Value::as_object_mut)
+        .unwrap_or_else(|| panic!("missing graph string schema field at {pointer}"));
+    field.insert("pattern".to_owned(), json!(pattern));
+}
+
+fn set_schema_version_const(schema: &mut Value) {
+    let field = schema
+        .pointer_mut("/properties/schema_version")
+        .and_then(Value::as_object_mut)
+        .expect("graph schema_version field");
+    field.insert("const".to_owned(), json!(SCHEMA_V1));
+}
+
+fn harden_graph_provenance(schema: &mut Value) {
+    set_string_pattern(
+        schema,
+        "/$defs/GraphProvenanceId",
+        NONBLANK_PATTERN,
+    );
+    let provenance = schema
+        .pointer_mut("/properties/provenance_ids")
+        .and_then(Value::as_object_mut)
+        .expect("graph provenance array");
+    provenance.insert("minItems".to_owned(), json!(1));
+    provenance.insert("uniqueItems".to_owned(), json!(true));
+}
+
+fn harden_graph_attributes(schema: &mut Value) {
+    let canonical_value = json!({
+        "oneOf": [
+            {"type": "null"},
+            {"type": "boolean"},
+            {"type": "string"},
+            {
+                "type": "integer",
+                "minimum": i64::MIN,
+                "maximum": u64::MAX
+            },
+            {
+                "type": "array",
+                "items": {"$ref": "#/$defs/CanonicalGraphValue"}
+            },
+            {
+                "type": "object",
+                "additionalProperties": {"$ref": "#/$defs/CanonicalGraphValue"}
+            }
+        ]
+    });
+
+    schema
+        .pointer_mut("/$defs")
+        .and_then(Value::as_object_mut)
+        .expect("graph schema defs")
+        .insert("CanonicalGraphValue".to_owned(), canonical_value);
+
+    schema
+        .pointer_mut("/properties/attributes")
+        .and_then(Value::as_object_mut)
+        .expect("graph attributes field")
+        .insert(
+            "additionalProperties".to_owned(),
+            json!({"$ref": "#/$defs/CanonicalGraphValue"}),
+        );
+}
+
+fn harden_graph_node_schema(schema: &mut Value) {
+    set_schema_version_const(schema);
+    set_string_pattern(schema, "/$defs/GraphNodeId", CANONICAL_ID_PATTERN);
+    set_string_pattern(schema, "/properties/semantic_key", NONBLANK_PATTERN);
+    harden_graph_provenance(schema);
+    harden_graph_attributes(schema);
+}
+
+fn harden_graph_edge_schema(schema: &mut Value) {
+    set_schema_version_const(schema);
+    set_string_pattern(schema, "/$defs/GraphEdgeId", CANONICAL_ID_PATTERN);
+    set_string_pattern(schema, "/$defs/GraphNodeId", CANONICAL_ID_PATTERN);
+    set_string_pattern(
+        schema,
+        "/$defs/GraphConfidenceSource/properties/producer",
+        NONBLANK_PATTERN,
+    );
+    set_string_pattern(
+        schema,
+        "/$defs/GraphConfidenceSource/properties/producer_version",
+        NONBLANK_PATTERN,
+    );
+    harden_graph_provenance(schema);
+    harden_graph_attributes(schema);
 }
 
 /// Add R1 authority constraints that are semantic in Rust but must also be
@@ -260,8 +358,14 @@ pub fn export_all() -> Result<BTreeMap<&'static str, Value>, serde_json::Error> 
     schemas.insert("finding.schema.json", finding);
 
     schemas.insert("coverage.schema.json", schema_value::<CoverageRecord>()?);
-    schemas.insert("graph-node.schema.json", schema_value::<GraphNode>()?);
-    schemas.insert("graph-edge.schema.json", schema_value::<GraphEdge>()?);
+
+    let mut graph_node = schema_value::<GraphNode>()?;
+    harden_graph_node_schema(&mut graph_node);
+    schemas.insert("graph-node.schema.json", graph_node);
+
+    let mut graph_edge = schema_value::<GraphEdge>()?;
+    harden_graph_edge_schema(&mut graph_edge);
+    schemas.insert("graph-edge.schema.json", graph_edge);
 
     let mut asel = schema_value::<AgentSecurityEventRecord>()?;
     harden_asel_schema(&mut asel);
@@ -297,7 +401,7 @@ pub fn export_all() -> Result<BTreeMap<&'static str, Value>, serde_json::Error> 
 
 #[cfg(test)]
 mod tests {
-    use super::export_all;
+    use super::{CANONICAL_ID_PATTERN, NONBLANK_PATTERN, export_all};
 
     #[test]
     fn all_public_schemas_generate_as_objects() {
@@ -311,6 +415,94 @@ mod tests {
                 Some("https://json-schema.org/draft/2020-12/schema")
             );
         }
+    }
+
+    #[test]
+    fn graph_schemas_expose_runtime_rejection_constraints() {
+        let schemas = export_all().expect("schema generation");
+        let node = schemas
+            .get("graph-node.schema.json")
+            .expect("graph node schema");
+        let edge = schemas
+            .get("graph-edge.schema.json")
+            .expect("graph edge schema");
+
+        for schema in [node, edge] {
+            assert_eq!(
+                schema
+                    .pointer("/properties/schema_version/const")
+                    .and_then(|value| value.as_str()),
+                Some("1")
+            );
+            assert_eq!(
+                schema
+                    .pointer("/$defs/GraphProvenanceId/pattern")
+                    .and_then(|value| value.as_str()),
+                Some(NONBLANK_PATTERN)
+            );
+            assert_eq!(
+                schema
+                    .pointer("/properties/provenance_ids/minItems")
+                    .and_then(|value| value.as_u64()),
+                Some(1)
+            );
+            assert_eq!(
+                schema
+                    .pointer("/properties/provenance_ids/uniqueItems")
+                    .and_then(|value| value.as_bool()),
+                Some(true)
+            );
+            assert_eq!(
+                schema
+                    .pointer("/properties/attributes/additionalProperties/$ref")
+                    .and_then(|value| value.as_str()),
+                Some("#/$defs/CanonicalGraphValue")
+            );
+
+            let canonical_value = schema
+                .pointer("/$defs/CanonicalGraphValue/oneOf")
+                .and_then(|value| value.as_array())
+                .expect("canonical graph value union");
+            assert!(canonical_value.iter().any(|branch| {
+                branch.get("type").and_then(|value| value.as_str()) == Some("integer")
+                    && branch.get("minimum") == Some(&serde_json::json!(i64::MIN))
+                    && branch.get("maximum") == Some(&serde_json::json!(u64::MAX))
+            }));
+            assert!(!canonical_value.iter().any(|branch| {
+                branch.get("type").and_then(|value| value.as_str()) == Some("number")
+            }));
+        }
+
+        assert_eq!(
+            node.pointer("/$defs/GraphNodeId/pattern")
+                .and_then(|value| value.as_str()),
+            Some(CANONICAL_ID_PATTERN)
+        );
+        assert_eq!(
+            node.pointer("/properties/semantic_key/pattern")
+                .and_then(|value| value.as_str()),
+            Some(NONBLANK_PATTERN)
+        );
+        assert_eq!(
+            edge.pointer("/$defs/GraphEdgeId/pattern")
+                .and_then(|value| value.as_str()),
+            Some(CANONICAL_ID_PATTERN)
+        );
+        assert_eq!(
+            edge.pointer("/$defs/GraphNodeId/pattern")
+                .and_then(|value| value.as_str()),
+            Some(CANONICAL_ID_PATTERN)
+        );
+        assert_eq!(
+            edge.pointer("/$defs/GraphConfidenceSource/properties/producer/pattern")
+                .and_then(|value| value.as_str()),
+            Some(NONBLANK_PATTERN)
+        );
+        assert_eq!(
+            edge.pointer("/$defs/GraphConfidenceSource/properties/producer_version/pattern")
+                .and_then(|value| value.as_str()),
+            Some(NONBLANK_PATTERN)
+        );
     }
 
     #[test]
