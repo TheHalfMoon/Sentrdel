@@ -10,7 +10,11 @@
 //! rejection yields an explicit `FAILED` / malformed-output coverage gap. Every
 //! non-completed T027 termination is mapped directly to an explicit gap.
 
-use std::{error::Error, fmt};
+use std::{
+    collections::BTreeSet,
+    error::Error,
+    fmt,
+};
 
 use sentrdel_schema::{
     SCHEMA_V1,
@@ -32,26 +36,96 @@ pub const ENGINE_SPAWN_FAILED_REASON: &str = "ENGINE_SPAWN_FAILED";
 pub const ENGINE_MALFORMED_OUTPUT_REASON: &str = "ENGINE_MALFORMED_OUTPUT";
 pub const ENGINE_POLICY_BLOCKED_REASON: &str = "ENGINE_POLICY_BLOCKED";
 
-/// Trusted metadata required to construct one capability-scoped CoverageRecord.
+/// Validated trusted metadata for one capability-scoped CoverageRecord.
 ///
-/// T030 does not invent orchestration identifiers or timestamps. The trusted
-/// caller supplies those values; the engine manifest supplies producer
-/// identity and declares which capability may be represented.
+/// Fields are private so callers cannot bypass provenance validation after
+/// construction. Input digests use the binding R1 canonical SHA-256 machine
+/// form (`sha256:<64 lowercase hex>`), and observation time uses the same
+/// canonical UTC RFC3339 profile enforced by T028.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct EngineCoverageContext {
-    pub coverage_id: String,
-    pub capability: String,
-    pub scope: String,
-    pub input_digests: Vec<String>,
-    pub observed_at: String,
+    coverage_id: String,
+    capability: String,
+    scope: String,
+    input_digests: Vec<String>,
+    observed_at: String,
+}
+
+impl EngineCoverageContext {
+    pub fn new(
+        coverage_id: impl Into<String>,
+        capability: impl Into<String>,
+        scope: impl Into<String>,
+        input_digests: Vec<String>,
+        observed_at: impl Into<String>,
+    ) -> Result<Self, EngineCoverageError> {
+        let coverage_id = coverage_id.into().trim().to_owned();
+        let capability = capability.into().trim().to_owned();
+        let scope = scope.into().trim().to_owned();
+        let observed_at = observed_at.into();
+
+        if coverage_id.is_empty() {
+            return Err(EngineCoverageError::BlankCoverageId);
+        }
+        if capability.is_empty() {
+            return Err(EngineCoverageError::BlankCapability);
+        }
+        if scope.is_empty() {
+            return Err(EngineCoverageError::BlankScope);
+        }
+        if input_digests.is_empty() {
+            return Err(EngineCoverageError::MissingInputDigests);
+        }
+
+        let mut seen = BTreeSet::new();
+        for digest in &input_digests {
+            if !is_canonical_sha256_digest(digest) {
+                return Err(EngineCoverageError::InvalidInputDigest(digest.clone()));
+            }
+            if !seen.insert(digest.as_str()) {
+                return Err(EngineCoverageError::DuplicateInputDigest(digest.clone()));
+            }
+        }
+        if !is_canonical_utc_rfc3339(&observed_at) {
+            return Err(EngineCoverageError::InvalidObservedAt);
+        }
+
+        Ok(Self {
+            coverage_id,
+            capability,
+            scope,
+            input_digests,
+            observed_at,
+        })
+    }
+
+    pub fn coverage_id(&self) -> &str {
+        &self.coverage_id
+    }
+
+    pub fn capability(&self) -> &str {
+        &self.capability
+    }
+
+    pub fn scope(&self) -> &str {
+        &self.scope
+    }
+
+    pub fn input_digests(&self) -> &[String] {
+        &self.input_digests
+    }
+
+    pub fn observed_at(&self) -> &str {
+        &self.observed_at
+    }
 }
 
 /// Final T030 result for one actual T027 process outcome.
 ///
-/// `Covered` is constructible by this module only after the canonical T028
-/// adapter accepts the same completed process output. `RejectedOutput` retains
-/// the adapter error for diagnostics while its CoverageRecord remains an
-/// explicit gap. `TerminationGap` represents every non-completed T027 outcome.
+/// `Covered` is returned by this module only after the canonical T028 adapter
+/// accepts the same completed process output. `RejectedOutput` retains the
+/// adapter error for diagnostics while its CoverageRecord remains an explicit
+/// gap. `TerminationGap` represents every non-completed T027 outcome.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum EngineCoverageOutcome {
     Covered {
@@ -93,6 +167,13 @@ impl EngineCoverageOutcome {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum EngineCoverageError {
+    BlankCoverageId,
+    BlankCapability,
+    BlankScope,
+    MissingInputDigests,
+    InvalidInputDigest(String),
+    DuplicateInputDigest(String),
+    InvalidObservedAt,
     UndeclaredCapability(String),
     DuplicateCapabilityDeclaration(String),
 }
@@ -100,6 +181,25 @@ pub enum EngineCoverageError {
 impl fmt::Display for EngineCoverageError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::BlankCoverageId => formatter.write_str("engine coverage id must not be blank"),
+            Self::BlankCapability => {
+                formatter.write_str("engine coverage capability must not be blank")
+            }
+            Self::BlankScope => formatter.write_str("engine coverage scope must not be blank"),
+            Self::MissingInputDigests => {
+                formatter.write_str("engine coverage requires trusted input provenance")
+            }
+            Self::InvalidInputDigest(digest) => write!(
+                formatter,
+                "engine coverage input digest must use canonical R1 sha256:<64 lowercase hex> form: {digest:?}"
+            ),
+            Self::DuplicateInputDigest(digest) => write!(
+                formatter,
+                "engine coverage input digest is duplicated: {digest:?}"
+            ),
+            Self::InvalidObservedAt => formatter.write_str(
+                "engine coverage observation time must use canonical UTC RFC3339 form",
+            ),
             Self::UndeclaredCapability(capability) => write!(
                 formatter,
                 "engine coverage capability is not declared by the trusted manifest: {capability:?}"
@@ -117,7 +217,7 @@ impl Error for EngineCoverageError {}
 /// Finalize one actual T027 engine process outcome into explicit coverage.
 ///
 /// This is the sole T030 covered path. For `Completed`, it invokes the
-/// canonical T028 adapter using the exact trusted manifest, input digests, and
+/// canonical T028 adapter using the exact validated input digests and
 /// observation time carried by the coverage context. Successful adaptation
 /// yields `COVERED`. Any adapter rejection yields a `FAILED` malformed-output
 /// gap and retains the typed adapter error outside the persisted coverage
@@ -131,11 +231,9 @@ pub fn finalize_engine_coverage(
     limits: &EngineLimits,
     context: &EngineCoverageContext,
 ) -> Result<EngineCoverageOutcome, EngineCoverageError> {
-    validate_capability_binding(manifest, &context.capability)?;
+    validate_capability_binding(manifest, context.capability())?;
 
-    if outcome.termination_reason() != &TerminationReason::Completed {
-        let (state, reason_code) = gap_mapping(outcome.termination_reason())
-            .expect("non-completed termination must have an exhaustive T030 gap mapping");
+    if let Some((state, reason_code)) = gap_mapping(outcome.termination_reason()) {
         return Ok(EngineCoverageOutcome::TerminationGap {
             coverage: build_record(manifest, context, state, Some(reason_code)),
         });
@@ -147,8 +245,8 @@ pub fn finalize_engine_coverage(
         outcome,
         authority,
         limits,
-        &context.input_digests,
-        &context.observed_at,
+        context.input_digests(),
+        context.observed_at(),
     ) {
         Ok(evidence) => Ok(EngineCoverageOutcome::Covered {
             evidence,
@@ -213,23 +311,110 @@ fn build_record(
 ) -> CoverageRecord {
     CoverageRecord {
         schema_version: SCHEMA_V1.to_owned(),
-        coverage_id: context.coverage_id.clone(),
-        capability: context.capability.clone(),
-        scope: context.scope.clone(),
+        coverage_id: context.coverage_id().to_owned(),
+        capability: context.capability().to_owned(),
+        scope: context.scope().to_owned(),
         producer: Some(manifest.engine_id.clone()),
         provider_dimension: None,
         state,
         reason_code: reason_code.map(str::to_owned),
         details: None,
-        input_digests: context.input_digests.clone(),
-        observed_at: context.observed_at.clone(),
+        input_digests: context.input_digests().to_vec(),
+        observed_at: context.observed_at().to_owned(),
     }
+}
+
+fn is_canonical_sha256_digest(value: &str) -> bool {
+    let Some(hex) = value.strip_prefix("sha256:") else {
+        return false;
+    };
+    hex.len() == 64
+        && hex
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+}
+
+fn is_canonical_utc_rfc3339(value: &str) -> bool {
+    let bytes = value.as_bytes();
+    if !(20..=30).contains(&bytes.len()) {
+        return false;
+    }
+    for index in [0usize, 1, 2, 3, 5, 6, 8, 9, 11, 12, 14, 15, 17, 18] {
+        if !bytes[index].is_ascii_digit() {
+            return false;
+        }
+    }
+    if bytes[4] != b'-'
+        || bytes[7] != b'-'
+        || bytes[10] != b'T'
+        || bytes[13] != b':'
+        || bytes[16] != b':'
+    {
+        return false;
+    }
+    if bytes.len() == 20 {
+        if bytes[19] != b'Z' {
+            return false;
+        }
+    } else {
+        if bytes[19] != b'.' || bytes[bytes.len() - 1] != b'Z' {
+            return false;
+        }
+        let fraction = &bytes[20..bytes.len() - 1];
+        if fraction.is_empty()
+            || fraction.len() > 9
+            || fraction.iter().any(|byte| !byte.is_ascii_digit())
+            || fraction.last() == Some(&b'0')
+        {
+            return false;
+        }
+    }
+
+    let year = parse_ascii_u32(&bytes[0..4]);
+    let month = parse_ascii_u32(&bytes[5..7]);
+    let day = parse_ascii_u32(&bytes[8..10]);
+    let hour = parse_ascii_u32(&bytes[11..13]);
+    let minute = parse_ascii_u32(&bytes[14..16]);
+    let second = parse_ascii_u32(&bytes[17..19]);
+    let (Some(year), Some(month), Some(day), Some(hour), Some(minute), Some(second)) =
+        (year, month, day, hour, minute, second)
+    else {
+        return false;
+    };
+    if hour > 23 || minute > 59 || second > 59 || !(1..=12).contains(&month) {
+        return false;
+    }
+    let days_in_month = match month {
+        1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
+        4 | 6 | 9 | 11 => 30,
+        2 if is_leap_year(year) => 29,
+        2 => 28,
+        _ => return false,
+    };
+    (1..=days_in_month).contains(&day)
+}
+
+fn parse_ascii_u32(bytes: &[u8]) -> Option<u32> {
+    bytes.iter().try_fold(0u32, |value, byte| {
+        if !byte.is_ascii_digit() {
+            return None;
+        }
+        value.checked_mul(10)?.checked_add(u32::from(byte - b'0'))
+    })
+}
+
+fn is_leap_year(year: u32) -> bool {
+    year.is_multiple_of(4) && (!year.is_multiple_of(100) || year.is_multiple_of(400))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use sentrdel_schema::engine::NetworkRequirement;
+
+    fn canonical_digest(fill: char) -> String {
+        format!("sha256:{}", fill.to_string().repeat(64))
+    }
 
     fn manifest() -> EngineManifest {
         EngineManifest {
@@ -251,13 +436,14 @@ mod tests {
     }
 
     fn context() -> EngineCoverageContext {
-        EngineCoverageContext {
-            coverage_id: "coverage:fixture".to_owned(),
-            capability: "static-analysis".to_owned(),
-            scope: ".".to_owned(),
-            input_digests: vec!["sha256:fixture".to_owned()],
-            observed_at: "2026-08-26T00:00:00Z".to_owned(),
-        }
+        EngineCoverageContext::new(
+            "coverage:fixture",
+            "static-analysis",
+            ".",
+            vec![canonical_digest('0')],
+            "2026-08-26T00:00:00Z",
+        )
+        .expect("valid coverage context")
     }
 
     #[test]
@@ -324,6 +510,65 @@ mod tests {
             assert!(record.is_gap(), "termination={termination:?}");
             assert!(record.reason_code.is_some(), "termination={termination:?}");
         }
+    }
+
+    #[test]
+    fn coverage_context_rejects_invalid_or_unbound_provenance() {
+        assert_eq!(
+            EngineCoverageContext::new(
+                "coverage:fixture",
+                "static-analysis",
+                ".",
+                Vec::new(),
+                "2026-08-26T00:00:00Z",
+            ),
+            Err(EngineCoverageError::MissingInputDigests)
+        );
+        assert_eq!(
+            EngineCoverageContext::new(
+                "coverage:fixture",
+                "static-analysis",
+                ".",
+                vec!["sha256:not-a-digest".to_owned()],
+                "2026-08-26T00:00:00Z",
+            ),
+            Err(EngineCoverageError::InvalidInputDigest(
+                "sha256:not-a-digest".to_owned()
+            ))
+        );
+        assert_eq!(
+            EngineCoverageContext::new(
+                "coverage:fixture",
+                "static-analysis",
+                ".",
+                vec![canonical_digest('0'), canonical_digest('0')],
+                "2026-08-26T00:00:00Z",
+            ),
+            Err(EngineCoverageError::DuplicateInputDigest(canonical_digest(
+                '0'
+            )))
+        );
+        assert_eq!(
+            EngineCoverageContext::new(
+                "coverage:fixture",
+                "static-analysis",
+                ".",
+                vec![canonical_digest('0')],
+                "2026-08-26T00:00:00+03:00",
+            ),
+            Err(EngineCoverageError::InvalidObservedAt)
+        );
+    }
+
+    #[test]
+    fn canonical_digest_profile_rejects_uppercase_or_wrong_length() {
+        assert!(is_canonical_sha256_digest(&canonical_digest('a')));
+        assert!(!is_canonical_sha256_digest(&canonical_digest('A')));
+        assert!(!is_canonical_sha256_digest("sha256:abc"));
+        assert!(!is_canonical_sha256_digest(&format!(
+            "sha512:{}",
+            "0".repeat(64)
+        )));
     }
 
     #[test]
