@@ -67,12 +67,8 @@ fn manifest() -> EngineManifest {
 }
 
 fn authority() -> EvidenceAuthority {
-    EvidenceAuthority::from_runtime(
-        "t030-fixture-engine",
-        "1",
-        ProducerKind::ExternalEngine,
-    )
-    .expect("external engine authority")
+    EvidenceAuthority::from_runtime("t030-fixture-engine", "1", ProducerKind::ExternalEngine)
+        .expect("external engine authority")
 }
 
 fn canonical_digest() -> String {
@@ -202,7 +198,10 @@ fn non_completed_outcome_preserves_explicit_gap() {
     match finalized {
         EngineCoverageOutcome::TerminationGap { coverage } => {
             assert_eq!(coverage.state, CoverageState::Failed);
-            assert_eq!(coverage.reason_code.as_deref(), Some(ENGINE_NON_ZERO_REASON));
+            assert_eq!(
+                coverage.reason_code.as_deref(),
+                Some(ENGINE_NON_ZERO_REASON)
+            );
             assert!(coverage.is_gap());
         }
         other => panic!("non-completed outcome must remain a termination gap, got {other:?}"),
