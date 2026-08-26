@@ -6,8 +6,8 @@
 //! argv-only invocation, canonical cwd, bounded process-tree containment,
 //! wall-clock/output bounds, and a deny-by-default child environment. T028
 //! adds strict Sentrdel-native JSON/SARIF adaptation and repository-relative
-//! location normalization. T030 maps trusted process/adaptation outcomes into
-//! explicit CoverageRecords without creating Findings or wiring orchestration.
+//! location normalization. T030 finalizes every T027 process outcome into
+//! explicit coverage and invokes T028 before any completed path can be covered.
 
 mod adapter;
 #[path = "boundary.rs"]
@@ -37,9 +37,7 @@ pub use boundary::{
 pub use coverage::{
     ENGINE_MALFORMED_OUTPUT_REASON, ENGINE_NON_ZERO_REASON, ENGINE_OUTPUT_CAP_REASON,
     ENGINE_POLICY_BLOCKED_REASON, ENGINE_SPAWN_FAILED_REASON, ENGINE_TIMEOUT_REASON,
-    EngineAdaptationReceipt, EngineCoverageContext, EngineCoverageError,
-    adapt_engine_output_for_coverage, coverage_record_for_adapted_output,
-    coverage_record_for_engine_termination,
+    EngineCoverageContext, EngineCoverageError, EngineCoverageOutcome, finalize_engine_coverage,
 };
 pub use runner::{
     EngineOutputStream, EngineProcessError, EngineProcessOutcome, EngineProcessSpec,
@@ -62,17 +60,17 @@ pub const EXTERNAL_ENGINE_EXECUTION_IMPLEMENTED: bool = true;
 /// Sentrdel-native JSON and SARIF 2.1.0 dialects.
 ///
 /// This does not create Findings, infer clean coverage, or wire engines into
-/// review orchestration. T030 consumes actual adapter acceptance for explicit
-/// coverage mapping; T036 retains bootstrap/DI authority.
+/// review orchestration. T030 invokes the canonical adapter during finalization
+/// of completed outcomes; T036 retains bootstrap/DI authority.
 pub const RAW_ENGINE_RESULT_ADAPTATION_IMPLEMENTED: bool = true;
 
-/// T030 installed explicit engine termination/adaptation-to-coverage mapping.
+/// T030 installed exhaustive engine outcome-to-coverage finalization.
 ///
-/// A raw completed process cannot become COVERED. The public covered path
-/// requires an opaque receipt minted only after the canonical T028 adapter
-/// succeeds; every failed, unavailable, timed-out, malformed, or policy-skipped
-/// path is represented as an explicit coverage gap. This flag does not
-/// authorize T036 orchestration or Finding creation.
+/// A raw completed process cannot become COVERED: the sole public finalizer
+/// invokes T028 on that same process output and emits either covered Evidence +
+/// CoverageRecord or an explicit failed malformed-output gap. Every other T027
+/// termination maps directly to a non-covered CoverageRecord. This flag does
+/// not authorize T036 orchestration or Finding creation.
 pub const ENGINE_COVERAGE_MAPPING_IMPLEMENTED: bool = true;
 
 /// Public invocation failures at the T027 authority boundary.
