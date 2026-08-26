@@ -12,5 +12,8 @@ publish.workspace = true
 process-wrap = { version = "=9.1.0", default-features = false, features = ["std", "process-group", "job-object"] }
 sentrdel-schema = { path = "../sentrdel-schema" }
 
+[target.'cfg(unix)'.dependencies]
+nix = { version = "=0.31.3", default-features = false }
+
 [lints]
 workspace = true
