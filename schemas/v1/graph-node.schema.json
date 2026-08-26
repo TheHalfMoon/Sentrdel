@@ -1,7 +1,38 @@
 {
   "$defs": {
+    "CanonicalGraphValue": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "string"
+        },
+        {
+          "maximum": 18446744073709551615,
+          "minimum": -9223372036854775808,
+          "type": "integer"
+        },
+        {
+          "items": {
+            "$ref": "#/$defs/CanonicalGraphValue"
+          },
+          "type": "array"
+        },
+        {
+          "additionalProperties": {
+            "$ref": "#/$defs/CanonicalGraphValue"
+          },
+          "type": "object"
+        }
+      ]
+    },
     "GraphNodeId": {
       "description": "Stable content identity for one graph node.",
+      "pattern": "^sha256:[0-9a-f]{64}$",
       "type": "string"
     },
     "GraphNodeKind": {
@@ -26,6 +57,7 @@
     },
     "GraphProvenanceId": {
       "description": "Stable reference to evidence, an event, a producer record, or another\nprovenance-bearing canonical object.\n\nProvenance references are intentionally not restricted to one identifier\nnamespace. Callers must bind them to the authoritative object type at the\ningestion/reconciliation boundary that owns that object.",
+      "pattern": "\\S",
       "type": "string"
     }
   },
@@ -34,7 +66,9 @@
   "description": "Canonical R1 graph node wire record.",
   "properties": {
     "attributes": {
-      "additionalProperties": true,
+      "additionalProperties": {
+        "$ref": "#/$defs/CanonicalGraphValue"
+      },
       "type": "object"
     },
     "node_id": {
@@ -47,12 +81,16 @@
       "items": {
         "$ref": "#/$defs/GraphProvenanceId"
       },
-      "type": "array"
+      "minItems": 1,
+      "type": "array",
+      "uniqueItems": true
     },
     "schema_version": {
+      "const": "1",
       "type": "string"
     },
     "semantic_key": {
+      "pattern": "\\S",
       "type": "string"
     }
   },
