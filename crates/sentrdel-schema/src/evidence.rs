@@ -451,7 +451,8 @@ mod tests {
                 if digest == "sha256:untrusted-input"
         ));
 
-        value.reproduction
+        value
+            .reproduction
             .as_mut()
             .expect("reproduction")
             .input_digest = Some("sha256:input".to_owned());
