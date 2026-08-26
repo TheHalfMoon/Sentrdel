@@ -1,6 +1,6 @@
 # Tasks: Sentrdel v0.1 Evidence + Guard Foundation
 
-**Input:** constitution, `major-review-2026-08-24.md`, `spec.md`, `clarification-closeout.md`, `research.md`, `plan.md`, `data-model.md`, `contracts/`, `quickstart.md`  
+**Input:** constitution, `major-review-2026-08-24.md`, `implementation-amendment-002-evaluation-learning.md`, `spec.md`, `clarification-closeout.md`, `research.md`, `plan.md`, `data-model.md`, `contracts/`, `quickstart.md`, `../000-sentrdel-roadmap/improvement-plan-2026-08-26.md`  
 **Status:** IMPLEMENTATION_IN_PROGRESS
 
 ## Format
@@ -8,6 +8,8 @@
 `- [ ] T### [P?] [US#?] Description with exact paths`
 
 `[P]` means safely parallel after prerequisites. `[US#]` maps to a user story.
+
+**Task ID stability:** T001-T087 retain their original IDs. Tasks added by the 2026-08-26 evaluation amendment use T088+ and are inserted at their actual execution point; document position + dependency notes define execution order, not numeric sorting alone.
 
 ---
 
@@ -82,11 +84,26 @@
 
 **Foundational Checkpoint:** schema/store/policy/engine/graph/CLI contracts pass.
 
+### Evaluation + self-security interposed gate — amendment 002
+
+**Purpose:** Establish how Sentrdel proves quality before detector breadth. These tasks execute after T036 and before T037. They do not authorize autonomous learning or trusted-core self-modification.
+
+- [ ] T088 Define the R1 **SentrdelBench Core** evaluator/metric contract in `docs/security/evaluation-contract.md` and benchmark fixture conventions in `tests/benchmark/README.md`; record explicit precision, known-ground-truth miss/recall, clean-PR FP, coverage, provenance completeness, deterministic replay, latency/resource and later guard false-block dimensions without collapsing security quality into one opaque score.
+- [ ] T089 Implement the minimal executable benchmark-core harness and machine-readable run record using trusted Rust test code under `crates/sentrdel-review/tests/` plus `tests/benchmark/`; every run identifies evaluator version/digest, corpus revision, baseline/candidate identity and machine metadata where performance is measured.
+- [ ] T090 Separate benchmark corpora into public regression, development-evaluation and protected-holdout classes; public/base tests MUST NOT depend on private holdout data, and candidate-generation logic MUST NOT receive protected expected outputs. Document holdout promotion semantics in `docs/security/evaluation-contract.md`.
+- [ ] T091 Move self-security dependency gates forward: add/qualify `cargo-audit` + `cargo-deny` CI for the trusted Sentrdel workspace, validate source/dependency qualification and privileged dependency declarations, and keep target repositories outside these Cargo execution paths.
+- [ ] T092 Configure and record protected `main` repository rules/branch policy requiring the canonical applicable CI checks before merge; document exact ruleset/check names and limitations in `docs/security/repository-governance.md`. CI success alone MUST NOT be described as branch protection.
+- [ ] T095 [P] Freeze authority-safe future-learning/context contracts in `contracts/context-learning-authority.md`: untrusted context does not become privileged instruction; feedback/memory remain context rather than FACT/VERIFIED; research automation is candidate-only and cannot alter evaluator/holdout/kernel/reconciler/verification/release authority for its current candidate. General-purpose Security Memory/Learning implementation remains deferred.
+
+**Evaluation Gate Checkpoint:** T088-T092 and T095 are green; a deterministic benchmark baseline exists before broad detector growth; `main` governance state is explicitly recorded; no self-learning capability is implied.
+
 ---
 
 ## Phase 3 — US1: Review an AI-generated change
 
 **Goal:** High-signal evidence-backed diff review across coding-agent vendors.
+
+**Quality strategy:** Build the first vertical steel thread under SentrdelBench (`safe diff -> secret + GitHub Actions high-signal producers -> Evidence -> reconciler -> Finding -> graph context -> review output -> benchmark`) before optimizing for rule count.
 
 - [ ] T037 [US1] Implement read-only Git discovery/diff using minimal qualified `gix` features; explicitly disable/avoid hooks, external diff/textconv/filter drivers, submodule fetch, credential helpers and network remotes; fixtures cover hostile config, rename/delete/binary/shallow repos.
 - [ ] T038 [P] [US1] Implement bounded repository/file view and path normalization with symlink/confusable/oversized tests; target Cargo/npm/pip metadata commands are never run.
@@ -97,10 +114,10 @@
 - [ ] T043 [P] [US1] Add optional OSV-compatible lookup/cache respecting `--no-network`; tests remain offline-capable.
 - [ ] T044 [P] [US1] Implement GitHub Actions high-signal producer covering permission widening, OIDC/id-token, secrets in untrusted PR paths, `pull_request_target`, untrusted expression→shell interpolation, mutable action refs vs SHA pinning, self-hosted/untrusted runner changes and trust-sensitive artifact/cache handoffs.
 - [ ] T045 [US1] Implement Evidence fingerprint/correlation/reconciliation into canonical Findings, preserving observations, interpretations, provenance and contradictions.
-- [ ] T046 [US1] Connect changed symbols/reverse reachability to Finding context without unsupported semantic claims.
+- [ ] T046 [US1] Connect changed symbols/reverse reachability to Finding context without unsupported semantic claims; where stable identity/diff evidence exists, preserve enough prior/current state for later temporal classifications without inventing causality.
 - [ ] T047 [US1] Implement review coverage matrix aggregation so absent/failed producers are visible.
 - [ ] T048 [US1] Implement `sentrdel review` human/JSON output using frozen CLI contract.
-- [ ] T049 [US1] Add E2E clean/vulnerable/contradictory/missing-engine/hostile-repo tests proving deterministic producers ignore repository instructions and hidden execution configs.
+- [ ] T049 [US1] Add E2E clean/vulnerable/contradictory/missing-engine/hostile-repo tests proving deterministic producers ignore repository instructions and hidden execution configs; run the vertical steel-thread cases through SentrdelBench and record baseline deltas.
 
 ---
 
@@ -108,15 +125,16 @@
 
 **Goal:** True vendor-neutral **bounded stdio MCP** enforcement + integrity-linked ASEL + honest partial git hooks.
 
+- [ ] T093 [US2] Before MCP server forwarding, implement the Sentrdel-owned stdio MCP **child-process environment boundary**: deny ambient environment inheritance by default; explicitly allow only minimal normalized process requirements and user-authorized server capabilities; prove cloud/model/forge/signing/SSH/database/provider-admin credential canaries are absent by default.
 - [ ] T050 [US2] Qualify/pin rmcp 3.x protocol/model support but implement Sentrdel-owned **bounded stdio framing/reader** and explicit protocol-version negotiation/allowlist in `crates/sentrdel-guard/src/mcp/protocol.rs`; do not use remote/Streamable HTTP or blindly rely on SDK Default/LATEST semantics.
 - [ ] T051 [P] [US2] Implement MCP server/tool inventory and bounded description/schema hashes; cap metadata bytes/depth before storage/policy/reasoning.
-- [ ] T052 [US2] Implement stdio gateway normalization, pre-invocation policy, scoped approval and forwarding with max frame/buffer/args/result limits and fail-closed protocol errors.
+- [ ] T052 [US2] Implement stdio gateway normalization, pre-invocation policy, scoped approval and forwarding with max frame/buffer/args/result limits and fail-closed protocol errors; forwarding uses the T093 scrubbed environment/capability boundary.
 - [ ] T053 [US2] Persist ASEL discovery/invocation/approval/denial/tool-result events; expose computed session head/event count and optional expected-head verification without claiming local chain is tamper-proof.
-- [ ] T054 [P] [US2] Detect instruction-shaped/untrusted tool descriptions/results as Evidence/candidate telemetry without letting payload text alter policy.
+- [ ] T054 [P] [US2] Detect instruction-shaped/untrusted tool descriptions/results as Evidence/candidate telemetry without letting payload text alter policy; MCP content remains data unless an explicit trusted authority contract says otherwise.
 - [ ] T055 [US2] Implement `sentrdel guard mcp` CLI with ENFORCED fidelity for proxied stdio path and chain/head summary.
 - [ ] T056 [P] [US2] Implement safe git-hook install/composition/uninstall metadata without overwriting unrelated hooks.
 - [ ] T057 [US2] Implement hook-install CLI with PARTIAL fidelity warning.
-- [ ] T058 [US2] Add fixture stdio MCP client/server and E2E guard tests covering ALLOW/ASK/DENY/UNDECIDABLE, malicious descriptions/results, giant/unterminated frames, buffer caps, unsupported versions, ASEL verification and no remote HTTP support.
+- [ ] T058 [US2] Add fixture stdio MCP client/server and E2E guard tests covering ALLOW/ASK/DENY/UNDECIDABLE, malicious descriptions/results, giant/unterminated frames, buffer caps, unsupported versions, credential-inheritance canaries, ASEL verification and no remote HTTP support.
 
 ---
 
@@ -155,17 +173,17 @@
 
 ## Phase 8 — Release Hardening and Cross-Cutting Quality
 
-- [ ] T077 Build reproducible R1 benchmark harness for clean/vulnerable PRs, false positives, latency, memory, guard false-block, MCP malformed-input scenarios; public SentrdelBench remains roadmap R9.
+- [ ] T077 **Expand** the T088-T090 SentrdelBench Core into the complete reproducible R1 release benchmark for clean/vulnerable PRs, false positives, latency, memory, guard false-block, MCP malformed-input and authority-boundary scenarios; public large-scale SentrdelBench remains roadmap R9.
 - [ ] T078 Add release gate failing if clean-PR FP exceeds 1 per 5 clean PRs for gated rules.
 - [ ] T079 [P] Add warm review latency target (<5s p95 <2k changed LOC; <30s broader target) with benchmark-machine metadata.
 - [ ] T080 [P] Add MCP in-process policy latency target (<50ms p95 excluding downstream/human/framing wait) plus bounded-frame memory tests.
 - [ ] T081 Add cross-platform GitHub Actions CI for fmt/clippy/test/base contracts on Linux/macOS/Windows; guard tests truthfully platform/seam-qualified.
-- [ ] T082 Add self-security CI: `cargo-audit`, `cargo-deny`, source/dependency qualification validation, Rust 1.98.0 pin/lockfile checks, malicious-package denylist/advisory refresh path, and checks that privileged dependencies are documented. `cargo-vet`, if later used, is only for the trusted Sentrdel workspace and never run against arbitrary target repos.
-- [ ] T083 [P] Document R1 threat model/trust boundaries in `docs/security/threat-model.md` and keep root `SECURITY.md` aligned.
-- [ ] T084 [P] Document architecture/Evidence/ASEL including trusted-head limitations and stdio MCP scope.
-- [ ] T085 Update README with implemented/verified capabilities and explicit non-claims; Supabase deep pack, remote MCP and Verify remain roadmap only.
-- [ ] T086 Run final Spec Kit consistency analysis against constitution + major review + spec/plan/contracts/tasks and record repairs in `analysis.md`.
-- [ ] T087 Run implementation closeout: workspace tests/lints/adversarial suite/benchmarks, no secret canary persistence, no inherited engine credentials, no unqualified donor/privileged dependency, exact results in `implementation-closeout.md`.
+- [ ] T082 Complete self-security CI beyond the early T091 gate: source/dependency qualification validation, Rust 1.98.0 pin/lockfile checks, malicious-package denylist/advisory refresh path, privileged dependency documentation and release-grade policy. `cargo-vet`, if later used, is only for the trusted Sentrdel workspace and never run against arbitrary target repos.
+- [ ] T083 [P] Document R1 threat model/trust boundaries in `docs/security/threat-model.md` and keep root `SECURITY.md` aligned, including context/instruction authority and MCP credential inheritance boundaries.
+- [ ] T084 [P] Document architecture/Evidence/ASEL including trusted-head limitations, stdio MCP scope, evaluation-plane limits, and candidate-only future learning authority.
+- [ ] T085 Update README with implemented/verified capabilities and explicit non-claims; Supabase deep pack, remote MCP, Verify, general Security Memory and autonomous Research/Learning remain roadmap only.
+- [ ] T086 Run final Spec Kit consistency analysis against constitution + major review + implementation amendments + spec/plan/contracts/tasks and record repairs in `analysis.md`.
+- [ ] T087 Run implementation closeout: workspace tests/lints/adversarial suite/benchmarks, no secret canary persistence, no inherited engine/MCP credentials, no unqualified donor/privileged dependency, protected-main governance state recorded, exact results in `implementation-closeout.md`.
 
 ---
 
@@ -175,12 +193,16 @@
 Phase 1 Governance/workspace
     |
     v
-Phase 2 Trusted substrate
+Phase 2 Trusted substrate (through T036)
+    |
+    v
+Evaluation + self-security gate (T088-T092, T095)
     |
     +--------------------+----------------------+
     |                    |                      |
     v                    v                      v
 US1 Review            US2 Guard              US3 Init
+(vertical first)      (T093 before T050)         |
     |                    |                      |
     +----------+---------+----------------------+
                |
@@ -194,15 +216,17 @@ US1 Review            US2 Guard              US3 Init
        Release hardening
 ```
 
-US1/US2/US3 may proceed in parallel after Phase 2. US4 depends on Findings/store. US5 is optional/last among features. Release hardening depends on in-scope stories.
+US1/US2/US3 may proceed in parallel only after the Evaluation Gate Checkpoint. US1 should prove the benchmarked vertical steel thread before detector breadth. T093 is a US2 blocking prerequisite before T050-T058 forwarding behavior. US4 depends on Findings/store. US5 is optional/last among features. Release hardening depends on in-scope stories and expands rather than invents the benchmark/self-security foundations.
 
 ## Implementation Strategy
 
-1. Secure workspace/schema/store/policy/process boundaries first.
-2. Ship Review as first externally useful capability.
-3. Ship bounded stdio MCP Guard as first genuine vendor-neutral enforcement seam.
-4. Ship Init/provider detection with honest coverage; Supabase static posture follows immediately in roadmap R2.
-5. Explain; then optional reasoner; then release only if quality/security gates pass.
+1. Secure workspace/schema/store/policy/process boundaries first and finish T032-T036.
+2. Establish SentrdelBench Core + protected evaluation semantics + repository self-security before detector proliferation.
+3. Ship Review as the first externally useful capability, starting with one benchmarked vertical steel thread before broad rule count.
+4. Ship bounded stdio MCP Guard as the first genuine vendor-neutral enforcement seam, with deny-by-default child credential inheritance before forwarding.
+5. Ship Init/provider detection with honest coverage; Supabase static posture follows immediately in roadmap R2.
+6. Explain; then optional reasoner; then release only if quality/security gates pass.
+7. Full Security Memory, producer reliability, signed/revocable community pack distribution, temporal project-wide security intelligence, and continuous Research/Learning require later dedicated specs as mapped in the roadmap Plan of Record.
 
 ## Explicitly Deferred to Later Specs
 
@@ -215,4 +239,9 @@ US1/US2/US3 may proceed in parallel after Phase 2. US4 depends on Findings/store
 - eBPF/runtime enforcement;
 - VS Code/Cursor/JetBrains/GitHub App integrations;
 - universal CPG/compiler implementation;
-- broad scanner/rule-count expansion.
+- broad scanner/rule-count expansion;
+- general-purpose Project Security Memory and memory-driven suppression;
+- full context/instruction provenance integration across every forge/browser/IDE channel;
+- automatic producer reliability weighting as authority;
+- signed community pack marketplace/distribution lifecycle;
+- autonomous Security Research/Learning Plane, automatic candidate promotion, or trusted-core self-modification.
