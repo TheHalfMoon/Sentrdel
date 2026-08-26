@@ -64,10 +64,7 @@ fn manifest(timeout_ms: u64, max_stdout_bytes: u64, max_stderr_bytes: u64) -> En
 
 fn workspace(label: &str) -> (PathBuf, PathBuf) {
     let id = NEXT_FIXTURE_ID.fetch_add(1, Ordering::Relaxed);
-    let root = env::temp_dir().join(format!(
-        "sentrdel-t029-{label}-{}-{id}",
-        process::id()
-    ));
+    let root = env::temp_dir().join(format!("sentrdel-t029-{label}-{}-{id}", process::id()));
     let cwd = root.join("cwd");
     fs::create_dir_all(&cwd).expect("create T029 fixture workspace");
     (root, cwd)
@@ -88,10 +85,15 @@ fn fixture_executable() -> TrustedExecutable {
 }
 
 fn fixture_arguments() -> Vec<OsString> {
-    ["--ignored", "--exact", "fixture_engine_child", "--nocapture"]
-        .into_iter()
-        .map(OsString::from)
-        .collect()
+    [
+        "--ignored",
+        "--exact",
+        "fixture_engine_child",
+        "--nocapture",
+    ]
+    .into_iter()
+    .map(OsString::from)
+    .collect()
 }
 
 fn process_spec(mode: &str) -> EngineProcessSpec {
@@ -117,12 +119,8 @@ fn run_fixture(
 }
 
 fn authority() -> EvidenceAuthority {
-    EvidenceAuthority::from_runtime(
-        "t029-fixture-engine",
-        "1",
-        ProducerKind::ExternalEngine,
-    )
-    .expect("fixture authority")
+    EvidenceAuthority::from_runtime("t029-fixture-engine", "1", ProducerKind::ExternalEngine)
+        .expect("fixture authority")
 }
 
 fn adapt(
@@ -145,7 +143,12 @@ fn adapt(
 fn valid_minimal_multiple_and_empty_fixtures_are_deterministic() {
     let (manifest, limits, minimal) = run_fixture("minimal", "valid-minimal", 2_000, 16_384);
     assert_eq!(minimal.termination_reason(), &TerminationReason::Completed);
-    assert_eq!(adapt(&manifest, &limits, &minimal).expect("minimal fixture").len(), 1);
+    assert_eq!(
+        adapt(&manifest, &limits, &minimal)
+            .expect("minimal fixture")
+            .len(),
+        1
+    );
 
     let (manifest, limits, multiple) = run_fixture("multiple", "valid-multiple", 2_000, 16_384);
     assert_eq!(multiple.termination_reason(), &TerminationReason::Completed);
@@ -158,13 +161,20 @@ fn valid_minimal_multiple_and_empty_fixtures_are_deterministic() {
 
     let (manifest, limits, empty) = run_fixture("empty", "valid-empty", 2_000, 16_384);
     assert_eq!(empty.termination_reason(), &TerminationReason::Completed);
-    assert!(adapt(&manifest, &limits, &empty).expect("empty fixture").is_empty());
+    assert!(
+        adapt(&manifest, &limits, &empty)
+            .expect("empty fixture")
+            .is_empty()
+    );
 }
 
 #[test]
 fn malformed_and_unsupported_native_results_never_become_evidence() {
     let (manifest, limits, malformed) = run_fixture("malformed", "malformed", 2_000, 16_384);
-    assert_eq!(malformed.termination_reason(), &TerminationReason::Completed);
+    assert_eq!(
+        malformed.termination_reason(),
+        &TerminationReason::Completed
+    );
     assert_eq!(
         adapt(&manifest, &limits, &malformed),
         Err(EngineAdapterError::MalformedJson)
@@ -172,7 +182,10 @@ fn malformed_and_unsupported_native_results_never_become_evidence() {
 
     let (manifest, limits, unsupported) =
         run_fixture("unsupported-schema", "unsupported-schema", 2_000, 16_384);
-    assert_eq!(unsupported.termination_reason(), &TerminationReason::Completed);
+    assert_eq!(
+        unsupported.termination_reason(),
+        &TerminationReason::Completed
+    );
     assert_eq!(
         adapt(&manifest, &limits, &unsupported),
         Err(EngineAdapterError::UnsupportedNativeSchemaVersion(
@@ -267,12 +280,30 @@ fn cloud_model_signing_and_ssh_credentials_are_absent_by_default() {
 fn fixture_engine_child() {
     let mode = env::var(FIXTURE_MODE).expect("fixture mode must be explicitly supplied");
     match mode.as_str() {
-        "valid-minimal" => print!("{}", include_str!("../../../fixtures/engines/native-valid-minimal.json")),
-        "valid-multiple" => print!("{}", include_str!("../../../fixtures/engines/native-valid-multiple.json")),
-        "valid-empty" => print!("{}", include_str!("../../../fixtures/engines/native-empty.json")),
-        "malformed" => print!("{}", include_str!("../../../fixtures/engines/native-malformed.json")),
-        "out-of-root" => print!("{}", include_str!("../../../fixtures/engines/native-out-of-root.json")),
-        "unsupported-schema" => print!("{}", include_str!("../../../fixtures/engines/native-unsupported-schema.json")),
+        "valid-minimal" => print!(
+            "{}",
+            include_str!("../../../fixtures/engines/native-valid-minimal.json")
+        ),
+        "valid-multiple" => print!(
+            "{}",
+            include_str!("../../../fixtures/engines/native-valid-multiple.json")
+        ),
+        "valid-empty" => print!(
+            "{}",
+            include_str!("../../../fixtures/engines/native-empty.json")
+        ),
+        "malformed" => print!(
+            "{}",
+            include_str!("../../../fixtures/engines/native-malformed.json")
+        ),
+        "out-of-root" => print!(
+            "{}",
+            include_str!("../../../fixtures/engines/native-out-of-root.json")
+        ),
+        "unsupported-schema" => print!(
+            "{}",
+            include_str!("../../../fixtures/engines/native-unsupported-schema.json")
+        ),
         "flood" => {
             use std::io::Write;
             let payload = vec![b'x'; 16_384];
@@ -305,8 +336,7 @@ fn fixture_engine_child() {
                 .expect("engine env probe should return an explicit outcome");
             assert_eq!(outcome.termination_reason(), &TerminationReason::Completed);
             assert!(
-                String::from_utf8_lossy(outcome.stdout())
-                    .contains("sensitive-environment-absent"),
+                String::from_utf8_lossy(outcome.stdout()).contains("sensitive-environment-absent"),
                 "engine child did not confirm scrubbed environment"
             );
             println!("launcher-proved-environment-scrub");
