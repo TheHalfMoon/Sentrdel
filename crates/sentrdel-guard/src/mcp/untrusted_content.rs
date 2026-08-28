@@ -70,7 +70,12 @@ const CANDIDATE_RULES: &[CandidateRule] = &[
     },
     CandidateRule {
         id: "mcp.untrusted.policy-override",
-        needles: &["override policy", "bypass policy", "disable guard", "ignore policy"],
+        needles: &[
+            "override policy",
+            "bypass policy",
+            "disable guard",
+            "ignore policy",
+        ],
     },
     CandidateRule {
         id: "mcp.untrusted.secret-exfiltration",
@@ -84,7 +89,12 @@ const CANDIDATE_RULES: &[CandidateRule] = &[
     },
     CandidateRule {
         id: "mcp.untrusted.command-directive",
-        needles: &["execute command", "run shell", "run command", "execute shell"],
+        needles: &[
+            "execute command",
+            "run shell",
+            "run command",
+            "execute shell",
+        ],
     },
     CandidateRule {
         id: "mcp.untrusted.hidden-instruction",
@@ -110,7 +120,11 @@ pub fn inspect_untrusted_mcp_text(
     let normalized = text.to_ascii_lowercase();
     let mut candidate_rule_ids = Vec::new();
     for rule in CANDIDATE_RULES {
-        if rule.needles.iter().any(|needle| normalized.contains(needle)) {
+        if rule
+            .needles
+            .iter()
+            .any(|needle| normalized.contains(needle))
+        {
             candidate_rule_ids.push(rule.id);
             if candidate_rule_ids.len() == limits.max_candidates {
                 break;
@@ -135,7 +149,9 @@ pub enum UntrustedMcpContentError {
 impl fmt::Display for UntrustedMcpContentError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::InvalidLimits => formatter.write_str("untrusted MCP telemetry limits must be non-zero"),
+            Self::InvalidLimits => {
+                formatter.write_str("untrusted MCP telemetry limits must be non-zero")
+            }
             Self::TextTooLarge { bytes, max } => write!(
                 formatter,
                 "untrusted MCP text is {bytes} bytes and exceeds telemetry cap {max}"
