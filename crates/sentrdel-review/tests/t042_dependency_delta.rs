@@ -133,7 +133,8 @@ fn malformed_unsupported_and_oversized_lockfiles_fail_closed() {
 
 #[test]
 fn cargo_package_record_cap_applies_before_deduplication() {
-    let repeated = "[[package]]\nname = \"same\"\nversion = \"1\"\n".repeat(MAX_LOCKFILE_PACKAGES + 1);
+    let repeated =
+        "[[package]]\nname = \"same\"\nversion = \"1\"\n".repeat(MAX_LOCKFILE_PACKAGES + 1);
     assert!(matches!(
         parse_lockfile(LockfileKind::Cargo, repeated.as_bytes()),
         Err(DependencyError::TooManyPackages { count, max })
