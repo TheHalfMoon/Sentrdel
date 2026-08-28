@@ -185,6 +185,7 @@ def require_privileged_declarations(root: Path, metadata: dict[str, Any]) -> Non
         [
             (root / "docs/third-party/source-qualification-ledger.md").read_text(encoding="utf-8"),
             (root / "docs/third-party/t091-self-security-tool-qualification.md").read_text(encoding="utf-8"),
+            (root / "docs/third-party/t039-parser-stack-admission.md").read_text(encoding="utf-8"),
         ]
     )
     for key, qualification in qualification_refs.items():
