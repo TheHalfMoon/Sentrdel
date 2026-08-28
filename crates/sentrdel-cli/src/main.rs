@@ -1,6 +1,7 @@
 #![forbid(unsafe_code)]
 
 pub mod bootstrap;
+mod guard_git_hooks;
 
 use std::process::ExitCode;
 
