@@ -1,0 +1,40 @@
+name: T056 Digest Fix
+
+on:
+  push:
+    branches:
+      - impl/001-t056-safe-git-hook-metadata
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: impl/001-t056-safe-git-hook-metadata
+      - name: Fix deterministic digest encoding
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('crates/sentrdel-guard/src/git_hooks.rs')
+          text = path.read_text(encoding='utf-8')
+          old = '''fn digest(bytes: &[u8]) -> String {\n    let mut hasher = Sha256::new();\n    hasher.update(bytes);\n    format!("sha256:{:x}", hasher.finalize())\n}\n'''
+          new = '''fn digest(bytes: &[u8]) -> String {\n    let mut hasher = Sha256::new();\n    hasher.update(bytes);\n    let digest = hasher.finalize();\n    let mut output = String::with_capacity(7 + digest.len() * 2);\n    output.push_str("sha256:");\n    const HEX: &[u8; 16] = b"0123456789abcdef";\n    for byte in digest {\n        output.push(char::from(HEX[(byte >> 4) as usize]));\n        output.push(char::from(HEX[(byte & 0x0f) as usize]));\n    }\n    output\n}\n'''
+          if text.count(old) != 1:
+              raise SystemExit('expected exactly one digest implementation')
+          path.write_text(text.replace(old, new, 1), encoding='utf-8')
+          PY
+          rustup toolchain install 1.98.0 --profile minimal --component rustfmt
+          cargo +1.98.0 fmt --all
+          git rm .github/workflows/t056-digest-fix.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add crates/sentrdel-guard/src/git_hooks.rs
+          git commit -m 'fix(guard): encode hook digests deterministically'
+          git push origin HEAD:impl/001-t056-safe-git-hook-metadata
