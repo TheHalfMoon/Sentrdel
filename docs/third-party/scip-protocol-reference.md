@@ -53,13 +53,15 @@ T034 defines only an adapter-normalized Rust ingestion interface. It performs no
 - network access;
 - artifact download.
 
-A future concrete SCIP decoder or indexer adapter must receive its own dependency/source/runtime qualification and bounded hostile-input design before entering the repository.
+A future concrete SCIP decoder or indexer adapter must receive its own dependency/source/runtime qualification and bounded hostile-input design before entering the repository. The adapter must also normalize position encoding without ambiguity before constructing the T034 range records.
 
 ## Resource and determinism constraints
 
 The T034 graph boundary rejects invalid artifact digests, non-canonical document paths, blank producer/qualification metadata, invalid ranges, duplicate document paths, and requests exceeding hard document/occurrence limits.
 
-Documents/occurrences are normalized into stable Sentrdel graph identities. Duplicate occurrences are deduplicated, local symbols are document-scoped, and output ordering is stable-ID deterministic.
+Artifact-controlled producer name/version and document-language strings are capped and reject control characters. Persisted scope is restricted to `.` or a canonical repository-relative subtree, so absolute workstation paths cannot enter deterministic coverage output.
+
+Documents/occurrences are normalized into stable Sentrdel graph identities. Duplicate occurrences are deduplicated, local symbols are document-scoped, document input order does not affect graph output order, and output remains stable-ID deterministic.
 
 ## Scope
 
