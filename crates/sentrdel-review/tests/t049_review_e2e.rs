@@ -21,9 +21,8 @@ use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
 const CAPTURED_AT: &str = "2026-08-28T00:00:00Z";
-const STEEL_THREAD_CORPUS: &[u8] = include_bytes!(
-    "../../../tests/benchmark/development-evaluation/t049-review-steel-thread.json"
-);
+const STEEL_THREAD_CORPUS: &[u8] =
+    include_bytes!("../../../tests/benchmark/development-evaluation/t049-review-steel-thread.json");
 const SAFE_WORKFLOW: &[u8] = br#"name: safe
 on: pull_request
 permissions:
@@ -161,12 +160,7 @@ fn reconciliation_rule(
     .expect("runtime reconciliation rule")
 }
 
-fn coverage(
-    id: &str,
-    capability: &str,
-    producer: &str,
-    state: CoverageState,
-) -> CoverageRecord {
+fn coverage(id: &str, capability: &str, producer: &str, state: CoverageState) -> CoverageRecord {
     CoverageRecord {
         schema_version: SCHEMA_V1.to_owned(),
         coverage_id: id.to_owned(),
@@ -273,15 +267,16 @@ fn vulnerable_case() -> ActualCase {
 
 fn contradictory_case() -> ActualCase {
     let secret = format!("const token = 'ghp_{}';\n", "B".repeat(36));
-    let support = scan_changed_secrets(&path("src/contradicted.js"), secret.as_bytes(), CAPTURED_AT)
-        .expect("support evidence")
-        .into_iter()
-        .next()
-        .expect("one support observation");
+    let support =
+        scan_changed_secrets(&path("src/contradicted.js"), secret.as_bytes(), CAPTURED_AT)
+            .expect("support evidence")
+            .into_iter()
+            .next()
+            .expect("one support observation");
 
     let mut claim = support.claim().clone();
-    claim.observation = "Independent deterministic producer contradicts the secret interpretation"
-        .to_owned();
+    claim.observation =
+        "Independent deterministic producer contradicts the secret interpretation".to_owned();
     claim.epistemic_class = EpistemicClass::Contradiction;
     let contradiction = EvidenceAuthority::from_runtime(
         "sentrdel.t049-contradiction-fixture",
@@ -300,7 +295,10 @@ fn contradictory_case() -> ActualCase {
     )
     .expect("contested finding");
     assert_eq!(findings.len(), 1);
-    assert_eq!(findings[0].draft().epistemic_state, EpistemicState::Contested);
+    assert_eq!(
+        findings[0].draft().epistemic_state,
+        EpistemicState::Contested
+    );
     assert_eq!(findings[0].draft().contradiction_ids.len(), 1);
 
     ActualCase {
@@ -310,10 +308,7 @@ fn contradictory_case() -> ActualCase {
             epistemic_state: findings[0].draft().epistemic_state.clone(),
             evidence_count: findings[0].draft().evidence_ids.len(),
         }],
-        coverage: BTreeMap::from([(
-            "changed-secrets".to_owned(),
-            BenchCoverageState::Completed,
-        )]),
+        coverage: BTreeMap::from([("changed-secrets".to_owned(), BenchCoverageState::Completed)]),
         missing_coverage: BTreeSet::new(),
     }
 }
@@ -355,10 +350,7 @@ fn missing_engine_case() -> ActualCase {
 
     ActualCase {
         findings: Vec::new(),
-        coverage: BTreeMap::from([(
-            "changed-secrets".to_owned(),
-            BenchCoverageState::Completed,
-        )]),
+        coverage: BTreeMap::from([("changed-secrets".to_owned(), BenchCoverageState::Completed)]),
         missing_coverage: BTreeSet::from(["optional-engine".to_owned()]),
     }
 }
@@ -520,13 +512,18 @@ fn deterministic_replay_preserves_findings_coverage_and_authority() {
     let second_delta = evaluate_against_sentrdelbench_fixture(&fixture, &second);
     assert_eq!(first_delta, second_delta);
 
-    assert!(fixture.authority_assertions.iter().all(|assertion| {
-        !assertion.assertion_id.trim().is_empty() && assertion.passed
-    }));
-    assert!(first
-        .get("t049-contradictory-review")
-        .expect("contradictory case")
-        .findings
-        .iter()
-        .all(|finding| finding.epistemic_state == EpistemicState::Contested));
+    assert!(
+        fixture
+            .authority_assertions
+            .iter()
+            .all(|assertion| { !assertion.assertion_id.trim().is_empty() && assertion.passed })
+    );
+    assert!(
+        first
+            .get("t049-contradictory-review")
+            .expect("contradictory case")
+            .findings
+            .iter()
+            .all(|finding| finding.epistemic_state == EpistemicState::Contested)
+    );
 }
