@@ -91,7 +91,7 @@
 - [x] T088 Define the R1 **SentrdelBench Core** evaluator/metric contract in `docs/security/evaluation-contract.md` and benchmark fixture conventions in `tests/benchmark/README.md`; record explicit precision, known-ground-truth miss/recall, clean-PR FP, coverage, provenance completeness, deterministic replay, latency/resource and later guard false-block dimensions without collapsing security quality into one opaque score.
 - [x] T089 Implement the minimal executable benchmark-core harness and machine-readable run record using trusted Rust test code under `crates/sentrdel-review/tests/` plus `tests/benchmark/`; every run identifies evaluator version/digest, corpus revision, baseline/candidate identity and machine metadata where performance is measured.
 - [x] T090 Separate benchmark corpora into public regression, development-evaluation and protected-holdout classes; public/base tests MUST NOT depend on private holdout data, and candidate-generation logic MUST NOT receive protected expected outputs. Document holdout promotion semantics in `docs/security/evaluation-contract.md`.
-- [x] T091 Move self-security dependency gates forward: add/qualify `cargo-audit` + `cargo-deny` CI for the trusted Sentrdel workspace, validate source/dependency qualification and privileged-surface declarations, and keep target repositories outside these Cargo execution paths.
+- [x] T091 Move self-security dependency gates forward: add/qualify `cargo-audit` + `cargo-deny` CI for the trusted Sentrdel workspace, validate source/dependency qualification and privileged dependency declarations, and keep target repositories outside these Cargo execution paths.
 - [x] T092 Configure and record protected `main` repository rules/branch policy requiring the canonical applicable CI checks before merge; document exact ruleset/check names and limitations in `docs/security/repository-governance.md`. CI success alone MUST NOT be described as branch protection.
 - [x] T095 [P] Freeze authority-safe future-learning/context contracts in `contracts/context-learning-authority.md`: untrusted context does not become privileged instruction; feedback/memory remain context rather than FACT/VERIFIED; research automation is candidate-only and cannot alter evaluator/holdout/kernel/reconciler/verification/release authority for its current candidate. General-purpose Security Memory/Learning implementation remains deferred.
 
@@ -157,6 +157,7 @@
 - [ ] T068 [P] [US4] Implement Evidence/provenance graph subtree query.
 - [ ] T069 [US4] Implement `sentrdel explain <finding-id>` human/JSON modes.
 - [ ] T070 [US4] Add golden/contract tests proving explanation cannot mutate canonical severity/proof/workflow state.
+
 ---
 
 ## Phase 7 — US5: Optional hypothesis-only LLM reasoning
@@ -216,6 +217,7 @@ US1 Review            US2 Guard              US3 Init
 ```
 
 US1/US2/US3 may proceed in parallel only after the Evaluation Gate Checkpoint. US1 should prove the benchmarked vertical steel thread before detector breadth. T093 is a US2 blocking prerequisite before T050-T058 forwarding behavior. US4 depends on Findings/store. US5 is optional/last among features. Release hardening depends on in-scope stories and expands rather than invents the benchmark/self-security foundations.
+
 ## Implementation Strategy
 
 1. Secure workspace/schema/store/policy/process boundaries first and finish T032-T036.
