@@ -1,1 +1,0 @@
-Temporary exact-head CI trigger for T056 after digest repair. This file is removed immediately.
