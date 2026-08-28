@@ -71,12 +71,11 @@ impl<R: BufRead> BoundedStdioReader<R> {
             let newline = available.iter().position(|byte| *byte == b'\n');
             let take = newline.map_or(available.len(), |index| index + 1);
             let body_take = newline.map_or(take, |index| index);
-            let projected = frame
-                .len()
-                .checked_add(body_take)
-                .ok_or(McpProtocolError::BufferLimitExceeded {
+            let projected = frame.len().checked_add(body_take).ok_or(
+                McpProtocolError::BufferLimitExceeded {
                     max: self.limits.max_buffer_bytes,
-                })?;
+                },
+            )?;
 
             if projected > self.limits.max_buffer_bytes {
                 return Err(McpProtocolError::BufferLimitExceeded {
@@ -212,7 +211,10 @@ impl fmt::Display for McpProtocolError {
                 write!(formatter, "MCP stdio frame exceeds {max} byte limit")
             }
             Self::BufferLimitExceeded { max } => {
-                write!(formatter, "MCP stdio buffered bytes exceed {max} byte limit")
+                write!(
+                    formatter,
+                    "MCP stdio buffered bytes exceed {max} byte limit"
+                )
             }
             Self::UnterminatedFrame { buffered } => write!(
                 formatter,
@@ -253,7 +255,10 @@ mod tests {
 
     use super::*;
 
-    fn reader(bytes: &[u8], max_frame_bytes: usize) -> BoundedStdioReader<BufReader<Cursor<Vec<u8>>>> {
+    fn reader(
+        bytes: &[u8],
+        max_frame_bytes: usize,
+    ) -> BoundedStdioReader<BufReader<Cursor<Vec<u8>>>> {
         BoundedStdioReader::new(
             BufReader::with_capacity(3, Cursor::new(bytes.to_vec())),
             McpStdioLimits {
@@ -312,7 +317,10 @@ mod tests {
         let response = br#"{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2026-07-28"}}"#;
         assert_eq!(
             initialize_protocol_version(response).unwrap(),
-            (InitializeEnvelope::Response, McpProtocolVersion::V2026_07_28)
+            (
+                InitializeEnvelope::Response,
+                McpProtocolVersion::V2026_07_28
+            )
         );
 
         let symbolic_latest = br#"{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"LATEST"}}"#;
@@ -347,6 +355,9 @@ mod tests {
     #[test]
     fn qualified_sdk_pin_is_not_a_transport_authority() {
         assert_eq!(QUALIFIED_RMCP_VERSION, "3.1.4");
-        assert_eq!(QUALIFIED_RMCP_REF, "4a738b9dd99eaca418b614afa433a0cbdaf8d056");
+        assert_eq!(
+            QUALIFIED_RMCP_REF,
+            "4a738b9dd99eaca418b614afa433a0cbdaf8d056"
+        );
     }
 }
