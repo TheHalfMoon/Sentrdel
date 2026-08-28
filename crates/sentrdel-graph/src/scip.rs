@@ -36,8 +36,9 @@ pub enum ScipProducerQualification {
 impl ScipProducerQualification {
     fn qualification_id(&self) -> &str {
         match self {
-            Self::CompilerBacked { qualification_id }
-            | Self::Heuristic { qualification_id } => qualification_id,
+            Self::CompilerBacked { qualification_id } | Self::Heuristic { qualification_id } => {
+                qualification_id
+            }
         }
     }
 
@@ -161,7 +162,10 @@ pub fn scip_coverage_gap(
     let scope = scope.into();
     let observed_at = observed_at.into();
     validate_scope_and_time(&scope, &observed_at)?;
-    if producer.as_deref().is_some_and(|value| value.trim().is_empty()) {
+    if producer
+        .as_deref()
+        .is_some_and(|value| value.trim().is_empty())
+    {
         return Err(ScipIngestionError::BlankProducerName);
     }
 
@@ -325,22 +329,13 @@ pub enum ScipIngestionError {
     BlankProducerName,
     BlankProducerVersion,
     BlankQualificationId,
-    TooManyDocuments {
-        actual: usize,
-        maximum: usize,
-    },
-    TooManyOccurrences {
-        actual: usize,
-        maximum: usize,
-    },
+    TooManyDocuments { actual: usize, maximum: usize },
+    TooManyOccurrences { actual: usize, maximum: usize },
     InvalidDocumentPath(String),
     DuplicateDocumentPath(String),
     BlankLanguage(String),
     InvalidSymbol(String),
-    InvalidRange {
-        path: String,
-        range: ScipRange,
-    },
+    InvalidRange { path: String, range: ScipRange },
     Graph(GraphContractError),
 }
 
@@ -355,9 +350,7 @@ impl fmt::Display for ScipIngestionError {
                 formatter,
                 "SCIP artifact digest must use sha256:<64 lowercase hex> form: {digest:?}"
             ),
-            Self::BlankProducerName => {
-                formatter.write_str("SCIP producer name must not be blank")
-            }
+            Self::BlankProducerName => formatter.write_str("SCIP producer name must not be blank"),
             Self::BlankProducerVersion => {
                 formatter.write_str("SCIP producer version must not be blank when present")
             }
@@ -385,7 +378,10 @@ impl fmt::Display for ScipIngestionError {
                 write!(formatter, "invalid SCIP symbol string: {symbol:?}")
             }
             Self::InvalidRange { path, range } => {
-                write!(formatter, "invalid SCIP occurrence range {range:?} in {path:?}")
+                write!(
+                    formatter,
+                    "invalid SCIP occurrence range {range:?} in {path:?}"
+                )
             }
             Self::Graph(error) => write!(formatter, "SCIP graph mapping failed: {error}"),
         }
@@ -447,7 +443,12 @@ fn validate_request(request: &ScipIngestionRequest) -> Result<(), ScipIngestionE
     {
         return Err(ScipIngestionError::BlankProducerVersion);
     }
-    if request.producer_qualification.qualification_id().trim().is_empty() {
+    if request
+        .producer_qualification
+        .qualification_id()
+        .trim()
+        .is_empty()
+    {
         return Err(ScipIngestionError::BlankQualificationId);
     }
     if request.artifact.documents.len() > MAX_SCIP_DOCUMENTS {
@@ -520,6 +521,9 @@ fn validate_symbol(symbol: &str) -> Result<(), ScipIngestionError> {
         || symbol.len() > MAX_SCIP_SYMBOL_BYTES
         || symbol.contains('\0')
         || symbol == "local"
+        || symbol
+            .strip_prefix("local ")
+            .is_some_and(|local_id| local_id.trim().is_empty())
     {
         return Err(ScipIngestionError::InvalidSymbol(symbol.to_owned()));
     }
@@ -623,10 +627,12 @@ mod tests {
             GraphConfidenceBasis::Extracted
         );
         assert_eq!(result.edges[0].relation, GraphRelation::Refs);
-        assert!(result.edges[0]
-            .provenance_ids
-            .iter()
-            .any(|id| id.as_str() == "source-qualification:SCIPQ-fixture-compiler"));
+        assert!(
+            result.edges[0]
+                .provenance_ids
+                .iter()
+                .any(|id| id.as_str() == "source-qualification:SCIPQ-fixture-compiler")
+        );
     }
 
     #[test]
@@ -650,10 +656,12 @@ mod tests {
             result.coverage.reason_code.as_deref(),
             Some("SCIP_HEURISTIC_PRODUCER")
         );
-        assert!(result
-            .edges
-            .iter()
-            .all(|edge| edge.confidence_source.basis == GraphConfidenceBasis::Inferred));
+        assert!(
+            result
+                .edges
+                .iter()
+                .all(|edge| edge.confidence_source.basis == GraphConfidenceBasis::Inferred)
+        );
     }
 
     #[test]
@@ -663,20 +671,12 @@ mod tests {
             ScipDocument {
                 relative_path: "src/a.rs".to_owned(),
                 language: "rust".to_owned(),
-                occurrences: vec![occurrence(
-                    "local 0",
-                    ScipOccurrenceRole::Definition,
-                    1,
-                )],
+                occurrences: vec![occurrence("local 0", ScipOccurrenceRole::Definition, 1)],
             },
             ScipDocument {
                 relative_path: "src/b.rs".to_owned(),
                 language: "rust".to_owned(),
-                occurrences: vec![occurrence(
-                    "local 0",
-                    ScipOccurrenceRole::Definition,
-                    1,
-                )],
+                occurrences: vec![occurrence("local 0", ScipOccurrenceRole::Definition, 1)],
             },
         ];
 
@@ -695,9 +695,7 @@ mod tests {
         let baseline = ingest_scip(request(compiler_qualification())).expect("baseline");
         let mut duplicated = request(compiler_qualification());
         let duplicate = duplicated.artifact.documents[0].occurrences[1].clone();
-        duplicated.artifact.documents[0]
-            .occurrences
-            .push(duplicate);
+        duplicated.artifact.documents[0].occurrences.push(duplicate);
         let repeated = ingest_scip(duplicated).expect("repeated");
 
         assert_eq!(baseline.nodes, repeated.nodes);
@@ -725,7 +723,7 @@ mod tests {
     }
 
     #[test]
-    fn invalid_digest_and_range_fail_closed() {
+    fn invalid_digest_range_and_local_symbol_fail_closed() {
         let mut bad_digest = request(compiler_qualification());
         bad_digest.artifact.artifact_digest = "sha256:not-a-digest".to_owned();
         assert!(matches!(
@@ -747,6 +745,13 @@ mod tests {
         assert!(matches!(
             ingest_scip(bad_range),
             Err(ScipIngestionError::InvalidRange { .. })
+        ));
+
+        let mut bad_local = request(compiler_qualification());
+        bad_local.artifact.documents[0].occurrences[0].symbol = "local ".to_owned();
+        assert!(matches!(
+            ingest_scip(bad_local),
+            Err(ScipIngestionError::InvalidSymbol(_))
         ));
     }
 
