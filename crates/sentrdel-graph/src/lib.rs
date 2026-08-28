@@ -3,15 +3,22 @@
 //!
 //! `sentrdel-schema` owns the versioned interchange representation. This crate
 //! is the graph-domain entry point for stable identity derivation, provenance
-//! validation, and producer-local confidence metadata. Persistence, petgraph
-//! projection/traversal/diff, and SCIP ingestion remain T032-T034.
+//! validation, producer-local confidence metadata, deterministic `petgraph`
+//! projection, bounded reverse reachability and stable graph diff. Persistence
+//! lives in `sentrdel-store`; SCIP ingestion remains T034.
 
+mod projection;
+
+pub use projection::{
+    GraphDiff, GraphEdgeChange, GraphNodeChange, GraphProjection, GraphProjectionError,
+    MAX_BLAST_RADIUS_DEPTH, ReverseReachabilityHit,
+};
 pub use sentrdel_schema::graph::{
     GraphConfidenceBasis, GraphConfidenceSource, GraphContractError, GraphEdge, GraphEdgeId,
     GraphNode, GraphNodeId, GraphNodeKind, GraphProvenanceId, GraphRelation,
 };
 
-/// T031 deliberately keeps the graph thin; it does not implement or claim a
+/// Sentrdel intentionally owns a thin security/evidence graph rather than a
 /// universal code property graph.
 pub const UNIVERSAL_CPG: bool = false;
 
