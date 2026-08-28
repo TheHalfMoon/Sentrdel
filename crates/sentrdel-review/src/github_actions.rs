@@ -18,8 +18,18 @@ const PRODUCER_ID: &str = "sentrdel.github-actions";
 const PRODUCER_VERSION: &str = "1";
 
 const WRITE_PERMISSIONS: &[&str] = &[
-    "actions", "checks", "contents", "deployments", "discussions", "issues", "packages",
-    "pages", "pull-requests", "repository-projects", "security-events", "statuses",
+    "actions",
+    "checks",
+    "contents",
+    "deployments",
+    "discussions",
+    "issues",
+    "packages",
+    "pages",
+    "pull-requests",
+    "repository-projects",
+    "security-events",
+    "statuses",
 ];
 
 #[derive(Debug)]
@@ -40,7 +50,9 @@ impl fmt::Display for ActionsScanError {
             }
             Self::NonUtf8Source => formatter.write_str("workflow source must be valid UTF-8"),
             Self::EmptyCapturedAt => formatter.write_str("captured_at must not be empty"),
-            Self::Evidence(error) => write!(formatter, "cannot seal GitHub Actions evidence: {error}"),
+            Self::Evidence(error) => {
+                write!(formatter, "cannot seal GitHub Actions evidence: {error}")
+            }
         }
     }
 }
@@ -255,7 +267,10 @@ fn scan_features(source: &str) -> Features {
             out.workflow_run = true;
         }
 
-        if trimmed == "permissions: write-all" || trimmed == "permissions: 'write-all'" || trimmed == "permissions: \"write-all\"" {
+        if trimmed == "permissions: write-all"
+            || trimmed == "permissions: 'write-all'"
+            || trimmed == "permissions: \"write-all\""
+        {
             out.write_all = true;
             out.write_all_line.get_or_insert(line_number);
         }
