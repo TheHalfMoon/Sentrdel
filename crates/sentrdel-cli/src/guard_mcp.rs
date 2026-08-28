@@ -55,7 +55,11 @@ impl From<&McpServerInventory> for GuardMcpInventorySummary {
             server_name: inventory.name.clone(),
             server_version: inventory.version.clone(),
             server_description_hash: inventory.description_hash.clone(),
-            tools: inventory.tools.iter().map(GuardMcpToolSummary::from).collect(),
+            tools: inventory
+                .tools
+                .iter()
+                .map(GuardMcpToolSummary::from)
+                .collect(),
         }
     }
 }
@@ -310,10 +314,7 @@ mod tests {
         assert_eq!(output(Verdict::Deny).envelope().exit_code().as_u8(), 1);
         assert_eq!(output(Verdict::Ask).envelope().exit_code().as_u8(), 3);
         assert_eq!(
-            output(Verdict::Undecidable)
-                .envelope()
-                .exit_code()
-                .as_u8(),
+            output(Verdict::Undecidable).envelope().exit_code().as_u8(),
             3
         );
     }
