@@ -7,6 +7,7 @@
 //! authority into Rego. T024 adds Rust-owned repository-policy narrowing validation and layered
 //! monotonic composition without weakening the kernel enforcement floor.
 
+pub mod bootstrap;
 pub mod kernel;
 pub mod narrowing;
 pub mod rego;
