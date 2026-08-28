@@ -253,6 +253,7 @@ fn scan_features(source: &str) -> Features {
     for (index, raw) in source.lines().enumerate() {
         let line_number = u64::try_from(index + 1).unwrap_or(u64::MAX);
         let trimmed = raw.trim();
+        let step_mapping = trimmed.strip_prefix("- ").unwrap_or(trimmed);
         let indent = raw.len().saturating_sub(raw.trim_start().len());
         if trimmed.is_empty() || trimmed.starts_with('#') {
             continue;
@@ -299,7 +300,7 @@ fn scan_features(source: &str) -> Features {
             out.self_hosted_line.get_or_insert(line_number);
         }
 
-        if let Some(value) = trimmed.strip_prefix("uses:").map(str::trim) {
+        if let Some(value) = step_mapping.strip_prefix("uses:").map(str::trim) {
             if is_external_action(value) && !is_full_sha_pinned(value) {
                 out.mutable_action_lines.insert(line_number);
             }
@@ -312,7 +313,7 @@ fn scan_features(source: &str) -> Features {
             }
         }
 
-        if let Some(value) = trimmed.strip_prefix("run:").map(str::trim) {
+        if let Some(value) = step_mapping.strip_prefix("run:").map(str::trim) {
             if value == "|" || value == ">" || value == "|-" || value == ">-" {
                 in_run_block = Some(indent);
             } else {
