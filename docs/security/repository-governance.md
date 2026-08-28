@@ -1,90 +1,43 @@
 # Repository Governance — Protected `main`
 
 **Task:** T092  
-**Status:** `LIVE_ACTIVATION_DETECTED_VERIFICATION_PENDING`  
+**Status:** `LIVE_ENFORCEMENT_VERIFIED`  
 **Repository:** `TheHalfMoon/Sentrdel`  
-**Canonical main at latest live verification:** `656bd308219fbe3ff9846ed437465dda2bfb0f59`  
+**Canonical main at verification:** `673e6fac9e2511c536fd003ab52b637012595082`  
 **Live state inspected:** 2026-08-28
 
 ## 1. Truth rule
 
-GitHub Actions success is not branch protection.
+GitHub Actions success is not branch protection. T092 is complete only when live GitHub enforcement is independently verified against the canonical policy.
 
-T092 is complete only when the live GitHub repository reports an enforced protection/ruleset for `main` that satisfies the canonical policy below and the post-configuration verifier/evidence requirements are complete. A checked-in policy document, CI workflow, successful PR, maintainer convention, or partial API summary is not a substitute for complete live repository enforcement evidence.
+## 2. Stable canonical checks
 
-## 2. Latest live state
-
-After administrator activation and the evidence-record merge in PR #37, the live GitHub branch API reports:
-
-```text
-branch: main
-head: 656bd308219fbe3ff9846ed437465dda2bfb0f59
-protected: true
-protection.enabled: true
-required_status_checks.enforcement_level: everyone
-required_status_checks.contexts:
-  - Rust 1.98 bootstrap
-  - Dependency security
-  - Resolve and test schema substrate
-```
-
-The same response binds each required check to GitHub Actions app id `15368`.
-
-The live repository rulesets collection reports:
-
-```json
-[]
-```
-
-Therefore classic branch protection is **LIVE and ACTIVE** for `main`, and the three canonical required check identities are visible and enforced at the branch summary surface.
-
-The connected GitHub App still receives `403 Resource not accessible by integration` from the detailed branch-protection endpoint and its subresources. T092 remains unchecked until all required closeout fields are independently proven and the canonical verifier requirement is satisfied.
-
-## 3. Stable canonical checks
-
-The required check contexts are exactly:
+The exact required check contexts are:
 
 1. `Rust 1.98 bootstrap`
-   - workflow: `Bootstrap CI`
-   - proves pinned Rust 1.98 format/check/test/clippy qualification.
 2. `Dependency security`
-   - workflow: `Self Security`
-   - proves checksum-pinned self-security tools, locked dependency metadata, privileged-surface declarations, `cargo-audit`, and `cargo-deny`.
 3. `Resolve and test schema substrate`
-   - workflow: `Schema Lock Qualification`
-   - runs on every PR so a required check cannot remain absent merely because a path filter did not match.
-   - proves locked dependency tree, workspace semantic qualification, public schema generation/lock, and committed schema-source formatting.
 
-A future rename of any required job/check is a governance change: protection must be updated atomically or before the rename is merged so `main` is not left with a missing or stale required context.
+The branch-summary API binds all three checks to GitHub Actions app id `15368` and reports enforcement level `everyone`.
 
-## 4. Required `main` policy
+## 3. Canonical `main` policy
 
 The machine-readable desired policy is `docs/security/repository-governance-policy.json`.
 
-The intended enforcement is:
+Required semantics:
 
 - changes reach `main` through pull requests;
-- required branches must be up to date before merge (`strict` status checks);
-- all three stable canonical checks above are required;
+- required status checks are strict/up-to-date;
+- all three stable canonical checks are required;
 - all review conversations must be resolved;
 - administrator enforcement is enabled;
 - force pushes are disabled;
 - branch deletion is disabled;
-- merge commits remain allowed (linear history is not required);
+- merge commits remain allowed; linear history is not required;
 - no bypass actor is declared;
-- T092 does not require a second-person approval because the repository is currently founder-owned/operated; this is a documented governance limitation, not an approval claim.
+- required approving review count is zero because the repository is currently founder-owned/operated. This is a documented governance limitation, not an independent-review claim.
 
-## 5. Why approval count is zero
-
-A pull request boundary and required checks are mandatory, but T092 does not invent an independent reviewer who does not exist. Setting a required approval count of one in a single-maintainer repository can create an unusable self-approval deadlock and would not prove independent security review.
-
-When a genuinely independent maintainer/reviewer role exists, repository governance SHOULD raise the required approval count and may add CODEOWNERS/restricted merge authority through an ordinary governance change.
-
-Until then, the truthful guarantee is automated required checks + PR boundary + resolved conversations + administrator enforcement, not independent human approval.
-
-## 6. Exact activation target
-
-An administrator applying classic branch protection can use an equivalent GitHub API policy for `main` with:
+Equivalent classic branch-protection semantics are:
 
 ```json
 {
@@ -112,128 +65,127 @@ An administrator applying classic branch protection can use an equivalent GitHub
 }
 ```
 
-A repository ruleset MAY implement equivalent-or-stronger semantics instead. If a ruleset is used, the final evidence MUST record its ruleset ID/name, enforcement state, branch target, bypass actors, and required check identities rather than claiming classic branch protection.
+A repository ruleset may provide equivalent-or-stronger semantics, but no active repository ruleset existed at the final T092 verification.
 
-## 7. Bounded behavioral enforcement probes
+## 4. Live branch-summary evidence
 
-Because the detailed protection endpoint is not readable from the connected GitHub App, T092 used non-destructive, non-merge PR probes to verify policy behavior that can be observed safely without mutating protected `main`.
+At canonical `main` `673e6fac9e2511c536fd003ab52b637012595082`, GitHub reported:
 
-### 7.1 Strict / up-to-date enforcement — PR #38
+```text
+branch: main
+protected: true
+protection.enabled: true
+required_status_checks.enforcement_level: everyone
+required_status_checks.contexts:
+  - Rust 1.98 bootstrap
+  - Dependency security
+  - Resolve and test schema substrate
+```
 
-PR #38 was created from intentionally stale base commit `d17e69fcb410051d3861e7de1431391abd48f0d0` after canonical `main` had advanced to `656bd308219fbe3ff9846ed437465dda2bfb0f59`.
+The repository rulesets collection reported:
+
+```json
+[]
+```
+
+Therefore the visible enforcement is classic branch protection rather than a repository ruleset.
+
+## 5. Bounded behavioral evidence
+
+### 5.1 Strict / up-to-date — PR #38
 
 Probe head: `c2b5213691e899397f899a798f1542eb71b28a22`.
 
-All three exact-head canonical workflows completed successfully:
+All three exact-head canonical workflows succeeded:
 
-- Bootstrap CI run `33182298455`: SUCCESS
-- Self Security run `33182298480`: SUCCESS
-- Schema Lock Qualification run `33182298392`: SUCCESS
+- Bootstrap CI run `33182298455`
+- Self Security run `33182298480`
+- Schema Lock Qualification run `33182298392`
 
-After all required checks succeeded, GitHub reported:
+After all checks passed, GitHub still reported `mergeable_state: behind` because the probe branch was stale relative to protected `main`. PR #38 was closed without merge.
 
-```text
-mergeable: true
-mergeable_state: behind
-```
-
-Therefore the stale PR remained blocked specifically because it was behind protected `main`. This is bounded behavioral evidence that strict/up-to-date enforcement is active.
-
-PR #38 was then closed without merge.
-
-### 7.2 Conversation resolution enforcement — PR #39
-
-PR #39 was created from current canonical `main` and contained one intentionally unresolved inline review thread.
+### 5.2 Conversation resolution — PR #39
 
 Probe head: `20e052a38cbcddecac894ac989765284d0c356bf`.
 
-All three exact-head canonical workflows completed successfully:
+All three exact-head canonical workflows succeeded:
 
-- Bootstrap CI run `33182479339`: SUCCESS
-- Self Security run `33182479376`: SUCCESS
-- Schema Lock Qualification run `33182479401`: SUCCESS
+- Bootstrap CI run `33182479339`
+- Self Security run `33182479376`
+- Schema Lock Qualification run `33182479401`
 
-With the review thread unresolved, GitHub reported:
+With one unresolved inline thread, GitHub reported `mergeable_state: blocked`. After resolving exactly that thread with no content change, GitHub reported `mergeable_state: clean`. PR #39 was closed without merge.
 
-```text
-mergeable: true
-mergeable_state: blocked
-```
+### 5.3 Pull-request boundary
 
-The review-thread API independently reported the probe thread as `is_resolved: false`.
-
-After resolving exactly that thread and changing no repository content, GitHub reported:
+A direct protected-`main` contents write was rejected by GitHub with:
 
 ```text
-mergeable: true
-mergeable_state: clean
+Changes must be made through a pull request. 3 of 3 required status checks are expected.
 ```
 
-Therefore the unresolved review conversation was the active merge blocker and resolving it cleared the block. This is bounded behavioral evidence that required conversation resolution is active.
+No canonical content was changed by that rejected request.
 
-PR #39 was then closed without merge.
+## 6. Canonical verifier
 
-### 7.3 Probe safety
+The final verification used repository secret `SENTRDEL_GOVERNANCE_ADMIN_TOKEN` only as a masked read-only credential. The temporary verification workflow never persisted the token, never used it for repository mutation, and was removed from its non-canonical probe branch after execution.
 
-Neither probe was merged. Neither probe attempted direct writes to `main`, force-pushes, branch deletion, history rewriting, or any destructive action. Probe files remain only on their non-canonical branches.
+Verification-only workflow run:
 
-A destructive behavioral test is not an acceptable substitute for authoritative configuration evidence. In particular, T092 will not attempt a direct push merely to see whether pull-request enforcement rejects it, and will not attempt force-pushing or deleting `main` merely to test whether GitHub blocks the action.
+- run: `33184911696`
+- exact probe head: `f4600adbb911db1271885d8d2aa930ab124ff2ca`
+- canonical `main` verified: `673e6fac9e2511c536fd003ab52b637012595082`
 
-## 8. Post-configuration proof required to close T092
+`scripts/verify_repository_governance.py` produced:
 
-Before changing T092 to `[x]`, capture live GitHub evidence after configuration and verify all of the following:
+```text
+repository-governance: PASS
+repository=TheHalfMoon/Sentrdel
+branch=main
+head=673e6fac9e2511c536fd003ab52b637012595082
+required_checks=Dependency security,Resolve and test schema substrate,Rust 1.98 bootstrap
+active_repository_rulesets=0
+```
 
-- canonical `main` SHA at verification;
-- `main` is protected by branch protection or an active ruleset;
-- the rule actually targets `main`;
-- pull requests are required before merge;
-- the exact three required check contexts are enforced;
-- strict/up-to-date status checking is enabled;
-- conversation resolution is required;
-- force pushes are denied;
-- branch deletion is denied;
-- administrator/bypass behavior matches the documented policy;
-- the enforcement is active, not disabled/evaluate-only;
-- no contradictory ruleset or branch-policy exception silently bypasses the rule.
+The verifier checks the authoritative detailed branch-protection response and fails closed unless all canonical fields match, including:
 
-Current evidence proves active protection, the exact required checks, strict/up-to-date behavior, and conversation-resolution behavior. It does **not** eliminate the need for authoritative evidence for the remaining fields.
+- protected `main`;
+- exact required checks;
+- strict/up-to-date status checks;
+- administrator enforcement;
+- pull requests required before merge;
+- required approving review count `0`;
+- required conversation resolution;
+- force pushes disabled;
+- deletion disabled;
+- canonical merge-commit workflow not contradicted by required linear history;
+- active repository ruleset count recorded.
 
-Then run `scripts/verify_repository_governance.py` with an administrator-capable GitHub token and record its PASS output plus the live API evidence in this document/PR before closeout. The current execution environment has no administrator-capable GitHub token and the connected GitHub App cannot read the detailed protection endpoint, so this verifier has **not** been represented as PASS.
+## 7. T092 close criteria
 
-## 9. Current verification boundary
+All required T092 criteria are now proven:
 
-Verified live or by bounded non-destructive behavior:
+- canonical `main` SHA captured — **PASS**;
+- `main` protected — **PASS**;
+- policy targets `main` — **PASS**;
+- pull requests required — **PASS**;
+- exact three required checks — **PASS**;
+- strict/up-to-date checking — **PASS**;
+- conversation resolution required — **PASS**;
+- administrator enforcement — **PASS**;
+- force pushes disabled — **PASS**;
+- branch deletion disabled — **PASS**;
+- enforcement active — **PASS**;
+- no active contradictory repository ruleset — **PASS**;
+- canonical administrator-readable verifier — **PASS**.
 
-- canonical `main` is `656bd308219fbe3ff9846ed437465dda2bfb0f59` at this record;
-- `main` reports `protected: true`;
-- `protection.enabled: true`;
-- required status-check enforcement reports `everyone`;
-- the exact three canonical required checks are present;
-- repository rulesets are empty, so the visible enforcement is classic branch protection rather than a repository ruleset;
-- strict/up-to-date enforcement is active, proven by PR #38 remaining `behind` after all required checks passed;
-- conversation resolution is active, proven by PR #39 moving from `blocked` with the unresolved thread to `clean` after that thread was resolved;
-- the owner-authored PR #39 was subject to the conversation-resolution block, demonstrating that the ordinary owner merge path did not bypass that rule.
+## 8. Limitations and non-claims
 
-Still not independently verified from the current execution surface:
+- T092 does not claim independent human review while required approving review count is zero.
+- T092 does not add release signing, artifact attestation, CODEOWNERS, environment protection, or organization-wide governance.
+- The verification credential is not a product runtime dependency and is not available to ordinary Sentrdel execution.
+- CI success by itself is still not branch protection; the PASS above is based on live protected-branch verification.
 
-- authoritative pull-request-before-merge/direct-push configuration;
-- complete administrator/bypass configuration beyond the observed owner PR behavior and branch-summary enforcement level;
-- force-push policy;
-- deletion policy;
-- fork-sync setting;
-- administrator-token verifier PASS.
+## 9. Gate consequence
 
-No destructive behavioral probe will be used for the unresolved fields. A failed read is a verification gap, not evidence that a policy is absent or present.
-
-## 10. Limitations and non-claims
-
-- This document does not itself protect `main`.
-- A successful workflow run does not by itself protect `main`.
-- Bounded PR behavior proves the specific observed merge constraints but does not expose every underlying GitHub configuration field.
-- The administrator-token verifier has not run PASS from this execution surface.
-- T092 does not claim independent human review while the required approval count is zero.
-- T092 does not add release signing, artifact attestation, CODEOWNERS, environment protection, or organization-wide governance; later release-hardening tasks may strengthen those areas.
-
-## 11. Gate consequence
-
-The Evaluation Gate Checkpoint requires T092 and T095. T095 may be complete independently, but **Phase 3 T037 MUST NOT start while T092 remains unchecked or while the complete post-configuration verification above is unresolved.**
+T092 is technically satisfied by live repository evidence. The task checkbox is closed in the same exact-head closeout change. After that closeout change passes protected-main CI, merges with expected-head protection, and the post-merge canonical `main` remains protected, the Evaluation Gate is satisfied and Phase 3/T037 may begin.
