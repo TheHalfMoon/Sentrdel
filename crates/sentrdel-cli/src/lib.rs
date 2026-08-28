@@ -448,7 +448,10 @@ mod tests {
         assert_eq!(CliDecision::Clear.exit_code(), CliExitCode::Success);
         assert_eq!(CliDecision::Blocking.exit_code(), CliExitCode::Blocking);
         assert_eq!(CliDecision::UsageError.exit_code(), CliExitCode::Usage);
-        assert_eq!(CliDecision::Undecidable.exit_code(), CliExitCode::Incomplete);
+        assert_eq!(
+            CliDecision::Undecidable.exit_code(),
+            CliExitCode::Incomplete
+        );
         assert_eq!(
             CliDecision::InternalFailure.exit_code(),
             CliExitCode::Internal
@@ -468,7 +471,10 @@ mod tests {
             ),
         ];
         for (command, expected) in cases {
-            assert_eq!(serde_json::to_string(&command).expect("serialize"), expected);
+            assert_eq!(
+                serde_json::to_string(&command).expect("serialize"),
+                expected
+            );
         }
     }
 
@@ -511,18 +517,10 @@ mod tests {
         };
         let finding_b =
             CliFindingRef::new("finding:b", vec!["evidence:3".to_owned()]).expect("finding");
-        let diagnostic_a = CliDiagnostic::new(
-            "A",
-            CliDiagnosticLevel::Warning,
-            "first diagnostic",
-        )
-        .expect("diagnostic");
-        let diagnostic_b = CliDiagnostic::new(
-            "B",
-            CliDiagnosticLevel::Info,
-            "second diagnostic",
-        )
-        .expect("diagnostic");
+        let diagnostic_a = CliDiagnostic::new("A", CliDiagnosticLevel::Warning, "first diagnostic")
+            .expect("diagnostic");
+        let diagnostic_b = CliDiagnostic::new("B", CliDiagnosticLevel::Info, "second diagnostic")
+            .expect("diagnostic");
 
         let forward = envelope(
             vec![finding_b.clone(), finding_a.clone()],
@@ -608,9 +606,7 @@ mod tests {
     fn untrusted_identifiers_diagnostics_and_timing_are_bounded() {
         assert!(CliFindingRef::new("   ", Vec::<String>::new()).is_err());
         assert!(CliFindingRef::new("finding:a", vec!["bad\nid".to_owned()]).is_err());
-        assert!(
-            CliDiagnostic::new("D001", CliDiagnosticLevel::Error, "bad\nmessage").is_err()
-        );
+        assert!(CliDiagnostic::new("D001", CliDiagnosticLevel::Error, "bad\nmessage").is_err());
         assert!(
             CliTiming {
                 duration_ms: 0,
