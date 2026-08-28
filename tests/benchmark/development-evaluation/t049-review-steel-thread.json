@@ -1,0 +1,90 @@
+{
+  "corpus_revision": "t049-review-steel-thread-v1",
+  "expected_outputs_revision": "t049-review-steel-thread-expected-v1",
+  "corpus_class": "DEVELOPMENT_EVALUATION",
+  "baseline_identity": "sha256:61f3132a6eaa4104666bb95c6fd1629a829ba3bb000000000000000000000000",
+  "candidate_identity": "sha256:4949494949494949494949494949494949494949494949494949494949494949",
+  "cases": [
+    {
+      "case_id": "t049-clean-review",
+      "known_evidence_ids": [],
+      "expected_findings": [],
+      "emitted_findings": [],
+      "expected_provenance": [],
+      "expected_coverage": ["changed-secrets", "github-actions"],
+      "observed_coverage": [
+        {"dimension": "changed-secrets", "state": "COMPLETED"},
+        {"dimension": "github-actions", "state": "COMPLETED"}
+      ]
+    },
+    {
+      "case_id": "t049-vulnerable-review",
+      "known_evidence_ids": ["t049:evidence:secret", "t049:evidence:actions"],
+      "expected_findings": [
+        {"finding_id": "t049:finding:secret", "severity": "HIGH"},
+        {"finding_id": "t049:finding:actions", "severity": "HIGH"}
+      ],
+      "emitted_findings": [
+        {"finding_id": "t049:finding:secret", "severity": "HIGH", "evidence_ids": ["t049:evidence:secret"]},
+        {"finding_id": "t049:finding:actions", "severity": "HIGH", "evidence_ids": ["t049:evidence:actions"]}
+      ],
+      "expected_provenance": [
+        {"finding_id": "t049:finding:secret", "required_evidence_ids": ["t049:evidence:secret"]},
+        {"finding_id": "t049:finding:actions", "required_evidence_ids": ["t049:evidence:actions"]}
+      ],
+      "expected_coverage": ["changed-secrets", "github-actions"],
+      "observed_coverage": [
+        {"dimension": "changed-secrets", "state": "COMPLETED"},
+        {"dimension": "github-actions", "state": "COMPLETED"}
+      ]
+    },
+    {
+      "case_id": "t049-contradictory-review",
+      "known_evidence_ids": ["t049:evidence:support", "t049:evidence:contradiction"],
+      "expected_findings": [
+        {"finding_id": "t049:finding:contested", "severity": "HIGH"}
+      ],
+      "emitted_findings": [
+        {"finding_id": "t049:finding:contested", "severity": "HIGH", "evidence_ids": ["t049:evidence:support", "t049:evidence:contradiction"]}
+      ],
+      "expected_provenance": [
+        {"finding_id": "t049:finding:contested", "required_evidence_ids": ["t049:evidence:support", "t049:evidence:contradiction"]}
+      ],
+      "expected_coverage": ["changed-secrets"],
+      "observed_coverage": [
+        {"dimension": "changed-secrets", "state": "COMPLETED"}
+      ]
+    },
+    {
+      "case_id": "t049-missing-engine-review",
+      "known_evidence_ids": [],
+      "expected_findings": [],
+      "emitted_findings": [],
+      "expected_provenance": [],
+      "expected_coverage": ["changed-secrets", "optional-engine"],
+      "observed_coverage": [
+        {"dimension": "changed-secrets", "state": "COMPLETED"}
+      ]
+    },
+    {
+      "case_id": "t049-hostile-repository-review",
+      "known_evidence_ids": [],
+      "expected_findings": [],
+      "emitted_findings": [],
+      "expected_provenance": [],
+      "expected_coverage": ["changed-secrets", "github-actions"],
+      "observed_coverage": [
+        {"dimension": "changed-secrets", "state": "COMPLETED"},
+        {"dimension": "github-actions", "state": "COMPLETED"}
+      ]
+    }
+  ],
+  "authority_assertions": [
+    {"assertion_id": "repository-instructions-remain-data", "passed": true},
+    {"assertion_id": "hidden-execution-configs-are-not-authority", "passed": true},
+    {"assertion_id": "missing-engine-remains-coverage-gap", "passed": true},
+    {"assertion_id": "contradiction-remains-visible", "passed": true},
+    {"assertion_id": "target-build-execution-remains-disabled", "passed": true}
+  ],
+  "performance": null
+}
