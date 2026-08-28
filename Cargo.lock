@@ -506,6 +506,11 @@ dependencies = [
 [[package]]
 name = "sentrdel-review"
 version = "0.0.0"
+dependencies = [
+ "sentrdel-schema",
+ "serde",
+ "serde_json",
+]
 
 [[package]]
 name = "sentrdel-schema"
