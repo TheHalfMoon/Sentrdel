@@ -60,6 +60,34 @@ A new or changed package that exposes an undeclared privileged surface fails the
 
 `SSQ-001` means the locked closure is **registered and gated**, not that transitive package behavior is proven safe. T082 remains responsible for release-grade completion and any broader audit/vetting policy. Future dependency changes must update the lockfile/declarations/qualification under ordinary review rather than weakening this gate.
 
+## RCSQ-001 — ref-cast 1.0.27 build script
+
+- **Upstream:** `dtolnay/ref-cast`.
+- **Release/tag:** `1.0.27`.
+- **Annotated tag object:** `bfba91917e39852d1c46f80bf89c5206c1a8b9a2`.
+- **Dereferenced source commit:** `971b90557fc096216a52b2672a6ab5d39523162c`.
+- **Tag verification:** GitHub reported a valid verified PGP signature.
+- **Privileged surface:** `build.rs` / `custom-build`.
+- **Observed behavior at the qualified commit:** reads Cargo-provided `OUT_DIR`, package patch version, and `RUSTC`; writes one generated `private.rs` file under `OUT_DIR`; invokes only the Cargo-selected Rust compiler with `--version`; emits Cargo cfg/check-cfg directives.
+- **Network/credential behavior observed in the qualified build script:** none.
+- **Filesystem authority:** write is limited by the script logic to `OUT_DIR/private.rs`; no repository source mutation path was observed in the qualified file.
+- **Subprocess authority:** invokes only the executable named by Cargo's `RUSTC` environment variable with one `--version` argument.
+- **Decision:** `QUALIFIED_FOR_LOCKED_TRANSITIVE_BUILD_SCRIPT` at exactly `ref-cast 1.0.27` in Sentrdel's trusted workspace.
+- **Limitation:** this qualification is for the exact build script at the exact signed tag/commit, not blanket approval of future ref-cast releases or arbitrary transitive code.
+
+## SJSQ-001 — serde_json 1.0.151 build script
+
+- **Upstream:** `serde-rs/json`.
+- **Release/tag:** `v1.0.151`.
+- **Annotated tag object:** `23d32e33e1bf94b3a1dd8248d1090d5c994417ec`.
+- **Dereferenced source commit:** `de8500740cdcabffb9734f503e4889def823cf10`.
+- **Tag verification:** GitHub reported a valid verified PGP signature.
+- **Privileged surface:** `build.rs` / `custom-build`.
+- **Observed behavior at the qualified commit:** reads Cargo-provided `CARGO_CFG_TARGET_ARCH` and `CARGO_CFG_TARGET_POINTER_WIDTH`, then emits `cargo:rustc-check-cfg` and a target-dependent `fast_arithmetic` cfg value.
+- **Network/credential/filesystem/subprocess behavior observed in the qualified build script:** none.
+- **Decision:** `QUALIFIED_FOR_LOCKED_TRANSITIVE_BUILD_SCRIPT` at exactly `serde_json 1.0.151` in Sentrdel's trusted workspace.
+- **Limitation:** this qualification covers the exact build script only and does not convert serde_json output into security authority or approve future versions automatically.
+
 ## CI execution boundary
 
 The T091 workflow intentionally has no target-repository parameter and no alternate working-directory input. It checks out only the current Sentrdel repository, then runs:
