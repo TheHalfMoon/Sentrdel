@@ -4,12 +4,12 @@
 //! never copied into Evidence, fingerprints, locations, diagnostics, or persisted
 //! digests. Fingerprints are derived only from rule/type/location metadata.
 
+use sentrdel_schema::SCHEMA_V1;
 use sentrdel_schema::canonical::content_id;
 use sentrdel_schema::evidence::{
     EpistemicClass, Evidence, EvidenceAuthority, EvidenceClaim, EvidenceLocation, EvidenceSubject,
     EvidenceValidationError, ProducerKind,
 };
-use sentrdel_schema::SCHEMA_V1;
 use serde_json::Value;
 use std::collections::BTreeMap;
 use std::fmt;
@@ -60,11 +60,16 @@ impl fmt::Display for SecretScanError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::DocumentTooLarge { bytes, max } => {
-                write!(formatter, "changed source size {bytes} exceeds secret scan cap {max}")
+                write!(
+                    formatter,
+                    "changed source size {bytes} exceeds secret scan cap {max}"
+                )
             }
             Self::NonUtf8Source => formatter.write_str("changed source must be valid UTF-8"),
             Self::EmptyCapturedAt => formatter.write_str("captured_at must not be empty"),
-            Self::Canonical(message) => write!(formatter, "cannot create sanitized fingerprint: {message}"),
+            Self::Canonical(message) => {
+                write!(formatter, "cannot create sanitized fingerprint: {message}")
+            }
             Self::Evidence(error) => write!(formatter, "cannot seal secret evidence: {error}"),
         }
     }
@@ -94,7 +99,8 @@ pub fn scan_changed_secrets(
         return Err(SecretScanError::EmptyCapturedAt);
     }
 
-    let authority = EvidenceAuthority::from_runtime(PRODUCER_ID, PRODUCER_VERSION, ProducerKind::NativeRule)?;
+    let authority =
+        EvidenceAuthority::from_runtime(PRODUCER_ID, PRODUCER_VERSION, ProducerKind::NativeRule)?;
     let mut evidence = Vec::new();
 
     for (line_index, line) in source.lines().enumerate() {
@@ -177,7 +183,17 @@ pub fn scan_changed_secrets(
                     .and_then(|location| location.start_column)
                     .cmp(&right_location.and_then(|location| location.start_column))
             })
-            .then_with(|| left.attributes.get("rule_id").cmp(&right.attributes.get("rule_id")))
+            .then_with(|| {
+                left.attributes
+                    .get("rule_id")
+                    .and_then(Value::as_str)
+                    .cmp(
+                        &right
+                            .attributes
+                            .get("rule_id")
+                            .and_then(Value::as_str),
+                    )
+            })
     });
     Ok(evidence)
 }
@@ -195,11 +211,7 @@ fn matching_offsets(line: &[u8], rule: SecretRule) -> Vec<usize> {
         if !candidate.starts_with(prefix) {
             continue;
         }
-        if !candidate[prefix.len()..]
-            .iter()
-            .copied()
-            .all(rule.alphabet)
-        {
+        if !candidate[prefix.len()..].iter().copied().all(rule.alphabet) {
             continue;
         }
         if start > 0 && is_token_boundary_char(line[start - 1]) {
