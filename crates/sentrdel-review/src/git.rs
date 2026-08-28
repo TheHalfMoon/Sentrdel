@@ -74,23 +74,40 @@ pub enum GitReadError {
     ConflictedIndex(RepoPath),
     InvalidRepositoryPath(RepoPath),
     Object(String),
-    Revision { revision: String, source: String },
-    Filesystem { path: RepoPath, source: std::io::Error },
+    Revision {
+        revision: String,
+        source: String,
+    },
+    Filesystem {
+        path: RepoPath,
+        source: std::io::Error,
+    },
 }
 
 impl fmt::Display for GitReadError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::RepositoryNotFound(path) => write!(f, "no Git repository found from {}", path.display()),
-            Self::BareRepository(path) => write!(f, "repository at {} has no working tree", path.display()),
+            Self::RepositoryNotFound(path) => {
+                write!(f, "no Git repository found from {}", path.display())
+            }
+            Self::BareRepository(path) => {
+                write!(f, "repository at {} has no working tree", path.display())
+            }
             Self::Open(source) => write!(f, "cannot open repository safely: {source}"),
             Self::Head(source) => write!(f, "cannot read local HEAD: {source}"),
             Self::Index(source) => write!(f, "cannot read local index: {source}"),
             Self::ConflictedIndex(path) => write!(f, "index contains unresolved stages at {path}"),
-            Self::InvalidRepositoryPath(path) => write!(f, "repository path cannot be represented safely on this platform: {path}"),
+            Self::InvalidRepositoryPath(path) => write!(
+                f,
+                "repository path cannot be represented safely on this platform: {path}"
+            ),
             Self::Object(source) => write!(f, "cannot read required local Git object: {source}"),
-            Self::Revision { revision, source } => write!(f, "cannot resolve local revision {revision:?}: {source}"),
-            Self::Filesystem { path, source } => write!(f, "cannot read tracked path {path}: {source}"),
+            Self::Revision { revision, source } => {
+                write!(f, "cannot resolve local revision {revision:?}: {source}")
+            }
+            Self::Filesystem { path, source } => {
+                write!(f, "cannot read tracked path {path}: {source}")
+            }
         }
     }
 }
@@ -108,11 +125,8 @@ type Snapshot = BTreeMap<RepoPath, SnapshotEntry>;
 
 pub fn read_diff(start: impl AsRef<Path>, mode: DiffMode) -> Result<GitDiff, GitReadError> {
     let root = discover_root(start.as_ref())?;
-    let repo = gix::open_opts(
-        &root,
-        gix::open::Options::isolated().strict_config(true),
-    )
-    .map_err(|error| GitReadError::Open(error.to_string()))?;
+    let repo = gix::open_opts(&root, gix::open::Options::isolated().strict_config(true))
+        .map_err(|error| GitReadError::Open(error.to_string()))?;
 
     let workdir = repo
         .workdir()
@@ -132,7 +146,11 @@ pub fn read_diff(start: impl AsRef<Path>, mode: DiffMode) -> Result<GitDiff, Git
         DiffMode::WorkingTree => working_tree_changes(&repo, workdir)?,
     };
 
-    Ok(GitDiff { root, mode, changes })
+    Ok(GitDiff {
+        root,
+        mode,
+        changes,
+    })
 }
 
 fn discover_root(start: &Path) -> Result<PathBuf, GitReadError> {
@@ -170,10 +188,12 @@ fn revision_snapshot(repo: &gix::Repository, revision: &str) -> Result<Snapshot,
         revision: revision.to_owned(),
         source: error.to_string(),
     })?;
-    let tree = object.peel_to_tree().map_err(|error| GitReadError::Revision {
-        revision: revision.to_owned(),
-        source: error.to_string(),
-    })?;
+    let tree = object
+        .peel_to_tree()
+        .map_err(|error| GitReadError::Revision {
+            revision: revision.to_owned(),
+            source: error.to_string(),
+        })?;
     tree_snapshot(repo, &tree)
 }
 
@@ -191,7 +211,9 @@ fn visit_tree(
 ) -> Result<(), GitReadError> {
     for entry in tree.iter() {
         let entry = entry.map_err(|error| GitReadError::Object(error.to_string()))?;
-        let mut path = Vec::with_capacity(prefix.len() + entry.filename().len() + usize::from(!prefix.is_empty()));
+        let mut path = Vec::with_capacity(
+            prefix.len() + entry.filename().len() + usize::from(!prefix.is_empty()),
+        );
         if !prefix.is_empty() {
             path.extend_from_slice(prefix);
             path.push(b'/');
@@ -255,10 +277,16 @@ fn object_is_binary(repo: &gix::Repository, oid: gix::ObjectId) -> Result<bool, 
 }
 
 fn has_nul_prefix(bytes: &[u8]) -> bool {
-    bytes.iter().take(BINARY_PREFIX_BYTES).any(|byte| *byte == 0)
+    bytes
+        .iter()
+        .take(BINARY_PREFIX_BYTES)
+        .any(|byte| *byte == 0)
 }
 
-fn working_tree_changes(repo: &gix::Repository, workdir: &Path) -> Result<Vec<GitChange>, GitReadError> {
+fn working_tree_changes(
+    repo: &gix::Repository,
+    workdir: &Path,
+) -> Result<Vec<GitChange>, GitReadError> {
     let index = index_snapshot(repo)?;
     let mut changes = Vec::new();
 
@@ -279,7 +307,12 @@ fn working_tree_changes(repo: &gix::Repository, workdir: &Path) -> Result<Vec<Gi
                 });
                 continue;
             }
-            Err(error) => return Err(GitReadError::Filesystem { path, source: error }),
+            Err(error) => {
+                return Err(GitReadError::Filesystem {
+                    path,
+                    source: error,
+                });
+            }
         };
 
         if metadata.file_type().is_symlink() || !metadata.is_file() {
@@ -351,7 +384,11 @@ fn compare_snapshots(before: &Snapshot, after: &Snapshot) -> Vec<GitChange> {
                 stable.push(GitChange {
                     path,
                     previous_path: None,
-                    kind: if old.mode == new.mode { ChangeKind::Modified } else { ChangeKind::TypeChanged },
+                    kind: if old.mode == new.mode {
+                        ChangeKind::Modified
+                    } else {
+                        ChangeKind::TypeChanged
+                    },
                     old_oid: Some(old.oid.to_string()),
                     new_oid: Some(new.oid.to_string()),
                     binary: old.binary || new.binary,
@@ -366,10 +403,12 @@ fn compare_snapshots(before: &Snapshot, after: &Snapshot) -> Vec<GitChange> {
     let mut renamed = Vec::new();
 
     for (delete_index, (old_path, old)) in deleted.iter().enumerate() {
-        if let Some((add_index, (new_path, new))) = added
-            .iter()
-            .enumerate()
-            .find(|(index, (_, candidate))| !consumed_adds.contains(index) && candidate.oid == old.oid && candidate.mode == old.mode)
+        if let Some((add_index, (new_path, new))) =
+            added.iter().enumerate().find(|(index, (_, candidate))| {
+                !consumed_adds.contains(index)
+                    && candidate.oid == old.oid
+                    && candidate.mode == old.mode
+            })
         {
             consumed_adds.insert(add_index);
             consumed_deletes.insert(delete_index);
