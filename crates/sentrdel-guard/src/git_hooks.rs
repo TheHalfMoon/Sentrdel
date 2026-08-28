@@ -325,7 +325,15 @@ fn validate_digest(value: &str) -> Result<(), HookPlanError> {
 fn digest(bytes: &[u8]) -> String {
     let mut hasher = Sha256::new();
     hasher.update(bytes);
-    format!("sha256:{:x}", hasher.finalize())
+    let digest = hasher.finalize();
+    let mut output = String::with_capacity(7 + digest.len() * 2);
+    output.push_str("sha256:");
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    for byte in digest {
+        output.push(char::from(HEX[(byte >> 4) as usize]));
+        output.push(char::from(HEX[(byte & 0x0f) as usize]));
+    }
+    output
 }
 
 #[cfg(test)]
