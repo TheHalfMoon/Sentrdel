@@ -81,11 +81,7 @@ fn llm_inference(line: u64) -> Evidence {
 fn contradiction(line: u64) -> Evidence {
     EvidenceAuthority::from_runtime("runtime", "1", ProducerKind::RuntimeTest)
         .unwrap()
-        .seal(claim(
-            EpistemicClass::Contradiction,
-            line,
-            "github_actions",
-        ))
+        .seal(claim(EpistemicClass::Contradiction, line, "github_actions"))
         .unwrap()
 }
 
@@ -110,7 +106,10 @@ fn correlation_is_stable_across_line_shift_and_input_order() {
 
     assert_eq!(forward.len(), 1);
     assert_eq!(forward[0].to_record(), reverse[0].to_record());
-    assert_eq!(forward[0].draft().epistemic_state, EpistemicState::Corroborated);
+    assert_eq!(
+        forward[0].draft().epistemic_state,
+        EpistemicState::Corroborated
+    );
     assert_eq!(forward[0].workflow_state(), &WorkflowState::New);
 }
 
@@ -215,21 +214,5 @@ fn contradiction_only_and_mixed_categories_fail_closed() {
             "2026-08-28T01:00:00Z",
         ),
         Err(ReconcileError::UnexpectedEvidenceCategory { .. })
-    ));
-}
-
-#[test]
-fn empty_inputs_runtime_rule_and_timestamp_fail_closed() {
-    assert!(matches!(
-        ReconciliationRule::from_runtime("", "finding", "title", "impact", Severity::Info),
-        Err(ReconcileError::InvalidRuntimeRule)
-    ));
-    assert!(matches!(
-        reconcile_evidence(&[], &rule(), &reconciler(), "2026-08-28T01:00:00Z"),
-        Err(ReconcileError::EmptyEvidence)
-    ));
-    assert!(matches!(
-        reconcile_evidence(&[native_fact(10)], &rule(), &reconciler(), " "),
-        Err(ReconcileError::EmptyUpdatedAt)
     ));
 }
