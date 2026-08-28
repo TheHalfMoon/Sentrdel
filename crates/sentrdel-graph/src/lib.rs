@@ -4,14 +4,21 @@
 //! `sentrdel-schema` owns the versioned interchange representation. This crate
 //! is the graph-domain entry point for stable identity derivation, provenance
 //! validation, producer-local confidence metadata, deterministic `petgraph`
-//! projection, bounded reverse reachability and stable graph diff. Persistence
-//! lives in `sentrdel-store`; SCIP ingestion remains T034.
+//! projection, bounded reverse reachability, stable graph diff, and bounded
+//! SCIP artifact ingestion. Persistence lives in `sentrdel-store`.
 
 mod projection;
+mod scip;
 
 pub use projection::{
     GraphDiff, GraphEdgeChange, GraphNodeChange, GraphProjection, GraphProjectionError,
     MAX_BLAST_RADIUS_DEPTH, ReverseReachabilityHit,
+};
+pub use scip::{
+    MAX_SCIP_DOCUMENTS, MAX_SCIP_OCCURRENCES, MAX_SCIP_PATH_BYTES, MAX_SCIP_SYMBOL_BYTES,
+    SCIP_REFERENCE_CAPABILITY, ScipArtifact, ScipCoverageGap, ScipDocument, ScipIngestionError,
+    ScipIngestionRequest, ScipIngestionResult, ScipOccurrence, ScipOccurrenceRole, ScipPosition,
+    ScipProducerQualification, ScipRange, ingest_scip, scip_coverage_gap,
 };
 pub use sentrdel_schema::graph::{
     GraphConfidenceBasis, GraphConfidenceSource, GraphContractError, GraphEdge, GraphEdgeId,
