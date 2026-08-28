@@ -68,7 +68,7 @@ impl<R: BufRead> BoundedStdioReader<R> {
 
             let newline = available.iter().position(|byte| *byte == b'\n');
             let take = newline.map_or(available.len(), |index| index + 1);
-            let body_take = newline.map_or(take, |index| index);
+            let body_take = newline.unwrap_or(take);
             let projected = frame.len().checked_add(body_take).ok_or(
                 McpProtocolError::BufferLimitExceeded {
                     max: self.limits.max_buffer_bytes,
