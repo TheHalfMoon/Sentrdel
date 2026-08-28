@@ -88,6 +88,20 @@ A new or changed package that exposes an undeclared privileged surface fails the
 - **Decision:** `QUALIFIED_FOR_LOCKED_TRANSITIVE_BUILD_SCRIPT` at exactly `serde_json 1.0.151` in Sentrdel's trusted workspace.
 - **Limitation:** this qualification covers the exact build script only and does not convert serde_json output into security authority or approve future versions automatically.
 
+## CHLQ-001 — chacha20 0.10.2 lock-only yanked resolution
+
+- **Trigger:** T091 `cargo-deny` correctly rejected locked `chacha20 0.10.1` because crates.io marks that release yanked.
+- **Dependency path:** `regorus 0.11.0 -> rand 0.10.2 -> chacha20`.
+- **Canonical registry evidence:** `rust-lang/crates.io-index` entry for `chacha20 0.10.2` reports `yanked=false`, Rust 1.85 minimum, and checksum `65c35e4b699c7e15ccbe7ee35c005e4fc0a278d22238a2857e6ce2dadeda1b06`.
+- **Compatibility:** the normal dependency shape needed by the locked graph is unchanged from 0.10.1: `cfg-if`, target-specific `cpufeatures`, and optional `rand_core`; `rand 0.10.2` accepts the 0.10.x line.
+- **Upstream:** `RustCrypto/stream-ciphers`.
+- **Release/tag:** lightweight tag `chacha20-v0.10.2` at commit `6b236b758a0279f64d777797514813b2cb572c8b`.
+- **Tag limitation:** the ref points directly to a commit, so there is no annotated tag object/signature to claim. Registry checksum + exact source commit + Cargo/CI resolution are the integrity evidence used here.
+- **Manifest at exact commit:** package version `0.10.2`, license `MIT OR Apache-2.0`, Rust 1.85 minimum, pure Rust package manifest with no package `build.rs` declaration and no native `links` field.
+- **Change admitted:** `Cargo.lock` version/checksum only, from yanked `0.10.1` to non-yanked `0.10.2`; no direct workspace dependency requirement or Sentrdel code changes.
+- **Decision:** `QUALIFIED_FOR_LOCK_ONLY_NON_YANKED_RESOLUTION`.
+- **Required proof:** Schema Lock Qualification, Bootstrap CI, and Self Security must all pass on the exact head before T091 can close. If Cargo resolves a different graph than this record, the change is not qualified.
+
 ## CI execution boundary
 
 The T091 workflow intentionally has no target-repository parameter and no alternate working-directory input. It checks out only the current Sentrdel repository, then runs:
