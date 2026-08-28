@@ -105,7 +105,7 @@
 
 **Quality strategy:** Build the first vertical steel thread under SentrdelBench (`safe diff -> secret + GitHub Actions high-signal producers -> Evidence -> reconciler -> Finding -> graph context -> review output -> benchmark`) before optimizing for rule count.
 
-- [ ] T037 [US1] Implement read-only Git discovery/diff using minimal qualified `gix` features; explicitly disable/avoid hooks, external diff/textconv/filter drivers, submodule fetch, credential helpers and network remotes; fixtures cover hostile config, rename/delete/binary/shallow repos.
+- [x] T037 [US1] Implement read-only Git discovery/diff using minimal qualified `gix` features; explicitly disable/avoid hooks, external diff/textconv/filter drivers, submodule fetch, credential helpers and network remotes; fixtures cover hostile config, rename/delete/binary/shallow repos.
 - [ ] T038 [P] [US1] Implement bounded repository/file view and path normalization with symlink/confusable/oversized tests; target Cargo/npm/pip metadata commands are never run.
 - [ ] T039 [P] [US1] Integrate tree-sitter/`ast-grep-core` native producer framework and Sentrdel-owned rule format.
 - [ ] T040 [P] [US1] Implement deliberately small high-signal structural rule set + positive/negative fixtures.
