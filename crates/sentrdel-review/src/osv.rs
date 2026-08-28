@@ -272,10 +272,7 @@ pub fn build_query_request(
     if let Some(token) = page_token {
         root.insert("page_token".to_owned(), Value::String(token.to_owned()));
     }
-    root.insert(
-        "version".to_owned(),
-        Value::String(package.version.clone()),
-    );
+    root.insert("version".to_owned(), Value::String(package.version.clone()));
     let bytes = serde_json::to_vec(&Value::Object(root))
         .map_err(|_| OsvError::InvalidResponse("cannot serialize query"))?;
     if bytes.len() > MAX_OSV_REQUEST_BYTES {
