@@ -133,7 +133,7 @@
 - [x] T054 [P] [US2] Detect instruction-shaped/untrusted tool descriptions/results as Evidence/candidate telemetry without letting payload text alter policy; MCP content remains data unless an explicit trusted authority contract says otherwise.
 - [x] T055 [US2] Implement `sentrdel guard mcp` CLI with ENFORCED fidelity for proxied stdio path and chain/head summary.
 - [x] T056 [P] [US2] Implement safe git-hook install/composition/uninstall metadata without overwriting unrelated hooks.
-- [ ] T057 [US2] Implement hook-install CLI with PARTIAL fidelity warning.
+- [x] T057 [US2] Implement hook-install CLI with PARTIAL fidelity warning.
 - [ ] T058 [US2] Add fixture stdio MCP client/server and E2E guard tests covering ALLOW/ASK/DENY/UNDECIDABLE, malicious descriptions/results, giant/unterminated frames, buffer caps, unsupported versions, credential-inheritance canaries, ASEL verification and no remote HTTP support.
 
 ---
