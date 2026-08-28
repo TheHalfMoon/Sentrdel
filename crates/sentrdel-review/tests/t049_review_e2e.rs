@@ -425,7 +425,7 @@ fn evaluate_against_sentrdelbench_fixture(
 
         for (id, severity) in &expected_findings {
             match actual_findings.get(id) {
-                Some(actual_severity) if *actual_severity == severity => true_positive += 1,
+                Some(actual_severity) if *actual_severity == *severity => true_positive += 1,
                 _ => false_negative += 1,
             }
         }
