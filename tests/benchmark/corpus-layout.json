@@ -14,6 +14,7 @@
     "corpus_class": "DEVELOPMENT_EVALUATION",
     "root": "tests/benchmark/development-evaluation",
     "committed_fixture_paths": [
+      "tests/benchmark/development-evaluation/t049-review-steel-thread.json",
       "tests/benchmark/development-evaluation/t090-development-corpus.json"
     ],
     "expected_output_location": "REPOSITORY_VISIBLE",
