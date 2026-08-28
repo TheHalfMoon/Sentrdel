@@ -117,7 +117,7 @@
 - [x] T046 [US1] Connect changed symbols/reverse reachability to Finding context without unsupported semantic claims; where stable identity/diff evidence exists, preserve enough prior/current state for later temporal classifications without inventing causality.
 - [x] T047 [US1] Implement review coverage matrix aggregation so absent/failed producers are visible.
 - [x] T048 [US1] Implement `sentrdel review` human/JSON output using frozen CLI contract.
-- [ ] T049 [US1] Add E2E clean/vulnerable/contradictory/missing-engine/hostile-repo tests proving deterministic producers ignore repository instructions and hidden execution configs; run the vertical steel-thread cases through SentrdelBench and record baseline deltas.
+- [x] T049 [US1] Add E2E clean/vulnerable/contradictory/missing-engine/hostile-repo tests proving deterministic producers ignore repository instructions and hidden execution configs; run the vertical steel-thread cases through SentrdelBench and record baseline deltas.
 
 ---
 
