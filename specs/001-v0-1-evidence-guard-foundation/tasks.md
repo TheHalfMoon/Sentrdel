@@ -112,7 +112,7 @@
 - [x] T041 [P] [US1] Implement changed-secret producer with redacted Evidence; persist only rule/type/location/redacted display/sanitized non-secret fingerprints.
 - [x] T042 [P] [US1] Implement supported lockfile dependency-delta parser + offline advisory fixture provider without executing package managers.
 - [x] T043 [P] [US1] Add optional OSV-compatible lookup/cache respecting `--no-network`; tests remain offline-capable.
-- [ ] T044 [P] [US1] Implement GitHub Actions high-signal producer covering permission widening, OIDC/id-token, secrets in untrusted PR paths, `pull_request_target`, untrusted expression→shell interpolation, mutable action refs vs SHA pinning, self-hosted/untrusted runner changes and trust-sensitive artifact/cache handoffs.
+- [x] T044 [P] [US1] Implement GitHub Actions high-signal producer covering permission widening, OIDC/id-token, secrets in untrusted PR paths, `pull_request_target`, untrusted expression→shell interpolation, mutable action refs vs SHA pinning, self-hosted/untrusted runner changes and trust-sensitive artifact/cache handoffs.
 - [ ] T045 [US1] Implement Evidence fingerprint/correlation/reconciliation into canonical Findings, preserving observations, interpretations, provenance and contradictions.
 - [ ] T046 [US1] Connect changed symbols/reverse reachability to Finding context without unsupported semantic claims; where stable identity/diff evidence exists, preserve enough prior/current state for later temporal classifications without inventing causality.
 - [ ] T047 [US1] Implement review coverage matrix aggregation so absent/failed producers are visible.
