@@ -16,8 +16,7 @@ use sentrdel_schema::policy::EnforcementFidelity;
 use serde::Serialize;
 
 const PARTIAL_WARNING_CODE: &str = "GIT_HOOKS_PARTIAL_FIDELITY";
-const PARTIAL_WARNING: &str =
-    "Local Git hooks are bypassable and provide PARTIAL enforcement only; they are not universal agent or merge interception.";
+const PARTIAL_WARNING: &str = "Local Git hooks are bypassable and provide PARTIAL enforcement only; they are not universal agent or merge interception.";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
@@ -192,12 +191,16 @@ impl fmt::Display for GuardGitHooksOutputError {
             Self::HookNameMismatch => {
                 formatter.write_str("Git-hook plan and ownership metadata names differ")
             }
-            Self::InstalledDigestMismatch => formatter
-                .write_str("Git-hook plan and ownership metadata installed digests differ"),
+            Self::InstalledDigestMismatch => {
+                formatter.write_str("Git-hook plan and ownership metadata installed digests differ")
+            }
             Self::MissingCompositionMetadata => formatter
                 .write_str("composed Git-hook installation must retain exact restore metadata"),
             Self::DuplicateHook(name) => {
-                write!(formatter, "Git-hook install output contains duplicate hook {name:?}")
+                write!(
+                    formatter,
+                    "Git-hook install output contains duplicate hook {name:?}"
+                )
             }
         }
     }
@@ -243,12 +246,9 @@ mod tests {
     fn missing_hook_reports_partial_fidelity_and_no_restore_path() {
         let plan = plan_install("pre-commit", &ObservedHook::Missing, MANAGED, None).unwrap();
         let metadata = HookOwnershipMetadata::new("pre-commit", MANAGED, None).unwrap();
-        let output = GuardGitHooksOutput::new(
-            repository(),
-            &[(plan, metadata)],
-            CliTiming::default(),
-        )
-        .unwrap();
+        let output =
+            GuardGitHooksOutput::new(repository(), &[(plan, metadata)], CliTiming::default())
+                .unwrap();
 
         assert_eq!(
             output.guard.enforcement_fidelity,
@@ -268,12 +268,9 @@ mod tests {
             Some((".sentrdel/pre-push.original", EXISTING)),
         )
         .unwrap();
-        let output = GuardGitHooksOutput::new(
-            repository(),
-            &[(plan, metadata)],
-            CliTiming::default(),
-        )
-        .unwrap();
+        let output =
+            GuardGitHooksOutput::new(repository(), &[(plan, metadata)], CliTiming::default())
+                .unwrap();
 
         assert_eq!(
             output.guard.hooks[0].preserved_original_path.as_deref(),
@@ -287,12 +284,9 @@ mod tests {
     fn human_and_json_outputs_cannot_overclaim_enforcement() {
         let plan = plan_install("pre-commit", &ObservedHook::Missing, MANAGED, None).unwrap();
         let metadata = HookOwnershipMetadata::new("pre-commit", MANAGED, None).unwrap();
-        let output = GuardGitHooksOutput::new(
-            repository(),
-            &[(plan, metadata)],
-            CliTiming::default(),
-        )
-        .unwrap();
+        let output =
+            GuardGitHooksOutput::new(repository(), &[(plan, metadata)], CliTiming::default())
+                .unwrap();
 
         let human = output.render_human();
         assert!(human.contains("Git hook integration: PARTIAL"));
