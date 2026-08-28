@@ -56,4 +56,5 @@ jobs:
 
       - name: Record fail-closed verification blocker
         if: steps.credential.outputs.source == 'none'
-        run: echo "T092 verification probe: BLOCKED_NO_BOUNDED_ADMIN_TOKEN"
+        run: |
+          echo "T092 verification probe: BLOCKED_NO_BOUNDED_ADMIN_TOKEN"
