@@ -7,17 +7,20 @@ use sentrdel_schema::SCHEMA_V1;
 use sentrdel_schema::finding::{
     EpistemicState, Finding, ReconciledFindingDraft, ReconcilerAuthority, Severity,
 };
-use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
 
-fn provenance() -> GraphProvenanceId {
-    GraphProvenanceId::new("evidence:t046").unwrap()
+fn provenance(value: &str) -> GraphProvenanceId {
+    GraphProvenanceId::new(value).unwrap()
 }
 
 fn symbol(key: &str, revision: &str) -> GraphNode {
-    let mut attributes = BTreeMap::new();
-    attributes.insert("revision".to_owned(), Value::String(revision.to_owned()));
-    GraphNode::new(GraphNodeKind::Symbol, key, attributes, vec![provenance()]).unwrap()
+    GraphNode::new(
+        GraphNodeKind::Symbol,
+        key,
+        BTreeMap::new(),
+        vec![provenance(&format!("evidence:t046:{revision}"))],
+    )
+    .unwrap()
 }
 
 fn calls(source: &GraphNode, target: &GraphNode) -> GraphEdge {
@@ -31,7 +34,7 @@ fn calls(source: &GraphNode, target: &GraphNode) -> GraphEdge {
             GraphConfidenceBasis::Extracted,
         )
         .unwrap(),
-        vec![provenance()],
+        vec![provenance("evidence:t046:edge")],
         BTreeMap::new(),
     )
     .unwrap()
