@@ -73,14 +73,14 @@ fn oversized_paths_and_files_fail_closed() {
     let repo = TempRepo::new("oversized");
     fs::write(repo.root.join("large.bin"), vec![b'x'; 17]).unwrap();
     let limits = RepoViewLimits {
-        max_path_bytes: 8,
+        max_path_bytes: 16,
         max_file_bytes: 16,
     };
     let view = RepoFileView::new(&repo.root, limits).unwrap();
 
     assert!(matches!(
-        view.normalize("123456789"),
-        Err(RepoViewError::PathTooLarge { bytes: 9, max: 8 })
+        view.normalize("12345678901234567"),
+        Err(RepoViewError::PathTooLarge { bytes: 17, max: 16 })
     ));
     assert!(matches!(
         view.read("large.bin"),
