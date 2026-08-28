@@ -1,0 +1,25 @@
+{
+  "manifest_version": "sentrdelbench-protected-holdout/t090-v1",
+  "corpus_class": "PROTECTED_HOLDOUT",
+  "case_material_location": "EXTERNAL_ONLY",
+  "expected_outputs_location": "EXTERNAL_ONLY",
+  "candidate_generation_expected_output_access": "DENIED",
+  "base_ci_requires_private_material": false,
+  "repository_committed_case_count": 0,
+  "repository_committed_expected_output_count": 0,
+  "qualification_receipt_fields": [
+    "candidate_identity",
+    "evaluator_version",
+    "evaluator_digest",
+    "metric_contract_version",
+    "metric_contract_digest",
+    "protected_corpus_revision",
+    "protected_corpus_digest",
+    "expected_outputs_revision",
+    "expected_outputs_digest",
+    "aggregate_metric_states",
+    "aggregate_metric_components",
+    "authority_assertion_results",
+    "replay_status"
+  ]
+}
