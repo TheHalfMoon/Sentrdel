@@ -6,7 +6,9 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use sentrdel_schema::{
     SCHEMA_V1,
-    asel::{Actor, ActorType, AgentSecurityEvent, AgentSecurityEventDraft, EventKind, SessionIntegrity},
+    asel::{
+        Actor, ActorType, AgentSecurityEvent, AgentSecurityEventDraft, EventKind, SessionIntegrity,
+    },
 };
 use sentrdel_store::Store;
 
@@ -111,8 +113,8 @@ fn mcp_lifecycle_events_persist_in_one_verifiable_session_chain() {
     let mut expected_hashes = Vec::new();
     for (index, kind) in kinds.into_iter().enumerate() {
         let timestamp = format!("2026-08-28T22:20:0{index}Z");
-        let result_digest = matches!(kind, EventKind::ToolResult)
-            .then_some("sha256:mcp-result-fixture");
+        let result_digest =
+            matches!(kind, EventKind::ToolResult).then_some("sha256:mcp-result-fixture");
         let event = event(
             session,
             index as u64,
