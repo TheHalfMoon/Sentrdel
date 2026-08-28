@@ -276,17 +276,17 @@ fn scan_features(source: &str) -> Features {
             out.write_all_line.get_or_insert(line_number);
         }
 
-        if let Some((name, value)) = split_mapping(trimmed) {
-            if value == "write" || value == "'write'" || value == "\"write\"" {
-                if name == "id-token" {
-                    out.id_token_write = true;
-                    out.id_token_line.get_or_insert(line_number);
-                } else if WRITE_PERMISSIONS.contains(&name) {
-                    out.write_permissions.insert(name.to_owned());
-                    out.write_permission_lines
-                        .entry(name.to_owned())
-                        .or_insert(line_number);
-                }
+        if let Some((name, value)) = split_mapping(trimmed)
+            && (value == "write" || value == "'write'" || value == "\"write\"")
+        {
+            if name == "id-token" {
+                out.id_token_write = true;
+                out.id_token_line.get_or_insert(line_number);
+            } else if WRITE_PERMISSIONS.contains(&name) {
+                out.write_permissions.insert(name.to_owned());
+                out.write_permission_lines
+                    .entry(name.to_owned())
+                    .or_insert(line_number);
             }
         }
 
