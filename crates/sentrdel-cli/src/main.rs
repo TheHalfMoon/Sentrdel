@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 
-mod bootstrap;
+pub mod bootstrap;
 
 use std::process::ExitCode;
 
