@@ -51,16 +51,15 @@ impl OsvTransport for ScriptedTransport {
 
 #[test]
 fn request_uses_osv_ecosystem_names_and_exact_versions() {
-    let cargo: Value = serde_json::from_slice(&build_query_request(&cargo_package(), None).unwrap())
-        .unwrap();
+    let cargo: Value =
+        serde_json::from_slice(&build_query_request(&cargo_package(), None).unwrap()).unwrap();
     assert_eq!(cargo["package"]["ecosystem"], "crates.io");
     assert_eq!(cargo["package"]["name"], "fixture-crate");
     assert_eq!(cargo["version"], "1.2.3");
 
-    let npm: Value = serde_json::from_slice(
-        &build_query_request(&npm_package(), Some("next-page")).unwrap(),
-    )
-    .unwrap();
+    let npm: Value =
+        serde_json::from_slice(&build_query_request(&npm_package(), Some("next-page")).unwrap())
+            .unwrap();
     assert_eq!(npm["package"]["ecosystem"], "npm");
     assert_eq!(npm["package"]["name"], "@scope/fixture");
     assert_eq!(npm["page_token"], "next-page");
@@ -186,7 +185,8 @@ fn network_lookup_follows_bounded_pagination_deduplicates_and_populates_cache() 
 #[test]
 fn network_unavailable_is_visible_and_stale_cache_is_not_marked_complete() {
     let mut empty_cache = OsvCache::new();
-    let mut unavailable = ScriptedTransport::with_responses(vec![Err(OsvTransportError::Unavailable)]);
+    let mut unavailable =
+        ScriptedTransport::with_responses(vec![Err(OsvTransportError::Unavailable)]);
     let missing = lookup_package(
         &cargo_package(),
         NetworkPolicy::AllowNetwork,
@@ -275,7 +275,7 @@ fn malformed_oversized_and_repeated_pagination_fail_closed() {
 }
 
 #[test]
-fn cache_round_trip_is_deterministic_and_rejects_unknown_fields() {
+fn cache_round_trip_is_deterministic_and_rejects_ambiguous_input() {
     let source = br#"{
       "schema_version":"1",
       "entries":[{
@@ -292,10 +292,37 @@ fn cache_round_trip_is_deterministic_and_rejects_unknown_fields() {
     let cache = OsvCache::from_bytes(source).unwrap();
     let encoded = cache.to_bytes().unwrap();
     assert_eq!(cache, OsvCache::from_bytes(&encoded).unwrap());
-    assert_eq!(encoded, OsvCache::from_bytes(&encoded).unwrap().to_bytes().unwrap());
+    assert_eq!(
+        encoded,
+        OsvCache::from_bytes(&encoded).unwrap().to_bytes().unwrap()
+    );
 
     assert!(matches!(
         OsvCache::from_bytes(br#"{"schema_version":"1","entries":[],"extra":true}"#),
+        Err(OsvError::InvalidCache(_))
+    ));
+
+    let duplicate_package = br#"{
+      "schema_version":"1",
+      "entries":[
+        {
+          "ecosystem":"cargo",
+          "name":"fixture-crate",
+          "version":"1.2.3",
+          "fetched_at_epoch_seconds":1,
+          "advisories":[]
+        },
+        {
+          "ecosystem":"cargo",
+          "name":"fixture-crate",
+          "version":"1.2.3",
+          "fetched_at_epoch_seconds":2,
+          "advisories":[]
+        }
+      ]
+    }"#;
+    assert!(matches!(
+        OsvCache::from_bytes(duplicate_package),
         Err(OsvError::InvalidCache(_))
     ));
 }
