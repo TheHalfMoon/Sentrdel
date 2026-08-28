@@ -94,10 +94,15 @@ impl fmt::Display for DependencyError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::InputTooLarge { bytes, max } => {
-                write!(formatter, "input size {bytes} exceeds dependency parser cap {max}")
+                write!(
+                    formatter,
+                    "input size {bytes} exceeds dependency parser cap {max}"
+                )
             }
             Self::NonUtf8 => formatter.write_str("dependency input must be valid UTF-8"),
-            Self::InvalidFormat(message) => write!(formatter, "invalid dependency format: {message}"),
+            Self::InvalidFormat(message) => {
+                write!(formatter, "invalid dependency format: {message}")
+            }
             Self::InvalidField(field) => write!(formatter, "invalid dependency field: {field}"),
             Self::TooManyPackages { count, max } => {
                 write!(formatter, "package count {count} exceeds cap {max}")
@@ -174,7 +179,9 @@ fn parse_cargo_lock(text: &str) -> Result<BTreeSet<PackageVersion>, DependencyEr
         insert_cargo_package(&mut packages, fields)?;
     }
     if packages.is_empty() {
-        return Err(DependencyError::InvalidFormat("Cargo.lock contains no package records"));
+        return Err(DependencyError::InvalidFormat(
+            "Cargo.lock contains no package records",
+        ));
     }
     Ok(packages)
 }
@@ -186,9 +193,9 @@ fn insert_cargo_package(
     let name = fields
         .get("name")
         .ok_or(DependencyError::InvalidFormat("Cargo package missing name"))?;
-    let version = fields
-        .get("version")
-        .ok_or(DependencyError::InvalidFormat("Cargo package missing version"))?;
+    let version = fields.get("version").ok_or(DependencyError::InvalidFormat(
+        "Cargo package missing version",
+    ))?;
     validate_field(name, "package name")?;
     validate_field(version, "package version")?;
     packages.insert(PackageVersion {
@@ -212,14 +219,18 @@ fn parse_simple_toml_string(
     };
     let value = rest.trim();
     if !value.starts_with('"') || !value.ends_with('"') || value.len() < 2 {
-        return Err(DependencyError::InvalidFormat("unsupported Cargo.lock string"));
+        return Err(DependencyError::InvalidFormat(
+            "unsupported Cargo.lock string",
+        ));
     }
     let value = &value[1..value.len() - 1];
     if value
         .chars()
         .any(|character| matches!(character, '\\' | '"' | '\n' | '\r'))
     {
-        return Err(DependencyError::InvalidFormat("escaped Cargo.lock identity string"));
+        return Err(DependencyError::InvalidFormat(
+            "escaped Cargo.lock identity string",
+        ));
     }
     Ok(Some(value.to_owned()))
 }
@@ -227,20 +238,27 @@ fn parse_simple_toml_string(
 fn parse_npm_lock(text: &str) -> Result<BTreeSet<PackageVersion>, DependencyError> {
     let root: Value = serde_json::from_str(text)
         .map_err(|_| DependencyError::InvalidFormat("package-lock.json is not valid JSON"))?;
-    let object = root
-        .as_object()
-        .ok_or(DependencyError::InvalidFormat("package-lock.json root must be an object"))?;
+    let object = root.as_object().ok_or(DependencyError::InvalidFormat(
+        "package-lock.json root must be an object",
+    ))?;
     let lockfile_version = object
         .get("lockfileVersion")
         .and_then(Value::as_u64)
-        .ok_or(DependencyError::InvalidFormat("package-lock.json missing lockfileVersion"))?;
+        .ok_or(DependencyError::InvalidFormat(
+            "package-lock.json missing lockfileVersion",
+        ))?;
     if !(2..=3).contains(&lockfile_version) {
-        return Err(DependencyError::InvalidFormat("only npm lockfileVersion 2 or 3 is supported"));
+        return Err(DependencyError::InvalidFormat(
+            "only npm lockfileVersion 2 or 3 is supported",
+        ));
     }
-    let entries = object
-        .get("packages")
-        .and_then(Value::as_object)
-        .ok_or(DependencyError::InvalidFormat("package-lock.json missing packages object"))?;
+    let entries =
+        object
+            .get("packages")
+            .and_then(Value::as_object)
+            .ok_or(DependencyError::InvalidFormat(
+                "package-lock.json missing packages object",
+            ))?;
     if entries.len() > MAX_LOCKFILE_PACKAGES + 1 {
         return Err(DependencyError::TooManyPackages {
             count: entries.len(),
@@ -253,22 +271,23 @@ fn parse_npm_lock(text: &str) -> Result<BTreeSet<PackageVersion>, DependencyErro
         if path.is_empty() {
             continue;
         }
-        let package = value
-            .as_object()
-            .ok_or(DependencyError::InvalidFormat("npm package record must be an object"))?;
+        let package = value.as_object().ok_or(DependencyError::InvalidFormat(
+            "npm package record must be an object",
+        ))?;
         if package.get("link").and_then(Value::as_bool) == Some(true) {
             continue;
         }
-        let version = package
-            .get("version")
-            .and_then(Value::as_str)
-            .ok_or(DependencyError::InvalidFormat("npm package record missing version"))?;
+        let version = package.get("version").and_then(Value::as_str).ok_or(
+            DependencyError::InvalidFormat("npm package record missing version"),
+        )?;
         let name = package
             .get("name")
             .and_then(Value::as_str)
             .map(str::to_owned)
             .or_else(|| npm_name_from_package_path(path))
-            .ok_or(DependencyError::InvalidFormat("cannot infer npm package name"))?;
+            .ok_or(DependencyError::InvalidFormat(
+                "cannot infer npm package name",
+            ))?;
         validate_field(&name, "package name")?;
         validate_field(version, "package version")?;
         packages.insert(PackageVersion {
@@ -300,16 +319,17 @@ impl OfflineAdvisoryProvider {
         }
         let root: Value = serde_json::from_slice(bytes)
             .map_err(|_| DependencyError::InvalidFormat("advisory fixture is not valid JSON"))?;
-        let object = root
-            .as_object()
-            .ok_or(DependencyError::InvalidFormat("advisory fixture root must be an object"))?;
+        let object = root.as_object().ok_or(DependencyError::InvalidFormat(
+            "advisory fixture root must be an object",
+        ))?;
         if object.get("schema_version").and_then(Value::as_str) != Some("1") {
-            return Err(DependencyError::InvalidFormat("unsupported advisory fixture schema"));
+            return Err(DependencyError::InvalidFormat(
+                "unsupported advisory fixture schema",
+            ));
         }
-        let entries = object
-            .get("advisories")
-            .and_then(Value::as_array)
-            .ok_or(DependencyError::InvalidFormat("advisory fixture missing advisories"))?;
+        let entries = object.get("advisories").and_then(Value::as_array).ok_or(
+            DependencyError::InvalidFormat("advisory fixture missing advisories"),
+        )?;
         if entries.len() > MAX_OFFLINE_ADVISORIES {
             return Err(DependencyError::TooManyAdvisories {
                 count: entries.len(),
@@ -337,7 +357,9 @@ impl OfflineAdvisoryProvider {
             let versions = entry
                 .get("affected_versions")
                 .and_then(Value::as_array)
-                .ok_or(DependencyError::InvalidFormat("advisory missing affected_versions"))?;
+                .ok_or(DependencyError::InvalidFormat(
+                    "advisory missing affected_versions",
+                ))?;
             if versions.is_empty() || versions.len() > 1_000 {
                 return Err(DependencyError::InvalidField("affected_versions"));
             }
