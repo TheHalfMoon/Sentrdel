@@ -1,0 +1,38 @@
+name: T054 Closeout
+
+on:
+  push:
+    branches:
+      - closeout/001-t054-mcp-untrusted-content-telemetry
+
+permissions:
+  contents: write
+
+jobs:
+  closeout:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: closeout/001-t054-mcp-untrusted-content-telemetry
+      - name: Close T054 and remove temporary workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('specs/001-v0-1-evidence-guard-foundation/tasks.md')
+          text = path.read_text(encoding='utf-8')
+          old = '- [ ] T054 [P] [US2] Detect instruction-shaped/untrusted tool descriptions/results as Evidence/candidate telemetry without letting payload text alter policy; MCP content remains data unless an explicit trusted authority contract says otherwise.'
+          new = old.replace('- [ ]', '- [x]', 1)
+          if text.count(old) != 1:
+              raise SystemExit('expected exactly one open T054 task')
+          path.write_text(text.replace(old, new, 1), encoding='utf-8')
+          PY
+          git rm .github/workflows/t054-closeout.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add specs/001-v0-1-evidence-guard-foundation/tasks.md
+          git commit -m 'docs(spec): close T054 MCP telemetry task'
+          git push origin HEAD:closeout/001-t054-mcp-untrusted-content-telemetry
