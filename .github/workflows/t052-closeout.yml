@@ -24,7 +24,7 @@ jobs:
           from pathlib import Path
           path = Path('specs/001-v0-1-evidence-guard-foundation/tasks.md')
           text = path.read_text()
-          old = '- [ ] T052 [US2] Implement stdio MCP gateway normalization, pre-invocation policy, scoped approval and forwarding with max frame/buffer/argument/result limits, fail-closed protocol errors, and T093 scrubbed child environment forwarding.'
+          old = '- [ ] T052 [US2] Implement stdio gateway normalization, pre-invocation policy, scoped approval and forwarding with max frame/buffer/args/result limits and fail-closed protocol errors; forwarding uses the T093 scrubbed environment/capability boundary.'
           new = old.replace('- [ ]', '- [x]', 1)
           if text.count(old) != 1:
               raise SystemExit('expected exactly one unchecked T052 task line')
