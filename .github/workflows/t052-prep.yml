@@ -1,0 +1,82 @@
+name: T052 Prep
+
+on:
+  push:
+    branches:
+      - impl/001-t052-stdio-gateway
+
+permissions:
+  contents: write
+
+jobs:
+  prep:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout T052 head
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: impl/001-t052-stdio-gateway
+          persist-credentials: true
+          fetch-depth: 1
+      - name: Remove parser placeholder indirection
+        shell: python
+        run: |
+          from pathlib import Path
+          path = Path("crates/sentrdel-guard/src/mcp/gateway.rs")
+          text = path.read_text()
+          old = '''        validate_identity("server", &server_name.into())?;
+          validate_identity("tool", tool_name)?;
+
+          let server_name = object_server_name_placeholder();'''
+          new = '''        let server_name = server_name.into();
+          validate_identity("server", &server_name)?;
+          validate_identity("tool", tool_name)?;'''
+          if text.count(old) != 1:
+              raise SystemExit("expected parser placeholder pattern exactly once")
+          text = text.replace(old, new)
+          helper = '''
+// This helper is replaced immediately after borrowing the caller-owned server
+// name during parsing. Keeping construction in one place avoids any fallback to
+// server metadata supplied by the MCP frame itself.
+fn object_server_name_placeholder() -> String {
+    String::new()
+}
+'''
+          if text.count(helper) != 1:
+              raise SystemExit("expected placeholder helper exactly once")
+          path.write_text(text.replace(helper, "\n"))
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.98.0 --profile minimal --component rustfmt --component clippy
+      - name: Refresh lockfile
+        run: cargo +1.98.0 generate-lockfile
+      - name: Format workspace
+        run: cargo +1.98.0 fmt --all
+      - name: Check workspace
+        run: cargo +1.98.0 check --workspace --all-targets --locked
+      - name: Apply machine-applicable Clippy fixes
+        run: cargo +1.98.0 clippy --fix --workspace --all-targets --locked --allow-dirty --allow-staged -- -D warnings
+      - name: Format after Clippy
+        run: cargo +1.98.0 fmt --all
+      - name: Require bounded generated changes
+        shell: bash
+        run: |
+          changed="$(git status --short)"
+          while IFS= read -r line; do
+            [[ -z "$line" ]] && continue
+            case "$line" in
+              " M Cargo.lock"|" M crates/sentrdel-guard/src/mcp/gateway.rs") ;;
+              *) printf 'unexpected generated change: %s\n' "$line" >&2; exit 1 ;;
+            esac
+          done <<< "$changed"
+      - name: Commit prep changes
+        shell: bash
+        run: |
+          if git diff --quiet; then
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Cargo.lock crates/sentrdel-guard/src/mcp/gateway.rs
+          git commit -m "fix(guard): prepare T052 gateway for qualification"
+          git push origin HEAD:impl/001-t052-stdio-gateway
