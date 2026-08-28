@@ -27,7 +27,7 @@ fn changed_secret_evidence_is_redacted_before_serialization() {
     assert!(!serialized.contains(AWS_KEY));
     assert!(serialized.contains("[REDACTED:github_classic_pat]"));
     assert!(serialized.contains("[REDACTED:aws_access_key_id]"));
-    assert!(!serialized.contains("content_digest"));
+    assert!(serialized.contains("\"content_digest\":null"));
 }
 
 #[test]
@@ -37,8 +37,12 @@ fn sanitized_fingerprint_is_independent_of_secret_value() {
     let a = scan_changed_secrets(&path(), first.as_bytes(), CAPTURED_AT).unwrap();
     let b = scan_changed_secrets(&path(), second.as_bytes(), CAPTURED_AT).unwrap();
 
-    let a_fingerprint = a[0].claim().attributes["sanitized_fingerprint"].as_str().unwrap();
-    let b_fingerprint = b[0].claim().attributes["sanitized_fingerprint"].as_str().unwrap();
+    let a_fingerprint = a[0].claim().attributes["sanitized_fingerprint"]
+        .as_str()
+        .unwrap();
+    let b_fingerprint = b[0].claim().attributes["sanitized_fingerprint"]
+        .as_str()
+        .unwrap();
     assert_eq!(a_fingerprint, b_fingerprint);
     assert_eq!(a[0].claim().input_digests, Vec::<String>::new());
     assert!(a[0].claim().locations[0].content_digest.is_none());
@@ -47,9 +51,11 @@ fn sanitized_fingerprint_is_independent_of_secret_value() {
 #[test]
 fn malformed_near_misses_do_not_emit_evidence() {
     let source = b"const a = 'ghp_short';\nconst b = 'Xghp_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';\nconst c = 'AKIA1234-lower-not-key';\n";
-    assert!(scan_changed_secrets(&path(), source, CAPTURED_AT)
-        .unwrap()
-        .is_empty());
+    assert!(
+        scan_changed_secrets(&path(), source, CAPTURED_AT)
+            .unwrap()
+            .is_empty()
+    );
 }
 
 #[test]
@@ -60,7 +66,11 @@ fn evidence_locations_and_order_are_deterministic() {
     assert_eq!(first, second);
     assert_eq!(first[0].claim().locations[0].start_line, Some(1));
     assert_eq!(first[1].claim().locations[0].start_line, Some(2));
-    assert!(first.iter().all(|item| item.claim().security_interpretation.is_none()));
+    assert!(
+        first
+            .iter()
+            .all(|item| item.claim().security_interpretation.is_none())
+    );
 }
 
 #[test]
