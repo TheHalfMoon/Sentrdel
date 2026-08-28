@@ -1,6 +1,7 @@
 #![forbid(unsafe_code)]
 //! Guard surfaces. R1 MCP enforcement is bounded stdio only.
 
+pub mod git_hooks;
 pub mod mcp;
 pub mod sentrdel_policy;
 
