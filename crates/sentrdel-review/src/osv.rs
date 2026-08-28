@@ -94,7 +94,9 @@ impl fmt::Display for OsvError {
             Self::InputTooLarge { bytes, max } => {
                 write!(formatter, "OSV input size {bytes} exceeds cap {max}")
             }
-            Self::InvalidPackageField(field) => write!(formatter, "invalid OSV package field: {field}"),
+            Self::InvalidPackageField(field) => {
+                write!(formatter, "invalid OSV package field: {field}")
+            }
             Self::InvalidResponse(message) => write!(formatter, "invalid OSV response: {message}"),
             Self::InvalidCache(message) => write!(formatter, "invalid OSV cache: {message}"),
             Self::TooManyAdvisories { count, max } => {
@@ -103,7 +105,9 @@ impl fmt::Display for OsvError {
             Self::TooManyCacheEntries { count, max } => {
                 write!(formatter, "OSV cache entry count {count} exceeds cap {max}")
             }
-            Self::TooManyPages { max } => write!(formatter, "OSV pagination exceeds page cap {max}"),
+            Self::TooManyPages { max } => {
+                write!(formatter, "OSV pagination exceeds page cap {max}")
+            }
             Self::RepeatedPageToken => formatter.write_str("OSV pagination repeated a page token"),
         }
     }
@@ -129,7 +133,11 @@ pub fn lookup_package<T: OsvTransport>(
     let cached = cache.entries.get(package).cloned();
     if let Some(entry) = &cached {
         if cache_entry_is_fresh(entry, now_epoch_seconds, max_cache_age_seconds) {
-            return Ok(outcome_from_entry(package, entry, OsvLookupStatus::FreshCache));
+            return Ok(outcome_from_entry(
+                package,
+                entry,
+                OsvLookupStatus::FreshCache,
+            ));
         }
     }
 
@@ -152,7 +160,7 @@ pub fn lookup_package<T: OsvTransport>(
                 OsvLookupStatus::Network,
             ))
         }
-        Err(QueryNetworkError::Transport(_)) => Ok(match cached {
+        Err(QueryNetworkError::Transport) => Ok(match cached {
             Some(entry) => outcome_from_entry(package, &entry, OsvLookupStatus::StaleCache),
             None => OsvLookupOutcome {
                 matches: Vec::new(),
@@ -196,7 +204,7 @@ fn outcome_from_advisories(
 
 #[derive(Debug)]
 enum QueryNetworkError {
-    Transport(OsvTransportError),
+    Transport,
     Protocol(OsvError),
 }
 
@@ -213,7 +221,7 @@ fn query_network<T: OsvTransport>(
             .map_err(QueryNetworkError::Protocol)?;
         let response = transport
             .query(&request)
-            .map_err(QueryNetworkError::Transport)?;
+            .map_err(|_| QueryNetworkError::Transport)?;
         let page = parse_query_response(&response).map_err(QueryNetworkError::Protocol)?;
 
         for advisory in page.advisories {
@@ -259,12 +267,15 @@ pub fn build_query_request(
     let mut root = Map::new();
     root.insert(
         "package".to_owned(),
-        json!({"ecosystem": ecosystem, "name": package.name}),
+        json!({"ecosystem": ecosystem, "name": package.name.as_str()}),
     );
     if let Some(token) = page_token {
         root.insert("page_token".to_owned(), Value::String(token.to_owned()));
     }
-    root.insert("version".to_owned(), Value::String(package.version.clone()));
+    root.insert(
+        "version".to_owned(),
+        Value::String(package.version.clone()),
+    );
     let bytes = serde_json::to_vec(&Value::Object(root))
         .map_err(|_| OsvError::InvalidResponse("cannot serialize query"))?;
     if bytes.len() > MAX_OSV_REQUEST_BYTES {
@@ -289,11 +300,12 @@ fn parse_query_response(bytes: &[u8]) -> Result<ParsedPage, OsvError> {
         .as_object()
         .ok_or(OsvError::InvalidResponse("response root must be an object"))?;
 
-    let raw_vulns = match object.get("vulns") {
+    let raw_vulns: &[Value] = match object.get("vulns") {
         Some(value) => value
             .as_array()
-            .ok_or(OsvError::InvalidResponse("vulns must be an array"))?,
-        None => &Vec::new(),
+            .ok_or(OsvError::InvalidResponse("vulns must be an array"))?
+            .as_slice(),
+        None => &[],
     };
     if raw_vulns.len() > MAX_OSV_ADVISORIES_PER_PACKAGE {
         return Err(OsvError::TooManyAdvisories {
@@ -325,7 +337,9 @@ fn parse_query_response(bytes: &[u8]) -> Result<ParsedPage, OsvError> {
         .map(|value| {
             value
                 .as_str()
-                .ok_or(OsvError::InvalidResponse("next_page_token must be a string"))
+                .ok_or(OsvError::InvalidResponse(
+                    "next_page_token must be a string",
+                ))
                 .and_then(|token| {
                     validate_page_token(token)?;
                     Ok(token.to_owned())
@@ -398,6 +412,9 @@ impl OsvCache {
                 version: required_cache_string(entry, "version")?.to_owned(),
             };
             validate_package(&package)?;
+            if cache.entries.contains_key(&package) {
+                return Err(OsvError::InvalidCache("duplicate package entry"));
+            }
             let fetched_at_epoch_seconds = entry
                 .get("fetched_at_epoch_seconds")
                 .and_then(Value::as_u64)
@@ -445,12 +462,17 @@ impl OsvCache {
                 let advisories: Vec<Value> = entry
                     .advisories
                     .iter()
-                    .map(|advisory| json!({"id": advisory.id, "summary": advisory.summary}))
+                    .map(|advisory| {
+                        json!({
+                            "id": advisory.id.as_str(),
+                            "summary": advisory.summary.as_str()
+                        })
+                    })
                     .collect();
                 json!({
                     "ecosystem": package.ecosystem.as_str(),
-                    "name": package.name,
-                    "version": package.version,
+                    "name": package.name.as_str(),
+                    "version": package.version.as_str(),
                     "fetched_at_epoch_seconds": entry.fetched_at_epoch_seconds,
                     "advisories": advisories,
                 })
@@ -537,7 +559,7 @@ fn validate_id(id: &str) -> Result<(), OsvError> {
 }
 
 fn validate_summary(summary: &str) -> Result<(), OsvError> {
-    if summary.len() > MAX_OSV_SUMMARY_BYTES || summary.contains('\0') {
+    if summary.len() > MAX_OSV_SUMMARY_BYTES || summary.chars().any(char::is_control) {
         return Err(OsvError::InvalidResponse("invalid vulnerability summary"));
     }
     Ok(())
