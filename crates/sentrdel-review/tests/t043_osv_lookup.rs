@@ -260,7 +260,7 @@ fn malformed_oversized_and_repeated_pagination_fail_closed() {
     ));
 
     let page = Ok(br#"{"vulns":[],"next_page_token":"same"}"# as &'static [u8]);
-    let mut repeated = ScriptedTransport::with_responses(vec![page.clone(), page]);
+    let mut repeated = ScriptedTransport::with_responses(vec![page, page]);
     assert!(matches!(
         lookup_package(
             &cargo_package(),
