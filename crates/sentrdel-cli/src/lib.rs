@@ -5,6 +5,8 @@
 //! Command parsing, repository discovery, dependency injection, review/init/
 //! guard behavior, and feature-specific output population remain later tasks.
 
+pub mod review;
+
 use std::{error::Error, fmt, process::ExitCode};
 
 use sentrdel_schema::{SCHEMA_V1, coverage::CoverageRecord, policy::Verdict};
