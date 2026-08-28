@@ -15,9 +15,9 @@ use std::{
 const EVALUATOR_VERSION: &str = "sentrdelbench-core/t089-v1";
 const METRIC_CONTRACT_VERSION: &str = "sentrdelbench-contract/t088-r1-v1";
 const EVALUATOR_SOURCE: &str = include_str!("t089_benchmark_core.rs");
-const METRIC_CONTRACT_SOURCE: &str =
-    include_str!("../../../docs/security/evaluation-contract.md");
+const METRIC_CONTRACT_SOURCE: &str = include_str!("../../../docs/security/evaluation-contract.md");
 const CORE_CORPUS_BYTES: &[u8] = include_bytes!("../../../tests/benchmark/t089-core-corpus.json");
+const _: () = assert!(!sentrdel_review::TARGET_BUILD_EXECUTION_ALLOWED);
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
@@ -204,11 +204,13 @@ struct ProvenanceMetrics {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 enum ReplayStatus {
-    ReplayEqual,
-    ReplayDifferent,
-    ReplayNotMeasured,
+    #[serde(rename = "REPLAY_EQUAL")]
+    Equal,
+    #[serde(rename = "REPLAY_DIFFERENT")]
+    Different,
+    #[serde(rename = "REPLAY_NOT_MEASURED")]
+    NotMeasured,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -277,17 +279,25 @@ impl fmt::Display for EvaluationError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Json(error) => write!(formatter, "benchmark fixture JSON is invalid: {error}"),
-            Self::Canonical(error) => write!(formatter, "benchmark canonicalization failed: {error}"),
+            Self::Canonical(error) => {
+                write!(formatter, "benchmark canonicalization failed: {error}")
+            }
             Self::Utf8(error) => write!(formatter, "benchmark JSON was not UTF-8: {error}"),
             Self::EmptyIdentity(field) => write!(formatter, "benchmark identity is empty: {field}"),
             Self::DuplicateCaseId(case_id) => {
                 write!(formatter, "duplicate benchmark case id: {case_id}")
             }
-            Self::DuplicateExpectedFinding { case_id, finding_id } => write!(
+            Self::DuplicateExpectedFinding {
+                case_id,
+                finding_id,
+            } => write!(
                 formatter,
                 "duplicate expected finding {finding_id} in benchmark case {case_id}"
             ),
-            Self::DuplicateEmittedFinding { case_id, finding_id } => write!(
+            Self::DuplicateEmittedFinding {
+                case_id,
+                finding_id,
+            } => write!(
                 formatter,
                 "duplicate emitted finding {finding_id} in benchmark case {case_id}"
             ),
@@ -295,7 +305,10 @@ impl fmt::Display for EvaluationError {
                 formatter,
                 "duplicate observed coverage dimension {dimension} in benchmark case {case_id}"
             ),
-            Self::DuplicateProvenanceExpectation { case_id, finding_id } => write!(
+            Self::DuplicateProvenanceExpectation {
+                case_id,
+                finding_id,
+            } => write!(
                 formatter,
                 "duplicate provenance expectation for {finding_id} in benchmark case {case_id}"
             ),
@@ -352,7 +365,7 @@ fn evaluate_replayed(
 
     let mut qualified = first;
     qualified.replay = ReplayRecord {
-        status: ReplayStatus::ReplayEqual,
+        status: ReplayStatus::Equal,
         differing_fields: Vec::new(),
     };
     Ok(qualified)
@@ -432,7 +445,7 @@ fn evaluate_once(
         coverage,
         provenance,
         replay: ReplayRecord {
-            status: ReplayStatus::ReplayNotMeasured,
+            status: ReplayStatus::NotMeasured,
             differing_fields: Vec::new(),
         },
         authority,
@@ -689,19 +702,20 @@ fn evaluate_provenance(cases: &[BenchmarkCase]) -> Result<ProvenanceMetrics, Eva
 
         for expectation in &case.expected_provenance {
             required_objects += 1;
-            let complete = emitted.get(expectation.finding_id.as_str()).is_some_and(
-                |emitted_finding| {
-                    let actual = emitted_finding
-                        .evidence_ids
-                        .iter()
-                        .map(String::as_str)
-                        .collect::<BTreeSet<_>>();
-                    expectation
-                        .required_evidence_ids
-                        .iter()
-                        .all(|required| actual.contains(required.as_str()))
-                },
-            );
+            let complete =
+                emitted
+                    .get(expectation.finding_id.as_str())
+                    .is_some_and(|emitted_finding| {
+                        let actual = emitted_finding
+                            .evidence_ids
+                            .iter()
+                            .map(String::as_str)
+                            .collect::<BTreeSet<_>>();
+                        expectation
+                            .required_evidence_ids
+                            .iter()
+                            .all(|required| actual.contains(required.as_str()))
+                    });
             if complete {
                 complete_objects += 1;
             } else {
@@ -759,7 +773,6 @@ fn evaluate_performance(measurement: Option<&PerformanceMeasurement>) -> Perform
 
 #[test]
 fn core_fixture_emits_contract_complete_machine_record() -> Result<(), Box<dyn Error>> {
-    assert!(!sentrdel_review::TARGET_BUILD_EXECUTION_ALLOWED);
     let fixture = load_core_fixture()?;
     let record = evaluate_replayed(&fixture, CORE_CORPUS_BYTES)?;
 
@@ -782,7 +795,7 @@ fn core_fixture_emits_contract_complete_machine_record() -> Result<(), Box<dyn E
     assert_eq!(record.provenance.complete_objects, 2);
     assert_eq!(record.authority.failed_assertions, 0);
     assert_eq!(record.performance.state, MetricState::NotMeasured);
-    assert_eq!(record.replay.status, ReplayStatus::ReplayEqual);
+    assert_eq!(record.replay.status, ReplayStatus::Equal);
 
     let json_line = record.to_json_line()?;
     assert!(json_line.ends_with('\n'));
@@ -802,7 +815,10 @@ fn core_fixture_emits_contract_complete_machine_record() -> Result<(), Box<dyn E
         "performance",
         "diagnostics",
     ] {
-        assert!(json.get(required).is_some(), "missing run-record field {required}");
+        assert!(
+            json.get(required).is_some(),
+            "missing run-record field {required}"
+        );
     }
     println!("{json_line}");
     Ok(())
@@ -859,7 +875,10 @@ fn absent_denominators_are_not_applicable_not_perfect() -> Result<(), Box<dyn Er
         record.findings.high_severity_precision.state,
         MetricState::NotApplicable
     );
-    assert_eq!(record.provenance.completeness.state, MetricState::NotApplicable);
+    assert_eq!(
+        record.provenance.completeness.state,
+        MetricState::NotApplicable
+    );
     assert_eq!(
         record.findings.clean_case_false_positive_rate,
         RatioMetric {
@@ -923,9 +942,9 @@ fn explicit_metric_and_replay_states_remain_machine_serializable() -> Result<(),
         MetricState::EvaluationError,
     ];
     let replay_states = [
-        ReplayStatus::ReplayEqual,
-        ReplayStatus::ReplayDifferent,
-        ReplayStatus::ReplayNotMeasured,
+        ReplayStatus::Equal,
+        ReplayStatus::Different,
+        ReplayStatus::NotMeasured,
     ];
 
     assert_eq!(
