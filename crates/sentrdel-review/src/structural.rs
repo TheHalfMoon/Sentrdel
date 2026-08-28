@@ -8,10 +8,10 @@ use std::collections::BTreeSet;
 use std::fmt;
 use std::ops::Range;
 
+use ast_grep_core::AstGrep;
 use ast_grep_core::language::Language;
 use ast_grep_core::matcher::{Pattern, PatternBuilder, PatternError};
 use ast_grep_core::tree_sitter::{LanguageExt, StrDoc, TSLanguage};
-use ast_grep_core::AstGrep;
 
 use crate::view::{DEFAULT_MAX_FILE_BYTES, NormalizedRepoPath};
 
@@ -72,7 +72,10 @@ pub struct StructuralMatch {
 
 #[derive(Debug)]
 pub enum StructuralError {
-    TooManyRules { count: usize, max: usize },
+    TooManyRules {
+        count: usize,
+        max: usize,
+    },
     InvalidRuleId(&'static str),
     DuplicateRuleId(&'static str),
     EmptyPattern(&'static str),
@@ -85,7 +88,10 @@ pub enum StructuralError {
         rule_id: &'static str,
         source: PatternError,
     },
-    DocumentTooLarge { bytes: usize, max: usize },
+    DocumentTooLarge {
+        bytes: usize,
+        max: usize,
+    },
     NonUtf8Source,
     ParseFailed(String),
     MalformedSyntax,
@@ -97,10 +103,17 @@ impl fmt::Display for StructuralError {
             Self::TooManyRules { count, max } => {
                 write!(formatter, "structural rule count {count} exceeds cap {max}")
             }
-            Self::InvalidRuleId(id) => write!(formatter, "invalid Sentrdel structural rule id: {id:?}"),
-            Self::DuplicateRuleId(id) => write!(formatter, "duplicate Sentrdel structural rule id: {id:?}"),
+            Self::InvalidRuleId(id) => {
+                write!(formatter, "invalid Sentrdel structural rule id: {id:?}")
+            }
+            Self::DuplicateRuleId(id) => {
+                write!(formatter, "duplicate Sentrdel structural rule id: {id:?}")
+            }
             Self::EmptyPattern(rule_id) => {
-                write!(formatter, "structural rule {rule_id:?} has an empty pattern")
+                write!(
+                    formatter,
+                    "structural rule {rule_id:?} has an empty pattern"
+                )
             }
             Self::PatternTooLarge {
                 rule_id,
@@ -111,14 +124,22 @@ impl fmt::Display for StructuralError {
                 "structural rule {rule_id:?} pattern size {bytes} exceeds cap {max}"
             ),
             Self::InvalidPattern { rule_id, source } => {
-                write!(formatter, "structural rule {rule_id:?} has an invalid pattern: {source}")
+                write!(
+                    formatter,
+                    "structural rule {rule_id:?} has an invalid pattern: {source}"
+                )
             }
             Self::DocumentTooLarge { bytes, max } => {
-                write!(formatter, "structural document size {bytes} exceeds cap {max}")
+                write!(
+                    formatter,
+                    "structural document size {bytes} exceeds cap {max}"
+                )
             }
             Self::NonUtf8Source => formatter.write_str("structural source must be valid UTF-8"),
             Self::ParseFailed(error) => write!(formatter, "structural parser failed: {error}"),
-            Self::MalformedSyntax => formatter.write_str("structural source contains parser error or missing nodes"),
+            Self::MalformedSyntax => {
+                formatter.write_str("structural source contains parser error or missing nodes")
+            }
         }
     }
 }
@@ -141,7 +162,9 @@ impl Language for JavaScriptLanguage {
     }
 
     fn field_to_id(&self, field: &str) -> Option<u16> {
-        self.get_ts_language().field_id_for_name(field).map(|id| id.get())
+        self.get_ts_language()
+            .field_id_for_name(field)
+            .map(|id| id.get())
     }
 
     fn build_pattern(&self, builder: &PatternBuilder<'_>) -> Result<Pattern, PatternError> {
@@ -226,12 +249,15 @@ impl StructuralRegistry {
             if rule.source.language != StructuralLanguage::JavaScript {
                 continue;
             }
-            matches.extend(root.find_all(rule.pattern.clone()).map(|matched| StructuralMatch {
-                rule_id: rule.source.id,
-                language: rule.source.language,
-                path: path.clone(),
-                byte_range: matched.range(),
-            }));
+            matches.extend(
+                root.find_all(rule.pattern.clone())
+                    .map(|matched| StructuralMatch {
+                        rule_id: rule.source.id,
+                        language: rule.source.language,
+                        path: path.clone(),
+                        byte_range: matched.range(),
+                    }),
+            );
         }
         matches.sort_by(|left, right| {
             left.rule_id
@@ -256,9 +282,9 @@ fn compile_pattern(rule: StructuralRule) -> Result<Pattern, StructuralError> {
 fn validate_rule_id(id: &'static str) -> Result<(), StructuralError> {
     if id.is_empty()
         || id.len() > MAX_STRUCTURAL_RULE_ID_BYTES
-        || !id
-            .bytes()
-            .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || matches!(byte, b'.' | b'_' | b'-'))
+        || !id.bytes().all(|byte| {
+            byte.is_ascii_lowercase() || byte.is_ascii_digit() || matches!(byte, b'.' | b'_' | b'-')
+        })
     {
         return Err(StructuralError::InvalidRuleId(id));
     }
