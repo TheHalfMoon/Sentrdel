@@ -6,7 +6,7 @@ use std::{
 
 use sentrdel_engine::EngineRegistry;
 use sentrdel_graph::{GraphProjection, GraphProjectionError};
-use sentrdel_policy::kernel::{PolicyBootstrap, PolicyBootstrapError};
+use sentrdel_policy::bootstrap::{PolicyBootstrap, PolicyBootstrapError};
 use sentrdel_schema::SCHEMA_V1;
 use sentrdel_store::{Store, StoreError};
 
