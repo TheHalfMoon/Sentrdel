@@ -3,6 +3,7 @@
 
 pub mod dependency;
 pub mod git;
+pub mod osv;
 pub mod secrets;
 pub mod structural;
 pub mod structural_rules;
