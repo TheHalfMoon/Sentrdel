@@ -16,7 +16,7 @@ const COVERAGE_GAP_DIAGNOSTIC: &str = "REVIEW_COVERAGE_GAP";
 ///
 /// This is used for expected producers that did not report. It deliberately
 /// carries no coverage id and cannot masquerade as a producer-issued record.
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ReviewCoverageGap {
     pub capability: String,
     pub scope: String,
@@ -80,7 +80,13 @@ impl ReviewOutput {
         findings.sort_by(|left, right| left.finding_id().cmp(right.finding_id()));
         reject_duplicate_findings(&findings)?;
 
-        missing_coverage.sort();
+        missing_coverage.sort_by(|left, right| {
+            (&left.capability, &left.scope, &left.producer).cmp(&(
+                &right.capability,
+                &right.scope,
+                &right.producer,
+            ))
+        });
         reject_duplicate_missing_coverage(&missing_coverage)?;
 
         let finding_refs = findings
