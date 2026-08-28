@@ -62,7 +62,6 @@ impl McpInvocation {
         let tool = tool.into();
         validate_name("server", &server, limits.max_name_bytes)?;
         validate_name("tool", &tool, limits.max_name_bytes)?;
-
         let arguments_bytes = serde_json::to_vec(&arguments).map_err(McpGatewayError::Json)?;
         if arguments_bytes.len() > limits.max_argument_bytes {
             return Err(McpGatewayError::ArgumentsTooLarge {
@@ -70,8 +69,7 @@ impl McpInvocation {
                 max: limits.max_argument_bytes,
             });
         }
-
-        let scope_digest = scope_digest(&server, &tool, &arguments_bytes);
+        let scope_digest = invocation_scope_digest(&server, &tool, &arguments_bytes);
         Ok(Self {
             server,
             tool,
@@ -169,7 +167,6 @@ where
 {
     let limits = limits.validate()?;
     let verdict = policy.evaluate(invocation);
-
     match verdict {
         Verdict::Allow => {}
         Verdict::Ask => approval
@@ -188,7 +185,6 @@ where
             max: limits.max_result_bytes,
         });
     }
-
     Ok(McpGatewayOutcome {
         verdict,
         scope_digest: invocation.scope_digest.clone(),
@@ -286,7 +282,7 @@ fn validate_name(field: &'static str, value: &str, max: usize) -> Result<(), Mcp
     Ok(())
 }
 
-fn scope_digest(server: &str, tool: &str, arguments: &[u8]) -> String {
+fn invocation_scope_digest(server: &str, tool: &str, arguments: &[u8]) -> String {
     let mut hasher = Sha256::new();
     hasher.update(b"sentrdel:mcp-invocation:v1\0");
     hasher.update(server.as_bytes());
@@ -294,7 +290,17 @@ fn scope_digest(server: &str, tool: &str, arguments: &[u8]) -> String {
     hasher.update(tool.as_bytes());
     hasher.update(b"\0");
     hasher.update(arguments);
-    format!("sha256:{:x}", hasher.finalize())
+    format!("sha256:{}", encode_hex(&hasher.finalize()))
+}
+
+fn encode_hex(bytes: &[u8]) -> String {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    let mut output = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        output.push(char::from(HEX[(byte >> 4) as usize]));
+        output.push(char::from(HEX[(byte & 0x0f) as usize]));
+    }
+    output
 }
 
 #[cfg(test)]
@@ -302,7 +308,6 @@ mod tests {
     use super::*;
 
     struct Policy(Verdict);
-
     impl McpPreflightPolicy for Policy {
         fn evaluate(&self, _invocation: &McpInvocation) -> Verdict {
             self.0
@@ -314,7 +319,6 @@ mod tests {
         calls: usize,
         result: Vec<u8>,
     }
-
     impl McpForwarder for Forwarder {
         fn forward(&mut self, _invocation: &McpInvocation) -> Result<Vec<u8>, String> {
             self.calls += 1;
@@ -425,7 +429,6 @@ mod tests {
             ),
             Err(McpGatewayError::ArgumentsTooLarge { .. })
         ));
-
         let request = invocation("read");
         let mut forwarder = Forwarder {
             result: vec![0; 5],
@@ -465,5 +468,6 @@ mod tests {
         .expect("third");
         assert_ne!(first.scope_digest(), second.scope_digest());
         assert_ne!(first.scope_digest(), third.scope_digest());
+        assert!(first.scope_digest().starts_with("sha256:"));
     }
 }
