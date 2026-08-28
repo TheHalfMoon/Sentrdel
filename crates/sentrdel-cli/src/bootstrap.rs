@@ -195,10 +195,7 @@ impl From<GraphProjectionError> for BootstrapError {
     }
 }
 
-fn normalize_store_path(
-    path: &Path,
-    workspace_root: &Path,
-) -> Result<PathBuf, BootstrapError> {
+fn normalize_store_path(path: &Path, workspace_root: &Path) -> Result<PathBuf, BootstrapError> {
     if !path.is_absolute() {
         return Err(BootstrapError::StorePathNotAbsolute(path.to_path_buf()));
     }
@@ -206,9 +203,7 @@ fn normalize_store_path(
         .components()
         .any(|component| matches!(component, Component::ParentDir))
     {
-        return Err(BootstrapError::StorePathParentTraversal(
-            path.to_path_buf(),
-        ));
+        return Err(BootstrapError::StorePathParentTraversal(path.to_path_buf()));
     }
 
     let file_name = path
@@ -220,9 +215,7 @@ fn normalize_store_path(
     let canonical_parent = fs::canonicalize(parent)
         .map_err(|_| BootstrapError::StoreParentUnavailable(parent.to_path_buf()))?;
     if !canonical_parent.is_dir() {
-        return Err(BootstrapError::StoreParentUnavailable(
-            parent.to_path_buf(),
-        ));
+        return Err(BootstrapError::StoreParentUnavailable(parent.to_path_buf()));
     }
     if !canonical_parent.starts_with(workspace_root) {
         return Err(BootstrapError::StoreParentOutsideWorkspace(
