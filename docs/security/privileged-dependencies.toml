@@ -83,6 +83,14 @@ qualification = "SSQ-001"
 rationale = "Compiler-token generation substrate in the proc-macro dependency closure."
 
 [[package]]
+name = "ref-cast"
+version = "1.0.27"
+surfaces = ["build-script"]
+owner = "Sentrdel trusted-core maintainers"
+qualification = "RCSQ-001"
+rationale = "Exact signed-tag build script writes only generated module data under Cargo OUT_DIR and queries the Cargo-selected rustc version; the surface is explicitly qualified."
+
+[[package]]
 name = "ref-cast-impl"
 version = "1.0.27"
 surfaces = ["proc-macro"]
@@ -129,6 +137,14 @@ surfaces = ["proc-macro"]
 owner = "Sentrdel trusted-core maintainers"
 qualification = "SSQ-001"
 rationale = "Serialization derive procedural macro executes inside rustc for trusted workspace types."
+
+[[package]]
+name = "serde_json"
+version = "1.0.151"
+surfaces = ["build-script"]
+owner = "Sentrdel trusted-core maintainers"
+qualification = "SJSQ-001"
+rationale = "Exact signed-tag build script reads Cargo target architecture/pointer-width variables and emits compile-time cfg only; the surface is explicitly qualified."
 
 [[package]]
 name = "thiserror"
