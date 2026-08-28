@@ -16,6 +16,7 @@ pub const MAX_SCIP_DOCUMENTS: usize = 100_000;
 pub const MAX_SCIP_OCCURRENCES: usize = 1_000_000;
 pub const MAX_SCIP_PATH_BYTES: usize = 4_096;
 pub const MAX_SCIP_SYMBOL_BYTES: usize = 16_384;
+pub const MAX_SCIP_METADATA_BYTES: usize = 1_024;
 
 /// Trusted qualification assigned outside the untrusted SCIP artifact.
 ///
@@ -107,6 +108,8 @@ pub struct ScipArtifact {
 pub struct ScipIngestionRequest {
     pub artifact: ScipArtifact,
     pub producer_qualification: ScipProducerQualification,
+    /// `.` or a canonical repository-relative subtree. Absolute host paths are
+    /// rejected so persisted coverage remains portable and deterministic.
     pub scope: String,
     /// Caller-supplied observation time. Ingestion is otherwise deterministic
     /// and performs no clock access.
@@ -162,11 +165,11 @@ pub fn scip_coverage_gap(
     let scope = scope.into();
     let observed_at = observed_at.into();
     validate_scope_and_time(&scope, &observed_at)?;
-    if producer
-        .as_deref()
-        .is_some_and(|value| value.trim().is_empty())
-    {
-        return Err(ScipIngestionError::BlankProducerName);
+    if let Some(producer) = producer.as_deref() {
+        if producer.trim().is_empty() {
+            return Err(ScipIngestionError::BlankProducerName);
+        }
+        validate_metadata("producer", producer)?;
     }
 
     Ok(CoverageRecord {
@@ -324,11 +327,13 @@ pub fn ingest_scip(
 #[derive(Debug)]
 pub enum ScipIngestionError {
     BlankScope,
+    InvalidScope(String),
     BlankObservedAt,
     InvalidArtifactDigest(String),
     BlankProducerName,
     BlankProducerVersion,
     BlankQualificationId,
+    InvalidMetadata(&'static str),
     TooManyDocuments { actual: usize, maximum: usize },
     TooManyOccurrences { actual: usize, maximum: usize },
     InvalidDocumentPath(String),
@@ -343,6 +348,10 @@ impl fmt::Display for ScipIngestionError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::BlankScope => formatter.write_str("SCIP ingestion scope must not be blank"),
+            Self::InvalidScope(scope) => write!(
+                formatter,
+                "SCIP ingestion scope must be '.' or a canonical repository-relative path: {scope:?}"
+            ),
             Self::BlankObservedAt => {
                 formatter.write_str("SCIP ingestion observed_at must not be blank")
             }
@@ -357,6 +366,10 @@ impl fmt::Display for ScipIngestionError {
             Self::BlankQualificationId => {
                 formatter.write_str("SCIP producer qualification id must not be blank")
             }
+            Self::InvalidMetadata(field) => write!(
+                formatter,
+                "SCIP {field} exceeds the metadata bound or contains control characters"
+            ),
             Self::TooManyDocuments { actual, maximum } => write!(
                 formatter,
                 "SCIP artifact contains {actual} documents, exceeding maximum {maximum}"
@@ -393,11 +406,13 @@ impl Error for ScipIngestionError {
         match self {
             Self::Graph(error) => Some(error),
             Self::BlankScope
+            | Self::InvalidScope(_)
             | Self::BlankObservedAt
             | Self::InvalidArtifactDigest(_)
             | Self::BlankProducerName
             | Self::BlankProducerVersion
             | Self::BlankQualificationId
+            | Self::InvalidMetadata(_)
             | Self::TooManyDocuments { .. }
             | Self::TooManyOccurrences { .. }
             | Self::InvalidDocumentPath(_)
@@ -419,6 +434,9 @@ fn validate_scope_and_time(scope: &str, observed_at: &str) -> Result<(), ScipIng
     if scope.trim().is_empty() {
         return Err(ScipIngestionError::BlankScope);
     }
+    if scope != "." && !is_canonical_relative_path(scope) {
+        return Err(ScipIngestionError::InvalidScope(scope.to_owned()));
+    }
     if observed_at.trim().is_empty() {
         return Err(ScipIngestionError::BlankObservedAt);
     }
@@ -435,13 +453,12 @@ fn validate_request(request: &ScipIngestionRequest) -> Result<(), ScipIngestionE
     if request.artifact.producer_name.trim().is_empty() {
         return Err(ScipIngestionError::BlankProducerName);
     }
-    if request
-        .artifact
-        .producer_version
-        .as_deref()
-        .is_some_and(|version| version.trim().is_empty())
-    {
-        return Err(ScipIngestionError::BlankProducerVersion);
+    validate_metadata("producer name", &request.artifact.producer_name)?;
+    if let Some(version) = request.artifact.producer_version.as_deref() {
+        if version.trim().is_empty() {
+            return Err(ScipIngestionError::BlankProducerVersion);
+        }
+        validate_metadata("producer version", version)?;
     }
     if request
         .producer_qualification
@@ -451,6 +468,10 @@ fn validate_request(request: &ScipIngestionRequest) -> Result<(), ScipIngestionE
     {
         return Err(ScipIngestionError::BlankQualificationId);
     }
+    validate_metadata(
+        "producer qualification id",
+        request.producer_qualification.qualification_id(),
+    )?;
     if request.artifact.documents.len() > MAX_SCIP_DOCUMENTS {
         return Err(ScipIngestionError::TooManyDocuments {
             actual: request.artifact.documents.len(),
@@ -472,6 +493,7 @@ fn validate_request(request: &ScipIngestionRequest) -> Result<(), ScipIngestionE
                 document.relative_path.clone(),
             ));
         }
+        validate_metadata("document language", &document.language)?;
         total_occurrences = total_occurrences
             .checked_add(document.occurrences.len())
             .ok_or(ScipIngestionError::TooManyOccurrences {
@@ -499,21 +521,31 @@ fn validate_request(request: &ScipIngestionRequest) -> Result<(), ScipIngestionE
     Ok(())
 }
 
+fn validate_metadata(field: &'static str, value: &str) -> Result<(), ScipIngestionError> {
+    if value.len() > MAX_SCIP_METADATA_BYTES || value.chars().any(char::is_control) {
+        return Err(ScipIngestionError::InvalidMetadata(field));
+    }
+    Ok(())
+}
+
 fn validate_document_path(path: &str) -> Result<(), ScipIngestionError> {
-    let invalid = path.is_empty()
-        || path.len() > MAX_SCIP_PATH_BYTES
-        || path.starts_with('/')
-        || path.starts_with('\\')
-        || path.contains('\\')
-        || path.contains('\0')
-        || path.as_bytes().get(1) == Some(&b':')
-        || path
-            .split('/')
-            .any(|component| component.is_empty() || component == "." || component == "..");
-    if invalid {
+    if !is_canonical_relative_path(path) {
         return Err(ScipIngestionError::InvalidDocumentPath(path.to_owned()));
     }
     Ok(())
+}
+
+fn is_canonical_relative_path(path: &str) -> bool {
+    !path.is_empty()
+        && path.len() <= MAX_SCIP_PATH_BYTES
+        && !path.starts_with('/')
+        && !path.starts_with('\\')
+        && !path.contains('\\')
+        && !path.contains('\0')
+        && path.as_bytes().get(1) != Some(&b':')
+        && !path
+            .split('/')
+            .any(|component| component.is_empty() || component == "." || component == "..")
 }
 
 fn validate_symbol(symbol: &str) -> Result<(), ScipIngestionError> {
@@ -704,7 +736,40 @@ mod tests {
     }
 
     #[test]
-    fn canonical_path_rules_fail_closed_without_filesystem_access() {
+    fn document_order_does_not_change_graph_output() {
+        let first = ScipDocument {
+            relative_path: "src/a.rs".to_owned(),
+            language: "rust".to_owned(),
+            occurrences: vec![occurrence(
+                "rust cargo fixture 1.0.0 crate/a#",
+                ScipOccurrenceRole::Reference,
+                2,
+            )],
+        };
+        let second = ScipDocument {
+            relative_path: "src/b.rs".to_owned(),
+            language: "rust".to_owned(),
+            occurrences: vec![occurrence(
+                "rust cargo fixture 1.0.0 crate/b#",
+                ScipOccurrenceRole::Reference,
+                3,
+            )],
+        };
+
+        let mut forward = request(compiler_qualification());
+        forward.artifact.documents = vec![first.clone(), second.clone()];
+        let mut reverse = request(compiler_qualification());
+        reverse.artifact.documents = vec![second, first];
+
+        let forward = ingest_scip(forward).expect("forward");
+        let reverse = ingest_scip(reverse).expect("reverse");
+        assert_eq!(forward.nodes, reverse.nodes);
+        assert_eq!(forward.edges, reverse.edges);
+        assert_eq!(forward.coverage, reverse.coverage);
+    }
+
+    #[test]
+    fn canonical_path_and_scope_rules_fail_closed_without_filesystem_access() {
         for path in [
             "/etc/passwd",
             "../src/lib.rs",
@@ -720,10 +785,17 @@ mod tests {
                 Err(ScipIngestionError::InvalidDocumentPath(_))
             ));
         }
+
+        let mut absolute_scope = request(compiler_qualification());
+        absolute_scope.scope = "/home/user/project".to_owned();
+        assert!(matches!(
+            ingest_scip(absolute_scope),
+            Err(ScipIngestionError::InvalidScope(_))
+        ));
     }
 
     #[test]
-    fn invalid_digest_range_and_local_symbol_fail_closed() {
+    fn invalid_digest_range_local_symbol_and_metadata_fail_closed() {
         let mut bad_digest = request(compiler_qualification());
         bad_digest.artifact.artifact_digest = "sha256:not-a-digest".to_owned();
         assert!(matches!(
@@ -752,6 +824,13 @@ mod tests {
         assert!(matches!(
             ingest_scip(bad_local),
             Err(ScipIngestionError::InvalidSymbol(_))
+        ));
+
+        let mut bad_metadata = request(compiler_qualification());
+        bad_metadata.artifact.producer_name = "fixture\nproducer".to_owned();
+        assert!(matches!(
+            ingest_scip(bad_metadata),
+            Err(ScipIngestionError::InvalidMetadata("producer name"))
         ));
     }
 
