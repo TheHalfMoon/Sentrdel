@@ -20,7 +20,7 @@ pub const MAX_SECRET_SCAN_BYTES: usize = 4 * 1024 * 1024;
 const PRODUCER_ID: &str = "sentrdel.changed-secret";
 const PRODUCER_VERSION: &str = "1";
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug)]
 pub struct SecretRule {
     pub id: &'static str,
     pub secret_type: &'static str,
