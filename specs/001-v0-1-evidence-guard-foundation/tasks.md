@@ -126,7 +126,7 @@
 **Goal:** True vendor-neutral **bounded stdio MCP** enforcement + integrity-linked ASEL + honest partial git hooks.
 
 - [x] T093 [US2] Before MCP server forwarding, implement the Sentrdel-owned stdio MCP **child-process environment boundary**: deny ambient environment inheritance by default; explicitly allow only minimal normalized process requirements and user-authorized server capabilities; prove cloud/model/forge/signing/SSH/database/provider-admin credential canaries are absent by default.
-- [ ] T050 [US2] Qualify/pin rmcp 3.x protocol/model support but implement Sentrdel-owned **bounded stdio framing/reader** and explicit protocol-version negotiation/allowlist in `crates/sentrdel-guard/src/mcp/protocol.rs`; do not use remote/Streamable HTTP or blindly rely on SDK Default/LATEST semantics.
+- [x] T050 [US2] Qualify/pin rmcp 3.x protocol/model support but implement Sentrdel-owned **bounded stdio framing/reader** and explicit protocol-version negotiation/allowlist in `crates/sentrdel-guard/src/mcp/protocol.rs`; do not use remote/Streamable HTTP or blindly rely on SDK Default/LATEST semantics.
 - [ ] T051 [P] [US2] Implement MCP server/tool inventory and bounded description/schema hashes; cap metadata bytes/depth before storage/policy/reasoning.
 - [ ] T052 [US2] Implement stdio gateway normalization, pre-invocation policy, scoped approval and forwarding with max frame/buffer/args/result limits and fail-closed protocol errors; forwarding uses the T093 scrubbed environment/capability boundary.
 - [ ] T053 [US2] Persist ASEL discovery/invocation/approval/denial/tool-result events; expose computed session head/event count and optional expected-head verification without claiming local chain is tamper-proof.
