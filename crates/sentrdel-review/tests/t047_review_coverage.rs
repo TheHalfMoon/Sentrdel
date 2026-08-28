@@ -34,7 +34,10 @@ fn record(
 #[test]
 fn missing_expected_producer_is_visible_as_unavailable_gap() {
     let matrix = aggregate_review_coverage(
-        &[key("secret", "changed-secret"), key("gha", "github-actions")],
+        &[
+            key("secret", "changed-secret"),
+            key("gha", "github-actions"),
+        ],
         &[record(
             "coverage:secret",
             "secret",
@@ -123,11 +126,11 @@ fn unexpected_observed_producer_is_retained_in_deterministic_order() {
 
     assert_eq!(matrix.entries.len(), 2);
     assert_eq!(matrix.gap_count, 1);
+    assert_eq!(matrix.entries[0].key.capability.as_str(), "github-actions");
     assert_eq!(
-        matrix.entries[0].key.capability.as_str(),
-        "github-actions"
+        matrix.entries[0].source,
+        ReviewCoverageSource::ObservedExpected
     );
-    assert_eq!(matrix.entries[0].source, ReviewCoverageSource::ObservedExpected);
     assert_eq!(
         matrix.entries[1].source,
         ReviewCoverageSource::ObservedUnexpected
