@@ -16,6 +16,7 @@ path = "src/main.rs"
 sentrdel-engine = { version = "=0.0.0", path = "../sentrdel-engine" }
 sentrdel-graph = { version = "=0.0.0", path = "../sentrdel-graph" }
 sentrdel-policy = { version = "=0.0.0", path = "../sentrdel-policy" }
+sentrdel-review = { version = "=0.0.0", path = "../sentrdel-review" }
 sentrdel-schema = { version = "=0.0.0", path = "../sentrdel-schema" }
 sentrdel-store = { version = "=0.0.0", path = "../sentrdel-store" }
 serde.workspace = true
