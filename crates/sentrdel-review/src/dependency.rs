@@ -215,7 +215,10 @@ fn parse_simple_toml_string(
         return Err(DependencyError::InvalidFormat("unsupported Cargo.lock string"));
     }
     let value = &value[1..value.len() - 1];
-    if value.contains(['\\', '"', '\n', '\r']) {
+    if value
+        .chars()
+        .any(|character| matches!(character, '\\' | '"' | '\n' | '\r'))
+    {
         return Err(DependencyError::InvalidFormat("escaped Cargo.lock identity string"));
     }
     Ok(Some(value.to_owned()))
