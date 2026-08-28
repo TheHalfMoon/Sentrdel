@@ -40,7 +40,7 @@
 - [x] T010 [P] Implement `Finding`, severity, two-axis lifecycle, `AcceptedRisk`, and transition validation in `crates/sentrdel-schema/src/finding.rs` with lifecycle tests.
 - [x] T011 [P] Implement `CoverageRecord`, coverage states and provider coverage dimensions in `crates/sentrdel-schema/src/coverage.rs`; failure/unavailable/detection-only cannot masquerade as secure/covered posture.
 - [x] T012 [P] Implement ASEL envelope, actors, event kinds, hash-link fields, session-integrity result, `PolicyDecision`, verdict and `EnforcementFidelity` in `crates/sentrdel-schema/src/asel.rs` and `policy.rs`.
-- [x] T013 [P] Implement `ProjectProfile`, provider/framework records, `SecurityPackManifest`, `EngineManifest`, and `EngineRun` schema types in `project.rs`, `pack.rs`, `engine.rs`, including pack coverage modes and engine environment allowlist.
+- [x] T013 [P] Implement `ProjectProfile`, provider/framework records, `SecurityPackManifest`, and `EngineManifest`, and `EngineRun` schema types in `project.rs`, `pack.rs`, `engine.rs`, including pack coverage modes and engine environment allowlist.
 - [x] T014 Generate/check versioned JSON Schemas into `schemas/v1/` and add round-trip/unknown-authority contract tests.
 - [x] T015 Restrict reasoner public API so LLM adapters can construct only INFERENCE/HYPOTHESIS Evidence; add compile/runtime contract tests.
 
@@ -79,7 +79,7 @@
 
 ### Foundational CLI envelope
 
-- [ ] T035 Implement stable CLI exit codes/JSON envelope from `contracts/cli-contract.md` with contract tests.
+- [x] T035 Implement stable CLI exit codes/JSON envelope from `contracts/cli-contract.md` with contract tests.
 - [ ] T036 Wire DI/bootstrap across schema/store/graph/engine/policy without review/guard feature behavior yet.
 
 **Foundational Checkpoint:** schema/store/policy/engine/graph/CLI contracts pass.
