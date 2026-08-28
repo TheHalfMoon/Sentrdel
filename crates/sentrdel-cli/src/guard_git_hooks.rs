@@ -7,16 +7,13 @@
 
 use std::{error::Error, fmt};
 
-use sentrdel_guard::git_hooks::{
-    HookInstallAction, HookInstallPlan, HookOwnershipMetadata,
-};
-use sentrdel_schema::policy::EnforcementFidelity;
-use serde::Serialize;
-
-use crate::{
+use sentrdel_cli::{
     CliCommand, CliContractError, CliDecision, CliDiagnostic, CliDiagnosticLevel, CliEnvelope,
     CliRepository, CliTiming,
 };
+use sentrdel_guard::git_hooks::{HookInstallAction, HookInstallPlan, HookOwnershipMetadata};
+use sentrdel_schema::policy::EnforcementFidelity;
+use serde::Serialize;
 
 const PARTIAL_WARNING_CODE: &str = "GIT_HOOKS_PARTIAL_FIDELITY";
 const PARTIAL_WARNING: &str =
@@ -106,7 +103,9 @@ impl GuardGitHooksOutput {
         hooks.sort_by(|left, right| left.hook_name.cmp(&right.hook_name));
         for pair in hooks.windows(2) {
             if pair[0].hook_name == pair[1].hook_name {
-                return Err(GuardGitHooksOutputError::DuplicateHook(pair[0].hook_name.clone()));
+                return Err(GuardGitHooksOutputError::DuplicateHook(
+                    pair[0].hook_name.clone(),
+                ));
             }
         }
 
@@ -184,12 +183,22 @@ impl fmt::Display for GuardGitHooksOutputError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Cli(error) => write!(formatter, "Git-hook CLI contract rejected output: {error}"),
-            Self::Plan(error) => write!(formatter, "Git-hook ownership metadata is invalid: {error}"),
-            Self::EmptyPlan => formatter.write_str("Git-hook install output requires at least one planned hook"),
-            Self::HookNameMismatch => formatter.write_str("Git-hook plan and ownership metadata names differ"),
-            Self::InstalledDigestMismatch => formatter.write_str("Git-hook plan and ownership metadata installed digests differ"),
-            Self::MissingCompositionMetadata => formatter.write_str("composed Git-hook installation must retain exact restore metadata"),
-            Self::DuplicateHook(name) => write!(formatter, "Git-hook install output contains duplicate hook {name:?}"),
+            Self::Plan(error) => {
+                write!(formatter, "Git-hook ownership metadata is invalid: {error}")
+            }
+            Self::EmptyPlan => {
+                formatter.write_str("Git-hook install output requires at least one planned hook")
+            }
+            Self::HookNameMismatch => {
+                formatter.write_str("Git-hook plan and ownership metadata names differ")
+            }
+            Self::InstalledDigestMismatch => formatter
+                .write_str("Git-hook plan and ownership metadata installed digests differ"),
+            Self::MissingCompositionMetadata => formatter
+                .write_str("composed Git-hook installation must retain exact restore metadata"),
+            Self::DuplicateHook(name) => {
+                write!(formatter, "Git-hook install output contains duplicate hook {name:?}")
+            }
         }
     }
 }
