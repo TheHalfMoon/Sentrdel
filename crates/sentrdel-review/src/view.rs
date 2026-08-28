@@ -159,7 +159,7 @@ impl fmt::Display for RepoViewError {
                 formatter.write_str("repository path is not in canonical repository-relative form")
             }
             Self::InvalidRoot(root) => {
-                write!(formatter, "repository root is not a readable directory: {}", root.display())
+                write!(formatter, "repository root is not a readable non-symlink directory: {}", root.display())
             }
             Self::SymlinkEncountered(path) => {
                 write!(formatter, "repository path crosses a symlink at {path}")
@@ -196,8 +196,9 @@ pub struct RepoFileView {
 impl RepoFileView {
     pub fn new(root: impl AsRef<Path>, limits: RepoViewLimits) -> Result<Self, RepoViewError> {
         let root = root.as_ref().to_path_buf();
-        let metadata = fs::metadata(&root).map_err(|_| RepoViewError::InvalidRoot(root.clone()))?;
-        if !metadata.is_dir() {
+        let metadata = fs::symlink_metadata(&root)
+            .map_err(|_| RepoViewError::InvalidRoot(root.clone()))?;
+        if metadata.file_type().is_symlink() || !metadata.is_dir() {
             return Err(RepoViewError::InvalidRoot(root));
         }
         Ok(Self { root, limits })
