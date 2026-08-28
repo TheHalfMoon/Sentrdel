@@ -20,29 +20,43 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Detect dedicated governance credential
+      - name: Detect bounded governance credential
         id: credential
         shell: bash
         env:
-          ADMIN_TOKEN: ${{ secrets.SENTRDEL_GOVERNANCE_ADMIN_TOKEN }}
+          DEDICATED_TOKEN: ${{ secrets.SENTRDEL_GOVERNANCE_ADMIN_TOKEN }}
+          FALLBACK_GH_TOKEN: ${{ secrets.GH_TOKEN }}
         run: |
-          if [[ -n "${ADMIN_TOKEN}" ]]; then
-            echo "::add-mask::${ADMIN_TOKEN}"
-            echo "present=true" >> "${GITHUB_OUTPUT}"
+          if [[ -n "${DEDICATED_TOKEN}" ]]; then
+            echo "::add-mask::${DEDICATED_TOKEN}"
+            echo "source=dedicated" >> "${GITHUB_OUTPUT}"
             echo "Dedicated governance credential is configured."
+          elif [[ -n "${FALLBACK_GH_TOKEN}" ]]; then
+            echo "::add-mask::${FALLBACK_GH_TOKEN}"
+            echo "source=gh_token" >> "${GITHUB_OUTPUT}"
+            echo "GH_TOKEN repository secret is configured for bounded governance use."
           else
-            echo "present=false" >> "${GITHUB_OUTPUT}"
-            echo "Dedicated governance credential is not configured; no mutation will be attempted."
+            echo "source=none" >> "${GITHUB_OUTPUT}"
+            echo "No bounded governance credential is configured; no mutation will be attempted."
           fi
 
       - name: Apply and verify canonical main protection
-        if: steps.credential.outputs.present == 'true'
+        if: steps.credential.outputs.source != 'none'
+        shell: bash
         env:
-          GH_TOKEN: ${{ secrets.SENTRDEL_GOVERNANCE_ADMIN_TOKEN }}
+          DEDICATED_TOKEN: ${{ secrets.SENTRDEL_GOVERNANCE_ADMIN_TOKEN }}
+          FALLBACK_GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          CREDENTIAL_SOURCE: ${{ steps.credential.outputs.source }}
           SENTRDEL_APPLY_REPOSITORY_GOVERNANCE: "1"
-        run: python3 scripts/apply_repository_governance.py
+        run: |
+          if [[ "${CREDENTIAL_SOURCE}" == "dedicated" ]]; then
+            export GH_TOKEN="${DEDICATED_TOKEN}"
+          else
+            export GH_TOKEN="${FALLBACK_GH_TOKEN}"
+          fi
+          python3 scripts/apply_repository_governance.py
 
       - name: Record fail-closed external blocker
-        if: steps.credential.outputs.present != 'true'
+        if: steps.credential.outputs.source == 'none'
         run: |
-          echo "T092 activation probe: BLOCKED_NO_DEDICATED_ADMIN_TOKEN"
+          echo "T092 activation probe: BLOCKED_NO_BOUNDED_ADMIN_TOKEN"
