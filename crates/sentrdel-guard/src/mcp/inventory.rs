@@ -298,7 +298,7 @@ fn normalize_json(value: &Value) -> Value {
         Value::Array(values) => Value::Array(values.iter().map(normalize_json).collect()),
         Value::Object(values) => {
             let mut entries: Vec<_> = values.iter().collect();
-            entries.sort_by(|(left, _), (right, _)| left.cmp(right));
+            entries.sort_by_key(|(left, _)| *left);
             let mut normalized = serde_json::Map::with_capacity(entries.len());
             for (key, value) in entries {
                 normalized.insert(key.clone(), normalize_json(value));
