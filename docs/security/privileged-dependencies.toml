@@ -1,0 +1,179 @@
+# T091 executable declaration of third-party compile/link surfaces with elevated authority.
+# The CI metadata validator is exhaustive: any observed custom-build, proc-macro,
+# or native-link surface missing from this file fails Self Security.
+
+[[package]]
+name = "anyhow"
+version = "1.0.104"
+surfaces = ["build-script"]
+owner = "Sentrdel trusted-core maintainers"
+qualification = "SSQ-001"
+rationale = "Transitive error-reporting dependency; its locked build script executes during trusted workspace compilation."
+
+[[package]]
+name = "getrandom"
+version = "0.4.3"
+surfaces = ["build-script"]
+owner = "Sentrdel trusted-core maintainers"
+qualification = "SSQ-001"
+rationale = "Transitive randomness substrate; conservatively declared for compile-time configuration authority."
+
+[[package]]
+name = "libc"
+version = "0.2.189"
+surfaces = ["build-script"]
+owner = "Sentrdel trusted-core maintainers"
+qualification = "SSQ-001"
+rationale = "Platform FFI substrate used transitively by trusted dependencies; build-time platform probing is privileged."
+
+[[package]]
+name = "libsqlite3-sys"
+version = "0.38.2"
+surfaces = ["build-script", "native-link"]
+owner = "Sentrdel trusted-core maintainers"
+qualification = "SSQ-001"
+rationale = "Bundled SQLite native compilation/linking used by the trusted store; build.rs and native link authority are explicit."
+
+[[package]]
+name = "msvc_spectre_libs"
+version = "0.1.3"
+surfaces = ["build-script"]
+owner = "Sentrdel trusted-core maintainers"
+qualification = "SSQ-001"
+rationale = "Platform-specific transitive build helper in the locked policy dependency closure."
+
+[[package]]
+name = "nix"
+version = "0.31.3"
+surfaces = ["build-script"]
+owner = "Sentrdel trusted-core maintainers"
+qualification = "PWQ-001"
+rationale = "Qualified process-boundary transitive dependency; compile-time configuration executes with CI authority."
+
+[[package]]
+name = "num-traits"
+version = "0.2.19"
+surfaces = ["build-script"]
+owner = "Sentrdel trusted-core maintainers"
+qualification = "SSQ-001"
+rationale = "Transitive numeric substrate with compile-time configuration in the locked graph."
+
+[[package]]
+name = "parking_lot_core"
+version = "0.9.12"
+surfaces = ["build-script"]
+owner = "Sentrdel trusted-core maintainers"
+qualification = "SSQ-001"
+rationale = "Transitive synchronization substrate with platform-sensitive compile-time behavior."
+
+[[package]]
+name = "proc-macro2"
+version = "1.0.107"
+surfaces = ["build-script"]
+owner = "Sentrdel trusted-core maintainers"
+qualification = "SSQ-001"
+rationale = "Compiler-token substrate used by derive dependencies; its build script is part of the trusted compilation path."
+
+[[package]]
+name = "quote"
+version = "1.0.47"
+surfaces = ["build-script"]
+owner = "Sentrdel trusted-core maintainers"
+qualification = "SSQ-001"
+rationale = "Compiler-token generation substrate in the proc-macro dependency closure."
+
+[[package]]
+name = "ref-cast-impl"
+version = "1.0.27"
+surfaces = ["proc-macro"]
+owner = "Sentrdel trusted-core maintainers"
+qualification = "SSQ-001"
+rationale = "Procedural macro implementation executes inside rustc while compiling the trusted schema dependency closure."
+
+[[package]]
+name = "regorus"
+version = "0.11.0"
+surfaces = ["build-script"]
+owner = "Sentrdel trusted-core maintainers"
+qualification = "RQ-001"
+rationale = "Qualified policy evaluator; its compile-time build surface remains explicitly privileged."
+
+[[package]]
+name = "schemars_derive"
+version = "1.2.2"
+surfaces = ["proc-macro"]
+owner = "Sentrdel trusted-core maintainers"
+qualification = "SSQ-001"
+rationale = "Schema derive procedural macro executes with compiler authority in the trusted schema crate."
+
+[[package]]
+name = "serde"
+version = "1.0.229"
+surfaces = ["build-script"]
+owner = "Sentrdel trusted-core maintainers"
+qualification = "SSQ-001"
+rationale = "Serialization substrate; conservatively records its compile-time configuration surface."
+
+[[package]]
+name = "serde_core"
+version = "1.0.229"
+surfaces = ["build-script"]
+owner = "Sentrdel trusted-core maintainers"
+qualification = "SSQ-001"
+rationale = "Serialization core substrate with compile-time configuration in the locked dependency closure."
+
+[[package]]
+name = "serde_derive"
+version = "1.0.229"
+surfaces = ["proc-macro"]
+owner = "Sentrdel trusted-core maintainers"
+qualification = "SSQ-001"
+rationale = "Serialization derive procedural macro executes inside rustc for trusted workspace types."
+
+[[package]]
+name = "thiserror"
+version = "2.0.20"
+surfaces = ["build-script"]
+owner = "Sentrdel trusted-core maintainers"
+qualification = "SSQ-001"
+rationale = "Transitive error derive facade; conservatively records its compile-time surface."
+
+[[package]]
+name = "thiserror-impl"
+version = "2.0.20"
+surfaces = ["proc-macro"]
+owner = "Sentrdel trusted-core maintainers"
+qualification = "SSQ-001"
+rationale = "Error derive procedural macro executes inside rustc in the trusted dependency graph."
+
+[[package]]
+name = "typenum"
+version = "1.20.1"
+surfaces = ["build-script"]
+owner = "Sentrdel trusted-core maintainers"
+qualification = "SSQ-001"
+rationale = "Type-level numeric substrate used by hashing dependencies; compile-time generation is privileged."
+
+[[package]]
+name = "windows-implement"
+version = "0.60.2"
+surfaces = ["proc-macro"]
+owner = "Sentrdel trusted-core maintainers"
+qualification = "SSQ-001"
+rationale = "Windows procedural macro dependency in the cross-platform process boundary closure."
+
+[[package]]
+name = "windows-interface"
+version = "0.59.3"
+surfaces = ["proc-macro"]
+owner = "Sentrdel trusted-core maintainers"
+qualification = "SSQ-001"
+rationale = "Windows procedural macro dependency in the cross-platform process boundary closure."
+
+[[package]]
+name = "zmij"
+version = "1.0.23"
+surfaces = ["build-script"]
+owner = "Sentrdel trusted-core maintainers"
+qualification = "SSQ-001"
+rationale = "Transitive JSON numeric formatting dependency; conservatively records its compile-time surface."
