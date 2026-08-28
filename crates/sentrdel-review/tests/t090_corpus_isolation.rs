@@ -293,11 +293,16 @@ fn candidate_generation_view_cannot_enumerate_protected_expected_outputs()
     let layout = load_layout()?;
     let visible = candidate_visible_fixture_paths(&layout);
 
-    assert_eq!(visible.len(), 2);
+    assert_eq!(visible.len(), 3);
     assert!(
         visible
             .iter()
             .any(|path| path.contains("public-regression"))
+    );
+    assert!(
+        visible
+            .iter()
+            .any(|path| path.ends_with("development-evaluation/t049-review-steel-thread.json"))
     );
     assert!(
         visible
