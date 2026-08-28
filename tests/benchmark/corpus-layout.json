@@ -1,0 +1,31 @@
+{
+  "layout_version": "sentrdelbench-corpus-layout/t090-v1",
+  "public_regression": {
+    "corpus_class": "PUBLIC_REGRESSION",
+    "root": "tests/benchmark/public-regression",
+    "committed_fixture_paths": [
+      "tests/benchmark/public-regression/t089-core-corpus.json"
+    ],
+    "expected_output_location": "REPOSITORY_VISIBLE",
+    "candidate_generation_expected_output_access": "ALLOWED",
+    "base_ci_requires_private_material": false
+  },
+  "development_evaluation": {
+    "corpus_class": "DEVELOPMENT_EVALUATION",
+    "root": "tests/benchmark/development-evaluation",
+    "committed_fixture_paths": [
+      "tests/benchmark/development-evaluation/t090-development-corpus.json"
+    ],
+    "expected_output_location": "REPOSITORY_VISIBLE",
+    "candidate_generation_expected_output_access": "ALLOWED",
+    "base_ci_requires_private_material": false
+  },
+  "protected_holdout": {
+    "corpus_class": "PROTECTED_HOLDOUT",
+    "root": "tests/benchmark/protected-holdout",
+    "committed_fixture_paths": [],
+    "expected_output_location": "EXTERNAL_ONLY",
+    "candidate_generation_expected_output_access": "DENIED",
+    "base_ci_requires_private_material": false
+  }
+}

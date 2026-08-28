@@ -1,0 +1,24 @@
+{
+  "corpus_revision": "t090-development-corpus-v1",
+  "expected_outputs_revision": "t090-development-expected-v1",
+  "corpus_class": "DEVELOPMENT_EVALUATION",
+  "baseline_identity": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+  "candidate_identity": "sha256:4444444444444444444444444444444444444444444444444444444444444444",
+  "cases": [
+    {
+      "case_id": "development-clean",
+      "known_evidence_ids": [],
+      "expected_findings": [],
+      "emitted_findings": [],
+      "expected_provenance": [],
+      "expected_coverage": ["native-static"],
+      "observed_coverage": [
+        {"dimension": "native-static", "state": "COMPLETED"}
+      ]
+    }
+  ],
+  "authority_assertions": [
+    {"assertion_id": "protected-labels-not-visible-to-candidate-generation", "passed": true}
+  ],
+  "performance": null
+}
