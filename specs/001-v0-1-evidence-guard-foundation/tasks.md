@@ -75,7 +75,7 @@
 - [x] T031 Implement stable graph node/edge identities, provenance and confidence-source types.
 - [x] T032 [P] Implement SQLite graph persistence mapping.
 - [x] T033 [P] Implement `petgraph` projection, reverse reachability/blast radius and graph-diff primitives with deterministic fixtures.
-- [ ] T034 Define SCIP ingestion interface/coverage without mandatory indexer; no semantic certainty without producer provenance.
+- [x] T034 Define SCIP ingestion interface/coverage without mandatory indexer; no semantic certainty without producer provenance.
 
 ### Foundational CLI envelope
 
