@@ -125,3 +125,5 @@ rationale = "Locked Tree-sitter language ABI bridge in the qualified T039 gramma
           else:
               print('T039 qualification authority already present')
           PY
+
+# Triggered only after the workflow exists on the branch; remove before PR.
