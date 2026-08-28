@@ -28,11 +28,12 @@ fn positive_fixture_emits_only_the_expected_structural_observations() {
         .unwrap();
     let ids: Vec<_> = matches.iter().map(|matched| matched.rule_id).collect();
 
-    assert_eq!(
-        ids,
-        vec!["js.dynamic-function-constructor", "js.eval-call"]
+    assert_eq!(ids, vec!["js.dynamic-function-constructor", "js.eval-call"]);
+    assert!(
+        matches
+            .iter()
+            .all(|matched| matched.path.as_str() == "fixtures/positive.js")
     );
-    assert!(matches.iter().all(|matched| matched.path.as_str() == "fixtures/positive.js"));
 }
 
 #[test]
