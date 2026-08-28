@@ -6,7 +6,7 @@ on:
       - impl/001-t037-safe-git-diff
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   qualify-gix-lock:
@@ -32,6 +32,55 @@ jobs:
 
       - name: Compile candidate dependency surface
         run: cargo +1.98.0 check -p sentrdel-review --all-targets --locked
+
+      - name: Persist exact generated lockfile on the probe branch
+        if: ${{ !cancelled() && !failure() }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          python3 - <<'PY'
+          import base64
+          import json
+          import os
+          import pathlib
+          import urllib.request
+
+          token = os.environ["GH_TOKEN"]
+          repository = os.environ["REPOSITORY"]
+          branch = os.environ["BRANCH"]
+          path = "Cargo.lock"
+          body = pathlib.Path(path).read_bytes()
+          api = f"https://api.github.com/repos/{repository}/contents/{path}?ref={branch}"
+          headers = {
+              "Accept": "application/vnd.github+json",
+              "Authorization": f"Bearer {token}",
+              "X-GitHub-Api-Version": "2022-11-28",
+              "User-Agent": "sentrdel-t037-lock-persist",
+          }
+          with urllib.request.urlopen(urllib.request.Request(api, headers=headers), timeout=20) as response:
+              current = json.load(response)
+          remote = base64.b64decode(current["content"])
+          if remote == body:
+              print("T037 lockfile already canonical on probe branch; no write required.")
+              raise SystemExit(0)
+          payload = json.dumps({
+              "message": "build(review): lock qualified gix closure",
+              "content": base64.b64encode(body).decode("ascii"),
+              "sha": current["sha"],
+              "branch": branch,
+          }).encode("utf-8")
+          request = urllib.request.Request(
+              f"https://api.github.com/repos/{repository}/contents/{path}",
+              data=payload,
+              headers={**headers, "Content-Type": "application/json"},
+              method="PUT",
+          )
+          with urllib.request.urlopen(request, timeout=20) as response:
+              result = json.load(response)
+          print(f"T037 lockfile persisted: commit={result['commit']['sha']}")
+          PY
 
       - name: Upload qualification evidence
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
