@@ -109,7 +109,7 @@
 - [x] T038 [P] [US1] Implement bounded repository/file view and path normalization with symlink/confusable/oversized tests; target Cargo/npm/pip metadata commands are never run.
 - [x] T039 [P] [US1] Integrate tree-sitter/`ast-grep-core` native producer framework and Sentrdel-owned rule format.
 - [x] T040 [P] [US1] Implement deliberately small high-signal structural rule set + positive/negative fixtures.
-- [ ] T041 [P] [US1] Implement changed-secret producer with redacted Evidence; persist only rule/type/location/redacted display/sanitized non-secret fingerprints.
+- [x] T041 [P] [US1] Implement changed-secret producer with redacted Evidence; persist only rule/type/location/redacted display/sanitized non-secret fingerprints.
 - [ ] T042 [P] [US1] Implement supported lockfile dependency-delta parser + offline advisory fixture provider without executing package managers.
 - [ ] T043 [P] [US1] Add optional OSV-compatible lookup/cache respecting `--no-network`; tests remain offline-capable.
 - [ ] T044 [P] [US1] Implement GitHub Actions high-signal producer covering permission widening, OIDC/id-token, secrets in untrusted PR paths, `pull_request_target`, untrusted expression→shell interpolation, mutable action refs vs SHA pinning, self-hosted/untrusted runner changes and trust-sensitive artifact/cache handoffs.
