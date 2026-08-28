@@ -5,3 +5,4 @@ pub mod environment;
 pub mod gateway;
 pub mod inventory;
 pub mod protocol;
+pub mod untrusted_content;
