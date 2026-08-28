@@ -110,7 +110,7 @@
 - [x] T039 [P] [US1] Integrate tree-sitter/`ast-grep-core` native producer framework and Sentrdel-owned rule format.
 - [x] T040 [P] [US1] Implement deliberately small high-signal structural rule set + positive/negative fixtures.
 - [x] T041 [P] [US1] Implement changed-secret producer with redacted Evidence; persist only rule/type/location/redacted display/sanitized non-secret fingerprints.
-- [ ] T042 [P] [US1] Implement supported lockfile dependency-delta parser + offline advisory fixture provider without executing package managers.
+- [x] T042 [P] [US1] Implement supported lockfile dependency-delta parser + offline advisory fixture provider without executing package managers.
 - [ ] T043 [P] [US1] Add optional OSV-compatible lookup/cache respecting `--no-network`; tests remain offline-capable.
 - [ ] T044 [P] [US1] Implement GitHub Actions high-signal producer covering permission widening, OIDC/id-token, secrets in untrusted PR paths, `pull_request_target`, untrusted expression→shell interpolation, mutable action refs vs SHA pinning, self-hosted/untrusted runner changes and trust-sensitive artifact/cache handoffs.
 - [ ] T045 [US1] Implement Evidence fingerprint/correlation/reconciliation into canonical Findings, preserving observations, interpretations, provenance and contradictions.
@@ -217,31 +217,3 @@ US1 Review            US2 Guard              US3 Init
 ```
 
 US1/US2/US3 may proceed in parallel only after the Evaluation Gate Checkpoint. US1 should prove the benchmarked vertical steel thread before detector breadth. T093 is a US2 blocking prerequisite before T050-T058 forwarding behavior. US4 depends on Findings/store. US5 is optional/last among features. Release hardening depends on in-scope stories and expands rather than invents the benchmark/self-security foundations.
-
-## Implementation Strategy
-
-1. Secure workspace/schema/store/policy/process boundaries first and finish T032-T036.
-2. Establish SentrdelBench Core + protected evaluation semantics + repository self-security before detector proliferation.
-3. Ship Review as the first externally useful capability, starting with one benchmarked vertical steel thread before broad rule count.
-4. Ship bounded stdio MCP Guard as the first genuine vendor-neutral enforcement seam, with deny-by-default child credential inheritance before forwarding.
-5. Ship Init/provider detection with honest coverage; Supabase static posture follows immediately in roadmap R2.
-6. Explain; then optional reasoner; then release only if quality/security gates pass.
-7. Full Security Memory, producer reliability, signed/revocable community pack distribution, temporal project-wide security intelligence, and continuous Research/Learning require later dedicated specs as mapped in the roadmap Plan of Record.
-
-## Explicitly Deferred to Later Specs
-
-- Supabase RLS/Auth/Storage/Edge Function **static posture implementation** (now roadmap R2; detection only in R1);
-- Supabase/general cross-layer business logic/invariants (R3);
-- Firebase/Auth/Stripe/cloud/deployment pack breadth;
-- remote/Streamable HTTP MCP;
-- sandboxed verification/exploit-condition execution;
-- auto-fix application;
-- eBPF/runtime enforcement;
-- VS Code/Cursor/JetBrains/GitHub App integrations;
-- universal CPG/compiler implementation;
-- broad scanner/rule-count expansion;
-- general-purpose Project Security Memory and memory-driven suppression;
-- full context/instruction provenance integration across every forge/browser/IDE channel;
-- automatic producer reliability weighting as authority;
-- signed community pack marketplace/distribution lifecycle;
-- autonomous Security Research/Learning Plane, automatic candidate promotion, or trusted-core self-modification.
