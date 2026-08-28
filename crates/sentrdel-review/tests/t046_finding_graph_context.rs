@@ -2,9 +2,7 @@ use sentrdel_graph::{
     GraphConfidenceBasis, GraphConfidenceSource, GraphEdge, GraphNode, GraphNodeKind,
     GraphProjection, GraphProvenanceId, GraphRelation,
 };
-use sentrdel_review::context::{
-    GraphSnapshotSide, SymbolGraphState, build_finding_graph_context,
-};
+use sentrdel_review::context::{GraphSnapshotSide, SymbolGraphState, build_finding_graph_context};
 use sentrdel_schema::SCHEMA_V1;
 use sentrdel_schema::finding::{
     EpistemicState, Finding, ReconciledFindingDraft, ReconcilerAuthority, Severity,
@@ -19,13 +17,7 @@ fn provenance() -> GraphProvenanceId {
 fn symbol(key: &str, revision: &str) -> GraphNode {
     let mut attributes = BTreeMap::new();
     attributes.insert("revision".to_owned(), Value::String(revision.to_owned()));
-    GraphNode::new(
-        GraphNodeKind::Symbol,
-        key,
-        attributes,
-        vec![provenance()],
-    )
-    .unwrap()
+    GraphNode::new(GraphNodeKind::Symbol, key, attributes, vec![provenance()]).unwrap()
 }
 
 fn calls(source: &GraphNode, target: &GraphNode) -> GraphEdge {
@@ -140,8 +132,8 @@ fn modified_symbol_keeps_before_and_after_reachability_without_causality_claims(
 fn added_and_unresolved_symbols_preserve_only_observable_snapshot_state() {
     let added = symbol("crate::added", "new");
     let caller = symbol("crate::caller", "same");
-    let before = GraphProjection::from_records(Vec::<GraphNode>::new(), Vec::<GraphEdge>::new())
-        .unwrap();
+    let before =
+        GraphProjection::from_records(Vec::<GraphNode>::new(), Vec::<GraphEdge>::new()).unwrap();
     let after = GraphProjection::from_records(
         vec![added.clone(), caller.clone()],
         vec![calls(&caller, &added)],
