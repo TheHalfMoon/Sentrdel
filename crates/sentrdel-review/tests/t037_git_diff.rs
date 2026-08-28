@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use sentrdel_review::git::{read_diff, ChangeKind, DiffMode};
+use sentrdel_review::git::{ChangeKind, DiffMode, read_diff};
 
 struct FixtureRepo {
     root: PathBuf,
@@ -147,7 +147,10 @@ fn shallow_repository_reads_local_objects_without_fetching() {
     repo.git(&["add", "tracked.txt"]);
 
     let staged = read_diff(&repo.root, DiffMode::Staged).expect("shallow staged read must succeed");
-    assert_eq!(find_change(&staged.changes, b"tracked.txt").kind, ChangeKind::Modified);
+    assert_eq!(
+        find_change(&staged.changes, b"tracked.txt").kind,
+        ChangeKind::Modified
+    );
 
     let base = read_diff(
         &repo.root,
