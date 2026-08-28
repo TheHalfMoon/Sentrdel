@@ -10,7 +10,6 @@ permissions:
 
 jobs:
   prep:
-    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout T052 head
@@ -19,9 +18,10 @@ jobs:
           ref: impl/001-t052-stdio-gateway
           persist-credentials: true
           fetch-depth: 1
-      - name: Remove parser placeholder indirection
-        shell: python
+      - name: Apply bounded source preparation
+        shell: bash
         run: |
+          python3 <<'PY'
           from pathlib import Path
           path = Path("crates/sentrdel-guard/src/mcp/gateway.rs")
           text = path.read_text()
@@ -32,9 +32,12 @@ jobs:
           new = '''        let server_name = server_name.into();
           validate_identity("server", &server_name)?;
           validate_identity("tool", tool_name)?;'''
-          if text.count(old) != 1:
-              raise SystemExit("expected parser placeholder pattern exactly once")
-          text = text.replace(old, new)
+          if old in text:
+              if text.count(old) != 1:
+                  raise SystemExit("unexpected parser placeholder multiplicity")
+              text = text.replace(old, new)
+          elif new not in text:
+              raise SystemExit("parser pattern not recognized")
           helper = '''
 // This helper is replaced immediately after borrowing the caller-owned server
 // name during parsing. Keeping construction in one place avoids any fallback to
@@ -43,9 +46,35 @@ fn object_server_name_placeholder() -> String {
     String::new()
 }
 '''
-          if text.count(helper) != 1:
-              raise SystemExit("expected placeholder helper exactly once")
-          path.write_text(text.replace(helper, "\n"))
+          if helper in text:
+              if text.count(helper) != 1:
+                  raise SystemExit("unexpected placeholder helper multiplicity")
+              text = text.replace(helper, "\n")
+          old_os = '''fn os_len(value: &std::ffi::OsStr) -> usize {
+    value.to_string_lossy().len()
+}'''
+          new_os = '''fn os_len(value: &std::ffi::OsStr) -> usize {
+    #[cfg(unix)]
+    {
+        use std::os::unix::ffi::OsStrExt;
+        return value.as_bytes().len();
+    }
+
+    #[cfg(windows)]
+    {
+        use std::os::windows::ffi::OsStrExt;
+        return value.encode_wide().count().saturating_mul(2);
+    }
+
+    #[allow(unreachable_code)]
+    value.to_string_lossy().len()
+}'''
+          if old_os in text:
+              text = text.replace(old_os, new_os)
+          elif new_os not in text:
+              raise SystemExit("os_len pattern not recognized")
+          path.write_text(text)
+          PY
       - name: Install pinned Rust toolchain
         run: rustup toolchain install 1.98.0 --profile minimal --component rustfmt --component clippy
       - name: Refresh lockfile
