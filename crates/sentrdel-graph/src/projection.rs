@@ -418,11 +418,9 @@ mod tests {
             vec![calls.clone(), reads.clone()],
         )
         .expect("projection");
-        let reverse = GraphProjection::from_records(
-            vec![database, service, api],
-            vec![reads, calls],
-        )
-        .expect("projection");
+        let reverse =
+            GraphProjection::from_records(vec![database, service, api], vec![reads, calls])
+                .expect("projection");
 
         assert_eq!(
             forward.node_ids().cloned().collect::<Vec<_>>(),
@@ -462,7 +460,12 @@ mod tests {
         let service_calls_api = edge(&service, &api, GraphRelation::Calls);
 
         let projection = GraphProjection::from_records(
-            vec![api.clone(), service.clone(), helper.clone(), database.clone()],
+            vec![
+                api.clone(),
+                service.clone(),
+                helper.clone(),
+                database.clone(),
+            ],
             vec![
                 service_reads_database.clone(),
                 helper_calls_service.clone(),
@@ -480,12 +483,18 @@ mod tests {
         assert_eq!(hits.len(), 3);
         assert_eq!(hits[0].node_id, service.node_id);
         assert_eq!(hits[0].depth, 1);
-        assert_eq!(hits[0].witness_edge_ids, vec![service_reads_database.edge_id]);
+        assert_eq!(
+            hits[0].witness_edge_ids,
+            vec![service_reads_database.edge_id]
+        );
 
         let depth_two = &hits[1..];
         assert!(depth_two.iter().all(|hit| hit.depth == 2));
         assert_eq!(
-            depth_two.iter().map(|hit| hit.node_id.clone()).collect::<Vec<_>>(),
+            depth_two
+                .iter()
+                .map(|hit| hit.node_id.clone())
+                .collect::<Vec<_>>(),
             {
                 let mut ids = vec![api.node_id.clone(), helper.node_id.clone()];
                 ids.sort();
@@ -505,9 +514,8 @@ mod tests {
     #[test]
     fn reverse_reachability_rejects_unbounded_depth() {
         let seed = node(GraphNodeKind::Symbol, "crate::seed");
-        let projection =
-            GraphProjection::from_records(vec![seed.clone()], Vec::<GraphEdge>::new())
-                .expect("projection");
+        let projection = GraphProjection::from_records(vec![seed.clone()], Vec::<GraphEdge>::new())
+            .expect("projection");
 
         let result = projection.reverse_reachability(
             &seed.node_id,
@@ -539,7 +547,9 @@ mod tests {
         changed_service
             .provenance_ids
             .push(provenance("evidence:t033:second"));
-        changed_service.validate().expect("changed node remains valid");
+        changed_service
+            .validate()
+            .expect("changed node remains valid");
 
         let mut changed_reads = reads.clone();
         changed_reads.confidence_source = GraphConfidenceSource::new(
@@ -548,7 +558,9 @@ mod tests {
             GraphConfidenceBasis::Inferred,
         )
         .expect("changed confidence");
-        changed_reads.validate().expect("changed edge remains valid");
+        changed_reads
+            .validate()
+            .expect("changed edge remains valid");
 
         let after = GraphProjection::from_records(
             vec![database, changed_service.clone()],
