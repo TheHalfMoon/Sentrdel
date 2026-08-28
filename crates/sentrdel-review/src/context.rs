@@ -60,7 +60,9 @@ impl fmt::Display for FindingGraphContextError {
             Self::GraphContract(error) => {
                 write!(formatter, "cannot derive stable symbol identity: {error}")
             }
-            Self::Projection(error) => write!(formatter, "cannot derive bounded graph context: {error}"),
+            Self::Projection(error) => {
+                write!(formatter, "cannot derive bounded graph context: {error}")
+            }
         }
     }
 }
