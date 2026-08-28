@@ -132,11 +132,7 @@ pub fn build_inventory(
         if !names.insert(tool.name.clone()) {
             return Err(McpInventoryError::DuplicateToolName(tool.name.clone()));
         }
-        add_total(
-            &mut total,
-            tool.name.len(),
-            limits.max_total_metadata_bytes,
-        )?;
+        add_total(&mut total, tool.name.len(), limits.max_total_metadata_bytes)?;
 
         let tool_description_hash = hash_optional_description(
             tool.description.as_deref(),
@@ -173,11 +169,7 @@ fn validate_nonempty(kind: &'static str, value: &str) -> Result<(), McpInventory
     Ok(())
 }
 
-fn enforce_len(
-    field: &'static str,
-    bytes: usize,
-    max: usize,
-) -> Result<(), McpInventoryError> {
+fn enforce_len(field: &'static str, bytes: usize, max: usize) -> Result<(), McpInventoryError> {
     if bytes > max {
         return Err(McpInventoryError::MetadataTooLarge { field, bytes, max });
     }
@@ -208,11 +200,7 @@ fn hash_optional_description(
         description.len(),
         limits.max_description_bytes,
     )?;
-    add_total(
-        total,
-        description.len(),
-        limits.max_total_metadata_bytes,
-    )?;
+    add_total(total, description.len(), limits.max_total_metadata_bytes)?;
     Ok(Some(domain_hash(namespace, description.as_bytes())))
 }
 
@@ -374,7 +362,10 @@ impl fmt::Display for McpInventoryError {
             Self::InvalidLimits => formatter.write_str("MCP inventory limits must be non-zero"),
             Self::EmptyName(kind) => write!(formatter, "MCP {kind} name must not be empty"),
             Self::MetadataTooLarge { field, bytes, max } => {
-                write!(formatter, "MCP {field} size {bytes} exceeds {max} byte limit")
+                write!(
+                    formatter,
+                    "MCP {field} size {bytes} exceeds {max} byte limit"
+                )
             }
             Self::TooManyTools { count, max } => {
                 write!(formatter, "MCP tool count {count} exceeds {max} limit")
@@ -383,10 +374,16 @@ impl fmt::Display for McpInventoryError {
                 write!(formatter, "duplicate MCP tool name: {name}")
             }
             Self::SchemaTooLarge { bytes, max } => {
-                write!(formatter, "MCP tool schema size {bytes} exceeds {max} byte limit")
+                write!(
+                    formatter,
+                    "MCP tool schema size {bytes} exceeds {max} byte limit"
+                )
             }
             Self::SchemaTooDeep { depth, max } => {
-                write!(formatter, "MCP tool schema depth {depth} exceeds {max} limit")
+                write!(
+                    formatter,
+                    "MCP tool schema depth {depth} exceeds {max} limit"
+                )
             }
             Self::TotalMetadataTooLarge { max } => {
                 write!(formatter, "MCP inventory metadata exceeds {max} byte limit")
