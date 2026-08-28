@@ -2,6 +2,7 @@
 //! Diff-first security review. Target repository code is data, never authority.
 
 pub mod git;
+pub mod secrets;
 pub mod structural;
 pub mod structural_rules;
 pub mod view;
