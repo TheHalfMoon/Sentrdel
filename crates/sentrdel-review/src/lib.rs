@@ -3,6 +3,7 @@
 
 pub mod git;
 pub mod structural;
+pub mod structural_rules;
 pub mod view;
 
 pub const TARGET_BUILD_EXECUTION_ALLOWED: bool = false;
