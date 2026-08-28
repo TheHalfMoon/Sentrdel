@@ -238,9 +238,10 @@ impl fmt::Display for McpGatewayError {
                 formatter,
                 "MCP arguments are {size} bytes and exceed cap {max}"
             ),
-            Self::ResultTooLarge { size, max } => {
-                write!(formatter, "MCP result is {size} bytes and exceeds cap {max}")
-            }
+            Self::ResultTooLarge { size, max } => write!(
+                formatter,
+                "MCP result is {size} bytes and exceeds cap {max}"
+            ),
             Self::ApprovalRequired => {
                 formatter.write_str("MCP invocation requires scoped approval")
             }
