@@ -28,6 +28,7 @@ schemars = { version = "=1.2.2", features = ["derive"] }
 sha2 = { version = "=0.11.0", default-features = false }
 rusqlite = { version = "=0.40.2", default-features = false, features = ["bundled"] }
 regorus = { version = "=0.11.0", default-features = false, features = ["std", "arc"] }
+gix = { version = "=0.87.1", default-features = false, features = ["sha1", "index", "revision"] }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

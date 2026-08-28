@@ -11,12 +11,76 @@ qualification = "SSQ-001"
 rationale = "Transitive error-reporting dependency; its locked build script executes during trusted workspace compilation."
 
 [[package]]
+name = "crc32fast"
+version = "1.5.1"
+surfaces = ["build-script"]
+owner = "Sentrdel trusted-core maintainers"
+qualification = "SSQ-001"
+rationale = "Locked gix checksum/pack support closure; its build script executes during trusted workspace compilation."
+
+[[package]]
+name = "crossbeam-utils"
+version = "0.8.22"
+surfaces = ["build-script"]
+owner = "Sentrdel trusted-core maintainers"
+qualification = "SSQ-001"
+rationale = "Locked gix concurrency plumbing closure; conservatively records compile-time configuration authority."
+
+[[package]]
+name = "defmt"
+version = "1.1.1"
+surfaces = ["build-script", "native-link"]
+owner = "Sentrdel trusted-core maintainers"
+qualification = "SSQ-001"
+rationale = "Locked jiff transitive closure reached by gix date handling; build and native-link metadata are compile-time privileged even though Sentrdel does not use defmt as product authority."
+
+[[package]]
+name = "defmt-macros"
+version = "1.1.1"
+surfaces = ["build-script", "proc-macro"]
+owner = "Sentrdel trusted-core maintainers"
+qualification = "SSQ-001"
+rationale = "Locked defmt compile-time macro closure; build script and proc macro execute with compiler authority."
+
+[[package]]
+name = "generic-array"
+version = "0.14.7"
+surfaces = ["build-script"]
+owner = "Sentrdel trusted-core maintainers"
+qualification = "SSQ-001"
+rationale = "Locked SHA-1 hashing closure used transitively by gix; compile-time configuration is privileged."
+
+[[package]]
 name = "getrandom"
 version = "0.4.3"
 surfaces = ["build-script"]
 owner = "Sentrdel trusted-core maintainers"
 qualification = "SSQ-001"
 rationale = "Transitive randomness substrate; conservatively declared for compile-time configuration authority."
+
+[[package]]
+name = "gix-macros"
+version = "0.1.6"
+surfaces = ["proc-macro"]
+owner = "Sentrdel trusted-core maintainers"
+qualification = "SSQ-001"
+rationale = "Locked gix protocol plumbing procedural macro; package presence grants no runtime network or policy authority."
+
+[[package]]
+name = "heapless"
+version = "0.8.0"
+surfaces = ["build-script"]
+owner = "Sentrdel trusted-core maintainers"
+qualification = "SSQ-001"
+rationale = "Locked faster-hex hashing closure used by gix; build-time configuration is explicitly registered."
+
+[[package]]
+name = "jiff-static"
+version = "0.2.35"
+surfaces = ["proc-macro"]
+owner = "Sentrdel trusted-core maintainers"
+qualification = "SSQ-001"
+rationale = "Locked jiff procedural macro in gix date parsing closure; it has compile-time compiler authority only."
 
 [[package]]
 name = "libc"
@@ -67,6 +131,22 @@ qualification = "SSQ-001"
 rationale = "Transitive synchronization substrate with platform-sensitive compile-time behavior."
 
 [[package]]
+name = "portable-atomic"
+version = "1.15.0"
+surfaces = ["build-script"]
+owner = "Sentrdel trusted-core maintainers"
+qualification = "SSQ-001"
+rationale = "Locked jiff portability closure reached through gix date handling; build-time target probing is privileged."
+
+[[package]]
+name = "portable-atomic-util"
+version = "0.2.7"
+surfaces = ["build-script"]
+owner = "Sentrdel trusted-core maintainers"
+qualification = "SSQ-001"
+rationale = "Locked jiff portability utility closure; build-time target configuration is explicitly registered."
+
+[[package]]
 name = "proc-macro2"
 version = "1.0.107"
 surfaces = ["build-script"]
@@ -105,6 +185,22 @@ surfaces = ["build-script"]
 owner = "Sentrdel trusted-core maintainers"
 qualification = "RQ-001"
 rationale = "Qualified policy evaluator; its compile-time build surface remains explicitly privileged."
+
+[[package]]
+name = "rustix"
+version = "1.1.4"
+surfaces = ["build-script"]
+owner = "Sentrdel trusted-core maintainers"
+qualification = "SSQ-001"
+rationale = "Locked filesystem/platform substrate reached through gix index/tempfile closure; build-time target probing is privileged."
+
+[[package]]
+name = "rustversion"
+version = "1.0.23"
+surfaces = ["build-script", "proc-macro"]
+owner = "Sentrdel trusted-core maintainers"
+qualification = "SSQ-001"
+rationale = "Locked arc-swap compile-time version-selection closure reached through gix object database; build and proc-macro authority are explicit."
 
 [[package]]
 name = "schemars_derive"
