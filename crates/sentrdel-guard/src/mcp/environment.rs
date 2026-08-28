@@ -375,9 +375,7 @@ mod tests {
             .collect::<BTreeMap<_, _>>();
         assert!(!explicit.contains_key(OsStr::new("OPENAI_API_KEY")));
         assert_eq!(
-            explicit
-                .get(OsStr::new("MCP_EXPLICIT_CAPABILITY"))
-                .copied(),
+            explicit.get(OsStr::new("MCP_EXPLICIT_CAPABILITY")).copied(),
             Some(OsStr::new("explicit-value"))
         );
     }
