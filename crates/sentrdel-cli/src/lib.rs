@@ -83,7 +83,6 @@ pub enum CliCommand {
 /// relative subtree), never an absolute workstation path. Command-specific
 /// human output may separately render a user-approved local path when needed.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
-#[serde(deny_unknown_fields)]
 pub struct CliRepository {
     pub identity: String,
     pub root: String,
@@ -114,7 +113,6 @@ impl CliRepository {
 /// Canonical references needed by CI consumers without duplicating Finding
 /// authority or lifecycle state inside the CLI layer.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
-#[serde(deny_unknown_fields)]
 pub struct CliFindingRef {
     pub finding_id: String,
     pub evidence_ids: Vec<String>,
@@ -125,18 +123,22 @@ impl CliFindingRef {
         finding_id: impl Into<String>,
         evidence_ids: impl IntoIterator<Item = String>,
     ) -> Result<Self, CliContractError> {
-        let finding_id = finding_id.into();
-        validate_identifier("finding id", &finding_id)?;
-        let mut evidence_ids = evidence_ids.into_iter().collect::<Vec<_>>();
-        for evidence_id in &evidence_ids {
+        let mut value = Self {
+            finding_id: finding_id.into(),
+            evidence_ids: evidence_ids.into_iter().collect(),
+        };
+        value.normalize()?;
+        Ok(value)
+    }
+
+    fn normalize(&mut self) -> Result<(), CliContractError> {
+        validate_identifier("finding id", &self.finding_id)?;
+        for evidence_id in &self.evidence_ids {
             validate_identifier("evidence id", evidence_id)?;
         }
-        evidence_ids.sort();
-        evidence_ids.dedup();
-        Ok(Self {
-            finding_id,
-            evidence_ids,
-        })
+        self.evidence_ids.sort();
+        self.evidence_ids.dedup();
+        Ok(())
     }
 }
 
@@ -149,7 +151,6 @@ pub enum CliDiagnosticLevel {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize)]
-#[serde(deny_unknown_fields)]
 pub struct CliDiagnostic {
     pub code: String,
     pub level: CliDiagnosticLevel,
@@ -167,21 +168,25 @@ impl CliDiagnostic {
             level,
             message: message.into(),
         };
-        validate_identifier("diagnostic code", &value.code)?;
-        if value.message.trim().is_empty()
-            || value.message.len() > MAX_CLI_MESSAGE_BYTES
-            || value.message.chars().any(char::is_control)
+        value.validate()?;
+        Ok(value)
+    }
+
+    fn validate(&self) -> Result<(), CliContractError> {
+        validate_identifier("diagnostic code", &self.code)?;
+        if self.message.trim().is_empty()
+            || self.message.len() > MAX_CLI_MESSAGE_BYTES
+            || self.message.chars().any(char::is_control)
         {
             return Err(CliContractError::InvalidDiagnosticMessage);
         }
-        Ok(value)
+        Ok(())
     }
 }
 
 /// Runtime-only metadata explicitly allowed to vary across otherwise identical
 /// deterministic command results.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize)]
-#[serde(deny_unknown_fields)]
 pub struct CliTiming {
     pub duration_ms: u64,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -190,11 +195,11 @@ pub struct CliTiming {
 
 impl CliTiming {
     pub fn validate(&self) -> Result<(), CliContractError> {
-        if self
-            .observed_at
-            .as_deref()
-            .is_some_and(|value| value.trim().is_empty() || value.chars().any(char::is_control))
-        {
+        if self.observed_at.as_deref().is_some_and(|value| {
+            value.trim().is_empty()
+                || value.len() > MAX_CLI_ID_BYTES
+                || value.chars().any(char::is_control)
+        }) {
             return Err(CliContractError::InvalidObservedAt);
         }
         Ok(())
@@ -203,12 +208,12 @@ impl CliTiming {
 
 /// Stable R1 JSON envelope shared by all public commands.
 ///
-/// Input collections are normalized into deterministic order at construction.
-/// The envelope is output-only; it deliberately does not implement Deserialize
-/// and therefore cannot manufacture canonical Finding, Evidence, or policy
+/// Input collections are revalidated and normalized into deterministic order at
+/// construction, even if a caller created public record fields directly. The
+/// envelope is output-only; it deliberately does not implement Deserialize and
+/// therefore cannot manufacture canonical Finding, Evidence, or policy
 /// authority from untrusted JSON.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
-#[serde(deny_unknown_fields)]
 pub struct CliEnvelope {
     pub schema_version: String,
     pub command: CliCommand,
@@ -237,12 +242,21 @@ impl CliEnvelope {
         repository.validate()?;
         timing.validate()?;
 
+        for finding in &mut findings {
+            finding.normalize()?;
+        }
         findings.sort_by(|left, right| left.finding_id.cmp(&right.finding_id));
         reject_duplicate_finding_ids(&findings)?;
 
+        for record in &coverage {
+            validate_identifier("coverage id", &record.coverage_id)?;
+        }
         coverage.sort_by(|left, right| left.coverage_id.cmp(&right.coverage_id));
         reject_duplicate_coverage_ids(&coverage)?;
 
+        for diagnostic in &diagnostics {
+            diagnostic.validate()?;
+        }
         diagnostics.sort();
         diagnostics.dedup();
 
@@ -287,9 +301,10 @@ pub enum CliContractError {
 impl fmt::Display for CliContractError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::InvalidIdentifier(field) => {
-                write!(formatter, "CLI {field} must be bounded, non-blank text without controls")
-            }
+            Self::InvalidIdentifier(field) => write!(
+                formatter,
+                "CLI {field} must be bounded, non-blank text without controls"
+            ),
             Self::InvalidRepositoryRoot(root) => write!(
                 formatter,
                 "CLI repository root must be '.' or a canonical repository-relative path: {root:?}"
@@ -298,7 +313,7 @@ impl fmt::Display for CliContractError {
                 "CLI diagnostic message must be bounded, non-blank text without controls",
             ),
             Self::InvalidObservedAt => formatter.write_str(
-                "CLI observed_at must be non-blank text without control characters when present",
+                "CLI observed_at must be bounded, non-blank text without control characters when present",
             ),
             Self::DuplicateFindingId(id) => {
                 write!(formatter, "CLI envelope contains duplicate finding id {id:?}")
@@ -328,6 +343,7 @@ fn is_canonical_relative_path(path: &str) -> bool {
         && !path.starts_with('/')
         && !path.starts_with('\\')
         && !path.contains('\\')
+        && !path.chars().any(char::is_control)
         && path.as_bytes().get(1) != Some(&b':')
         && !path
             .split('/')
@@ -458,13 +474,12 @@ mod tests {
 
     #[test]
     fn json_envelope_has_binding_top_level_shape_and_optional_store_refs() {
-        let value: Value = serde_json::from_str(
-            envelope(Vec::new(), Vec::new(), Vec::new(), None)
-                .to_json_line()
-                .expect("json")
-                .trim_end(),
-        )
-        .expect("parse");
+        let json = envelope(Vec::new(), Vec::new(), Vec::new(), None)
+            .to_json_line()
+            .expect("json");
+        assert!(json.ends_with('\n'));
+
+        let value: Value = serde_json::from_str(json.trim_end()).expect("parse");
         let object = value.as_object().expect("object");
         assert_eq!(
             object.keys().cloned().collect::<Vec<_>>(),
@@ -485,14 +500,17 @@ mod tests {
     }
 
     #[test]
-    fn input_order_does_not_change_machine_json() {
-        let finding_a = CliFindingRef::new(
-            "finding:a",
-            vec!["evidence:2".to_owned(), "evidence:1".to_owned()],
-        )
-        .expect("finding");
-        let finding_b = CliFindingRef::new("finding:b", vec!["evidence:3".to_owned()])
-            .expect("finding");
+    fn input_order_and_direct_record_construction_do_not_change_machine_json() {
+        let finding_a = CliFindingRef {
+            finding_id: "finding:a".to_owned(),
+            evidence_ids: vec![
+                "evidence:2".to_owned(),
+                "evidence:1".to_owned(),
+                "evidence:1".to_owned(),
+            ],
+        };
+        let finding_b =
+            CliFindingRef::new("finding:b", vec!["evidence:3".to_owned()]).expect("finding");
         let diagnostic_a = CliDiagnostic::new(
             "A",
             CliDiagnosticLevel::Warning,
@@ -510,7 +528,11 @@ mod tests {
             vec![finding_b.clone(), finding_a.clone()],
             vec![coverage("coverage:b"), coverage("coverage:a")],
             vec![diagnostic_b.clone(), diagnostic_a.clone()],
-            Some(vec!["store:b".to_owned(), "store:a".to_owned()]),
+            Some(vec![
+                "store:b".to_owned(),
+                "store:a".to_owned(),
+                "store:a".to_owned(),
+            ]),
         );
         let reverse = envelope(
             vec![finding_a, finding_b],
@@ -523,33 +545,43 @@ mod tests {
             forward.to_json_line().expect("forward"),
             reverse.to_json_line().expect("reverse")
         );
+        assert_eq!(
+            forward.findings[0].evidence_ids,
+            vec!["evidence:1", "evidence:2"]
+        );
     }
 
     #[test]
     fn envelope_rejects_duplicate_canonical_references() {
         let finding = CliFindingRef::new("finding:a", Vec::<String>::new()).expect("finding");
+        let duplicate_findings = CliEnvelope::new(
+            CliCommand::Review,
+            CliRepository::new("sha256:repo", ".").expect("repo"),
+            CliDecision::Clear,
+            vec![finding.clone(), finding],
+            Vec::new(),
+            Vec::new(),
+            CliTiming::default(),
+            None,
+        );
         assert!(matches!(
-            CliEnvelope::new(
-                CliCommand::Review,
-                CliRepository::new("sha256:repo", ".").expect("repo"),
-                CliDecision::Clear,
-                vec![finding.clone(), finding],
-                Vec::new(),
-                Vec::new(),
-                CliTiming::default(),
-                None,
-            ),
+            duplicate_findings,
             Err(CliContractError::DuplicateFindingId(_))
         ));
 
+        let duplicate_coverage = CliEnvelope::new(
+            CliCommand::Review,
+            CliRepository::new("sha256:repo", ".").expect("repo"),
+            CliDecision::Clear,
+            Vec::new(),
+            vec![coverage("coverage:a"), coverage("coverage:a")],
+            Vec::new(),
+            CliTiming::default(),
+            None,
+        );
         assert!(matches!(
-            envelope(
-                Vec::new(),
-                vec![coverage("coverage:a"), coverage("coverage:a")],
-                Vec::new(),
-                None,
-            ),
-            _
+            duplicate_coverage,
+            Err(CliContractError::DuplicateCoverageId(_))
         ));
     }
 
@@ -561,6 +593,7 @@ mod tests {
             "../repo",
             "repo/../other",
             "repo\\src",
+            "repo\nother",
         ] {
             assert!(matches!(
                 CliRepository::new("sha256:repo", root),
@@ -572,14 +605,19 @@ mod tests {
     }
 
     #[test]
-    fn untrusted_identifiers_and_diagnostics_are_bounded() {
+    fn untrusted_identifiers_diagnostics_and_timing_are_bounded() {
         assert!(CliFindingRef::new("   ", Vec::<String>::new()).is_err());
         assert!(CliFindingRef::new("finding:a", vec!["bad\nid".to_owned()]).is_err());
-        assert!(CliDiagnostic::new(
-            "D001",
-            CliDiagnosticLevel::Error,
-            "bad\nmessage"
-        )
-        .is_err());
+        assert!(
+            CliDiagnostic::new("D001", CliDiagnosticLevel::Error, "bad\nmessage").is_err()
+        );
+        assert!(
+            CliTiming {
+                duration_ms: 0,
+                observed_at: Some("bad\ntime".to_owned()),
+            }
+            .validate()
+            .is_err()
+        );
     }
 }
