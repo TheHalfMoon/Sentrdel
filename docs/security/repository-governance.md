@@ -1,9 +1,9 @@
 # Repository Governance — Protected `main`
 
-**Task:** T092  
-**Status:** `CONFIGURATION_PENDING_LIVE_ENFORCEMENT`  
-**Repository:** `TheHalfMoon/Sentrdel`  
-**Canonical base inspected:** `7453d9302814f63c02003d9fde8bf33a9dbee1af`  
+**Task:** T092
+**Status:** `LIVE_ENFORCEMENT_VERIFIED / VERIFIER_PENDING_CREDENTIAL`
+**Repository:** `TheHalfMoon/Sentrdel`
+**Canonical base inspected:** `d17e69fcb410051d3861e7de1431391abd48f0d0`
 **Live state inspected:** 2026-08-28
 
 ## 1. Truth rule
@@ -12,28 +12,49 @@ GitHub Actions success is not branch protection.
 
 T092 is complete only when the live GitHub repository reports an enforced protection/ruleset for `main` that requires the canonical stable checks described below. A checked-in policy document, CI workflow, successful PR, or maintainer convention is not a substitute for live repository enforcement.
 
-## 2. Live state at this record
+## 2. Live state after configuration
 
-The live GitHub branch API reported:
+At 2026-08-28 14:33 UTC, the public live GitHub branch API reported:
 
 ```text
 branch: main
-head: 7453d9302814f63c02003d9fde8bf33a9dbee1af
-protected: false
-protection.enabled: false
-required_status_checks.enforcement_level: off
-required_status_checks.contexts: []
+head: d17e69fcb410051d3861e7de1431391abd48f0d0
+protected: true
+protection.enabled: true
+required_status_checks.enforcement_level: everyone
+required_status_checks.contexts:
+  - Rust 1.98 bootstrap
+  - Dependency security
+  - Resolve and test schema substrate
 ```
 
-The live repository rulesets collection reported:
+The live repository rulesets collection reported no layered repository rulesets:
 
 ```json
 []
 ```
 
-Therefore the repository is **UNPROTECTED** at this record. T092 MUST remain unchecked until a post-configuration live read proves otherwise.
+The authenticated owner settings surface reported classic branch-protection rule ID `82409240`, pattern `main`, applying to exactly one branch, with:
 
-The authenticated repository owner has `admin` permission. The connected GitHub operation surface used for this implementation exposes reads for branch protection/rulesets but does not expose a branch-protection/ruleset mutation operation. That tool limitation does not change the required GitHub state and MUST NOT be represented as task completion.
+- pull requests required before merge;
+- zero required human approvals (`Require approvals` disabled);
+- strict/up-to-date required status checks enabled;
+- the exact three canonical checks above required from GitHub Actions;
+- conversation resolution required;
+- administrator bypass disabled (`Do not allow bypassing the above settings` enabled);
+- linear history disabled so canonical merge commits remain allowed;
+- force pushes disabled;
+- branch deletion disabled.
+
+GitHub confirmed the mutation with `Branch protection rule created.` The public branch response and authenticated owner settings therefore agree that `main` is protected with the intended policy at exact head `d17e69fcb410051d3861e7de1431391abd48f0d0`.
+
+T092 remains unchecked at this record for one narrow reason: the canonical verifier requires an administrator-capable `GITHUB_TOKEN` or `GH_TOKEN`, while the execution environment exposes no such token and the connected GitHub integration returns `403 Resource not accessible by integration` for the full branch-protection endpoint. The verifier failed closed before making any API request:
+
+```text
+repository-governance: ERROR: set GITHUB_TOKEN or GH_TOKEN to an administrator-capable token
+```
+
+This credential/tooling limitation does not invalidate the live protection, but the repository's frozen closeout procedure still requires a `repository-governance: PASS` run before T092 may be checked.
 
 ## 3. Stable canonical checks
 
@@ -137,8 +158,8 @@ Then run `scripts/verify_repository_governance.py` with an administrator-capable
 - The current checked-in desired policy is not proof that GitHub accepted or enforces it.
 - T092 does not claim independent human review while the required approval count is zero.
 - T092 does not add release signing, artifact attestation, CODEOWNERS, environment protection, or organization-wide governance; later release-hardening tasks may strengthen those areas.
-- Direct pushes remain technically possible until the live protection/ruleset is activated.
+- The protection is live, but T092 remains open until the administrator-token verifier produces PASS and that output is recorded.
 
 ## 9. Gate consequence
 
-The Evaluation Gate Checkpoint requires T092 and T095. T095 may be complete independently, but **Phase 3 T037 MUST NOT start while this document still reports `CONFIGURATION_PENDING_LIVE_ENFORCEMENT` or while live GitHub reports `main` unprotected.**
+The Evaluation Gate Checkpoint requires T092 and T095. T095 may be complete independently, but **Phase 3 T037 MUST NOT start while this document reports `VERIFIER_PENDING_CREDENTIAL`, while the verifier lacks recorded PASS output, or while live GitHub reports `main` unprotected.**
