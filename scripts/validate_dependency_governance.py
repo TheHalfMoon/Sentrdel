@@ -84,8 +84,16 @@ def require_deny_policy(root: Path) -> None:
         fail("deny.toml must deny wildcard dependency requirements")
 
     advisories = deny.get("advisories", {})
-    if advisories.get("vulnerability") != "deny":
-        fail("deny.toml must deny known vulnerabilities")
+    if "vulnerability" in advisories:
+        fail("deny.toml must not use removed cargo-deny advisory key 'vulnerability'")
+    if advisories.get("yanked") != "deny":
+        fail("deny.toml must deny yanked dependency versions")
+    if advisories.get("ignore", []) != []:
+        fail("deny.toml advisory ignores require explicit later-task governance; T091 admits none")
+    if advisories.get("unmaintained", "all") == "none":
+        fail("deny.toml must not disable unmaintained-advisory enforcement")
+    if advisories.get("unsound", "workspace") == "none":
+        fail("deny.toml must not disable unsound-advisory enforcement")
 
     licenses = deny.get("licenses", {})
     allowed = set(licenses.get("allow", []))
