@@ -12,9 +12,8 @@ const LAYOUT_BYTES: &[u8] = include_bytes!("../../../tests/benchmark/corpus-layo
 const LEGACY_PUBLIC_BYTES: &[u8] = include_bytes!("../../../tests/benchmark/t089-core-corpus.json");
 const PUBLIC_BYTES: &[u8] =
     include_bytes!("../../../tests/benchmark/public-regression/t089-core-corpus.json");
-const DEVELOPMENT_BYTES: &[u8] = include_bytes!(
-    "../../../tests/benchmark/development-evaluation/t090-development-corpus.json"
-);
+const DEVELOPMENT_BYTES: &[u8] =
+    include_bytes!("../../../tests/benchmark/development-evaluation/t090-development-corpus.json");
 const PROTECTED_MANIFEST_BYTES: &[u8] =
     include_bytes!("../../../tests/benchmark/protected-holdout/manifest.json");
 const T089_SOURCE: &str = include_str!("t089_benchmark_core.rs");
@@ -89,7 +88,10 @@ fn repo_root() -> PathBuf {
 
 fn assert_repo_relative(path: &str) {
     let path = Path::new(path);
-    assert!(!path.is_absolute(), "benchmark path must be repository-relative");
+    assert!(
+        !path.is_absolute(),
+        "benchmark path must be repository-relative"
+    );
     assert!(
         path.components()
             .all(|component| matches!(component, Component::Normal(_))),
@@ -115,8 +117,8 @@ fn candidate_visible_fixture_paths(layout: &CorpusLayout) -> Vec<&str> {
 }
 
 #[test]
-fn corpus_layout_separates_all_three_classes_without_private_base_ci_dependency(
-) -> Result<(), Box<dyn Error>> {
+fn corpus_layout_separates_all_three_classes_without_private_base_ci_dependency()
+-> Result<(), Box<dyn Error>> {
     let layout = load_layout()?;
     assert_eq!(layout.layout_version, "sentrdelbench-corpus-layout/t090-v1");
 
@@ -143,7 +145,10 @@ fn corpus_layout_separates_all_three_classes_without_private_base_ci_dependency(
 
     for root in unique_roots {
         assert_repo_relative(root);
-        assert!(repo_root().join(root).is_dir(), "missing corpus root {root}");
+        assert!(
+            repo_root().join(root).is_dir(),
+            "missing corpus root {root}"
+        );
     }
 
     assert_eq!(
@@ -159,7 +164,8 @@ fn corpus_layout_separates_all_three_classes_without_private_base_ci_dependency(
         ExpectedOutputLocation::ExternalOnly
     );
     assert_eq!(
-        layout.protected_holdout
+        layout
+            .protected_holdout
             .candidate_generation_expected_output_access,
         CandidateExpectedOutputAccess::Denied
     );
@@ -202,10 +208,7 @@ fn repository_visible_fixtures_match_their_declared_classes() -> Result<(), Box<
     let development: CorpusHeader = serde_json::from_slice(DEVELOPMENT_BYTES)?;
 
     assert_eq!(public.corpus_class, CorpusClass::PublicRegression);
-    assert_eq!(
-        development.corpus_class,
-        CorpusClass::DevelopmentEvaluation
-    );
+    assert_eq!(development.corpus_class, CorpusClass::DevelopmentEvaluation);
     assert!(!public.corpus_revision.trim().is_empty());
     assert!(!public.expected_outputs_revision.trim().is_empty());
     assert!(!development.corpus_revision.trim().is_empty());
@@ -218,9 +221,7 @@ fn repository_visible_fixtures_match_their_declared_classes() -> Result<(), Box<
 fn protected_holdout_directory_is_metadata_only() -> Result<(), Box<dyn Error>> {
     let protected_dir = repo_root().join("tests/benchmark/protected-holdout");
     let committed_names = fs::read_dir(&protected_dir)?
-        .map(|entry| {
-            entry.map(|value| value.file_name().to_string_lossy().into_owned())
-        })
+        .map(|entry| entry.map(|value| value.file_name().to_string_lossy().into_owned()))
         .collect::<Result<BTreeSet<_>, _>>()?;
     let allowed_names = [".gitignore", "README.md", "manifest.json"]
         .into_iter()
@@ -287,19 +288,27 @@ fn protected_holdout_directory_is_metadata_only() -> Result<(), Box<dyn Error>> 
 }
 
 #[test]
-fn candidate_generation_view_cannot_enumerate_protected_expected_outputs(
-) -> Result<(), Box<dyn Error>> {
+fn candidate_generation_view_cannot_enumerate_protected_expected_outputs()
+-> Result<(), Box<dyn Error>> {
     let layout = load_layout()?;
     let visible = candidate_visible_fixture_paths(&layout);
 
     assert_eq!(visible.len(), 2);
-    assert!(visible.iter().any(|path| path.contains("public-regression")));
+    assert!(
+        visible
+            .iter()
+            .any(|path| path.contains("public-regression"))
+    );
     assert!(
         visible
             .iter()
             .any(|path| path.contains("development-evaluation"))
     );
-    assert!(visible.iter().all(|path| !path.contains("protected-holdout")));
+    assert!(
+        visible
+            .iter()
+            .all(|path| !path.contains("protected-holdout"))
+    );
 
     assert!(
         !T089_SOURCE.contains("protected-holdout"),
