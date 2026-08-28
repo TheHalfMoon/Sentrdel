@@ -248,12 +248,14 @@ impl fmt::Display for HookPlanError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::InvalidHookName => formatter.write_str("Git hook name is not canonical"),
-            Self::InvalidPreservedPath => {
-                formatter.write_str("preserved Git-hook path is outside the Sentrdel-owned namespace")
-            }
+            Self::InvalidPreservedPath => formatter
+                .write_str("preserved Git-hook path is outside the Sentrdel-owned namespace"),
             Self::InvalidDigest => formatter.write_str("Git-hook digest is not canonical SHA-256"),
             Self::UnsupportedMetadataVersion(version) => {
-                write!(formatter, "unsupported Git-hook metadata version {version:?}")
+                write!(
+                    formatter,
+                    "unsupported Git-hook metadata version {version:?}"
+                )
             }
             Self::IncompletePreservedOriginalMetadata => formatter.write_str(
                 "preserved Git-hook metadata must contain both path and digest or neither",
@@ -350,7 +352,10 @@ mod tests {
                 preserve_as: ".sentrdel/pre-commit.original".to_owned()
             }
         );
-        assert_eq!(plan.expected_current_digest, observed.digest().map(str::to_owned));
+        assert_eq!(
+            plan.expected_current_digest,
+            observed.digest().map(str::to_owned)
+        );
     }
 
     #[test]
@@ -436,11 +441,7 @@ mod tests {
         assert!(metadata.validate().is_ok());
 
         assert!(matches!(
-            HookOwnershipMetadata::new(
-                "pre-commit",
-                MANAGED,
-                Some(("../pre-commit", EXISTING)),
-            ),
+            HookOwnershipMetadata::new("pre-commit", MANAGED, Some(("../pre-commit", EXISTING)),),
             Err(HookPlanError::InvalidPreservedPath)
         ));
         assert!(matches!(
