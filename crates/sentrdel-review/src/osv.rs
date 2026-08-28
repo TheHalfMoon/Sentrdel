@@ -19,6 +19,8 @@ const MAX_OSV_ID_BYTES: usize = 512;
 const MAX_OSV_SUMMARY_BYTES: usize = 4 * 1024;
 const MAX_OSV_PAGE_TOKEN_BYTES: usize = 4 * 1024;
 const MAX_OSV_PACKAGE_FIELD_BYTES: usize = 512;
+const CACHE_ENTRY_OVERHEAD_BYTES: usize = 128;
+const CACHE_ADVISORY_OVERHEAD_BYTES: usize = 64;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum NetworkPolicy {
@@ -74,11 +76,13 @@ struct CacheEntry {
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct OsvCache {
     entries: BTreeMap<PackageVersion, CacheEntry>,
+    estimated_bytes: usize,
 }
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum OsvError {
     InputTooLarge { bytes: usize, max: usize },
+    ResourceLimitExceeded { bytes: usize, max: usize },
     InvalidPackageField(&'static str),
     InvalidResponse(&'static str),
     InvalidCache(&'static str),
@@ -93,6 +97,9 @@ impl fmt::Display for OsvError {
         match self {
             Self::InputTooLarge { bytes, max } => {
                 write!(formatter, "OSV input size {bytes} exceeds cap {max}")
+            }
+            Self::ResourceLimitExceeded { bytes, max } => {
+                write!(formatter, "OSV resource estimate {bytes} exceeds cap {max}")
             }
             Self::InvalidPackageField(field) => {
                 write!(formatter, "invalid OSV package field: {field}")
@@ -131,14 +138,14 @@ pub fn lookup_package<T: OsvTransport>(
 ) -> Result<OsvLookupOutcome, OsvError> {
     validate_package(package)?;
     let cached = cache.entries.get(package).cloned();
-    if let Some(entry) = &cached {
-        if cache_entry_is_fresh(entry, now_epoch_seconds, max_cache_age_seconds) {
-            return Ok(outcome_from_entry(
-                package,
-                entry,
-                OsvLookupStatus::FreshCache,
-            ));
-        }
+    if let Some(entry) = &cached
+        && cache_entry_is_fresh(entry, now_epoch_seconds, max_cache_age_seconds)
+    {
+        return Ok(outcome_from_entry(
+            package,
+            entry,
+            OsvLookupStatus::FreshCache,
+        ));
     }
 
     if network_policy == NetworkPolicy::NoNetwork {
@@ -215,6 +222,7 @@ fn query_network<T: OsvTransport>(
     let mut page_token: Option<String> = None;
     let mut seen_tokens = BTreeSet::new();
     let mut advisories = BTreeMap::<String, String>::new();
+    let mut advisory_bytes = 0usize;
 
     for _ in 0..MAX_OSV_PAGES {
         let request = build_query_request(package, page_token.as_deref())
@@ -225,7 +233,20 @@ fn query_network<T: OsvTransport>(
         let page = parse_query_response(&response).map_err(QueryNetworkError::Protocol)?;
 
         for advisory in page.advisories {
-            advisories.entry(advisory.id).or_insert(advisory.summary);
+            match advisories.entry(advisory.id) {
+                std::collections::btree_map::Entry::Vacant(slot) => {
+                    let additional = estimated_advisory_bytes(slot.key(), &advisory.summary);
+                    advisory_bytes = bounded_resource_total(
+                        advisory_bytes,
+                        0,
+                        additional,
+                        MAX_OSV_CACHE_BYTES,
+                    )
+                    .map_err(QueryNetworkError::Protocol)?;
+                    slot.insert(advisory.summary);
+                }
+                std::collections::btree_map::Entry::Occupied(_) => {}
+            }
             if advisories.len() > MAX_OSV_ADVISORIES_PER_PACKAGE {
                 return Err(QueryNetworkError::Protocol(OsvError::TooManyAdvisories {
                     count: advisories.len(),
@@ -504,6 +525,20 @@ impl OsvCache {
                 max: MAX_OSV_CACHE_ENTRIES,
             });
         }
+
+        let previous_estimate = self
+            .entries
+            .get(&package)
+            .map(|entry| estimated_cache_entry_bytes(&package, &entry.advisories))
+            .unwrap_or(0);
+        let proposed_estimate = estimated_cache_entry_bytes(&package, &advisories);
+        let next_estimated_bytes = bounded_resource_total(
+            self.estimated_bytes,
+            previous_estimate,
+            proposed_estimate,
+            MAX_OSV_CACHE_BYTES,
+        )?;
+
         advisories.sort_by(|left, right| left.id.cmp(&right.id));
         self.entries.insert(
             package,
@@ -512,8 +547,42 @@ impl OsvCache {
                 advisories,
             },
         );
+        self.estimated_bytes = next_estimated_bytes;
         Ok(())
     }
+}
+
+fn estimated_cache_entry_bytes(
+    package: &PackageVersion,
+    advisories: &[CachedAdvisory],
+) -> usize {
+    advisories.iter().fold(
+        CACHE_ENTRY_OVERHEAD_BYTES
+            .saturating_add(package.name.len())
+            .saturating_add(package.version.len()),
+        |total, advisory| {
+            total.saturating_add(estimated_advisory_bytes(&advisory.id, &advisory.summary))
+        },
+    )
+}
+
+fn estimated_advisory_bytes(id: &str, summary: &str) -> usize {
+    CACHE_ADVISORY_OVERHEAD_BYTES
+        .saturating_add(id.len())
+        .saturating_add(summary.len())
+}
+
+fn bounded_resource_total(
+    current: usize,
+    removed: usize,
+    added: usize,
+    max: usize,
+) -> Result<usize, OsvError> {
+    let bytes = current.saturating_sub(removed).saturating_add(added);
+    if bytes > max {
+        return Err(OsvError::ResourceLimitExceeded { bytes, max });
+    }
+    Ok(bytes)
 }
 
 fn required_cache_string<'a>(
@@ -570,4 +639,28 @@ fn validate_page_token(token: &str) -> Result<(), OsvError> {
         return Err(OsvError::InvalidResponse("invalid page token"));
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{OsvError, bounded_resource_total};
+
+    #[test]
+    fn resource_budget_is_transactional_and_overflow_safe() {
+        assert_eq!(bounded_resource_total(80, 10, 30, 100), Ok(100));
+        assert_eq!(
+            bounded_resource_total(80, 0, 30, 100),
+            Err(OsvError::ResourceLimitExceeded {
+                bytes: 110,
+                max: 100,
+            })
+        );
+        assert_eq!(
+            bounded_resource_total(usize::MAX, 0, 1, usize::MAX - 1),
+            Err(OsvError::ResourceLimitExceeded {
+                bytes: usize::MAX,
+                max: usize::MAX - 1,
+            })
+        );
+    }
 }
