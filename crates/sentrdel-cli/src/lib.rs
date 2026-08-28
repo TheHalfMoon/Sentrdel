@@ -5,6 +5,7 @@
 //! Command parsing, repository discovery, dependency injection, review/init/
 //! guard behavior, and feature-specific output population remain later tasks.
 
+pub mod guard_mcp;
 pub mod review;
 
 use std::{error::Error, fmt, process::ExitCode};
