@@ -2,9 +2,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use sentrdel_review::view::{
-    NormalizedRepoPath, RepoFileView, RepoViewError, RepoViewLimits,
-};
+use sentrdel_review::view::{NormalizedRepoPath, RepoFileView, RepoViewError, RepoViewLimits};
 
 struct TempRepo {
     root: PathBuf,
@@ -105,7 +103,11 @@ fn symlink_file_and_directory_components_are_rejected() {
     fs::create_dir_all(repo.root.join("real")).unwrap();
     fs::write(repo.root.join("real/safe.txt"), b"safe").unwrap();
 
-    symlink(outside.root.join("secret.txt"), repo.root.join("linked.txt")).unwrap();
+    symlink(
+        outside.root.join("secret.txt"),
+        repo.root.join("linked.txt"),
+    )
+    .unwrap();
     symlink(&outside.root, repo.root.join("linked-dir")).unwrap();
 
     let view = RepoFileView::new(&repo.root, RepoViewLimits::default()).unwrap();
