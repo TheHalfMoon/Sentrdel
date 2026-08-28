@@ -6,8 +6,6 @@
 
 use std::{error::Error, fmt, io::BufRead};
 
-use serde_json::Value;
-
 pub const QUALIFIED_RMCP_VERSION: &str = "3.1.4";
 pub const QUALIFIED_RMCP_REF: &str = "4a738b9dd99eaca418b614afa433a0cbdaf8d056";
 
@@ -151,39 +149,6 @@ impl McpProtocolVersion {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum InitializeEnvelope {
-    Request,
-    Response,
-}
-
-pub fn initialize_protocol_version(
-    frame: &[u8],
-) -> Result<(InitializeEnvelope, McpProtocolVersion), McpProtocolError> {
-    let value: Value = serde_json::from_slice(frame).map_err(McpProtocolError::InvalidJson)?;
-    let object = value.as_object().ok_or(McpProtocolError::InvalidEnvelope)?;
-
-    let request_version = object
-        .get("params")
-        .and_then(Value::as_object)
-        .and_then(|params| params.get("protocolVersion"));
-    let response_version = object
-        .get("result")
-        .and_then(Value::as_object)
-        .and_then(|result| result.get("protocolVersion"));
-
-    let (envelope, raw) = match (request_version, response_version) {
-        (Some(_), Some(_)) => return Err(McpProtocolError::AmbiguousProtocolVersion),
-        (Some(raw), None) => (InitializeEnvelope::Request, raw),
-        (None, Some(raw)) => (InitializeEnvelope::Response, raw),
-        (None, None) => return Err(McpProtocolError::MissingProtocolVersion),
-    };
-    let raw = raw
-        .as_str()
-        .ok_or(McpProtocolError::NonStringProtocolVersion)?;
-    Ok((envelope, McpProtocolVersion::parse_advertised(raw)?))
-}
-
 #[derive(Debug)]
 pub enum McpProtocolError {
     InvalidLimits,
@@ -192,11 +157,6 @@ pub enum McpProtocolError {
     BufferLimitExceeded { max: usize },
     UnterminatedFrame { buffered: usize },
     EmptyFrame,
-    InvalidJson(serde_json::Error),
-    InvalidEnvelope,
-    MissingProtocolVersion,
-    AmbiguousProtocolVersion,
-    NonStringProtocolVersion,
     UnsupportedProtocolVersion(String),
 }
 
@@ -221,17 +181,6 @@ impl fmt::Display for McpProtocolError {
                 "MCP stdio stream ended with an unterminated {buffered}-byte frame"
             ),
             Self::EmptyFrame => formatter.write_str("MCP stdio frame must not be empty"),
-            Self::InvalidJson(error) => write!(formatter, "invalid MCP JSON frame: {error}"),
-            Self::InvalidEnvelope => formatter.write_str("MCP frame must be a JSON object"),
-            Self::MissingProtocolVersion => {
-                formatter.write_str("MCP initialize envelope is missing protocolVersion")
-            }
-            Self::AmbiguousProtocolVersion => formatter.write_str(
-                "MCP initialize envelope contains both request and response protocolVersion fields",
-            ),
-            Self::NonStringProtocolVersion => {
-                formatter.write_str("MCP protocolVersion must be a string")
-            }
             Self::UnsupportedProtocolVersion(version) => {
                 write!(formatter, "unsupported MCP protocol version: {version}")
             }
@@ -243,7 +192,6 @@ impl Error for McpProtocolError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
             Self::Io(error) => Some(error),
-            Self::InvalidJson(error) => Some(error),
             _ => None,
         }
     }
@@ -293,62 +241,41 @@ mod tests {
     }
 
     #[test]
-    fn initialize_versions_are_explicitly_allowlisted() {
+    fn protocol_versions_are_explicitly_allowlisted() {
         for version in McpProtocolVersion::ALLOWLIST {
-            let frame = format!(
-                r#"{{"jsonrpc":"2.0","id":1,"params":{{"protocolVersion":"{}"}}}}"#,
-                version.as_str()
-            );
             assert_eq!(
-                initialize_protocol_version(frame.as_bytes()).unwrap(),
-                (InitializeEnvelope::Request, *version)
+                McpProtocolVersion::parse_advertised(version.as_str()).unwrap(),
+                *version
             );
         }
 
-        let future = br#"{"jsonrpc":"2.0","id":1,"params":{"protocolVersion":"2099-01-01"}}"#;
         assert!(matches!(
-            initialize_protocol_version(future),
+            McpProtocolVersion::parse_advertised("2099-01-01"),
             Err(McpProtocolError::UnsupportedProtocolVersion(version)) if version == "2099-01-01"
         ));
-    }
-
-    #[test]
-    fn response_negotiation_is_parsed_without_default_or_latest_semantics() {
-        let response = br#"{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2026-07-28"}}"#;
-        assert_eq!(
-            initialize_protocol_version(response).unwrap(),
-            (
-                InitializeEnvelope::Response,
-                McpProtocolVersion::V2026_07_28
-            )
-        );
-
-        let symbolic_latest = br#"{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"LATEST"}}"#;
         assert!(matches!(
-            initialize_protocol_version(symbolic_latest),
+            McpProtocolVersion::parse_advertised("LATEST"),
             Err(McpProtocolError::UnsupportedProtocolVersion(version)) if version == "LATEST"
         ));
     }
 
     #[test]
-    fn malformed_or_ambiguous_negotiation_fails_closed() {
+    fn invalid_limits_fail_closed() {
         assert!(matches!(
-            initialize_protocol_version(b"[]"),
-            Err(McpProtocolError::InvalidEnvelope)
+            McpStdioLimits {
+                max_frame_bytes: 0,
+                max_buffer_bytes: 1,
+            }
+            .validate(),
+            Err(McpProtocolError::InvalidLimits)
         ));
         assert!(matches!(
-            initialize_protocol_version(br#"{"jsonrpc":"2.0"}"#),
-            Err(McpProtocolError::MissingProtocolVersion)
-        ));
-        assert!(matches!(
-            initialize_protocol_version(br#"{"params":{"protocolVersion":7}}"#),
-            Err(McpProtocolError::NonStringProtocolVersion)
-        ));
-        assert!(matches!(
-            initialize_protocol_version(
-                br#"{"params":{"protocolVersion":"2025-11-25"},"result":{"protocolVersion":"2025-11-25"}}"#
-            ),
-            Err(McpProtocolError::AmbiguousProtocolVersion)
+            McpStdioLimits {
+                max_frame_bytes: 2,
+                max_buffer_bytes: 1,
+            }
+            .validate(),
+            Err(McpProtocolError::InvalidLimits)
         ));
     }
 
