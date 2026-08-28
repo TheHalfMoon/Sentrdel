@@ -86,12 +86,16 @@ fn canonical_v2_state_upgrades_to_latest_without_losing_evidence() {
         store.put_evidence(&evidence).expect("persist evidence");
     }
 
-    // Build an exact canonical v2 state by removing migration-v3/v4 objects
-    // from a database whose v1/v2 objects were created by the canonical code.
+    // Build an exact canonical v2 state by removing every post-v2 object from
+    // a database whose v1/v2 objects were created by the canonical code.
     let connection = Connection::open(&temp.path).expect("fixture database");
     connection
         .execute_batch(
             r#"
+            DROP TABLE sentrdel_graph_edge_history;
+            DROP TABLE sentrdel_graph_edge_projection;
+            DROP TABLE sentrdel_graph_node_history;
+            DROP TABLE sentrdel_graph_node_projection;
             DROP TABLE sentrdel_asel_events;
             DROP TABLE sentrdel_finding_history;
             DROP TABLE sentrdel_finding_projection;
@@ -105,7 +109,7 @@ fn canonical_v2_state_upgrades_to_latest_without_losing_evidence() {
     drop(connection);
 
     let store = Store::open(&temp.path).expect("canonical v2 database upgrades");
-    assert_eq!(store.schema_version().expect("schema version"), 4);
+    assert_eq!(store.schema_version().expect("schema version"), 5);
     assert_eq!(
         store
             .get_evidence(evidence.evidence_id(), &authority)
@@ -135,9 +139,17 @@ fn canonical_v2_state_upgrades_to_latest_without_losing_evidence() {
             |row| row.get(0),
         )
         .expect("v4 ASEL table");
-    assert_eq!(ledger_count, 4);
+    let v5_table_count: i64 = connection
+        .query_row(
+            "SELECT COUNT(*) FROM sqlite_schema WHERE type = 'table' AND name IN ('sentrdel_graph_node_projection', 'sentrdel_graph_node_history', 'sentrdel_graph_edge_projection', 'sentrdel_graph_edge_history')",
+            [],
+            |row| row.get(0),
+        )
+        .expect("v5 graph tables");
+    assert_eq!(ledger_count, 5);
     assert_eq!(v3_table_count, 4);
     assert_eq!(v4_table_count, 1);
+    assert_eq!(v5_table_count, 4);
 }
 
 #[test]

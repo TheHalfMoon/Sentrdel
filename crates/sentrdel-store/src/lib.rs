@@ -6,6 +6,7 @@ mod migrations;
 mod redaction;
 
 pub use migrations::evidence_store::{EvidenceStoreError, EvidenceStoreResult};
+pub use migrations::graph_store::{GraphStoreError, GraphStoreResult, GraphWriteOutcome};
 pub use migrations::state_store::{StateStoreError, StateStoreResult};
 pub use redaction::{
     PersistenceRedactionBoundary, PersistentSink, REDACTED_SECRET_TOKEN, RedactionError,

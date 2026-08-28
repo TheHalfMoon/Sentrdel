@@ -1,5 +1,7 @@
 mod asel_schema;
 pub(crate) mod evidence_store;
+mod graph_schema;
+pub(crate) mod graph_store;
 mod state_schema;
 pub(crate) mod state_store;
 
@@ -88,6 +90,12 @@ const MIGRATIONS: &[Migration] = &[
         name: "asel_append_only_store",
         apply: asel_schema::apply_v4_schema,
         validate: asel_schema::validate_v4_schema,
+    },
+    Migration {
+        version: 5,
+        name: "graph_projection_and_history",
+        apply: graph_schema::apply_v5_schema,
+        validate: graph_schema::validate_v5_schema,
     },
 ];
 

@@ -436,7 +436,7 @@ fn policy_bearing_event_round_trips_through_stored_event_hash_verification() {
 }
 
 #[test]
-fn canonical_v3_store_upgrades_to_v4_and_preserves_prior_state() {
+fn canonical_v3_store_upgrades_through_latest_and_preserves_prior_state() {
     let temp = TempDb::new("v3-upgrade");
     let prior_profile = ProjectProfile {
         schema_version: SCHEMA_V1.to_owned(),
@@ -462,8 +462,12 @@ fn canonical_v3_store_upgrades_to_v4_and_preserves_prior_state() {
     connection
         .execute_batch(
             r#"
+            DROP TABLE sentrdel_graph_edge_history;
+            DROP TABLE sentrdel_graph_edge_projection;
+            DROP TABLE sentrdel_graph_node_history;
+            DROP TABLE sentrdel_graph_node_projection;
             DROP TABLE sentrdel_asel_events;
-            DELETE FROM sentrdel_schema_migrations WHERE version = 4;
+            DELETE FROM sentrdel_schema_migrations WHERE version >= 4;
             PRAGMA user_version = 3;
             "#,
         )
@@ -476,11 +480,11 @@ fn canonical_v3_store_upgrades_to_v4_and_preserves_prior_state() {
         .expect("seed state while database is canonical v3");
     drop(connection);
 
-    let store = Store::open(&temp.path).expect("canonical v3 upgrades to v4");
-    assert_eq!(store.schema_version().expect("schema version"), 4);
+    let store = Store::open(&temp.path).expect("canonical v3 upgrades through latest");
+    assert_eq!(store.schema_version().expect("schema version"), 5);
     let restored = store
         .get_project_profile("repo:t020-v3")
-        .expect("read prior state after v4 migration")
+        .expect("read prior state after migration")
         .expect("prior profile survives migration");
     assert_eq!(restored, prior_profile);
     assert_eq!(store.asel_event_count("missing").expect("empty count"), 0);
