@@ -1,0 +1,47 @@
+name: T092 Governance Activation Probe
+
+on:
+  push:
+    branches:
+      - impl/001-t092-repository-governance
+
+permissions:
+  contents: read
+
+jobs:
+  governance-activation-probe:
+    name: T092 governance activation probe (non-gate)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout without persisted credentials
+        # actions/checkout v4.4.0 — immutable pin; do not use a mutable tag.
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+
+      - name: Detect dedicated governance credential
+        id: credential
+        shell: bash
+        env:
+          ADMIN_TOKEN: ${{ secrets.SENTRDEL_GOVERNANCE_ADMIN_TOKEN }}
+        run: |
+          if [[ -n "${ADMIN_TOKEN}" ]]; then
+            echo "::add-mask::${ADMIN_TOKEN}"
+            echo "present=true" >> "${GITHUB_OUTPUT}"
+            echo "Dedicated governance credential is configured."
+          else
+            echo "present=false" >> "${GITHUB_OUTPUT}"
+            echo "Dedicated governance credential is not configured; no mutation will be attempted."
+          fi
+
+      - name: Apply and verify canonical main protection
+        if: steps.credential.outputs.present == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.SENTRDEL_GOVERNANCE_ADMIN_TOKEN }}
+          SENTRDEL_APPLY_REPOSITORY_GOVERNANCE: "1"
+        run: python3 scripts/apply_repository_governance.py
+
+      - name: Record fail-closed external blocker
+        if: steps.credential.outputs.present != 'true'
+        run: echo "T092 activation probe: BLOCKED_NO_DEDICATED_ADMIN_TOKEN"
