@@ -1,0 +1,6 @@
+# Protected holdout case material and labels are external-only.
+private/
+labels/
+expected-outputs/
+*.private.json
+*.labels.json
