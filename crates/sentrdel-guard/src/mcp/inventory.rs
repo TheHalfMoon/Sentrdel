@@ -470,8 +470,10 @@ mod tests {
 
     #[test]
     fn description_schema_depth_and_tool_count_are_bounded() {
-        let mut limits = McpInventoryLimits::default();
-        limits.max_description_bytes = 8;
+        let limits = McpInventoryLimits {
+            max_description_bytes: 8,
+            ..McpInventoryLimits::default()
+        };
         assert!(matches!(
             build_inventory(&server(), &[], limits),
             Err(McpInventoryError::MetadataTooLarge {
@@ -480,8 +482,10 @@ mod tests {
             })
         ));
 
-        let mut limits = McpInventoryLimits::default();
-        limits.max_schema_depth = 2;
+        let limits = McpInventoryLimits {
+            max_schema_depth: 2,
+            ..McpInventoryLimits::default()
+        };
         assert!(matches!(
             build_inventory(
                 &UntrustedMcpServerMetadata {
@@ -494,8 +498,10 @@ mod tests {
             Err(McpInventoryError::SchemaTooDeep { .. })
         ));
 
-        let mut limits = McpInventoryLimits::default();
-        limits.max_tools = 1;
+        let limits = McpInventoryLimits {
+            max_tools: 1,
+            ..McpInventoryLimits::default()
+        };
         let mut second = tool(json!({"type": "null"}));
         second.name = "other".to_owned();
         assert!(matches!(
@@ -527,8 +533,10 @@ mod tests {
             Err(McpInventoryError::DuplicateToolName(name)) if name == "read_fixture"
         ));
 
-        let mut limits = McpInventoryLimits::default();
-        limits.max_total_metadata_bytes = 20;
+        let limits = McpInventoryLimits {
+            max_total_metadata_bytes: 20,
+            ..McpInventoryLimits::default()
+        };
         assert!(matches!(
             build_inventory(
                 &UntrustedMcpServerMetadata {
