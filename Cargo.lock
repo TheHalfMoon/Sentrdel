@@ -1635,6 +1635,7 @@ version = "0.0.0"
 dependencies = [
  "sentrdel-engine",
  "sentrdel-graph",
+ "sentrdel-guard",
  "sentrdel-policy",
  "sentrdel-schema",
  "sentrdel-store",
