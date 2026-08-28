@@ -2,7 +2,7 @@
 
 This directory is the repository-visible fixture root for SentrdelBench Core.
 
-T088 defines conventions only. T089 implements the executable harness and machine-readable run record. T090 implements the physical public/development/protected-holdout split and protected-label handling.
+T088 defines the evaluator/fixture conventions. T089 implements the executable harness and machine-readable run record. T090 makes the public/development/protected-holdout split auditable and freezes protected-label handling.
 
 ## 1. Fixture classes
 
@@ -12,9 +12,18 @@ Every benchmark case belongs to exactly one declared class:
 - `DEVELOPMENT_EVALUATION`
 - `PROTECTED_HOLDOUT`
 
-Until T090 implements the physical layout, contributors MUST NOT infer class from directory location alone. The future corpus manifest is authoritative.
+`tests/benchmark/corpus-layout.json` is the authoritative repository class/access manifest. Class roots are:
 
-Protected-holdout expected outputs MUST NOT be added to ordinary public fixtures merely to make a candidate pass.
+```text
+tests/benchmark/
+  public-regression/
+  development-evaluation/
+  protected-holdout/
+```
+
+The T089 root fixture `tests/benchmark/t089-core-corpus.json` remains only as a compatibility alias for the existing harness and MUST stay byte-identical to `public-regression/t089-core-corpus.json`; T090 tests enforce that equality.
+
+Public-regression and R1 development-evaluation expected outputs are repository-visible. Protected-holdout case material and expected outputs are `EXTERNAL_ONLY`; the committed protected root contains metadata only. Candidate-generation logic MUST NOT receive protected expected outputs.
 
 ## 2. Case identity
 
@@ -143,17 +152,38 @@ Any change that alters evaluated meaning requires a corpus revision change, incl
 - changing matching identity;
 - changing authority assertions.
 
-Pure documentation/formatting changes that do not alter evaluated bytes or expected semantics MAY preserve the revision if the future corpus manifest/digest remains unchanged.
+Pure documentation/formatting changes that do not alter evaluated bytes or expected semantics MAY preserve the revision if the corpus manifest/digest remains unchanged.
 
-## 14. T090 reserved layout
+## 14. T090 active corpus isolation
 
-T090 will establish the auditable physical or equivalent logical separation for:
+The repository-visible boundary is:
 
 ```text
 tests/benchmark/
+  corpus-layout.json
+  t089-core-corpus.json        # compatibility alias; PUBLIC_REGRESSION
   public-regression/
+    t089-core-corpus.json
   development-evaluation/
-  protected-holdout/   # expected outputs are not available to candidate-generation logic
+    t090-development-corpus.json
+  protected-holdout/
+    .gitignore
+    README.md
+    manifest.json              # metadata only; no private cases/labels
 ```
 
-This sketch is a convention, not authorization to commit protected labels to the public repository. T090 must choose an implementation that actually preserves the protected-output boundary.
+Canonical Rust tests enforce:
+
+- the three class roots are distinct and repository-relative;
+- committed public/development fixtures match their declared classes;
+- the T089 compatibility alias remains byte-identical to its public-regression copy;
+- protected holdout declares `EXTERNAL_ONLY` case/expected-output material and `DENIED` candidate-generation expected-output access;
+- base CI does not require private holdout material;
+- the protected root contains only `.gitignore`, `README.md`, and `manifest.json`;
+- the public/base T089 harness does not reference `protected-holdout` material.
+
+`.gitignore` is defense in depth, not the authority boundary. The executable directory allowlist is what makes an accidental/forced committed label file fail ordinary tests.
+
+Protected qualification happens outside the ordinary worktree using frozen candidate/evaluator/contract/corpus/expected-output identities. It returns only identity-bound aggregate promotion evidence described by `docs/security/evaluation-contract.md`; protected case IDs, labels, expected Findings/Evidence/Coverage, and case-level diagnostics do not become candidate-generation tuning inputs.
+
+A protected case becomes public only through deliberate declassification after the qualification cycle, with revised public corpus/expected-output identity and retirement/replacement of the disclosed holdout case. Once labels are disclosed, that case cannot be represented as unseen qualification evidence for a candidate that received them.
