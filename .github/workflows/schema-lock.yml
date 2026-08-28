@@ -1,24 +1,14 @@
 name: Schema Lock Qualification
-# Merge-candidate gate: read-only repository access; no source mutation.
+# Stable merge-candidate gate: read-only repository access; no source mutation.
+# T092 intentionally runs this on every PR so branch protection can require a
+# deterministic check name without path-filtered pending/skipped ambiguity.
 
 on:
   pull_request:
-    paths:
-      - 'crates/sentrdel-schema/**'
-      - 'schemas/v1/**'
-      - 'Cargo.toml'
-      - 'Cargo.lock'
-      - '.github/workflows/schema-lock.yml'
   push:
     branches:
       - main
       - 'impl/**'
-    paths:
-      - 'crates/sentrdel-schema/**'
-      - 'schemas/v1/**'
-      - 'Cargo.toml'
-      - 'Cargo.lock'
-      - '.github/workflows/schema-lock.yml'
 
 permissions:
   contents: read
