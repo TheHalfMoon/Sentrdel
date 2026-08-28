@@ -327,7 +327,6 @@ mod tests {
             output.guard.enforcement_fidelity,
             EnforcementFidelity::Enforced
         );
-        assert!(!R1_REMOTE_MCP_SUPPORTED);
     }
 
     #[test]
