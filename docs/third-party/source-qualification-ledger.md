@@ -14,6 +14,7 @@ The repository does **not** currently contain source-specific private permission
 | Graphify-Labs/graphify | `b2cd36267456c166788c95be6e68574064a92a42` (`v8`, package `0.9.48`) | FOUNDER_ATTESTED_DONOR | current package is Apache-2.0; NOTICE retains older MIT-contributed portions; selected-file qualification conservatively uses Apache-2.0 | `QUALIFIED_FOR_SELECTIVE_RUST_PORT` via GQ-001; implementation remains separate | graph diff + affected/blast-radius traversal + validation concepts only; no Python/NetworkX/MCP/provider runtime; Sentrdel authority remains canonical |
 | microsoft/regorus | `f98865fc980b9919d201e20969d9b28685ee72bc` (`regorus-v0.11.0`; crates.io `regorus 0.11.0`) | NATIVE_DEP | upstream package declares `MIT AND Apache-2.0 AND BSD-3-Clause` | `QUALIFIED_FOR_BOUNDED_IN_PROCESS_POLICY_ONLY` via RQ-001 | exact pin/checksum; defaults disabled; only `std` + `arc`; no HTTP/net/time/YAML/OPA-runtime/RVM policy authority; Regorus `build.rs`, transitive proc-macro/build surfaces, and `msvc_spectre_libs` native-link behavior recorded; Rust kernel remains authoritative |
 | watchexec/process-wrap | `3d856eebd02799d025237134db51d05bbc4f1434` (`v9.1.0`; crates.io `process-wrap 9.1.0`) | NATIVE_DEP | upstream package declares `Apache-2.0 OR MIT` | `QUALIFIED_FOR_T027_UNIX_PROCESS_LIFECYCLE_CONTAINMENT` via PWQ-001 | exact pin/checksum; defaults disabled; `std` + `process-group` + `job-object`; Unix process-group behavior proven on Ubuntu; `nix 0.31.3` privileged syscall/build surface recorded; Windows Job Object closure is lockfile-governed but not runtime-qualified by current evidence |
+| petgraph/petgraph | `162903562ce5b00cdba390a0d9c1bb80f1c75bf5` (`petgraph@v0.8.3`; crates.io `petgraph 0.8.3`) | NATIVE_DEP | upstream package declares `MIT OR Apache-2.0` | `QUALIFIED_FOR_T033_BOUNDED_IN_MEMORY_GRAPH_PROJECTION` via PGQ-001 | exact pin/checksum; defaults disabled; `std` only; stable identity/provenance/confidence/verdict authority remains Sentrdel-owned; no new build/proc-macro/native/download/network surface in selected closure |
 | vitali87/code-graph-rag | UNPINNED — exact qualification required before import | FOUNDER_ATTESTED_DONOR | repository-level MIT observed; file-level record still required | QUALIFICATION_PENDING / selective port or adapter | permission basis currently `FOUNDER_ATTESTATION_2026-08-24`; source-specific proof not stored; resource/data-flow/static-runtime merge is high-value; Python/Memgraph is not the Sentrdel trusted base runtime |
 | deepseek-ai/deepseek-harness | UNPINNED — exact qualification required before import | FOUNDER_ATTESTED_DONOR | repository-level MIT observed | QUALIFICATION_PENDING / selective port | permission basis currently `FOUNDER_ATTESTATION_2026-08-24`; source-specific proof not stored; durable events/tool guards/approval seams; do not inherit the whole rapidly evolving agent runtime |
 | continuedev/continue | UNPINNED — exact qualification required before import | FOUNDER_ATTESTED_DONOR | repository-level Apache-2.0 observed | QUALIFICATION_PENDING / integration-layer reuse | permission basis currently `FOUNDER_ATTESTATION_2026-08-24`; source-specific proof not stored; VS Code/JetBrains/CLI/diff plumbing may be reused selectively; no need for a wholesale product fork |
@@ -124,6 +125,41 @@ qualified_by: Sentrdel dependency qualification review
 qualified_at: 2026-08-26
 qualification_evidence: GitHub Actions run 32916506528 on Sentrdel head f61b71cae9f66168863da6768d24dbd2822f0160; Rust 1.98 semantic PASS; cargo-audit 0.22.0 PASS; cargo-deny 0.20.2 PASS without waiver
 qualification_report: docs/third-party/process-wrap-qualification.md
+```
+
+## PGQ-001 — Petgraph dependency qualification record
+
+```text
+source_id: PGQ-001
+repository: petgraph/petgraph
+exact_ref: 162903562ce5b00cdba390a0d9c1bb80f1c75bf5
+tag: petgraph@v0.8.3
+annotated_tag_object: 64ee942b617260177f0423ceb9e79d9b415627cc
+crate: petgraph =0.8.3
+crate_checksum: 8701b58ea97060d5e5b155d383a69952a60943f0e6dfe30b04c287beb0b27455
+files_or_artifacts:
+  - crates.io petgraph 0.8.3 package
+  - petgraph Cargo.toml @ 162903562ce5b00cdba390a0d9c1bb80f1c75bf5
+  - crates.io fixedbitset 0.5.7 package @ checksum 1d674e81391d1e1ab681a28d99df07927c6d4aa5b027d7da16ba32d1d21ecd99
+  - crates.io hashbrown 0.15.5 package @ checksum 9229cfe53dfd69f0609a49f65461bd93001ea1ef889cd5529dd176593f5338a1
+  - crates.io foldhash 0.1.5 package @ checksum d9c4f5dac5e15c24eb999c26181a6ca40b39fe946cbe4c263c7209467bc83af2
+  - committed Sentrdel Cargo.lock dependency closure
+permission_basis: public package license grants
+source_specific_permission_reference: N/A
+license_expression: MIT OR Apache-2.0
+notices: follow upstream package/license requirements; no donor implementation source copied into Sentrdel
+integration_mode: NATIVE_DEP inside sentrdel-graph for ephemeral adjacency/index/traversal mechanics only
+features: petgraph default-features=false; std only
+executes_at_build: NO new package build-script surface admitted by the selected closure
+procedural_macro: NO new procedural-macro surface admitted by the selected closure
+native_code: NO new native/FFI dependency surface admitted by the selected closure
+downloads_artifacts: no runtime/build artifact-download path admitted; normal crates.io dependency resolution remains lockfile governed
+security_notes: canonical node/edge identity, schema validation, provenance, confidence, relation semantics, persistence, findings and verdict authority remain Sentrdel-owned; reverse reachability requires explicit relation allowlist and bounded depth; witness paths express graph reachability only
+maintenance_notes: exact version/feature/closure pin; upstream post-release multi-crate evolution or any dependency/feature expansion requires a fresh qualification delta
+modifications: no upstream source modified/copied; Sentrdel wraps Petgraph behind deterministic projection/diff APIs and returns only stable Sentrdel identities
+qualified_by: Sentrdel dependency qualification review
+qualified_at: 2026-08-28
+qualification_report: docs/third-party/petgraph-qualification.md
 ```
 
 ## Record template
