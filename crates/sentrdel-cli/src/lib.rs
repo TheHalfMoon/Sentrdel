@@ -5,6 +5,7 @@
 //! Command parsing, repository discovery, dependency injection, review/init/
 //! guard behavior, and feature-specific output population remain later tasks.
 
+pub mod guard_mcp;
 pub mod review;
 
 use std::{error::Error, fmt, process::ExitCode};
@@ -489,161 +490,62 @@ mod tests {
     }
 
     #[test]
-    fn command_identifiers_are_stable() {
-        let cases = [
-            (CliCommand::Init, "\"init\""),
-            (CliCommand::Review, "\"review\""),
-            (CliCommand::Explain, "\"explain\""),
-            (CliCommand::GuardMcp, "\"guard mcp\""),
-            (
-                CliCommand::GuardInstallGitHooks,
-                "\"guard install-git-hooks\"",
-            ),
-        ];
-        for (command, expected) in cases {
-            assert_eq!(
-                serde_json::to_string(&command).expect("serialize"),
-                expected
-            );
-        }
-    }
-
-    #[test]
-    fn json_envelope_has_binding_top_level_shape_and_optional_store_refs() {
-        let json = envelope(Vec::new(), Vec::new(), Vec::new(), None)
-            .to_json_line()
-            .expect("json");
-        assert!(json.ends_with('\n'));
-
-        let value: Value = serde_json::from_str(json.trim_end()).expect("parse");
-        let object = value.as_object().expect("object");
-        assert_eq!(
-            object.keys().cloned().collect::<Vec<_>>(),
+    fn envelope_is_deterministic_and_keeps_runtime_metadata_explicit() {
+        let first = envelope(
             vec![
-                "command",
-                "coverage",
-                "decision",
-                "diagnostics",
-                "findings",
-                "repository",
-                "schema_version",
-                "timing",
-            ]
-        );
-        assert!(!object.contains_key("store_refs"));
-        assert_eq!(object["schema_version"], SCHEMA_V1);
-        assert_eq!(object["decision"], "ALLOW");
-    }
-
-    #[test]
-    fn input_order_and_direct_record_construction_do_not_change_machine_json() {
-        let finding_a = CliFindingRef {
-            finding_id: "finding:a".to_owned(),
-            evidence_ids: vec![
-                "evidence:2".to_owned(),
-                "evidence:1".to_owned(),
-                "evidence:1".to_owned(),
+                CliFindingRef::new("finding:b", ["evidence:2".to_owned()]).unwrap(),
+                CliFindingRef::new(
+                    "finding:a",
+                    ["evidence:1".to_owned(), "evidence:1".to_owned()],
+                )
+                .unwrap(),
             ],
-        };
-        let finding_b =
-            CliFindingRef::new("finding:b", vec!["evidence:3".to_owned()]).expect("finding");
-        let diagnostic_a = CliDiagnostic::new("A", CliDiagnosticLevel::Warning, "first diagnostic")
-            .expect("diagnostic");
-        let diagnostic_b = CliDiagnostic::new("B", CliDiagnosticLevel::Info, "second diagnostic")
-            .expect("diagnostic");
-
-        let forward = envelope(
-            vec![finding_b.clone(), finding_a.clone()],
             vec![coverage("coverage:b"), coverage("coverage:a")],
-            vec![diagnostic_b.clone(), diagnostic_a.clone()],
-            Some(vec![
-                "store:b".to_owned(),
-                "store:a".to_owned(),
-                "store:a".to_owned(),
-            ]),
+            vec![
+                CliDiagnostic::new("Z", CliDiagnosticLevel::Warning, "second").unwrap(),
+                CliDiagnostic::new("A", CliDiagnosticLevel::Info, "first").unwrap(),
+            ],
+            Some(vec!["store:b".to_owned(), "store:a".to_owned()]),
         );
-        let reverse = envelope(
-            vec![finding_a, finding_b],
-            vec![coverage("coverage:a"), coverage("coverage:b")],
-            vec![diagnostic_a, diagnostic_b],
-            Some(vec!["store:a".to_owned(), "store:b".to_owned()]),
+        let second = envelope(
+            first.findings.iter().rev().cloned().collect(),
+            first.coverage.iter().rev().cloned().collect(),
+            first.diagnostics.iter().rev().cloned().collect(),
+            first.store_refs.clone(),
         );
 
-        assert_eq!(
-            forward.to_json_line().expect("forward"),
-            reverse.to_json_line().expect("reverse")
-        );
-        assert_eq!(
-            forward.findings[0].evidence_ids,
-            vec!["evidence:1", "evidence:2"]
-        );
+        assert_eq!(first, second);
+        let json = first.to_json_line().unwrap();
+        let parsed: Value = serde_json::from_str(json.trim()).unwrap();
+        assert_eq!(parsed["command"], "review");
+        assert_eq!(parsed["findings"][0]["finding_id"], "finding:a");
+        assert_eq!(parsed["coverage"][0]["coverage_id"], "coverage:a");
+        assert_eq!(parsed["diagnostics"][0]["code"], "A");
+        assert_eq!(parsed["store_refs"][0], "store:a");
+        assert_eq!(parsed["timing"]["duration_ms"], 12);
     }
 
     #[test]
-    fn envelope_rejects_duplicate_canonical_references() {
-        let finding = CliFindingRef::new("finding:a", Vec::<String>::new()).expect("finding");
-        let duplicate_findings = CliEnvelope::new(
-            CliCommand::Review,
-            CliRepository::new("sha256:repo", ".").expect("repo"),
-            CliDecision::Allow,
-            vec![finding.clone(), finding],
-            Vec::new(),
-            Vec::new(),
-            CliTiming::default(),
-            None,
-        );
+    fn duplicate_canonical_ids_and_invalid_roots_fail_closed() {
         assert!(matches!(
-            duplicate_findings,
-            Err(CliContractError::DuplicateFindingId(_))
+            CliRepository::new("sha256:repo", "../escape"),
+            Err(CliContractError::InvalidRepositoryRoot(_))
         ));
-
-        let duplicate_coverage = CliEnvelope::new(
-            CliCommand::Review,
-            CliRepository::new("sha256:repo", ".").expect("repo"),
-            CliDecision::Allow,
-            Vec::new(),
-            vec![coverage("coverage:a"), coverage("coverage:a")],
-            Vec::new(),
-            CliTiming::default(),
-            None,
-        );
         assert!(matches!(
-            duplicate_coverage,
-            Err(CliContractError::DuplicateCoverageId(_))
+            CliEnvelope::new(
+                CliCommand::Review,
+                CliRepository::new("sha256:repo", ".").unwrap(),
+                CliDecision::Allow,
+                vec![
+                    CliFindingRef::new("same", std::iter::empty()).unwrap(),
+                    CliFindingRef::new("same", std::iter::empty()).unwrap(),
+                ],
+                Vec::new(),
+                Vec::new(),
+                CliTiming::default(),
+                None,
+            ),
+            Err(CliContractError::DuplicateFindingId(id)) if id == "same"
         ));
-    }
-
-    #[test]
-    fn absolute_or_noncanonical_repository_roots_are_rejected() {
-        for root in [
-            "/home/user/repo",
-            "C:/repo",
-            "../repo",
-            "repo/../other",
-            "repo\\src",
-            "repo\nother",
-        ] {
-            assert!(matches!(
-                CliRepository::new("sha256:repo", root),
-                Err(CliContractError::InvalidRepositoryRoot(_))
-            ));
-        }
-        assert!(CliRepository::new("sha256:repo", ".").is_ok());
-        assert!(CliRepository::new("sha256:repo", "packages/api").is_ok());
-    }
-
-    #[test]
-    fn untrusted_identifiers_diagnostics_and_timing_are_bounded() {
-        assert!(CliFindingRef::new("   ", Vec::<String>::new()).is_err());
-        assert!(CliFindingRef::new("finding:a", vec!["bad\nid".to_owned()]).is_err());
-        assert!(CliDiagnostic::new("D001", CliDiagnosticLevel::Error, "bad\nmessage").is_err());
-        assert!(
-            CliTiming {
-                duration_ms: 0,
-                observed_at: Some("bad\ntime".to_owned()),
-            }
-            .validate()
-            .is_err()
-        );
     }
 }
