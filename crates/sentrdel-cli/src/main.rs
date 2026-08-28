@@ -1,5 +1,7 @@
 #![forbid(unsafe_code)]
 
+pub mod bootstrap;
+
 use std::process::ExitCode;
 
 use sentrdel_cli::CliExitCode;
