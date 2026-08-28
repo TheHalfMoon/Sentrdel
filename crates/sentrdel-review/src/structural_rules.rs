@@ -5,11 +5,8 @@
 
 use crate::structural::{StructuralLanguage, StructuralRule};
 
-pub const JS_EVAL_CALL: StructuralRule = StructuralRule::new(
-    "js.eval-call",
-    StructuralLanguage::JavaScript,
-    "eval($ARG)",
-);
+pub const JS_EVAL_CALL: StructuralRule =
+    StructuralRule::new("js.eval-call", StructuralLanguage::JavaScript, "eval($ARG)");
 
 pub const JS_DYNAMIC_FUNCTION_CONSTRUCTOR: StructuralRule = StructuralRule::new(
     "js.dynamic-function-constructor",
