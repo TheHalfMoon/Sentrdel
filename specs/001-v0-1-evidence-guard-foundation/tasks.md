@@ -130,7 +130,7 @@
 - [x] T051 [P] [US2] Implement MCP server/tool inventory and bounded description/schema hashes; cap metadata bytes/depth before storage/policy/reasoning.
 - [x] T052 [US2] Implement stdio gateway normalization, pre-invocation policy, scoped approval and forwarding with max frame/buffer/args/result limits and fail-closed protocol errors; forwarding uses the T093 scrubbed environment/capability boundary.
 - [x] T053 [US2] Persist ASEL discovery/invocation/approval/denial/tool-result events; expose computed session head/event count and optional expected-head verification without claiming local chain is tamper-proof.
-- [ ] T054 [P] [US2] Detect instruction-shaped/untrusted tool descriptions/results as Evidence/candidate telemetry without letting payload text alter policy; MCP content remains data unless an explicit trusted authority contract says otherwise.
+- [x] T054 [P] [US2] Detect instruction-shaped/untrusted tool descriptions/results as Evidence/candidate telemetry without letting payload text alter policy; MCP content remains data unless an explicit trusted authority contract says otherwise.
 - [ ] T055 [US2] Implement `sentrdel guard mcp` CLI with ENFORCED fidelity for proxied stdio path and chain/head summary.
 - [ ] T056 [P] [US2] Implement safe git-hook install/composition/uninstall metadata without overwriting unrelated hooks.
 - [ ] T057 [US2] Implement hook-install CLI with PARTIAL fidelity warning.
