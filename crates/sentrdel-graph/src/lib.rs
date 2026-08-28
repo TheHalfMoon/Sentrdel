@@ -13,8 +13,8 @@ mod projection;
 mod scip;
 
 pub use context::{
-    FindingGraphContext, FindingGraphContextError, FindingReachabilityContext, FindingSymbolContext,
-    GraphSnapshotSide, SymbolGraphState, build_finding_graph_context,
+    FindingGraphContext, FindingGraphContextError, FindingReachabilityContext,
+    FindingSymbolContext, GraphSnapshotSide, SymbolGraphState, build_finding_graph_context,
 };
 pub use projection::{
     GraphDiff, GraphEdgeChange, GraphNodeChange, GraphProjection, GraphProjectionError,
