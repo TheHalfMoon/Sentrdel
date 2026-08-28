@@ -1,0 +1,1 @@
+Temporary exact-head CI trigger for T055 after canonical rustfmt. This file is removed immediately.
