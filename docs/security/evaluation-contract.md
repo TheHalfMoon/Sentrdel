@@ -70,11 +70,21 @@ No single scalar score is canonical truth. Every run reports explicit dimensions
 
 ### 6.1 High-severity precision
 
-For the configured high-severity subset:
+For R1 review evaluation, the high-severity set is canonical `BLOCK` and `HIGH` unless a later binding contract explicitly changes the set before the run starts.
+
+A high-severity match is counted as `TP_high` only when an expected `BLOCK`/`HIGH` finding is matched and the emitted canonical Finding is also `BLOCK`/`HIGH`. An expected high-severity finding that is unmatched, or matched only by an emitted `MEDIUM`/`LOW`/`INFO` Finding, remains a high-severity miss for this dimension. An emitted `BLOCK`/`HIGH` Finding with no valid high-severity expected match is `FP_high`.
+
+The evaluator MUST therefore report at least:
+
+- `high_severity_expected`;
+- `high_severity_true_positive`;
+- `high_severity_false_negative`;
+- `high_severity_false_positive`;
+- `severity_mismatch_count`.
 
 `high_severity_precision = TP_high / (TP_high + FP_high)`
 
-The run MUST also record the integer numerator and denominator components. If no high-severity finding was emitted, precision is `NOT_APPLICABLE`; it MUST NOT be represented as `1.0` merely because the denominator is zero.
+The run MUST record the integer numerator and denominator components. If no high-severity finding was emitted, precision is `NOT_APPLICABLE`; it MUST NOT be represented as `1.0` merely because the denominator is zero. Lowering severity cannot convert a known high-severity miss into a high-severity true positive or silently improve the metric.
 
 ### 6.2 Known-ground-truth recall and miss rate
 
@@ -250,6 +260,7 @@ T089's executable run record MUST be able to represent, without loss:
 - expected-output revision/digest for the evaluated subset;
 - baseline and candidate identities;
 - metric states plus raw numerator/denominator/sample components;
+- high-severity expected/TP/FN/FP and severity-mismatch components;
 - coverage/provenance components;
 - deterministic replay status and semantic-difference references;
 - authority-contract assertion results;
