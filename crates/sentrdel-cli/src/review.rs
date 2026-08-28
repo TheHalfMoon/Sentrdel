@@ -1,6 +1,5 @@
 use std::{collections::BTreeSet, error::Error, fmt};
 
-use sentrdel_review::coverage::{ReviewCoverageMatrix, ReviewCoverageSource};
 use sentrdel_schema::{
     coverage::{CoverageRecord, CoverageState},
     finding::{EpistemicState, Finding, Severity},
@@ -13,16 +12,58 @@ use crate::{
 
 const COVERAGE_GAP_DIAGNOSTIC: &str = "REVIEW_COVERAGE_GAP";
 
+/// Output-only coverage gap that has no authoritative `CoverageRecord`.
+///
+/// This is used for expected producers that did not report. It deliberately
+/// carries no coverage id and cannot masquerade as a producer-issued record.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct ReviewCoverageGap {
+    pub capability: String,
+    pub scope: String,
+    pub producer: Option<String>,
+    pub state: CoverageState,
+    pub reason_code: String,
+}
+
+impl ReviewCoverageGap {
+    pub fn new(
+        capability: impl Into<String>,
+        scope: impl Into<String>,
+        producer: Option<String>,
+        state: CoverageState,
+        reason_code: impl Into<String>,
+    ) -> Result<Self, ReviewOutputError> {
+        let gap = Self {
+            capability: capability.into().trim().to_owned(),
+            scope: scope.into().trim().to_owned(),
+            producer: producer.map(|value| value.trim().to_owned()),
+            state,
+            reason_code: reason_code.into().trim().to_owned(),
+        };
+        if gap.capability.is_empty()
+            || gap.scope.is_empty()
+            || gap.reason_code.is_empty()
+            || gap.producer.as_deref().is_some_and(str::is_empty)
+        {
+            return Err(ReviewOutputError::InvalidCoverageGap);
+        }
+        if gap.state == CoverageState::Covered {
+            return Err(ReviewOutputError::CoveredGap);
+        }
+        Ok(gap)
+    }
+}
+
 /// Output-only view for the R1 `sentrdel review` command.
 ///
 /// Canonical Finding and Coverage authority remains in `sentrdel-schema` and
-/// `sentrdel-review`. This type only validates that the human rendering and the
-/// stable JSON envelope describe the same review result.
+/// review producers. This type only validates and renders already-authoritative
+/// results plus explicit local coverage gaps.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ReviewOutput {
     envelope: CliEnvelope,
     findings: Vec<Finding>,
-    coverage_matrix: ReviewCoverageMatrix,
+    missing_coverage: Vec<ReviewCoverageGap>,
 }
 
 impl ReviewOutput {
@@ -32,13 +73,15 @@ impl ReviewOutput {
         decision: CliDecision,
         mut findings: Vec<Finding>,
         observed_coverage: Vec<CoverageRecord>,
-        coverage_matrix: ReviewCoverageMatrix,
+        mut missing_coverage: Vec<ReviewCoverageGap>,
         timing: CliTiming,
         store_refs: Option<Vec<String>>,
     ) -> Result<Self, ReviewOutputError> {
         findings.sort_by(|left, right| left.finding_id().cmp(right.finding_id()));
         reject_duplicate_findings(&findings)?;
-        validate_matrix_against_observed(&coverage_matrix, &observed_coverage)?;
+
+        missing_coverage.sort();
+        reject_duplicate_missing_coverage(&missing_coverage)?;
 
         let finding_refs = findings
             .iter()
@@ -50,27 +93,17 @@ impl ReviewOutput {
             })
             .collect::<Result<Vec<_>, _>>()?;
 
-        let diagnostics = coverage_matrix
-            .entries
+        let mut diagnostics = observed_coverage
             .iter()
-            .filter(|entry| entry.is_gap())
-            .map(|entry| {
-                let producer = entry.key.producer.as_deref().unwrap_or("unspecified");
-                let reason = entry.reason_code.as_deref().unwrap_or("NO_REASON_CODE");
-                CliDiagnostic::new(
-                    COVERAGE_GAP_DIAGNOSTIC,
-                    CliDiagnosticLevel::Warning,
-                    format!(
-                        "coverage gap: capability={} scope={} producer={} state={} reason={}",
-                        entry.key.capability,
-                        entry.key.scope,
-                        producer,
-                        coverage_state_name(&entry.state),
-                        reason
-                    ),
-                )
-            })
+            .filter(|record| record.is_gap())
+            .map(diagnostic_for_observed_gap)
             .collect::<Result<Vec<_>, _>>()?;
+        diagnostics.extend(
+            missing_coverage
+                .iter()
+                .map(diagnostic_for_missing_gap)
+                .collect::<Result<Vec<_>, _>>()?,
+        );
 
         let envelope = CliEnvelope::new(
             CliCommand::Review,
@@ -86,7 +119,7 @@ impl ReviewOutput {
         Ok(Self {
             envelope,
             findings,
-            coverage_matrix,
+            missing_coverage,
         })
     }
 
@@ -98,8 +131,8 @@ impl ReviewOutput {
         &self.findings
     }
 
-    pub fn coverage_matrix(&self) -> &ReviewCoverageMatrix {
-        &self.coverage_matrix
+    pub fn missing_coverage(&self) -> &[ReviewCoverageGap] {
+        &self.missing_coverage
     }
 
     pub fn render_json(&self) -> Result<String, serde_json::Error> {
@@ -158,32 +191,13 @@ impl ReviewOutput {
 
         out.push_str("\nCoverage gaps:\n");
         let mut wrote_gap = false;
-        for entry in self
-            .coverage_matrix
-            .entries
-            .iter()
-            .filter(|entry| entry.is_gap())
-        {
+        for record in self.envelope.coverage.iter().filter(|record| record.is_gap()) {
             wrote_gap = true;
-            out.push_str("- ");
-            out.push_str(&entry.key.capability);
-            out.push_str(" @ ");
-            out.push_str(&entry.key.scope);
-            out.push_str(" [");
-            out.push_str(coverage_state_name(&entry.state));
-            out.push(']');
-            if let Some(producer) = &entry.key.producer {
-                out.push_str(" producer=");
-                out.push_str(producer);
-            }
-            if let Some(reason) = &entry.reason_code {
-                out.push_str(" reason=");
-                out.push_str(reason);
-            }
-            if entry.source == ReviewCoverageSource::MissingExpected {
-                out.push_str(" source=MISSING_EXPECTED");
-            }
-            out.push('\n');
+            render_observed_gap(&mut out, record);
+        }
+        for gap in &self.missing_coverage {
+            wrote_gap = true;
+            render_missing_gap(&mut out, gap);
         }
         if !wrote_gap {
             out.push_str("- None.\n");
@@ -203,8 +217,8 @@ impl ReviewOutput {
             }
             out.push_str("- observed_coverage_records=");
             out.push_str(&self.envelope.coverage.len().to_string());
-            out.push_str(" matrix_gaps=");
-            out.push_str(&self.coverage_matrix.gap_count.to_string());
+            out.push_str(" missing_expected_coverage=");
+            out.push_str(&self.missing_coverage.len().to_string());
             out.push('\n');
         }
 
@@ -216,8 +230,9 @@ impl ReviewOutput {
 pub enum ReviewOutputError {
     Cli(CliContractError),
     DuplicateFindingId(String),
-    DuplicateMatrixCoverageId(String),
-    MatrixCoverageMismatch,
+    InvalidCoverageGap,
+    CoveredGap,
+    DuplicateMissingCoverage,
 }
 
 impl fmt::Display for ReviewOutputError {
@@ -227,13 +242,15 @@ impl fmt::Display for ReviewOutputError {
             Self::DuplicateFindingId(id) => {
                 write!(formatter, "review output contains duplicate finding id {id:?}")
             }
-            Self::DuplicateMatrixCoverageId(id) => write!(
-                formatter,
-                "review coverage matrix repeats observed coverage id {id:?}"
+            Self::InvalidCoverageGap => formatter.write_str(
+                "review missing-coverage gap requires bounded non-empty capability, scope, reason, and optional producer",
             ),
-            Self::MatrixCoverageMismatch => formatter.write_str(
-                "review coverage matrix observed ids do not match JSON coverage records",
+            Self::CoveredGap => formatter.write_str(
+                "review missing-coverage entry cannot claim COVERED without a producer CoverageRecord",
             ),
+            Self::DuplicateMissingCoverage => {
+                formatter.write_str("review missing-coverage entries must be unique")
+            }
         }
     }
 }
@@ -243,8 +260,9 @@ impl Error for ReviewOutputError {
         match self {
             Self::Cli(error) => Some(error),
             Self::DuplicateFindingId(_)
-            | Self::DuplicateMatrixCoverageId(_)
-            | Self::MatrixCoverageMismatch => None,
+            | Self::InvalidCoverageGap
+            | Self::CoveredGap
+            | Self::DuplicateMissingCoverage => None,
         }
     }
 }
@@ -266,27 +284,81 @@ fn reject_duplicate_findings(findings: &[Finding]) -> Result<(), ReviewOutputErr
     Ok(())
 }
 
-fn validate_matrix_against_observed(
-    matrix: &ReviewCoverageMatrix,
-    observed: &[CoverageRecord],
-) -> Result<(), ReviewOutputError> {
-    let observed_ids: BTreeSet<_> = observed
-        .iter()
-        .map(|record| record.coverage_id.as_str())
-        .collect();
-    let mut matrix_ids = BTreeSet::new();
-    for entry in &matrix.entries {
-        let Some(id) = entry.coverage_id.as_deref() else {
-            continue;
-        };
-        if !matrix_ids.insert(id) {
-            return Err(ReviewOutputError::DuplicateMatrixCoverageId(id.to_owned()));
+fn reject_duplicate_missing_coverage(gaps: &[ReviewCoverageGap]) -> Result<(), ReviewOutputError> {
+    let mut keys = BTreeSet::new();
+    for gap in gaps {
+        let key = (&gap.capability, &gap.scope, &gap.producer);
+        if !keys.insert(key) {
+            return Err(ReviewOutputError::DuplicateMissingCoverage);
         }
     }
-    if matrix_ids != observed_ids {
-        return Err(ReviewOutputError::MatrixCoverageMismatch);
-    }
     Ok(())
+}
+
+fn diagnostic_for_observed_gap(record: &CoverageRecord) -> Result<CliDiagnostic, CliContractError> {
+    CliDiagnostic::new(
+        COVERAGE_GAP_DIAGNOSTIC,
+        CliDiagnosticLevel::Warning,
+        format!(
+            "coverage gap: capability={} scope={} producer={} state={} reason={}",
+            record.capability,
+            record.scope,
+            record.producer.as_deref().unwrap_or("unspecified"),
+            coverage_state_name(&record.state),
+            record.reason_code.as_deref().unwrap_or("NO_REASON_CODE")
+        ),
+    )
+}
+
+fn diagnostic_for_missing_gap(gap: &ReviewCoverageGap) -> Result<CliDiagnostic, CliContractError> {
+    CliDiagnostic::new(
+        COVERAGE_GAP_DIAGNOSTIC,
+        CliDiagnosticLevel::Warning,
+        format!(
+            "coverage gap: capability={} scope={} producer={} state={} reason={} source=MISSING_EXPECTED",
+            gap.capability,
+            gap.scope,
+            gap.producer.as_deref().unwrap_or("unspecified"),
+            coverage_state_name(&gap.state),
+            gap.reason_code
+        ),
+    )
+}
+
+fn render_observed_gap(out: &mut String, record: &CoverageRecord) {
+    out.push_str("- ");
+    out.push_str(&record.capability);
+    out.push_str(" @ ");
+    out.push_str(&record.scope);
+    out.push_str(" [");
+    out.push_str(coverage_state_name(&record.state));
+    out.push(']');
+    if let Some(producer) = &record.producer {
+        out.push_str(" producer=");
+        out.push_str(producer);
+    }
+    if let Some(reason) = &record.reason_code {
+        out.push_str(" reason=");
+        out.push_str(reason);
+    }
+    out.push('\n');
+}
+
+fn render_missing_gap(out: &mut String, gap: &ReviewCoverageGap) {
+    out.push_str("- ");
+    out.push_str(&gap.capability);
+    out.push_str(" @ ");
+    out.push_str(&gap.scope);
+    out.push_str(" [");
+    out.push_str(coverage_state_name(&gap.state));
+    out.push(']');
+    if let Some(producer) = &gap.producer {
+        out.push_str(" producer=");
+        out.push_str(producer);
+    }
+    out.push_str(" reason=");
+    out.push_str(&gap.reason_code);
+    out.push_str(" source=MISSING_EXPECTED\n");
 }
 
 const fn decision_name(decision: CliDecision) -> &'static str {
@@ -336,14 +408,9 @@ const fn coverage_state_name(state: &CoverageState) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use sentrdel_review::coverage::{
-        ReviewCoverageEntry, ReviewCoverageKey, ReviewCoverageSource,
-    };
     use sentrdel_schema::{
         SCHEMA_V1,
-        finding::{
-            ReconciledFindingDraft, ReconcilerAuthority, Severity, WorkflowState,
-        },
+        finding::{ReconciledFindingDraft, ReconcilerAuthority, Severity, WorkflowState},
     };
 
     fn finding(id_seed: &str, severity: Severity, epistemic_state: EpistemicState) -> Finding {
@@ -391,24 +458,6 @@ mod tests {
         }
     }
 
-    fn matrix(record: &CoverageRecord) -> ReviewCoverageMatrix {
-        ReviewCoverageMatrix {
-            entries: vec![ReviewCoverageEntry {
-                key: ReviewCoverageKey::new(
-                    record.capability.clone(),
-                    record.scope.clone(),
-                    record.producer.clone(),
-                )
-                .unwrap(),
-                state: record.state.clone(),
-                coverage_id: Some(record.coverage_id.clone()),
-                reason_code: record.reason_code.clone(),
-                source: ReviewCoverageSource::ObservedExpected,
-            }],
-            gap_count: usize::from(record.state != CoverageState::Covered),
-        }
-    }
-
     #[test]
     fn human_output_uses_binding_order_and_plain_language_first() {
         let record = coverage("coverage:secret", CoverageState::Failed);
@@ -416,8 +465,8 @@ mod tests {
             CliRepository::new("sha256:repo", ".").unwrap(),
             CliDecision::Undecidable,
             vec![finding("secret", Severity::Block, EpistemicState::Detected)],
-            vec![record.clone()],
-            matrix(&record),
+            vec![record],
+            Vec::new(),
             CliTiming::default(),
             None,
         )
@@ -443,14 +492,15 @@ mod tests {
             CliRepository::new("sha256:repo", ".").unwrap(),
             CliDecision::Undecidable,
             vec![finding("secret", Severity::High, EpistemicState::Contested)],
-            vec![record.clone()],
-            matrix(&record),
+            vec![record],
+            Vec::new(),
             CliTiming::default(),
             Some(vec!["store:evidence".to_owned()]),
         )
         .unwrap();
 
-        let json: serde_json::Value = serde_json::from_str(output.render_json().unwrap().trim()).unwrap();
+        let json: serde_json::Value =
+            serde_json::from_str(output.render_json().unwrap().trim()).unwrap();
         assert_eq!(json["command"], "review");
         assert_eq!(json["decision"], "UNDECIDABLE");
         assert_eq!(json["coverage"][0]["coverage_id"], "coverage:secret");
@@ -460,27 +510,20 @@ mod tests {
 
     #[test]
     fn missing_expected_coverage_is_visible_without_forging_a_coverage_record() {
-        let matrix = ReviewCoverageMatrix {
-            entries: vec![ReviewCoverageEntry {
-                key: ReviewCoverageKey::new(
-                    "github-actions",
-                    ".github/workflows",
-                    Some("native-actions".to_owned()),
-                )
-                .unwrap(),
-                state: CoverageState::Unavailable,
-                coverage_id: None,
-                reason_code: Some("PRODUCER_NOT_REPORTED".to_owned()),
-                source: ReviewCoverageSource::MissingExpected,
-            }],
-            gap_count: 1,
-        };
+        let gap = ReviewCoverageGap::new(
+            "github-actions",
+            ".github/workflows",
+            Some("native-actions".to_owned()),
+            CoverageState::Unavailable,
+            "PRODUCER_NOT_REPORTED",
+        )
+        .unwrap();
         let output = ReviewOutput::new(
             CliRepository::new("sha256:repo", ".").unwrap(),
             CliDecision::Undecidable,
             Vec::new(),
             Vec::new(),
-            matrix,
+            vec![gap],
             CliTiming::default(),
             None,
         )
@@ -488,24 +531,21 @@ mod tests {
 
         assert!(output.envelope().coverage.is_empty());
         assert_eq!(output.envelope().diagnostics.len(), 1);
+        assert_eq!(output.missing_coverage().len(), 1);
         assert!(output.render_human(false).contains("source=MISSING_EXPECTED"));
     }
 
     #[test]
-    fn matrix_and_machine_coverage_must_describe_the_same_observed_records() {
-        let record = coverage("coverage:secret", CoverageState::Covered);
-        let other = coverage("coverage:other", CoverageState::Covered);
-        let error = ReviewOutput::new(
-            CliRepository::new("sha256:repo", ".").unwrap(),
-            CliDecision::Allow,
-            Vec::new(),
-            vec![record.clone()],
-            matrix(&other),
-            CliTiming::default(),
-            None,
+    fn missing_coverage_cannot_claim_covered_without_producer_authority() {
+        let error = ReviewCoverageGap::new(
+            "github-actions",
+            ".",
+            Some("native-actions".to_owned()),
+            CoverageState::Covered,
+            "PRODUCER_NOT_REPORTED",
         )
         .unwrap_err();
-        assert_eq!(error, ReviewOutputError::MatrixCoverageMismatch);
+        assert_eq!(error, ReviewOutputError::CoveredGap);
     }
 
     #[test]
@@ -515,8 +555,8 @@ mod tests {
             CliRepository::new("sha256:repo", ".").unwrap(),
             CliDecision::Allow,
             vec![finding("secret", Severity::Low, EpistemicState::Corroborated)],
-            vec![record.clone()],
-            matrix(&record),
+            vec![record],
+            Vec::new(),
             CliTiming::default(),
             None,
         )
