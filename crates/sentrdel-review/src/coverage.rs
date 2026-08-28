@@ -93,9 +93,13 @@ pub enum ReviewCoverageError {
 impl fmt::Display for ReviewCoverageError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::BlankCapability => formatter.write_str("review coverage capability must not be blank"),
+            Self::BlankCapability => {
+                formatter.write_str("review coverage capability must not be blank")
+            }
             Self::BlankScope => formatter.write_str("review coverage scope must not be blank"),
-            Self::BlankProducer => formatter.write_str("review coverage producer must not be blank"),
+            Self::BlankProducer => {
+                formatter.write_str("review coverage producer must not be blank")
+            }
             Self::BlankCoverageId => formatter.write_str("observed coverage id must not be blank"),
             Self::DuplicateExpectation(key) => write!(
                 formatter,
