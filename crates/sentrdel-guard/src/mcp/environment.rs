@@ -44,7 +44,7 @@ impl McpChildEnvironment {
     pub fn from_runtime(
         authorized_capabilities: BTreeSet<McpEnvironmentCapability>,
     ) -> Result<Self, McpEnvironmentError> {
-        Self::from_lookup(authorized_capabilities, std::env::var_os)
+        Self::from_lookup(authorized_capabilities, |name| std::env::var_os(name))
     }
 
     fn from_lookup<F>(
