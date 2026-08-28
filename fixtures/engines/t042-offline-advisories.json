@@ -1,0 +1,19 @@
+{
+  "schema_version": "1",
+  "advisories": [
+    {
+      "id": "OSV-TEST-CARGO-001",
+      "ecosystem": "cargo",
+      "package": "badcrate",
+      "affected_versions": ["2.0.0"],
+      "summary": "Synthetic Cargo advisory for offline dependency-delta tests."
+    },
+    {
+      "id": "OSV-TEST-NPM-001",
+      "ecosystem": "npm",
+      "package": "badpkg",
+      "affected_versions": ["1.2.3"],
+      "summary": "Synthetic npm advisory for offline dependency-delta tests."
+    }
+  ]
+}
