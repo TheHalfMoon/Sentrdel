@@ -356,7 +356,7 @@ fn missing_engine_case() -> ActualCase {
 }
 
 fn hostile_repository_case() -> ActualCase {
-    assert!(!TARGET_BUILD_EXECUTION_ALLOWED);
+    const { assert!(!TARGET_BUILD_EXECUTION_ALLOWED) };
 
     let source = scan_changed_secrets(&path("src/agent-input.js"), HOSTILE_SOURCE, CAPTURED_AT)
         .expect("hostile source remains data");
