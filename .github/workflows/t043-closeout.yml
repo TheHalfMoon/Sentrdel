@@ -1,0 +1,39 @@
+name: T043 Closeout
+
+on:
+  push:
+    branches:
+      - closeout/001-t043-osv-lookup-cache
+
+permissions:
+  contents: write
+
+jobs:
+  closeout:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout closeout branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: true
+          ref: closeout/001-t043-osv-lookup-cache
+      - name: Record T043 completion and remove temporary workflow
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('specs/001-v0-1-evidence-guard-foundation/tasks.md')
+          text = path.read_text()
+          old = '- [ ] T043 [P] [US1] Add optional OSV-compatible lookup/cache respecting `--no-network`; tests remain offline-capable.'
+          new = '- [x] T043 [P] [US1] Add optional OSV-compatible lookup/cache respecting `--no-network`; tests remain offline-capable.'
+          if text.count(old) != 1:
+              raise SystemExit('expected exactly one open T043 task')
+          path.write_text(text.replace(old, new))
+          PY
+          rm .github/workflows/t043-closeout.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add specs/001-v0-1-evidence-guard-foundation/tasks.md .github/workflows/t043-closeout.yml
+          git commit -m 'docs(spec): close T043 OSV lookup cache task'
+          git push origin HEAD:closeout/001-t043-osv-lookup-cache
