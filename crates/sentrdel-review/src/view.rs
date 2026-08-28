@@ -102,7 +102,10 @@ impl fmt::Display for NormalizedRepoPath {
 #[derive(Debug)]
 pub enum RepoViewError {
     EmptyPath,
-    PathTooLarge { bytes: usize, max: usize },
+    PathTooLarge {
+        bytes: usize,
+        max: usize,
+    },
     PaddedPath,
     AbsolutePath,
     NonCanonicalSeparator,
@@ -135,7 +138,10 @@ impl fmt::Display for RepoViewError {
         match self {
             Self::EmptyPath => formatter.write_str("repository path is empty"),
             Self::PathTooLarge { bytes, max } => {
-                write!(formatter, "repository path length {bytes} exceeds cap {max}")
+                write!(
+                    formatter,
+                    "repository path length {bytes} exceeds cap {max}"
+                )
             }
             Self::PaddedPath => formatter.write_str("repository path must not be padded"),
             Self::AbsolutePath => formatter.write_str("repository path must be relative"),
@@ -159,14 +165,23 @@ impl fmt::Display for RepoViewError {
                 formatter.write_str("repository path is not in canonical repository-relative form")
             }
             Self::InvalidRoot(root) => {
-                write!(formatter, "repository root is not a readable non-symlink directory: {}", root.display())
+                write!(
+                    formatter,
+                    "repository root is not a readable non-symlink directory: {}",
+                    root.display()
+                )
             }
             Self::SymlinkEncountered(path) => {
                 write!(formatter, "repository path crosses a symlink at {path}")
             }
-            Self::NotRegularFile(path) => write!(formatter, "repository path is not a file: {path}"),
+            Self::NotRegularFile(path) => {
+                write!(formatter, "repository path is not a file: {path}")
+            }
             Self::FileTooLarge { path, bytes, max } => {
-                write!(formatter, "repository file {path} size {bytes} exceeds cap {max}")
+                write!(
+                    formatter,
+                    "repository file {path} size {bytes} exceeds cap {max}"
+                )
             }
             Self::FileChangedWhileReading { path, max } => write!(
                 formatter,
@@ -196,8 +211,8 @@ pub struct RepoFileView {
 impl RepoFileView {
     pub fn new(root: impl AsRef<Path>, limits: RepoViewLimits) -> Result<Self, RepoViewError> {
         let root = root.as_ref().to_path_buf();
-        let metadata = fs::symlink_metadata(&root)
-            .map_err(|_| RepoViewError::InvalidRoot(root.clone()))?;
+        let metadata =
+            fs::symlink_metadata(&root).map_err(|_| RepoViewError::InvalidRoot(root.clone()))?;
         if metadata.file_type().is_symlink() || !metadata.is_dir() {
             return Err(RepoViewError::InvalidRoot(root));
         }
@@ -213,16 +228,14 @@ impl RepoFileView {
         self.read_normalized(&normalized)
     }
 
-    pub fn read_normalized(
-        &self,
-        path: &NormalizedRepoPath,
-    ) -> Result<Vec<u8>, RepoViewError> {
+    pub fn read_normalized(&self, path: &NormalizedRepoPath) -> Result<Vec<u8>, RepoViewError> {
         self.reject_symlink_components(path)?;
         let absolute = self.root.join(path.as_path());
-        let metadata = fs::symlink_metadata(&absolute).map_err(|source| RepoViewError::Filesystem {
-            path: path.clone(),
-            source,
-        })?;
+        let metadata =
+            fs::symlink_metadata(&absolute).map_err(|source| RepoViewError::Filesystem {
+                path: path.clone(),
+                source,
+            })?;
         if metadata.file_type().is_symlink() {
             return Err(RepoViewError::SymlinkEncountered(path.clone()));
         }
@@ -270,10 +283,11 @@ impl RepoFileView {
             if index + 1 == component_count {
                 break;
             }
-            let metadata = fs::symlink_metadata(&current).map_err(|source| RepoViewError::Filesystem {
-                path: path.clone(),
-                source,
-            })?;
+            let metadata =
+                fs::symlink_metadata(&current).map_err(|source| RepoViewError::Filesystem {
+                    path: path.clone(),
+                    source,
+                })?;
             if metadata.file_type().is_symlink() {
                 return Err(RepoViewError::SymlinkEncountered(path.clone()));
             }
