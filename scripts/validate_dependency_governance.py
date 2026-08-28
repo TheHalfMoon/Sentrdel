@@ -11,7 +11,8 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
-CRATES_IO_SOURCE = "registry+https://github.com/rust-lang/crates.io-index"
+CRATES_IO_CARGO_SOURCE = "registry+https://github.com/rust-lang/crates.io-index"
+CRATES_IO_DENY_REGISTRY = "https://github.com/rust-lang/crates.io-index"
 REQUIRED_DENY_LICENSES = {"Apache-2.0", "MIT", "Unicode-3.0", "BSD-3-Clause", "ISC", "Zlib"}
 PRIVILEGED_SURFACES = {"build-script", "proc-macro", "native-link"}
 
@@ -61,7 +62,7 @@ def require_locked_sources(root: Path) -> None:
 
     for package in packages:
         source = package.get("source")
-        if source is not None and source != CRATES_IO_SOURCE:
+        if source is not None and source != CRATES_IO_CARGO_SOURCE:
             fail(
                 f"Cargo.lock package {package.get('name')} {package.get('version')} uses "
                 f"unqualified source {source!r}"
@@ -75,7 +76,7 @@ def require_deny_policy(root: Path) -> None:
         fail("deny.toml must deny unknown registries")
     if sources.get("unknown-git") != "deny":
         fail("deny.toml must deny unknown Git sources")
-    if sources.get("allow-registry") != [CRATES_IO_SOURCE]:
+    if sources.get("allow-registry") != [CRATES_IO_DENY_REGISTRY]:
         fail("deny.toml must allow only the canonical crates.io registry source")
 
     bans = deny.get("bans", {})
@@ -111,7 +112,7 @@ def observed_privileged_surfaces(metadata: dict[str, Any]) -> tuple[dict[tuple[s
         source = package.get("source")
         if not isinstance(name, str) or not isinstance(version, str):
             fail("cargo metadata contains a package without string name/version")
-        if source != CRATES_IO_SOURCE:
+        if source != CRATES_IO_CARGO_SOURCE:
             fail(f"third-party package {name} {version} is not sourced from canonical crates.io")
 
         key = (name, version)
