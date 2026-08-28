@@ -1,7 +1,7 @@
 # SentrdelBench Core Evaluation Contract
 
 **Status:** R1_BINDING_EVALUATION_CONTRACT  
-**Task:** T088  
+**Task:** T088-T090  
 **Applies to:** Sentrdel v0.1 Evidence + Guard Foundation  
 **Authority:** Constitution Principle VIII, Implementation Amendment 002, `plan.md`, and `tasks.md`
 
@@ -9,7 +9,7 @@
 
 SentrdelBench Core is the minimum immutable evaluation boundary used to measure security quality before detector breadth grows. It exists to prevent rule count, model confidence, or a single aggregate score from replacing explicit evidence about precision, misses, false positives, coverage, provenance, determinism, latency, resource use, and authority correctness.
 
-T088 defines the contract only. T089 implements the first executable harness and machine-readable run record. T090 implements physical corpus-class separation and protected-holdout handling. T077 later expands this core into the release benchmark.
+T088 defines the metric/evaluator contract. T089 implements the first executable harness and machine-readable run record. T090 makes corpus-class separation and protected-holdout handling auditable. T077 later expands this core into the release benchmark.
 
 SentrdelBench is an evaluation plane. It does not create canonical Findings, alter policy authority, promote candidate artifacts, or grant protected expected outputs to candidate-generation logic.
 
@@ -34,7 +34,7 @@ For one evaluation run, these inputs are immutable:
 
 Candidate-generation or research logic MUST NOT mutate any of these inputs during the run. A mutation, identity mismatch, unreadable expected-output source, or post-start corpus change invalidates the run rather than producing a partial PASS.
 
-The future T089 run record MUST identify these immutable inputs explicitly. Machine metadata that describes the measurement host MAY be runtime metadata and is not itself an evaluator authority source.
+The T089 run record identifies these immutable inputs explicitly. Machine metadata that describes the measurement host MAY be runtime metadata and is not itself an evaluator authority source.
 
 ## 4. Corpus classes
 
@@ -44,7 +44,9 @@ The evaluation model recognizes three corpus classes:
 - **DEVELOPMENT_EVALUATION** — evaluation cases that may be used during candidate development and comparison but remain distinct from basic regression fixtures.
 - **PROTECTED_HOLDOUT** — promotion-gate cases whose expected outputs are not supplied to candidate-generation logic.
 
-T088 defines the semantics. T090 owns the concrete repository/storage layout, protected-label access rules, and promotion mechanics.
+T090 makes this distinction auditable through `tests/benchmark/corpus-layout.json`, class-specific roots, metadata-only protected-holdout repository state, and Rust tests that fail if private holdout case/label files are committed into the protected root. The original T089 public fixture remains as a byte-identical compatibility alias while the authoritative class copy lives under `tests/benchmark/public-regression/`.
+
+Protected holdout case material and expected outputs are `EXTERNAL_ONLY`. Ordinary/base CI validates the boundary metadata and MUST NOT require private holdout bytes. Absence of private holdout material from a normal checkout is expected and MUST NOT be interpreted as a successful holdout qualification.
 
 A result MUST name its corpus class. Results from different corpus classes MUST NOT be merged in a way that hides which class produced them.
 
@@ -107,7 +109,7 @@ The evaluator MUST report at least:
 - `clean_case_false_positive_rate = clean_cases_with_false_positive / clean_cases_evaluated`;
 - `false_positive_findings_on_clean_cases`.
 
-A future release gate may use a concrete threshold such as T078; T088 does not invent that threshold.
+A future release gate may use a concrete threshold such as T078; T088-T090 do not invent that threshold.
 
 ### 6.4 Coverage completeness and gaps
 
@@ -252,7 +254,7 @@ Invalid runs fail qualification. They do not produce an authoritative PASS/FAIL 
 
 ## 11. Machine-readable T089 obligations
 
-T089's executable run record MUST be able to represent, without loss:
+The T089 executable run record MUST be able to represent, without loss:
 
 - evaluator version/digest;
 - metric-contract version/digest;
@@ -267,15 +269,70 @@ T089's executable run record MUST be able to represent, without loss:
 - measurement policy and machine metadata when performance is measured;
 - diagnostics/evaluation errors.
 
-T088 intentionally does not prescribe a serialization implementation or Rust type layout; T089 owns that implementation while preserving this information model.
+The contract does not prescribe one Rust type layout beyond preserving this information model.
 
-## 12. T090 protected-holdout obligations
+## 12. T090 protected-holdout boundary and promotion semantics
 
-T090 MUST make the corpus-class distinction enforceable in repository/test layout or an equivalently auditable boundary. Public/base tests MUST NOT require private holdout data. Candidate-generation logic MUST NOT receive protected expected outputs. Holdout results are promotion evidence, not a tuning oracle.
+### 12.1 Repository boundary
+
+The authoritative repository layout is declared by `tests/benchmark/corpus-layout.json`.
+
+- Public regression expected outputs are repository-visible and may be consumed by ordinary regression/candidate-development logic.
+- Development-evaluation expected outputs are repository-visible for R1 and may be consumed while developing or comparing candidates, but development results do not substitute for protected qualification.
+- Protected holdout case material and expected outputs are external-only. The repository commits only boundary metadata under `tests/benchmark/protected-holdout/`.
+- Base CI MUST NOT require private holdout bytes. It MUST validate that the committed protected root remains metadata-only and that public/base harness source does not reference protected material.
+
+A `.gitignore` entry is defense in depth only; the executable directory allowlist test is the repository enforcement mechanism. A forced commit of a private/label file into the protected root therefore fails canonical Rust tests.
+
+### 12.2 Candidate/holdout authority split
+
+Candidate-generation logic may receive public-regression and development-evaluation fixtures/expected outputs. It MUST NOT receive protected holdout expected outputs or case-level label material.
+
+The independent holdout evaluator may receive:
+
+1. the frozen candidate identity/artifact;
+2. the frozen evaluator version/digest;
+3. the frozen metric-contract version/digest;
+4. a read-only protected corpus revision/digest;
+5. read-only protected expected-output revision/digest and private expected-output bytes;
+6. the frozen authority assertions and measurement policy required by the run.
+
+The evaluator/holdout authority used for one candidate MUST NOT be modified by that candidate or by research/candidate-generation automation evaluating it.
+
+### 12.3 Holdout qualification receipt
+
+A protected evaluation returns a promotion receipt bound to the run identities. At minimum it records:
+
+- candidate identity;
+- evaluator version/digest;
+- metric-contract version/digest;
+- protected corpus revision/digest;
+- protected expected-output revision/digest;
+- aggregate metric states and raw aggregate components;
+- authority-assertion results;
+- deterministic replay status.
+
+The candidate-generation path MUST NOT receive protected case IDs, expected Findings/Evidence/Coverage, raw labels, or case-level diagnostics as tuning feedback. Independent security reviewers MAY inspect private case-level material within the protected evaluation authority boundary when necessary, but that does not grant it to candidate-generation automation.
+
+A missing receipt, unreadable protected source, identity mismatch, or unavailable private corpus means **holdout not qualified**. It MUST NOT be represented as a passing holdout result. Ordinary base CI may still pass its public structural checks because it intentionally does not own protected qualification.
+
+### 12.4 Promotion and declassification
+
+Protected holdout results are promotion evidence, not a tuning oracle. A candidate may proceed only under the explicit promotion/release rules active for that artifact class; benchmark improvement alone never grants self-promotion authority.
+
+If a protected case is deliberately declassified into public regression:
+
+1. the current protected qualification cycle is closed first;
+2. the public corpus and expected-output revisions/digests are changed;
+3. the disclosed case is retired from protected qualification before candidates may see its labels;
+4. protected holdout capacity is replaced/revised so the disclosed case no longer acts as an unseen gate;
+5. any candidate that has received the disclosed labels MUST NOT claim unseen qualification from that former holdout case.
+
+A development-evaluation case may be promoted to public regression through an ordinary reviewed corpus revision. Moving a public/development case into protected holdout does not make it unseen again if candidate-generation logic already had its expected outputs.
 
 ## 13. Non-claims
 
-T088 does not claim:
+T088-T090 do not claim:
 
 - that a benchmark proves absence of vulnerabilities;
 - that coverage gaps are secure outcomes;
@@ -284,10 +341,11 @@ T088 does not claim:
 - that deterministic replay proves security correctness;
 - that latency measured on one machine generalizes universally;
 - that SentrdelBench is a production self-learning system;
-- that any candidate may self-promote because benchmark metrics improved.
+- that any candidate may self-promote because benchmark metrics improved;
+- that successful base CI is equivalent to protected-holdout qualification.
 
 ## 14. Change control
 
-Changes to metric meaning, denominator rules, matching semantics, immutable run inputs, corpus-class authority, or replay exclusions change the evaluator contract and require ordinary reviewed Spec Kit/repository changes.
+Changes to metric meaning, denominator rules, matching semantics, immutable run inputs, corpus-class authority, replay exclusions, protected-output access, holdout receipt contents, or declassification/promotion semantics change the evaluator contract and require ordinary reviewed Spec Kit/repository changes.
 
 A candidate being evaluated MUST NOT modify the evaluator/contract or protected expected outputs used to judge that same candidate.
