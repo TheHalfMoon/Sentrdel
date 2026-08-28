@@ -67,14 +67,14 @@ fn oversized_documents_and_invalid_rule_registries_fail_closed() {
         Err(StructuralError::InvalidRuleId("JS Eval"))
     ));
 
-    let invalid_pattern = StructuralRule::new(
-        "js.invalid-pattern",
+    let empty_pattern = StructuralRule::new(
+        "js.empty-pattern",
         StructuralLanguage::JavaScript,
-        "function (",
+        "   ",
     );
     assert!(matches!(
-        StructuralRegistry::new(&[invalid_pattern]),
-        Err(StructuralError::InvalidPattern { .. })
+        StructuralRegistry::new(&[empty_pattern]),
+        Err(StructuralError::EmptyPattern("js.empty-pattern"))
     ));
 }
 
