@@ -79,7 +79,7 @@
 
 ### Foundational CLI envelope
 
-- [ ] T035 Implement stable CLI exit codes/JSON envelope from `contracts/cli-contract.md` with contract tests.
+- [x] T035 Implement stable CLI exit codes/JSON envelope from `contracts/cli-contract.md` with contract tests.
 - [ ] T036 Wire DI/bootstrap across schema/store/graph/engine/policy without review/guard feature behavior yet.
 
 **Foundational Checkpoint:** schema/store/policy/engine/graph/CLI contracts pass.
