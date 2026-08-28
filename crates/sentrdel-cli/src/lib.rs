@@ -7,7 +7,7 @@
 
 use std::{error::Error, fmt, process::ExitCode};
 
-use sentrdel_schema::{SCHEMA_V1, coverage::CoverageRecord};
+use sentrdel_schema::{SCHEMA_V1, coverage::CoverageRecord, policy::Verdict};
 use serde::Serialize;
 
 const MAX_CLI_ID_BYTES: usize = 4_096;
@@ -38,13 +38,16 @@ impl From<CliExitCode> for ExitCode {
 
 /// Machine-readable decision/outcome carried in the stable JSON envelope.
 ///
-/// Usage and internal failures are included so `--json` callers can receive a
-/// structurally stable response even when a command cannot complete normally.
+/// The four security/policy decisions deliberately preserve the canonical R1
+/// `Verdict` vocabulary, including `ASK`. Usage and internal failures are also
+/// represented so `--json` callers can receive a structurally stable response
+/// when a command cannot complete normally.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum CliDecision {
-    Clear,
-    Blocking,
+    Allow,
+    Ask,
+    Deny,
     Undecidable,
     UsageError,
     InternalFailure,
@@ -53,11 +56,24 @@ pub enum CliDecision {
 impl CliDecision {
     pub const fn exit_code(self) -> CliExitCode {
         match self {
-            Self::Clear => CliExitCode::Success,
-            Self::Blocking => CliExitCode::Blocking,
+            Self::Allow => CliExitCode::Success,
+            Self::Deny => CliExitCode::Blocking,
             Self::UsageError => CliExitCode::Usage,
-            Self::Undecidable => CliExitCode::Incomplete,
+            // ASK means the action is not resolved until explicit approval;
+            // returning success/block would misrepresent the pending decision.
+            Self::Ask | Self::Undecidable => CliExitCode::Incomplete,
             Self::InternalFailure => CliExitCode::Internal,
+        }
+    }
+}
+
+impl From<Verdict> for CliDecision {
+    fn from(value: Verdict) -> Self {
+        match value {
+            Verdict::Allow => Self::Allow,
+            Verdict::Ask => Self::Ask,
+            Verdict::Deny => Self::Deny,
+            Verdict::Undecidable => Self::Undecidable,
         }
     }
 }
@@ -421,7 +437,7 @@ mod tests {
         CliEnvelope::new(
             CliCommand::Review,
             CliRepository::new("sha256:repo", ".").expect("repo"),
-            CliDecision::Clear,
+            CliDecision::Allow,
             findings,
             coverage,
             diagnostics,
@@ -445,9 +461,10 @@ mod tests {
 
     #[test]
     fn every_machine_decision_maps_to_the_binding_exit_semantics() {
-        assert_eq!(CliDecision::Clear.exit_code(), CliExitCode::Success);
-        assert_eq!(CliDecision::Blocking.exit_code(), CliExitCode::Blocking);
+        assert_eq!(CliDecision::Allow.exit_code(), CliExitCode::Success);
+        assert_eq!(CliDecision::Deny.exit_code(), CliExitCode::Blocking);
         assert_eq!(CliDecision::UsageError.exit_code(), CliExitCode::Usage);
+        assert_eq!(CliDecision::Ask.exit_code(), CliExitCode::Incomplete);
         assert_eq!(
             CliDecision::Undecidable.exit_code(),
             CliExitCode::Incomplete
@@ -455,6 +472,17 @@ mod tests {
         assert_eq!(
             CliDecision::InternalFailure.exit_code(),
             CliExitCode::Internal
+        );
+    }
+
+    #[test]
+    fn canonical_policy_verdicts_map_without_losing_ask() {
+        assert_eq!(CliDecision::from(Verdict::Allow), CliDecision::Allow);
+        assert_eq!(CliDecision::from(Verdict::Ask), CliDecision::Ask);
+        assert_eq!(CliDecision::from(Verdict::Deny), CliDecision::Deny);
+        assert_eq!(
+            CliDecision::from(Verdict::Undecidable),
+            CliDecision::Undecidable
         );
     }
 
@@ -502,7 +530,7 @@ mod tests {
         );
         assert!(!object.contains_key("store_refs"));
         assert_eq!(object["schema_version"], SCHEMA_V1);
-        assert_eq!(object["decision"], "CLEAR");
+        assert_eq!(object["decision"], "ALLOW");
     }
 
     #[test]
@@ -555,7 +583,7 @@ mod tests {
         let duplicate_findings = CliEnvelope::new(
             CliCommand::Review,
             CliRepository::new("sha256:repo", ".").expect("repo"),
-            CliDecision::Clear,
+            CliDecision::Allow,
             vec![finding.clone(), finding],
             Vec::new(),
             Vec::new(),
@@ -570,7 +598,7 @@ mod tests {
         let duplicate_coverage = CliEnvelope::new(
             CliCommand::Review,
             CliRepository::new("sha256:repo", ".").expect("repo"),
-            CliDecision::Clear,
+            CliDecision::Allow,
             Vec::new(),
             vec![coverage("coverage:a"), coverage("coverage:a")],
             Vec::new(),
