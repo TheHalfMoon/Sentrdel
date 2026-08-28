@@ -70,8 +70,16 @@ fn cargo_lock_delta_is_deterministic_without_executing_cargo() {
 
     assert_eq!(added, vec![("badcrate", "2.0.0"), ("safecrate", "1.1.0")]);
     assert_eq!(removed, vec![("safecrate", "1.0.0")]);
-    assert!(delta.added.iter().all(|package| package.ecosystem == Ecosystem::Cargo));
-    assert_eq!(delta, dependency_delta(LockfileKind::Cargo, CARGO_BEFORE, CARGO_AFTER).unwrap());
+    assert!(
+        delta
+            .added
+            .iter()
+            .all(|package| package.ecosystem == Ecosystem::Cargo)
+    );
+    assert_eq!(
+        delta,
+        dependency_delta(LockfileKind::Cargo, CARGO_BEFORE, CARGO_AFTER).unwrap()
+    );
 }
 
 #[test]
@@ -110,10 +118,7 @@ fn malformed_unsupported_and_oversized_lockfiles_fail_closed() {
         Err(DependencyError::InvalidFormat(_))
     ));
     assert!(matches!(
-        parse_lockfile(
-            LockfileKind::Npm,
-            br#"{"lockfileVersion":1,"packages":{}}"#
-        ),
+        parse_lockfile(LockfileKind::Npm, br#"{"lockfileVersion":1,"packages":{}}"#),
         Err(DependencyError::InvalidFormat(_))
     ));
     assert!(matches!(
