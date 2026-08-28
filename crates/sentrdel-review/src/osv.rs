@@ -236,13 +236,9 @@ fn query_network<T: OsvTransport>(
             match advisories.entry(advisory.id) {
                 std::collections::btree_map::Entry::Vacant(slot) => {
                     let additional = estimated_advisory_bytes(slot.key(), &advisory.summary);
-                    advisory_bytes = bounded_resource_total(
-                        advisory_bytes,
-                        0,
-                        additional,
-                        MAX_OSV_CACHE_BYTES,
-                    )
-                    .map_err(QueryNetworkError::Protocol)?;
+                    advisory_bytes =
+                        bounded_resource_total(advisory_bytes, 0, additional, MAX_OSV_CACHE_BYTES)
+                            .map_err(QueryNetworkError::Protocol)?;
                     slot.insert(advisory.summary);
                 }
                 std::collections::btree_map::Entry::Occupied(_) => {}
@@ -552,10 +548,7 @@ impl OsvCache {
     }
 }
 
-fn estimated_cache_entry_bytes(
-    package: &PackageVersion,
-    advisories: &[CachedAdvisory],
-) -> usize {
+fn estimated_cache_entry_bytes(package: &PackageVersion, advisories: &[CachedAdvisory]) -> usize {
     advisories.iter().fold(
         CACHE_ENTRY_OVERHEAD_BYTES
             .saturating_add(package.name.len())
