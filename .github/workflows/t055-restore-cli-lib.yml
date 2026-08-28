@@ -1,0 +1,40 @@
+name: T055 Restore CLI Lib
+
+on:
+  push:
+    branches:
+      - impl/001-t055-guard-mcp-cli
+
+permissions:
+  contents: write
+
+jobs:
+  restore:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: impl/001-t055-guard-mcp-cli
+          fetch-depth: 1
+      - name: Restore canonical CLI library and add only T055 module export
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags --depth=1 origin main
+          git show origin/main:crates/sentrdel-cli/src/lib.rs > crates/sentrdel-cli/src/lib.rs
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('crates/sentrdel-cli/src/lib.rs')
+          text = path.read_text(encoding='utf-8')
+          needle = 'pub mod review;\n'
+          if text.count(needle) != 1:
+              raise SystemExit('expected exactly one review module export')
+          path.write_text(text.replace(needle, 'pub mod guard_mcp;\npub mod review;\n', 1), encoding='utf-8')
+          PY
+          git rm .github/workflows/t055-restore-cli-lib.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add crates/sentrdel-cli/src/lib.rs
+          git commit -m 'fix(cli): preserve canonical CLI contract tests'
+          git push origin HEAD:impl/001-t055-guard-mcp-cli
