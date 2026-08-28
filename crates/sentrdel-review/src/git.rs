@@ -293,7 +293,8 @@ fn working_tree_changes(
     for (path, staged) in index {
         let native = gix::path::try_from_byte_slice(path.as_bytes())
             .map_err(|_| GitReadError::InvalidRepositoryPath(path.clone()))?;
-        let absolute = workdir.join(&*native);
+        let native_path: &Path = native;
+        let absolute = workdir.join(native_path);
         let metadata = match fs::symlink_metadata(&absolute) {
             Ok(metadata) => metadata,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
