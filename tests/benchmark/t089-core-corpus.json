@@ -1,0 +1,74 @@
+{
+  "corpus_revision": "t089-core-corpus-v1",
+  "expected_outputs_revision": "t089-core-expected-v1",
+  "corpus_class": "PUBLIC_REGRESSION",
+  "baseline_identity": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+  "candidate_identity": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+  "cases": [
+    {
+      "case_id": "high-hit",
+      "known_evidence_ids": ["e-high", "e-support"],
+      "expected_findings": [
+        {"finding_id": "f-high", "severity": "HIGH"}
+      ],
+      "emitted_findings": [
+        {"finding_id": "f-high", "severity": "HIGH", "evidence_ids": ["e-high", "e-support"]}
+      ],
+      "expected_provenance": [
+        {"finding_id": "f-high", "required_evidence_ids": ["e-high", "e-support"]}
+      ],
+      "expected_coverage": ["native-static", "optional-engine"],
+      "observed_coverage": [
+        {"dimension": "native-static", "state": "COMPLETED"},
+        {"dimension": "optional-engine", "state": "UNAVAILABLE"}
+      ]
+    },
+    {
+      "case_id": "severity-downgrade",
+      "known_evidence_ids": ["e-block"],
+      "expected_findings": [
+        {"finding_id": "f-block", "severity": "BLOCK"}
+      ],
+      "emitted_findings": [
+        {"finding_id": "f-block", "severity": "MEDIUM", "evidence_ids": ["e-block"]}
+      ],
+      "expected_provenance": [
+        {"finding_id": "f-block", "required_evidence_ids": ["e-block"]}
+      ],
+      "expected_coverage": ["native-static"],
+      "observed_coverage": [
+        {"dimension": "native-static", "state": "COMPLETED"}
+      ]
+    },
+    {
+      "case_id": "clean-false-positive",
+      "known_evidence_ids": ["e-fp"],
+      "expected_findings": [],
+      "emitted_findings": [
+        {"finding_id": "f-fp", "severity": "HIGH", "evidence_ids": ["e-fp"]}
+      ],
+      "expected_provenance": [],
+      "expected_coverage": ["native-static"],
+      "observed_coverage": [
+        {"dimension": "native-static", "state": "COMPLETED"}
+      ]
+    },
+    {
+      "case_id": "clean-no-findings",
+      "known_evidence_ids": [],
+      "expected_findings": [],
+      "emitted_findings": [],
+      "expected_provenance": [],
+      "expected_coverage": ["native-static"],
+      "observed_coverage": [
+        {"dimension": "native-static", "state": "COMPLETED"}
+      ]
+    }
+  ],
+  "authority_assertions": [
+    {"assertion_id": "reconciler-only-finding-creation", "passed": true},
+    {"assertion_id": "kernel-deny-remains-absorbing", "passed": true},
+    {"assertion_id": "coverage-gaps-remain-explicit", "passed": true}
+  ],
+  "performance": null
+}
