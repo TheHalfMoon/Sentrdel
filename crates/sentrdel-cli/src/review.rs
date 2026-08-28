@@ -86,10 +86,7 @@ impl ReviewOutput {
         let finding_refs = findings
             .iter()
             .map(|finding| {
-                CliFindingRef::new(
-                    finding.finding_id(),
-                    finding.draft().evidence_ids.clone(),
-                )
+                CliFindingRef::new(finding.finding_id(), finding.draft().evidence_ids.clone())
             })
             .collect::<Result<Vec<_>, _>>()?;
 
@@ -191,7 +188,12 @@ impl ReviewOutput {
 
         out.push_str("\nCoverage gaps:\n");
         let mut wrote_gap = false;
-        for record in self.envelope.coverage.iter().filter(|record| record.is_gap()) {
+        for record in self
+            .envelope
+            .coverage
+            .iter()
+            .filter(|record| record.is_gap())
+        {
             wrote_gap = true;
             render_observed_gap(&mut out, record);
         }
@@ -424,7 +426,8 @@ mod tests {
                 schema_version: SCHEMA_V1.to_owned(),
                 fingerprint: format!("fingerprint:{id_seed}"),
                 title: format!("Finding {id_seed}"),
-                impact_statement: "An attacker could affect the changed application path.".to_owned(),
+                impact_statement: "An attacker could affect the changed application path."
+                    .to_owned(),
                 category: "fixture".to_owned(),
                 severity,
                 epistemic_state,
@@ -532,7 +535,11 @@ mod tests {
         assert!(output.envelope().coverage.is_empty());
         assert_eq!(output.envelope().diagnostics.len(), 1);
         assert_eq!(output.missing_coverage().len(), 1);
-        assert!(output.render_human(false).contains("source=MISSING_EXPECTED"));
+        assert!(
+            output
+                .render_human(false)
+                .contains("source=MISSING_EXPECTED")
+        );
     }
 
     #[test]
@@ -554,7 +561,11 @@ mod tests {
         let output = ReviewOutput::new(
             CliRepository::new("sha256:repo", ".").unwrap(),
             CliDecision::Allow,
-            vec![finding("secret", Severity::Low, EpistemicState::Corroborated)],
+            vec![finding(
+                "secret",
+                Severity::Low,
+                EpistemicState::Corroborated,
+            )],
             vec![record],
             Vec::new(),
             CliTiming::default(),
