@@ -156,10 +156,18 @@ pub fn parse_lockfile(
 fn parse_cargo_lock(text: &str) -> Result<BTreeSet<PackageVersion>, DependencyError> {
     let mut packages = BTreeSet::new();
     let mut current: Option<BTreeMap<&str, String>> = None;
+    let mut record_count = 0usize;
 
     for raw in text.lines() {
         let line = raw.trim();
         if line == "[[package]]" {
+            record_count += 1;
+            if record_count > MAX_LOCKFILE_PACKAGES {
+                return Err(DependencyError::TooManyPackages {
+                    count: record_count,
+                    max: MAX_LOCKFILE_PACKAGES,
+                });
+            }
             if let Some(fields) = current.take() {
                 insert_cargo_package(&mut packages, fields)?;
             }
