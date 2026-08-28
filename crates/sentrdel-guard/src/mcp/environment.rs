@@ -128,7 +128,10 @@ impl fmt::Debug for McpChildEnvironment {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
             .debug_struct("McpChildEnvironment")
-            .field("environment_names", &self.entries.keys().collect::<Vec<_>>())
+            .field(
+                "environment_names",
+                &self.entries.keys().collect::<Vec<_>>(),
+            )
             .field("authorized_capabilities", &self.authorized_capabilities)
             .finish()
     }
@@ -196,14 +199,11 @@ fn validate_environment_name(name: &str) -> Result<(), McpEnvironmentError> {
     }
     let valid = !name.is_empty()
         && name.trim() == name
-        && name
-            .bytes()
-            .enumerate()
-            .all(|(index, byte)| match byte {
-                b'A'..=b'Z' | b'_' => true,
-                b'0'..=b'9' => index > 0,
-                _ => false,
-            });
+        && name.bytes().enumerate().all(|(index, byte)| match byte {
+            b'A'..=b'Z' | b'_' => true,
+            b'0'..=b'9' => index > 0,
+            _ => false,
+        });
     if !valid {
         return Err(McpEnvironmentError::InvalidName(name.to_owned()));
     }
@@ -296,7 +296,10 @@ mod tests {
         let names = environment.environment_names().collect::<BTreeSet<_>>();
 
         assert!(names.contains("MCP_EXPLICIT_CAPABILITY"));
-        assert_eq!(environment.authorized_capabilities(), &BTreeSet::from([capability]));
+        assert_eq!(
+            environment.authorized_capabilities(),
+            &BTreeSet::from([capability])
+        );
         for canary in CREDENTIAL_CANARIES {
             assert!(!names.contains(canary));
         }
@@ -305,13 +308,15 @@ mod tests {
     #[test]
     fn explicit_credential_capability_requires_exact_authorization() {
         let capability = McpEnvironmentCapability::new("OPENAI_API_KEY").expect("capability");
-        let environment = McpChildEnvironment::from_lookup(
-            BTreeSet::from([capability]),
-            synthetic_lookup,
-        )
-        .expect("authorized credential environment");
+        let environment =
+            McpChildEnvironment::from_lookup(BTreeSet::from([capability]), synthetic_lookup)
+                .expect("authorized credential environment");
 
-        assert!(environment.environment_names().any(|name| name == "OPENAI_API_KEY"));
+        assert!(
+            environment
+                .environment_names()
+                .any(|name| name == "OPENAI_API_KEY")
+        );
     }
 
     #[test]
@@ -343,11 +348,9 @@ mod tests {
     fn debug_never_exposes_environment_values() {
         let capability =
             McpEnvironmentCapability::new("MCP_EXPLICIT_CAPABILITY").expect("capability");
-        let environment = McpChildEnvironment::from_lookup(
-            BTreeSet::from([capability]),
-            synthetic_lookup,
-        )
-        .expect("environment");
+        let environment =
+            McpChildEnvironment::from_lookup(BTreeSet::from([capability]), synthetic_lookup)
+                .expect("environment");
         let debug = format!("{environment:?}");
 
         assert!(debug.contains("MCP_EXPLICIT_CAPABILITY"));
@@ -359,11 +362,9 @@ mod tests {
     fn command_application_clears_prior_explicit_environment() {
         let capability =
             McpEnvironmentCapability::new("MCP_EXPLICIT_CAPABILITY").expect("capability");
-        let environment = McpChildEnvironment::from_lookup(
-            BTreeSet::from([capability]),
-            synthetic_lookup,
-        )
-        .expect("environment");
+        let environment =
+            McpChildEnvironment::from_lookup(BTreeSet::from([capability]), synthetic_lookup)
+                .expect("environment");
         let mut command = Command::new("not-executed");
         command.env("OPENAI_API_KEY", "must-not-survive");
         environment.apply_to_command(&mut command);
@@ -374,8 +375,10 @@ mod tests {
             .collect::<BTreeMap<_, _>>();
         assert!(!explicit.contains_key(OsStr::new("OPENAI_API_KEY")));
         assert_eq!(
-            explicit.get(OsStr::new("MCP_EXPLICIT_CAPABILITY")),
-            Some(&OsStr::new("explicit-value"))
+            explicit
+                .get(OsStr::new("MCP_EXPLICIT_CAPABILITY"))
+                .copied(),
+            Some(OsStr::new("explicit-value"))
         );
     }
 }
