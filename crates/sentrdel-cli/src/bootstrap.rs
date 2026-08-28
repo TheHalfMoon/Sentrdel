@@ -16,7 +16,7 @@ use sentrdel_store::{Store, StoreError};
 /// behavior does not populate this type in T036, and no engine, review, guard,
 /// package-manager, target build, or network operation is performed here.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct BootstrapConfig {
+pub struct BootstrapConfig {
     workspace_root: PathBuf,
     store_path: PathBuf,
     policy_authority_id: String,
@@ -24,7 +24,7 @@ pub(crate) struct BootstrapConfig {
 }
 
 impl BootstrapConfig {
-    pub(crate) fn new(
+    pub fn new(
         workspace_root: impl Into<PathBuf>,
         store_path: impl Into<PathBuf>,
         policy_authority_id: impl Into<String>,
@@ -44,7 +44,7 @@ impl BootstrapConfig {
 /// The runtime owns one Sentrdel store, one empty graph projection, one engine
 /// registry, and the policy bootstrap boundary. It deliberately exposes no
 /// review, init, explain, guard, engine-execution, or network orchestration.
-pub(crate) struct BootstrapRuntime {
+pub struct BootstrapRuntime {
     wire_schema_version: &'static str,
     store_path: PathBuf,
     store: Store,
@@ -54,7 +54,7 @@ pub(crate) struct BootstrapRuntime {
 }
 
 impl BootstrapRuntime {
-    pub(crate) fn open(config: BootstrapConfig) -> Result<Self, BootstrapError> {
+    pub fn open(config: BootstrapConfig) -> Result<Self, BootstrapError> {
         // Validate all non-mutating authority/path inputs before Store::open can
         // create or migrate a database.
         let policy = PolicyBootstrap::new(
@@ -62,7 +62,7 @@ impl BootstrapRuntime {
             config.policy_authority_id,
             config.policy_configuration_digest,
         )?;
-        let store_path = normalize_store_path(&config.store_path)?;
+        let store_path = normalize_store_path(&config.store_path, policy.workspace_root())?;
 
         let store = Store::open(&store_path)?;
         // Force the store to prove its migration ledger is readable at bootstrap
@@ -86,44 +86,45 @@ impl BootstrapRuntime {
         })
     }
 
-    pub(crate) const fn wire_schema_version(&self) -> &'static str {
+    pub const fn wire_schema_version(&self) -> &'static str {
         self.wire_schema_version
     }
 
-    pub(crate) fn store_path(&self) -> &Path {
+    pub fn store_path(&self) -> &Path {
         &self.store_path
     }
 
-    pub(crate) fn store(&self) -> &Store {
+    pub fn store(&self) -> &Store {
         &self.store
     }
 
-    pub(crate) fn store_mut(&mut self) -> &mut Store {
+    pub fn store_mut(&mut self) -> &mut Store {
         &mut self.store
     }
 
-    pub(crate) fn graph(&self) -> &GraphProjection {
+    pub fn graph(&self) -> &GraphProjection {
         &self.graph
     }
 
-    pub(crate) fn engines(&self) -> &EngineRegistry {
+    pub fn engines(&self) -> &EngineRegistry {
         &self.engines
     }
 
-    pub(crate) fn engines_mut(&mut self) -> &mut EngineRegistry {
+    pub fn engines_mut(&mut self) -> &mut EngineRegistry {
         &mut self.engines
     }
 
-    pub(crate) fn policy(&self) -> &PolicyBootstrap {
+    pub fn policy(&self) -> &PolicyBootstrap {
         &self.policy
     }
 }
 
 #[derive(Debug)]
-pub(crate) enum BootstrapError {
+pub enum BootstrapError {
     StorePathNotAbsolute(PathBuf),
     StorePathParentTraversal(PathBuf),
     StoreParentUnavailable(PathBuf),
+    StoreParentOutsideWorkspace(PathBuf),
     StorePathIsDirectory(PathBuf),
     Policy(PolicyBootstrapError),
     Store(StoreError),
@@ -144,8 +145,15 @@ impl fmt::Display for BootstrapError {
                 formatter,
                 "bootstrap store parent must exist as a canonical directory: {path:?}"
             ),
+            Self::StoreParentOutsideWorkspace(path) => write!(
+                formatter,
+                "bootstrap store parent resolves outside the approved workspace: {path:?}"
+            ),
             Self::StorePathIsDirectory(path) => {
-                write!(formatter, "bootstrap store path must not be a directory: {path:?}")
+                write!(
+                    formatter,
+                    "bootstrap store path must not be a directory: {path:?}"
+                )
             }
             Self::Policy(error) => write!(formatter, "policy bootstrap failed: {error}"),
             Self::Store(error) => write!(formatter, "store bootstrap failed: {error}"),
@@ -163,6 +171,7 @@ impl Error for BootstrapError {
             Self::StorePathNotAbsolute(_)
             | Self::StorePathParentTraversal(_)
             | Self::StoreParentUnavailable(_)
+            | Self::StoreParentOutsideWorkspace(_)
             | Self::StorePathIsDirectory(_) => None,
         }
     }
@@ -186,7 +195,10 @@ impl From<GraphProjectionError> for BootstrapError {
     }
 }
 
-fn normalize_store_path(path: &Path) -> Result<PathBuf, BootstrapError> {
+fn normalize_store_path(
+    path: &Path,
+    workspace_root: &Path,
+) -> Result<PathBuf, BootstrapError> {
     if !path.is_absolute() {
         return Err(BootstrapError::StorePathNotAbsolute(path.to_path_buf()));
     }
@@ -194,7 +206,9 @@ fn normalize_store_path(path: &Path) -> Result<PathBuf, BootstrapError> {
         .components()
         .any(|component| matches!(component, Component::ParentDir))
     {
-        return Err(BootstrapError::StorePathParentTraversal(path.to_path_buf()));
+        return Err(BootstrapError::StorePathParentTraversal(
+            path.to_path_buf(),
+        ));
     }
 
     let file_name = path
@@ -206,7 +220,14 @@ fn normalize_store_path(path: &Path) -> Result<PathBuf, BootstrapError> {
     let canonical_parent = fs::canonicalize(parent)
         .map_err(|_| BootstrapError::StoreParentUnavailable(parent.to_path_buf()))?;
     if !canonical_parent.is_dir() {
-        return Err(BootstrapError::StoreParentUnavailable(parent.to_path_buf()));
+        return Err(BootstrapError::StoreParentUnavailable(
+            parent.to_path_buf(),
+        ));
+    }
+    if !canonical_parent.starts_with(workspace_root) {
+        return Err(BootstrapError::StoreParentOutsideWorkspace(
+            canonical_parent,
+        ));
     }
 
     if path.exists() {
@@ -214,6 +235,9 @@ fn normalize_store_path(path: &Path) -> Result<PathBuf, BootstrapError> {
             .map_err(|_| BootstrapError::StoreParentUnavailable(path.to_path_buf()))?;
         if canonical.is_dir() {
             return Err(BootstrapError::StorePathIsDirectory(canonical));
+        }
+        if !canonical.starts_with(workspace_root) {
+            return Err(BootstrapError::StoreParentOutsideWorkspace(canonical));
         }
         Ok(canonical)
     } else {
@@ -273,13 +297,20 @@ mod tests {
         assert!(runtime.engines().is_empty());
         assert_eq!(runtime.engines_mut().len(), 0);
         assert!(runtime.store_mut().schema_version().expect("store schema") > 0);
-        assert_eq!(runtime.policy().workspace_root(), workspace.root.canonicalize().unwrap());
+        assert_eq!(
+            runtime.policy().workspace_root(),
+            workspace.root.canonicalize().unwrap()
+        );
 
         let validated = runtime
             .policy()
             .validate_workspace_path(workspace.root.join(".sentrdel"))
             .expect("workspace child should validate");
-        assert!(validated.path().starts_with(runtime.policy().workspace_root()));
+        assert!(
+            validated
+                .path()
+                .starts_with(runtime.policy().workspace_root())
+        );
     }
 
     #[test]
@@ -318,13 +349,31 @@ mod tests {
     }
 
     #[test]
+    fn store_parent_must_remain_inside_approved_workspace() {
+        let workspace = TestWorkspace::new("workspace-store");
+        let outside = TestWorkspace::new("outside-store");
+        let config = BootstrapConfig::new(
+            &workspace.root,
+            outside.root.join(".sentrdel/state.sqlite3"),
+            "sentrdel-r1-kernel",
+            format!("sha256:{}", "d".repeat(64)),
+        );
+
+        assert!(matches!(
+            BootstrapRuntime::open(config),
+            Err(BootstrapError::StoreParentOutsideWorkspace(_))
+        ));
+        assert!(!outside.root.join(".sentrdel/state.sqlite3").exists());
+    }
+
+    #[test]
     fn existing_directory_cannot_be_used_as_store_file() {
         let workspace = TestWorkspace::new("store-directory");
         let config = BootstrapConfig::new(
             &workspace.root,
             workspace.root.join(".sentrdel"),
             "sentrdel-r1-kernel",
-            format!("sha256:{}", "d".repeat(64)),
+            format!("sha256:{}", "e".repeat(64)),
         );
 
         assert!(matches!(
