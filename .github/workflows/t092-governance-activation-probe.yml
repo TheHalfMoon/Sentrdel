@@ -44,4 +44,5 @@ jobs:
 
       - name: Record fail-closed external blocker
         if: steps.credential.outputs.present != 'true'
-        run: echo "T092 activation probe: BLOCKED_NO_DEDICATED_ADMIN_TOKEN"
+        run: |
+          echo "T092 activation probe: BLOCKED_NO_DEDICATED_ADMIN_TOKEN"
