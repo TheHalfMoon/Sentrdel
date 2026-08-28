@@ -289,3 +289,43 @@ surfaces = ["build-script"]
 owner = "Sentrdel trusted-core maintainers"
 qualification = "SSQ-001"
 rationale = "Transitive JSON numeric formatting dependency; conservatively records its compile-time surface."
+
+[[package]]
+name = "borsh"
+version = "1.8.1"
+surfaces = ["build-script"]
+owner = "Sentrdel trusted-core maintainers"
+qualification = "T039Q-001"
+rationale = "Locked ast-grep structural-matching transitive closure; build-time configuration executes only while compiling the trusted Sentrdel workspace and grants no target-repository authority."
+
+[[package]]
+name = "borsh-derive"
+version = "1.8.1"
+surfaces = ["proc-macro"]
+owner = "Sentrdel trusted-core maintainers"
+qualification = "T039Q-001"
+rationale = "Locked transitive derive macro in the T039 parser closure; compile-time compiler authority is explicit and grants no runtime policy or repository authority."
+
+[[package]]
+name = "tree-sitter"
+version = "0.26.13"
+surfaces = ["build-script", "native-link"]
+owner = "Sentrdel trusted-core maintainers"
+qualification = "T039Q-001"
+rationale = "Qualified T039 in-process parser runtime; its bundled C runtime is compiled and linked only for bounded parsing inside the trusted workspace."
+
+[[package]]
+name = "tree-sitter-javascript"
+version = "0.25.0"
+surfaces = ["build-script"]
+owner = "Sentrdel trusted-core maintainers"
+qualification = "T039Q-001"
+rationale = "Qualified fixed JavaScript grammar for T039; build.rs compiles committed generated grammar sources and does not authorize grammar generation or target tooling."
+
+[[package]]
+name = "tree-sitter-language"
+version = "0.1.7"
+surfaces = ["build-script", "native-link"]
+owner = "Sentrdel trusted-core maintainers"
+qualification = "T039Q-001"
+rationale = "Locked Tree-sitter language ABI bridge in the qualified T039 grammar closure; compile and link authority is limited to the trusted build."
