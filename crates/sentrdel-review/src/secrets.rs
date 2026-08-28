@@ -187,12 +187,7 @@ pub fn scan_changed_secrets(
                 left.attributes
                     .get("rule_id")
                     .and_then(Value::as_str)
-                    .cmp(
-                        &right
-                            .attributes
-                            .get("rule_id")
-                            .and_then(Value::as_str),
-                    )
+                    .cmp(&right.attributes.get("rule_id").and_then(Value::as_str))
             })
     });
     Ok(evidence)
