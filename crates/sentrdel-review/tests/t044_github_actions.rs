@@ -52,8 +52,8 @@ jobs:
       - run: deploy "${{ secrets.DEPLOY_TOKEN }}"
 "#;
 
-    let evidence = scan_changed_workflow(&path(), Some(before), after, "2026-08-28T00:00:00Z")
-        .expect("scan");
+    let evidence =
+        scan_changed_workflow(&path(), Some(before), after, "2026-08-28T00:00:00Z").expect("scan");
     let ids = rule_ids(&evidence);
     for required in [
         "gha.permission-widening",
@@ -87,8 +87,8 @@ jobs:
       - uses: actions/checkout@0123456789012345678901234567890123456789
       - run: echo "fixed input"
 "#;
-    let evidence = scan_changed_workflow(&path(), Some(source), source, "2026-08-28T00:00:00Z")
-        .expect("scan");
+    let evidence =
+        scan_changed_workflow(&path(), Some(source), source, "2026-08-28T00:00:00Z").expect("scan");
     assert!(evidence.is_empty());
 }
 
@@ -104,8 +104,8 @@ jobs:
     steps: []
 "#;
     let after = before;
-    let evidence = scan_changed_workflow(&path(), Some(before), after, "2026-08-28T00:00:00Z")
-        .expect("scan");
+    let evidence =
+        scan_changed_workflow(&path(), Some(before), after, "2026-08-28T00:00:00Z").expect("scan");
     let ids = rule_ids(&evidence);
     assert!(!ids.contains("gha.permission-widening"));
     assert!(!ids.contains("gha.self-hosted-runner-change"));
@@ -123,8 +123,8 @@ jobs:
       - uses: actions/download-artifact@v5
       - run: echo "${{ secrets.SAFE_FOR_PUSH }}"
 "#;
-    let evidence = scan_changed_workflow(&path(), None, ordinary, "2026-08-28T00:00:00Z")
-        .expect("scan");
+    let evidence =
+        scan_changed_workflow(&path(), None, ordinary, "2026-08-28T00:00:00Z").expect("scan");
     let ids = rule_ids(&evidence);
     assert!(!ids.contains("gha.secret-in-untrusted-pr-path"));
     assert!(!ids.contains("gha.trust-sensitive-artifact-cache-handoff"));
@@ -141,8 +141,8 @@ jobs:
     steps:
       - run: echo "${{ github.event.pull_request.body }} ${{ secrets.TOP_SECRET_NAME }}"
 "#;
-    let evidence = scan_changed_workflow(&path(), None, source, "2026-08-28T00:00:00Z")
-        .expect("scan");
+    let evidence =
+        scan_changed_workflow(&path(), None, source, "2026-08-28T00:00:00Z").expect("scan");
     let serialized = serde_json::to_string(&evidence).unwrap();
     assert!(!serialized.contains("TOP_SECRET_NAME"));
     assert!(!serialized.contains("github.event.pull_request.body"));
