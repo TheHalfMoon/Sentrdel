@@ -20,16 +20,37 @@ pub const MAX_SCIP_SYMBOL_BYTES: usize = 16_384;
 /// Trusted qualification assigned outside the untrusted SCIP artifact.
 ///
 /// This value MUST NOT be inferred from `ToolInfo.name`, command-line arguments,
-/// repository content, or an indexer's self-description. It represents a
-/// Sentrdel-owned qualification decision about the producer used for this run.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// repository content, or an indexer's self-description. The qualification ID
+/// is persisted as graph provenance so downstream consumers can distinguish the
+/// artifact from the authority that classified its semantic precision.
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ScipProducerQualification {
     /// A qualified compiler/language-server-backed producer whose emitted
     /// definition/reference facts may be represented as extracted graph data.
-    CompilerBacked,
+    CompilerBacked { qualification_id: String },
     /// A qualified syntax/heuristic producer. Its graph relations remain
     /// explicitly inferred and never gain compiler-level semantic certainty.
-    Heuristic,
+    Heuristic { qualification_id: String },
+}
+
+impl ScipProducerQualification {
+    fn qualification_id(&self) -> &str {
+        match self {
+            Self::CompilerBacked { qualification_id }
+            | Self::Heuristic { qualification_id } => qualification_id,
+        }
+    }
+
+    fn basis(&self) -> GraphConfidenceBasis {
+        match self {
+            Self::CompilerBacked { .. } => GraphConfidenceBasis::Extracted,
+            Self::Heuristic { .. } => GraphConfidenceBasis::Inferred,
+        }
+    }
+
+    fn is_heuristic(&self) -> bool {
+        matches!(self, Self::Heuristic { .. })
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -136,9 +157,15 @@ pub fn scip_coverage_gap(
     observed_at: impl Into<String>,
     producer: Option<String>,
     gap: ScipCoverageGap,
-) -> CoverageRecord {
+) -> Result<CoverageRecord, ScipIngestionError> {
     let scope = scope.into();
-    CoverageRecord {
+    let observed_at = observed_at.into();
+    validate_scope_and_time(&scope, &observed_at)?;
+    if producer.as_deref().is_some_and(|value| value.trim().is_empty()) {
+        return Err(ScipIngestionError::BlankProducerName);
+    }
+
+    Ok(CoverageRecord {
         schema_version: sentrdel_schema::SCHEMA_V1.to_owned(),
         coverage_id: format!("coverage:scip-references:{scope}"),
         capability: SCIP_REFERENCE_CAPABILITY.to_owned(),
@@ -152,8 +179,8 @@ pub fn scip_coverage_gap(
                 .to_owned(),
         ),
         input_digests: Vec::new(),
-        observed_at: observed_at.into(),
-    }
+        observed_at,
+    })
 }
 
 /// Ingest a validated, adapter-normalized SCIP artifact into the thin Sentrdel
@@ -174,17 +201,18 @@ pub fn ingest_scip(
         observed_at,
     } = request;
 
-    let basis = match producer_qualification {
-        ScipProducerQualification::CompilerBacked => GraphConfidenceBasis::Extracted,
-        ScipProducerQualification::Heuristic => GraphConfidenceBasis::Inferred,
-    };
+    let qualification_id = producer_qualification.qualification_id().to_owned();
+    let basis = producer_qualification.basis();
+    let is_heuristic = producer_qualification.is_heuristic();
     let confidence = GraphConfidenceSource::new(
         artifact.producer_name.clone(),
         artifact.producer_version.clone(),
         basis,
     )?;
-    let provenance = GraphProvenanceId::new(format!("scip:{}", artifact.artifact_digest))?;
-    let provenance_ids = vec![provenance];
+    let provenance_ids = vec![
+        GraphProvenanceId::new(format!("scip:{}", artifact.artifact_digest))?,
+        GraphProvenanceId::new(format!("source-qualification:{qualification_id}"))?,
+    ];
 
     let mut nodes = BTreeMap::new();
     let mut edges = BTreeMap::new();
@@ -243,7 +271,6 @@ pub fn ingest_scip(
     }
 
     let is_empty = nodes.is_empty();
-    let is_heuristic = producer_qualification == ScipProducerQualification::Heuristic;
     let state = if is_empty || is_heuristic {
         CoverageState::Partial
     } else {
@@ -256,13 +283,14 @@ pub fn ingest_scip(
     } else {
         None
     };
-    let details = match producer_qualification {
-        ScipProducerQualification::CompilerBacked => {
-            "SCIP reference graph ingested from a separately qualified compiler/language-server-backed producer; coverage applies only to the declared artifact scope"
-        }
-        ScipProducerQualification::Heuristic => {
-            "SCIP reference graph ingested from a separately qualified heuristic producer; relations remain INFERRED and graph-semantic coverage is PARTIAL"
-        }
+    let details = if is_heuristic {
+        format!(
+            "SCIP reference graph ingested under qualification {qualification_id}; producer is heuristic, relations remain INFERRED, and graph-semantic coverage is PARTIAL"
+        )
+    } else {
+        format!(
+            "SCIP reference graph ingested under qualification {qualification_id}; producer is separately qualified as compiler/language-server-backed and coverage applies only to the declared artifact scope"
+        )
     };
 
     let producer = match artifact.producer_version.as_deref() {
@@ -282,7 +310,7 @@ pub fn ingest_scip(
             provider_dimension: None,
             state,
             reason_code,
-            details: Some(details.to_owned()),
+            details: Some(details),
             input_digests: vec![artifact.artifact_digest],
             observed_at,
         },
@@ -296,6 +324,7 @@ pub enum ScipIngestionError {
     InvalidArtifactDigest(String),
     BlankProducerName,
     BlankProducerVersion,
+    BlankQualificationId,
     TooManyDocuments {
         actual: usize,
         maximum: usize,
@@ -305,6 +334,7 @@ pub enum ScipIngestionError {
         maximum: usize,
     },
     InvalidDocumentPath(String),
+    DuplicateDocumentPath(String),
     BlankLanguage(String),
     InvalidSymbol(String),
     InvalidRange {
@@ -331,6 +361,9 @@ impl fmt::Display for ScipIngestionError {
             Self::BlankProducerVersion => {
                 formatter.write_str("SCIP producer version must not be blank when present")
             }
+            Self::BlankQualificationId => {
+                formatter.write_str("SCIP producer qualification id must not be blank")
+            }
             Self::TooManyDocuments { actual, maximum } => write!(
                 formatter,
                 "SCIP artifact contains {actual} documents, exceeding maximum {maximum}"
@@ -341,6 +374,9 @@ impl fmt::Display for ScipIngestionError {
             ),
             Self::InvalidDocumentPath(path) => {
                 write!(formatter, "invalid canonical SCIP relative path: {path:?}")
+            }
+            Self::DuplicateDocumentPath(path) => {
+                write!(formatter, "duplicate SCIP document path: {path:?}")
             }
             Self::BlankLanguage(path) => {
                 write!(formatter, "SCIP document language is blank for {path:?}")
@@ -365,9 +401,11 @@ impl Error for ScipIngestionError {
             | Self::InvalidArtifactDigest(_)
             | Self::BlankProducerName
             | Self::BlankProducerVersion
+            | Self::BlankQualificationId
             | Self::TooManyDocuments { .. }
             | Self::TooManyOccurrences { .. }
             | Self::InvalidDocumentPath(_)
+            | Self::DuplicateDocumentPath(_)
             | Self::BlankLanguage(_)
             | Self::InvalidSymbol(_)
             | Self::InvalidRange { .. } => None,
@@ -381,13 +419,18 @@ impl From<GraphContractError> for ScipIngestionError {
     }
 }
 
-fn validate_request(request: &ScipIngestionRequest) -> Result<(), ScipIngestionError> {
-    if request.scope.trim().is_empty() {
+fn validate_scope_and_time(scope: &str, observed_at: &str) -> Result<(), ScipIngestionError> {
+    if scope.trim().is_empty() {
         return Err(ScipIngestionError::BlankScope);
     }
-    if request.observed_at.trim().is_empty() {
+    if observed_at.trim().is_empty() {
         return Err(ScipIngestionError::BlankObservedAt);
     }
+    Ok(())
+}
+
+fn validate_request(request: &ScipIngestionRequest) -> Result<(), ScipIngestionError> {
+    validate_scope_and_time(&request.scope, &request.observed_at)?;
     if !is_canonical_sha256_id(&request.artifact.artifact_digest) {
         return Err(ScipIngestionError::InvalidArtifactDigest(
             request.artifact.artifact_digest.clone(),
@@ -404,6 +447,9 @@ fn validate_request(request: &ScipIngestionRequest) -> Result<(), ScipIngestionE
     {
         return Err(ScipIngestionError::BlankProducerVersion);
     }
+    if request.producer_qualification.qualification_id().trim().is_empty() {
+        return Err(ScipIngestionError::BlankQualificationId);
+    }
     if request.artifact.documents.len() > MAX_SCIP_DOCUMENTS {
         return Err(ScipIngestionError::TooManyDocuments {
             actual: request.artifact.documents.len(),
@@ -416,7 +462,7 @@ fn validate_request(request: &ScipIngestionRequest) -> Result<(), ScipIngestionE
     for document in &request.artifact.documents {
         validate_document_path(&document.relative_path)?;
         if !seen_paths.insert(document.relative_path.as_str()) {
-            return Err(ScipIngestionError::InvalidDocumentPath(
+            return Err(ScipIngestionError::DuplicateDocumentPath(
                 document.relative_path.clone(),
             ));
         }
@@ -513,6 +559,18 @@ mod tests {
         format!("sha256:{}", "a".repeat(64))
     }
 
+    fn compiler_qualification() -> ScipProducerQualification {
+        ScipProducerQualification::CompilerBacked {
+            qualification_id: "SCIPQ-fixture-compiler".to_owned(),
+        }
+    }
+
+    fn heuristic_qualification() -> ScipProducerQualification {
+        ScipProducerQualification::Heuristic {
+            qualification_id: "SCIPQ-fixture-heuristic".to_owned(),
+        }
+    }
+
     fn occurrence(symbol: &str, role: ScipOccurrenceRole, line: u32) -> ScipOccurrence {
         ScipOccurrence {
             symbol: symbol.to_owned(),
@@ -554,9 +612,8 @@ mod tests {
     }
 
     #[test]
-    fn compiler_backed_ingestion_produces_extracted_reference_graph() {
-        let result = ingest_scip(request(ScipProducerQualification::CompilerBacked))
-            .expect("SCIP ingestion");
+    fn compiler_backed_ingestion_requires_and_preserves_qualification_provenance() {
+        let result = ingest_scip(request(compiler_qualification())).expect("SCIP ingestion");
 
         assert_eq!(result.coverage.state, CoverageState::Covered);
         assert_eq!(result.coverage.input_digests, vec![digest()]);
@@ -566,18 +623,27 @@ mod tests {
             GraphConfidenceBasis::Extracted
         );
         assert_eq!(result.edges[0].relation, GraphRelation::Refs);
-        assert!(
-            result
-                .nodes
-                .iter()
-                .any(|node| node.node_kind == GraphNodeKind::Reference)
-        );
+        assert!(result.edges[0]
+            .provenance_ids
+            .iter()
+            .any(|id| id.as_str() == "source-qualification:SCIPQ-fixture-compiler"));
+    }
+
+    #[test]
+    fn blank_qualification_cannot_mint_extracted_semantics() {
+        let mut value = request(ScipProducerQualification::CompilerBacked {
+            qualification_id: "   ".to_owned(),
+        });
+        value.artifact.producer_name = "self-described-compiler".to_owned();
+        assert!(matches!(
+            ingest_scip(value),
+            Err(ScipIngestionError::BlankQualificationId)
+        ));
     }
 
     #[test]
     fn heuristic_ingestion_never_claims_compiler_semantic_certainty() {
-        let result = ingest_scip(request(ScipProducerQualification::Heuristic))
-            .expect("SCIP ingestion");
+        let result = ingest_scip(request(heuristic_qualification())).expect("SCIP ingestion");
 
         assert_eq!(result.coverage.state, CoverageState::Partial);
         assert_eq!(
@@ -592,7 +658,7 @@ mod tests {
 
     #[test]
     fn local_symbol_identity_is_document_scoped() {
-        let mut value = request(ScipProducerQualification::CompilerBacked);
+        let mut value = request(compiler_qualification());
         value.artifact.documents = vec![
             ScipDocument {
                 relative_path: "src/a.rs".to_owned(),
@@ -626,9 +692,8 @@ mod tests {
 
     #[test]
     fn duplicate_occurrences_do_not_change_output() {
-        let baseline = ingest_scip(request(ScipProducerQualification::CompilerBacked))
-            .expect("baseline");
-        let mut duplicated = request(ScipProducerQualification::CompilerBacked);
+        let baseline = ingest_scip(request(compiler_qualification())).expect("baseline");
+        let mut duplicated = request(compiler_qualification());
         let duplicate = duplicated.artifact.documents[0].occurrences[1].clone();
         duplicated.artifact.documents[0]
             .occurrences
@@ -650,7 +715,7 @@ mod tests {
             "C:/repo/src/lib.rs",
             "src\\lib.rs",
         ] {
-            let mut value = request(ScipProducerQualification::CompilerBacked);
+            let mut value = request(compiler_qualification());
             value.artifact.documents[0].relative_path = path.to_owned();
             assert!(matches!(
                 ingest_scip(value),
@@ -661,14 +726,14 @@ mod tests {
 
     #[test]
     fn invalid_digest_and_range_fail_closed() {
-        let mut bad_digest = request(ScipProducerQualification::CompilerBacked);
+        let mut bad_digest = request(compiler_qualification());
         bad_digest.artifact.artifact_digest = "sha256:not-a-digest".to_owned();
         assert!(matches!(
             ingest_scip(bad_digest),
             Err(ScipIngestionError::InvalidArtifactDigest(_))
         ));
 
-        let mut bad_range = request(ScipProducerQualification::CompilerBacked);
+        let mut bad_range = request(compiler_qualification());
         bad_range.artifact.documents[0].occurrences[0].range = ScipRange {
             start: ScipPosition {
                 line: 10,
@@ -692,7 +757,8 @@ mod tests {
             "2026-08-28T00:00:00Z",
             None,
             ScipCoverageGap::Unavailable,
-        );
+        )
+        .expect("coverage gap");
         assert_eq!(coverage.state, CoverageState::Unavailable);
         assert!(coverage.is_gap());
         assert_eq!(
@@ -703,7 +769,7 @@ mod tests {
 
     #[test]
     fn empty_index_is_partial_not_clean_semantic_coverage() {
-        let mut value = request(ScipProducerQualification::CompilerBacked);
+        let mut value = request(compiler_qualification());
         value.artifact.documents.clear();
         let result = ingest_scip(value).expect("empty SCIP artifact is representable");
         assert_eq!(result.coverage.state, CoverageState::Partial);
