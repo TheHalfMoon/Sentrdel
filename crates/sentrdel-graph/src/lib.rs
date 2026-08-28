@@ -15,10 +15,11 @@ pub use projection::{
     MAX_BLAST_RADIUS_DEPTH, ReverseReachabilityHit,
 };
 pub use scip::{
-    MAX_SCIP_DOCUMENTS, MAX_SCIP_OCCURRENCES, MAX_SCIP_PATH_BYTES, MAX_SCIP_SYMBOL_BYTES,
-    SCIP_REFERENCE_CAPABILITY, ScipArtifact, ScipCoverageGap, ScipDocument, ScipIngestionError,
-    ScipIngestionRequest, ScipIngestionResult, ScipOccurrence, ScipOccurrenceRole, ScipPosition,
-    ScipProducerQualification, ScipRange, ingest_scip, scip_coverage_gap,
+    MAX_SCIP_DOCUMENTS, MAX_SCIP_METADATA_BYTES, MAX_SCIP_OCCURRENCES, MAX_SCIP_PATH_BYTES,
+    MAX_SCIP_SYMBOL_BYTES, SCIP_REFERENCE_CAPABILITY, ScipArtifact, ScipCoverageGap, ScipDocument,
+    ScipIngestionError, ScipIngestionRequest, ScipIngestionResult, ScipOccurrence,
+    ScipOccurrenceRole, ScipPosition, ScipProducerQualification, ScipRange, ingest_scip,
+    scip_coverage_gap,
 };
 pub use sentrdel_schema::graph::{
     GraphConfidenceBasis, GraphConfidenceSource, GraphContractError, GraphEdge, GraphEdgeId,
