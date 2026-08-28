@@ -1,43 +1,46 @@
 # Repository Governance — Protected `main`
 
 **Task:** T092  
-**Status:** `CONFIGURATION_PENDING_LIVE_ENFORCEMENT`  
+**Status:** `LIVE_ACTIVATION_DETECTED_VERIFICATION_PENDING`  
 **Repository:** `TheHalfMoon/Sentrdel`  
-**Canonical base inspected:** `7453d9302814f63c02003d9fde8bf33a9dbee1af`  
+**Canonical main at latest live verification:** `d17e69fcb410051d3861e7de1431391abd48f0d0`  
 **Live state inspected:** 2026-08-28
 
 ## 1. Truth rule
 
 GitHub Actions success is not branch protection.
 
-T092 is complete only when the live GitHub repository reports an enforced protection/ruleset for `main` that requires the canonical stable checks described below. A checked-in policy document, CI workflow, successful PR, or maintainer convention is not a substitute for live repository enforcement.
+T092 is complete only when the live GitHub repository reports an enforced protection/ruleset for `main` that satisfies the canonical policy below and the post-configuration verifier/evidence requirements are complete. A checked-in policy document, CI workflow, successful PR, maintainer convention, or partial API summary is not a substitute for complete live repository enforcement evidence.
 
-## 2. Live state at this record
+## 2. Latest live state
 
-The live GitHub branch API reported:
+After administrator activation, the live GitHub branch API reports:
 
 ```text
 branch: main
-head: 7453d9302814f63c02003d9fde8bf33a9dbee1af
-protected: false
-protection.enabled: false
-required_status_checks.enforcement_level: off
-required_status_checks.contexts: []
+head: d17e69fcb410051d3861e7de1431391abd48f0d0
+protected: true
+protection.enabled: true
+required_status_checks.enforcement_level: everyone
+required_status_checks.contexts:
+  - Rust 1.98 bootstrap
+  - Dependency security
+  - Resolve and test schema substrate
 ```
 
-The live repository rulesets collection reported:
+The same response binds each required check to GitHub Actions app id `15368`.
+
+The live repository rulesets collection reports:
 
 ```json
 []
 ```
 
-Therefore the repository is **UNPROTECTED** at this record. T092 MUST remain unchecked until a post-configuration live read proves otherwise.
+Therefore classic branch protection is now **LIVE and ACTIVE** for `main`, and the three canonical required check identities are visible and enforced at the branch summary surface.
 
-The authenticated repository owner has `admin` permission. The connected GitHub operation surface used for this implementation exposes reads for branch protection/rulesets but does not expose a branch-protection/ruleset mutation operation. That tool limitation does not change the required GitHub state and MUST NOT be represented as task completion.
+This is a material state change from the earlier unprotected record. However, T092 remains unchecked because the connected GitHub App still receives `403 Resource not accessible by integration` from the detailed branch-protection endpoint and its subresources. That prevents this execution surface from independently reading all remaining required policy fields or running the administrator-token verifier.
 
 ## 3. Stable canonical checks
-
-Before live protection is activated, T092 removes path filtering from `Schema Lock Qualification` so all canonical merge checks have stable PR contexts.
 
 The required check contexts are exactly:
 
@@ -49,7 +52,7 @@ The required check contexts are exactly:
    - proves checksum-pinned self-security tools, locked dependency metadata, privileged-surface declarations, `cargo-audit`, and `cargo-deny`.
 3. `Resolve and test schema substrate`
    - workflow: `Schema Lock Qualification`
-   - now runs on every PR so a required check cannot remain absent merely because a path filter did not match.
+   - runs on every PR so a required check cannot remain absent merely because a path filter did not match.
    - proves locked dependency tree, workspace semantic qualification, public schema generation/lock, and committed schema-source formatting.
 
 A future rename of any required job/check is a governance change: protection must be updated atomically or before the rename is merged so `main` is not left with a missing or stale required context.
@@ -128,17 +131,42 @@ Before changing T092 to `[x]`, capture live GitHub evidence after configuration 
 - the enforcement is active, not disabled/evaluate-only;
 - no contradictory ruleset or branch-policy exception silently bypasses the rule.
 
-Then run `scripts/verify_repository_governance.py` with an administrator-capable GitHub token and record its PASS output plus the live API evidence in this document/PR before closeout.
+The branch-summary surface currently proves the first protection state, active enforcement summary, `main` target, and exact required-check identities. It does **not** expose enough information through the connected GitHub App to prove every remaining field above.
 
-## 8. Limitations and non-claims
+Then run `scripts/verify_repository_governance.py` with an administrator-capable GitHub token and record its PASS output plus the live API evidence in this document/PR before closeout. The current execution environment has no administrator-capable GitHub token and the connected GitHub App cannot read the detailed protection endpoint, so this verifier has **not** been represented as PASS.
+
+## 8. Current verification boundary
+
+Verified live:
+
+- canonical `main` is `d17e69fcb410051d3861e7de1431391abd48f0d0`;
+- `main` reports `protected: true`;
+- `protection.enabled: true`;
+- required status-check enforcement reports `everyone`;
+- the exact three canonical required checks are present;
+- repository rulesets are empty, so the visible enforcement is classic branch protection rather than a repository ruleset.
+
+Not independently readable from the current connector surface:
+
+- `required_status_checks.strict`;
+- required pull-request review configuration;
+- required conversation resolution;
+- `enforce_admins` detail beyond the branch summary enforcement level;
+- force-push policy;
+- deletion policy;
+- fork-sync setting.
+
+No destructive behavioral probe will be used to test force-push or deletion policy. A failed read is a verification gap, not evidence that the policy is absent or present.
+
+## 9. Limitations and non-claims
 
 - This document does not itself protect `main`.
-- A successful workflow run does not protect `main`.
-- The current checked-in desired policy is not proof that GitHub accepted or enforces it.
+- A successful workflow run does not by itself protect `main`.
+- The live branch summary now proves active protection and required checks, but does not prove every detailed field required for final T092 closeout.
+- The administrator-token verifier has not run PASS from this execution surface.
 - T092 does not claim independent human review while the required approval count is zero.
 - T092 does not add release signing, artifact attestation, CODEOWNERS, environment protection, or organization-wide governance; later release-hardening tasks may strengthen those areas.
-- Direct pushes remain technically possible until the live protection/ruleset is activated.
 
-## 9. Gate consequence
+## 10. Gate consequence
 
-The Evaluation Gate Checkpoint requires T092 and T095. T095 may be complete independently, but **Phase 3 T037 MUST NOT start while this document still reports `CONFIGURATION_PENDING_LIVE_ENFORCEMENT` or while live GitHub reports `main` unprotected.**
+The Evaluation Gate Checkpoint requires T092 and T095. T095 may be complete independently, but **Phase 3 T037 MUST NOT start while T092 remains unchecked or while the complete post-configuration verification above is unresolved.**
