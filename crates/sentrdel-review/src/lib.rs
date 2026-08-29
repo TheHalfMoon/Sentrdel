@@ -10,6 +10,7 @@ pub mod osv;
 pub mod pack_registry;
 pub mod profile;
 pub mod project_detection;
+pub mod reasoner;
 pub mod reconcile;
 pub mod secrets;
 pub mod stack_detection;
