@@ -216,9 +216,7 @@ fn append_supported_changes(
     if let (Some(old_provenance), Some(new_provenance)) = (
         old.roles.provenance.as_ref(),
         new.roles.provenance.as_ref(),
-    ) && old.roles.value.is_subset(&new.roles.value)
-        && old.roles.value != new.roles.value
-        && !old.roles.value.contains("public")
+    ) && role_scope_expanded(&old.roles.value, &new.roles.value)
     {
         let added_roles: Vec<String> = new
             .roles
@@ -226,6 +224,11 @@ fn append_supported_changes(
             .difference(&old.roles.value)
             .cloned()
             .collect();
+        let expansion_basis = if new.roles.value.contains("public") {
+            "PUBLIC"
+        } else {
+            "STRICT_SUPERSET"
+        };
         push_delta(
             evidence,
             limits,
@@ -235,13 +238,19 @@ fn append_supported_changes(
                 after,
                 &new.identity,
                 "ROLE_SCOPE_EXPANDED",
-                "Supported policy role set gained one or more roles without removing prior roles",
+                "Supported policy role scope expanded under bounded PostgreSQL role semantics",
                 old_provenance,
                 new_provenance,
-                BTreeMap::from([(
-                    "added_roles".to_owned(),
-                    Value::Array(added_roles.into_iter().map(Value::String).collect()),
-                )]),
+                BTreeMap::from([
+                    (
+                        "added_roles".to_owned(),
+                        Value::Array(added_roles.into_iter().map(Value::String).collect()),
+                    ),
+                    (
+                        "scope_expansion_basis".to_owned(),
+                        Value::String(expansion_basis.to_owned()),
+                    ),
+                ]),
                 captured_at,
             )?,
         )?;
@@ -289,6 +298,16 @@ fn append_supported_changes(
     }
 
     Ok(())
+}
+
+fn role_scope_expanded(old: &BTreeSet<String>, new: &BTreeSet<String>) -> bool {
+    if old.contains("public") {
+        return false;
+    }
+    if new.contains("public") {
+        return true;
+    }
+    old.is_subset(new) && old != new
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -806,6 +825,45 @@ mod tests {
         )
         .unwrap();
         assert!(evidence.is_empty());
+    }
+
+    #[test]
+    fn transition_to_public_is_reported_as_authorization_widening() {
+        let before = state(&[migration(
+            "20260829000100",
+            "before",
+            "sha256:before",
+            "create table public.accounts(id bigint); create policy account_access on public.accounts for select to authenticated using (true);",
+        )]);
+        let after = state(&[migration(
+            "20260829000100",
+            "after",
+            "sha256:after",
+            "create table public.accounts(id bigint); create policy account_access on public.accounts for select to public using (true);",
+        )]);
+        let evidence = observe_policy_delta(
+            &before,
+            &after,
+            "2026-08-29T13:40:00Z",
+            PolicyPostureLimits::default(),
+        )
+        .unwrap();
+        assert_eq!(evidence.len(), 1);
+        assert_eq!(
+            evidence[0].claim().attributes.get("delta_kind"),
+            Some(&Value::String("ROLE_SCOPE_EXPANDED".to_owned()))
+        );
+        assert_eq!(
+            evidence[0]
+                .claim()
+                .attributes
+                .get("scope_expansion_basis"),
+            Some(&Value::String("PUBLIC".to_owned()))
+        );
+        assert_eq!(
+            evidence[0].claim().attributes.get("added_roles"),
+            Some(&Value::Array(vec![Value::String("public".to_owned())]))
+        );
     }
 
     #[test]
