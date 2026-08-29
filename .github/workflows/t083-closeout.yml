@@ -1,0 +1,43 @@
+name: T083 Closeout
+
+on:
+  push:
+    branches:
+      - closeout/001-t083-threat-model
+
+permissions:
+  contents: write
+
+jobs:
+  closeout:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout closeout branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: closeout/001-t083-threat-model
+          persist-credentials: true
+          fetch-depth: 1
+      - name: Mark T083 complete and remove temporary workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('specs/001-v0-1-evidence-guard-foundation/tasks.md')
+          text = path.read_text()
+          old = '- [ ] T083 [P] Document R1 threat model/trust boundaries in `docs/security/threat-model.md` and keep root `SECURITY.md` aligned, including context/instruction authority and MCP credential inheritance boundaries.'
+          new = old.replace('- [ ]', '- [x]', 1)
+          if old not in text:
+              raise SystemExit('T083 open checkbox not found; refusing non-bounded edit')
+          if text.count(old) != 1:
+              raise SystemExit('T083 checkbox is not unique; refusing edit')
+          path.write_text(text.replace(old, new, 1))
+          PY
+          rm .github/workflows/t083-closeout.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add specs/001-v0-1-evidence-guard-foundation/tasks.md .github/workflows/t083-closeout.yml
+          git commit -m 'docs(spec): close T083 threat model task'
+          git push origin HEAD:closeout/001-t083-threat-model
