@@ -33,10 +33,7 @@ impl ImpactComponents {
 
     #[must_use]
     pub fn sentence(&self) -> String {
-        format!(
-            "{} can {} on {}.",
-            self.actor, self.capability, self.object
-        )
+        format!("{} can {} on {}.", self.actor, self.capability, self.object)
     }
 }
 
@@ -201,11 +198,9 @@ mod tests {
     };
 
     fn finding() -> Finding {
-        let reconciler = ReconcilerAuthority::from_runtime(
-            "sentrdel-reconciler",
-            "sha256:t067-config",
-        )
-        .expect("reconciler authority");
+        let reconciler =
+            ReconcilerAuthority::from_runtime("sentrdel-reconciler", "sha256:t067-config")
+                .expect("reconciler authority");
         Finding::new_reconciled(
             ReconciledFindingDraft {
                 schema_version: SCHEMA_V1.to_owned(),
@@ -250,7 +245,12 @@ mod tests {
         );
         assert_eq!(presentation.evidence.heading, "Evidence");
         assert!(presentation.evidence.text.contains("CORROBORATED"));
-        assert!(presentation.evidence.text.contains("supporting evidence: 2"));
+        assert!(
+            presentation
+                .evidence
+                .text
+                .contains("supporting evidence: 2")
+        );
         assert_eq!(presentation.technical.heading, "Technical detail");
         assert!(presentation.technical.text.contains("workflow=NEW"));
         assert!(presentation.technical.text.contains("category=ci.workflow"));
@@ -274,8 +274,12 @@ mod tests {
         assert!(ImpactComponents::new(" ", "read", "repo").is_err());
         assert!(ImpactComponents::new("actor", "read\nwrite", "repo").is_err());
         assert!(
-            ImpactComponents::new("actor", "read", "x".repeat(MAX_PRESENTATION_FIELD_BYTES + 1))
-                .is_err()
+            ImpactComponents::new(
+                "actor",
+                "read",
+                "x".repeat(MAX_PRESENTATION_FIELD_BYTES + 1)
+            )
+            .is_err()
         );
     }
 }
