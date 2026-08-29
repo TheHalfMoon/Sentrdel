@@ -16,6 +16,7 @@ pub mod secrets;
 pub mod stack_detection;
 pub mod structural;
 pub mod structural_rules;
+pub mod supabase;
 pub mod supabase_detection;
 pub mod view;
 
