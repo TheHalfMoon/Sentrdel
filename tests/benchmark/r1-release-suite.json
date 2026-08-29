@@ -53,7 +53,7 @@
     },
     {
       "id": "review_latency",
-      "state": "NOT_MEASURED",
+      "state": "MEASURED",
       "owner_task": "T079",
       "scenarios": ["warm-review-small", "warm-review-broader"]
     },
