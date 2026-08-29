@@ -1637,6 +1637,7 @@ dependencies = [
  "sentrdel-graph",
  "sentrdel-guard",
  "sentrdel-policy",
+ "sentrdel-review",
  "sentrdel-schema",
  "sentrdel-store",
  "serde",
