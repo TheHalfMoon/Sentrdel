@@ -5,12 +5,13 @@
 //! is the graph-domain entry point for stable identity derivation, provenance
 //! validation, producer-local confidence metadata, deterministic `petgraph`
 //! projection, bounded reverse reachability, stable graph diff, bounded Finding
-//! context, and bounded SCIP artifact ingestion. Persistence lives in
-//! `sentrdel-store`.
+//! context, bounded provenance subtree queries, and bounded SCIP artifact
+//! ingestion. Persistence lives in `sentrdel-store`.
 
 mod context;
 mod projection;
 mod scip;
+mod subtree;
 
 pub use context::{
     FindingGraphContext, FindingGraphContextError, FindingReachabilityContext,
@@ -26,6 +27,10 @@ pub use scip::{
     ScipIngestionError, ScipIngestionRequest, ScipIngestionResult, ScipOccurrence,
     ScipOccurrenceRole, ScipPosition, ScipProducerQualification, ScipRange, ingest_scip,
     scip_coverage_gap,
+};
+pub use subtree::{
+    MAX_PROVENANCE_SUBTREE_DEPTH, MAX_PROVENANCE_SUBTREE_NODES, ProvenanceSubtree,
+    ProvenanceSubtreeError, ProvenanceSubtreeNode,
 };
 pub use sentrdel_schema::graph::{
     GraphConfidenceBasis, GraphConfidenceSource, GraphContractError, GraphEdge, GraphEdgeId,
