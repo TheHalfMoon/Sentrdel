@@ -1,0 +1,36 @@
+name: Temporary R2-T008 rustfmt repair
+
+on:
+  push:
+    branches:
+      - impl/002-r2-t008-posture-state
+
+permissions:
+  contents: write
+
+jobs:
+  rustfmt-repair:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: impl/002-r2-t008-posture-state
+          fetch-depth: 1
+      - name: Install pinned Rust formatter
+        run: rustup toolchain install 1.98.0 --profile minimal --component rustfmt
+      - name: Format trusted workspace
+        run: cargo +1.98.0 fmt --all
+      - name: Commit formatting repair
+        shell: bash
+        run: |
+          if git diff --quiet; then
+            echo "No formatting changes required"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add crates/sentrdel-review/src/supabase/state.rs crates/sentrdel-review/src/supabase.rs
+          git commit -m "style(r2): apply canonical rustfmt"
+          git push origin HEAD:impl/002-r2-t008-posture-state
