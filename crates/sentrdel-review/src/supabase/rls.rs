@@ -168,7 +168,7 @@ fn state_provenance(relation: &RelationPosture) -> Option<&StatementProvenance> 
         .rls_state
         .provenance
         .as_ref()
-        .or_else(|| relation.exists_in_supported_history.provenance.as_ref())
+        .or(relation.exists_in_supported_history.provenance.as_ref())
 }
 
 fn rls_state_name(state: RlsState) -> &'static str {
