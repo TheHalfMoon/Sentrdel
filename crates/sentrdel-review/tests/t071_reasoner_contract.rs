@@ -2,9 +2,7 @@ use sentrdel_review::reasoner::{
     Reasoner, ReasonerError, ReasonerLimits, ReasonerRequest, ReasonerRequestError,
 };
 use sentrdel_schema::SCHEMA_V1;
-use sentrdel_schema::evidence::{
-    EpistemicClass, EvidenceAuthority, EvidenceClaim, ProducerKind,
-};
+use sentrdel_schema::evidence::{EpistemicClass, EvidenceAuthority, EvidenceClaim, ProducerKind};
 use sentrdel_schema::reasoner::{ReasonerEpistemicClass, ReasonerEvidenceDraft};
 use std::collections::BTreeMap;
 
@@ -104,8 +102,9 @@ impl Reasoner for FixtureReasoner {
 
 #[test]
 fn provider_neutral_trait_returns_schema_restricted_drafts() {
-    let request = ReasonerRequest::new("review", vec![evidence_record()], ReasonerLimits::default())
-        .expect("bounded request");
+    let request =
+        ReasonerRequest::new("review", vec![evidence_record()], ReasonerLimits::default())
+            .expect("bounded request");
     let reasoner = FixtureReasoner;
     assert_eq!(reasoner.id(), "fixture");
     let drafts = reasoner.reason(&request).expect("reason");
