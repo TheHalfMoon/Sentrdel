@@ -17,6 +17,7 @@ pub mod stack_detection;
 pub mod structural;
 pub mod structural_rules;
 pub mod supabase_detection;
+pub mod supabase_pack;
 pub mod view;
 
 pub const TARGET_BUILD_EXECUTION_ALLOWED: bool = false;
