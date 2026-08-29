@@ -447,6 +447,9 @@ fn parse_alter_policy(
     } else {
         false
     };
+    if roles.is_none() && !has_using && !has_with_check {
+        return unsupported();
+    }
     if !cursor.is_at_end() {
         return unsupported();
     }
@@ -1069,9 +1072,9 @@ mod tests {
     #[test]
     fn malformed_policy_clause_markers_fail_closed() {
         let statements = unsupported_statements(
-            "create policy bare_using on public.accounts using; create policy empty_using on public.accounts using (); create policy bad_with on public.accounts with nope; alter policy bare_alter on public.accounts using; alter policy empty_check on public.accounts with check ();",
+            "create policy bare_using on public.accounts using; create policy empty_using on public.accounts using (); create policy bad_with on public.accounts with nope; alter policy bare_alter on public.accounts using; alter policy empty_check on public.accounts with check (); alter policy no_change on public.accounts;",
         );
-        assert_eq!(statements.len(), 5);
+        assert_eq!(statements.len(), 6);
     }
 
     #[test]
