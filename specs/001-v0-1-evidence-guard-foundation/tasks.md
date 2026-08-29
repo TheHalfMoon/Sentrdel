@@ -134,7 +134,7 @@
 - [x] T055 [US2] Implement `sentrdel guard mcp` CLI with ENFORCED fidelity for proxied stdio path and chain/head summary.
 - [x] T056 [P] [US2] Implement safe git-hook install/composition/uninstall metadata without overwriting unrelated hooks.
 - [x] T057 [US2] Implement hook-install CLI with PARTIAL fidelity warning.
-- [ ] T058 [US2] Add fixture stdio MCP client/server and E2E guard tests covering ALLOW/ASK/DENY/UNDECIDABLE, malicious descriptions/results, giant/unterminated frames, buffer caps, unsupported versions, credential-inheritance canaries, ASEL verification and no remote HTTP support.
+- [x] T058 [US2] Add fixture stdio MCP client/server and E2E guard tests covering ALLOW/ASK/DENY/UNDECIDABLE, malicious descriptions/results, giant/unterminated frames, buffer caps, unsupported versions, credential-inheritance canaries, ASEL verification and no remote HTTP support.
 
 ---
 
