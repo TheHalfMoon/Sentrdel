@@ -146,7 +146,7 @@
 - [x] T062 [P] [US3] Implement **Supabase detection only** with positive/negative fixtures; R1 output explicitly marks static posture NOT_IMPLEMENTED/PARTIAL and points to roadmap R2 without making a verdict.
 - [x] T063 [P] [US3] Implement generic provider/framework detection extension points without deep Firebase/cloud/payment analysis.
 - [x] T064 [US3] Implement ProjectProfile persistence and coverage matrix.
-- [ ] T065 [US3] Implement `sentrdel init` human/JSON output including explicit pack coverage dimensions.
+- [x] T065 [US3] Implement `sentrdel init` human/JSON output including explicit pack coverage dimensions.
 - [ ] T066 [US3] Add integration/adversarial init tests: symlink/oversized/weakening config, hostile `.cargo/config.toml`, Supabase detection-without-verdict.
 
 ---
