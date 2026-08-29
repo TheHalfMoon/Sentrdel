@@ -1,0 +1,39 @@
+name: Temporary T075 Closeout
+
+on:
+  push:
+    branches:
+      - closeout/001-t075-prompt-injection-authority
+
+permissions:
+  contents: write
+
+jobs:
+  closeout:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: true
+          fetch-depth: 1
+      - name: Apply exact checkbox-only closeout and remove temporary workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('specs/001-v0-1-evidence-guard-foundation/tasks.md')
+          text = path.read_text(encoding='utf-8')
+          old = '- [ ] T075 [US5] Add prompt-injection authority tests proving no suppression, FACT/VERIFIED escalation, authoritative severity downgrade or kernel-policy downgrade.'
+          new = '- [x] T075 [US5] Add prompt-injection authority tests proving no suppression, FACT/VERIFIED escalation, authoritative severity downgrade or kernel-policy downgrade.'
+          if text.count(old) != 1:
+              raise SystemExit('T075 open checkbox not found exactly once')
+          path.write_text(text.replace(old, new), encoding='utf-8')
+          PY
+          rm .github/workflows/temp-close-t075.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add specs/001-v0-1-evidence-guard-foundation/tasks.md .github/workflows/temp-close-t075.yml
+          git commit -m 'docs(spec): close T075 prompt-injection authority tests'
+          git push origin HEAD:closeout/001-t075-prompt-injection-authority
