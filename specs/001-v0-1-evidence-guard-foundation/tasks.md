@@ -163,7 +163,7 @@
 ## Phase 7 — US5: Optional hypothesis-only LLM reasoning
 
 - [x] T071 [US5] Implement provider-neutral optional reasoner trait + bounded evidence/substrate request model.
-- [ ] T072 [P] [US5] Implement local HTTP/Ollama-compatible adapter behind feature/config gate.
+- [x] T072 [P] [US5] Implement local HTTP/Ollama-compatible adapter behind feature/config gate.
 - [ ] T073 [P] [US5] Implement generic explicit remote HTTP adapter without provider SDK authority; whole-repo upload prohibited by default.
 - [ ] T074 [US5] Strictly map reasoner output to INFERENCE/HYPOTHESIS Evidence.
 - [ ] T075 [US5] Add prompt-injection authority tests proving no suppression, FACT/VERIFIED escalation, authoritative severity downgrade or kernel-policy downgrade.
