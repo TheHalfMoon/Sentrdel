@@ -171,12 +171,9 @@ pub fn seal_reasoner_drafts(
     producer_version: &str,
     drafts: Vec<ReasonerEvidenceDraft>,
 ) -> Result<Vec<Evidence>, ReasonerError> {
-    let authority = EvidenceAuthority::from_runtime(
-        producer_id,
-        producer_version,
-        ProducerKind::LlmReasoner,
-    )
-    .map_err(|error| ReasonerError::new(format!("reasoner authority rejected: {error}")))?;
+    let authority =
+        EvidenceAuthority::from_runtime(producer_id, producer_version, ProducerKind::LlmReasoner)
+            .map_err(|error| ReasonerError::new(format!("reasoner authority rejected: {error}")))?;
 
     drafts
         .into_iter()
@@ -235,14 +232,25 @@ mod tests {
                 draft(ReasonerEpistemicClass::Hypothesis),
             ],
         };
-        let request = ReasonerRequest::new("summarize evidence", Vec::new(), ReasonerLimits::default())
-            .expect("bounded request");
+        let request =
+            ReasonerRequest::new("summarize evidence", Vec::new(), ReasonerLimits::default())
+                .expect("bounded request");
 
         let evidence = reason_to_evidence(&reasoner, &request).expect("sealed evidence");
         assert_eq!(evidence.len(), 2);
-        assert!(evidence.iter().all(|item| item.producer().kind == ProducerKind::LlmReasoner));
-        assert_eq!(evidence[0].claim().epistemic_class, EpistemicClass::Inference);
-        assert_eq!(evidence[1].claim().epistemic_class, EpistemicClass::Hypothesis);
+        assert!(
+            evidence
+                .iter()
+                .all(|item| item.producer().kind == ProducerKind::LlmReasoner)
+        );
+        assert_eq!(
+            evidence[0].claim().epistemic_class,
+            EpistemicClass::Inference
+        );
+        assert_eq!(
+            evidence[1].claim().epistemic_class,
+            EpistemicClass::Hypothesis
+        );
     }
 
     #[test]
@@ -250,19 +258,20 @@ mod tests {
         let mut invalid = draft(ReasonerEpistemicClass::Inference);
         invalid.observation.clear();
 
-        let error = seal_reasoner_drafts(
-            "fixture-reasoner",
-            REASONER_PRODUCER_VERSION,
-            vec![invalid],
-        )
-        .expect_err("empty observation must fail closed");
+        let error =
+            seal_reasoner_drafts("fixture-reasoner", REASONER_PRODUCER_VERSION, vec![invalid])
+                .expect_err("empty observation must fail closed");
         assert!(error.to_string().contains("reasoner evidence rejected"));
     }
 
     #[test]
     fn runtime_reasoner_identity_must_be_non_empty() {
-        let error = seal_reasoner_drafts("", REASONER_PRODUCER_VERSION, vec![draft(ReasonerEpistemicClass::Hypothesis)])
-            .expect_err("blank runtime producer id must fail closed");
+        let error = seal_reasoner_drafts(
+            "",
+            REASONER_PRODUCER_VERSION,
+            vec![draft(ReasonerEpistemicClass::Hypothesis)],
+        )
+        .expect_err("blank runtime producer id must fail closed");
         assert!(error.to_string().contains("reasoner authority rejected"));
     }
 }
