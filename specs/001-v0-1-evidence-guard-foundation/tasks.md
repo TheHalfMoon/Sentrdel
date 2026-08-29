@@ -155,7 +155,7 @@
 
 - [x] T067 [P] [US4] Implement three-tier presentation with actor/capability/object impact sentence.
 - [x] T068 [P] [US4] Implement Evidence/provenance graph subtree query.
-- [ ] T069 [US4] Implement `sentrdel explain <finding-id>` human/JSON modes.
+- [x] T069 [US4] Implement `sentrdel explain <finding-id>` human/JSON modes.
 - [ ] T070 [US4] Add golden/contract tests proving explanation cannot mutate canonical severity/proof/workflow state.
 
 ---
