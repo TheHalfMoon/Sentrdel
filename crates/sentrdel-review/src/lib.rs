@@ -11,6 +11,7 @@ pub mod pack_registry;
 pub mod project_detection;
 pub mod reconcile;
 pub mod secrets;
+pub mod stack_detection;
 pub mod structural;
 pub mod structural_rules;
 pub mod supabase_detection;
