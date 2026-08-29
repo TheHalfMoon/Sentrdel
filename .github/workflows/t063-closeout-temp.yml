@@ -1,0 +1,39 @@
+name: T063 Closeout Temporary
+
+on:
+  push:
+    branches:
+      - closeout/001-t063-provider-framework-extension-points
+
+permissions:
+  contents: write
+
+jobs:
+  closeout:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout closeout branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: closeout/001-t063-provider-framework-extension-points
+      - name: Record T063 completion and remove temporary workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('specs/001-v0-1-evidence-guard-foundation/tasks.md')
+          text = path.read_text()
+          old = '- [ ] T063 [P] [US3] Implement generic provider/framework detection extension points without deep Firebase/cloud/payment analysis.'
+          new = '- [x] T063 [P] [US3] Implement generic provider/framework detection extension points without deep Firebase/cloud/payment analysis.'
+          if old not in text:
+              raise SystemExit('expected T063 open checkbox not found')
+          path.write_text(text.replace(old, new, 1))
+          PY
+          rm .github/workflows/t063-closeout-temp.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add specs/001-v0-1-evidence-guard-foundation/tasks.md .github/workflows/t063-closeout-temp.yml
+          git commit -m 'docs(spec): close T063 provider framework task'
+          git push origin HEAD:closeout/001-t063-provider-framework-extension-points
