@@ -147,7 +147,7 @@
 - [x] T063 [P] [US3] Implement generic provider/framework detection extension points without deep Firebase/cloud/payment analysis.
 - [x] T064 [US3] Implement ProjectProfile persistence and coverage matrix.
 - [x] T065 [US3] Implement `sentrdel init` human/JSON output including explicit pack coverage dimensions.
-- [ ] T066 [US3] Add integration/adversarial init tests: symlink/oversized/weakening config, hostile `.cargo/config.toml`, Supabase detection-without-verdict.
+- [x] T066 [US3] Add integration/adversarial init tests: symlink/oversized/weakening config, hostile `.cargo/config.toml`, Supabase detection-without-verdict.
 
 ---
 
