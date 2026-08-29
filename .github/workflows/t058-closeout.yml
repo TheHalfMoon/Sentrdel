@@ -25,10 +25,10 @@ jobs:
           from pathlib import Path
           path = Path('specs/001-v0-1-evidence-guard-foundation/tasks.md')
           text = path.read_text()
-          old = '- [ ] T058 [US2] Add fixture stdio MCP client/server and E2E guard tests covering protocol-version mismatch, malicious tool description/result instructions, giant responses, credential canaries, timeout/cancellation/descendant cleanup, ALLOW/ASK/DENY/UNDECIDABLE behavior, and ASEL emission/verification.'
+          old = '- [ ] T058 [US2] Add fixture stdio MCP client/server and E2E guard tests covering ALLOW/ASK/DENY/UNDECIDABLE, malicious descriptions/results, giant/unterminated frames, buffer caps, unsupported versions, credential-inheritance canaries, ASEL verification and no remote HTTP support.'
           new = old.replace('- [ ]', '- [x]', 1)
           if old not in text:
-              raise SystemExit('expected T058 task line not found or already changed')
+              raise SystemExit('expected canonical T058 task line not found or already changed')
           path.write_text(text.replace(old, new, 1))
           PY
           rm .github/workflows/t058-closeout.yml
