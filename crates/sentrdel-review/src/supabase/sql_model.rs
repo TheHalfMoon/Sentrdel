@@ -511,6 +511,9 @@ fn parse_grant_revoke(
     } else {
         SqlGrantObjectKind::Relation
     };
+    if !grant_privileges_supported(&privileges, object_kind) {
+        return unsupported();
+    }
 
     let marker = if revoke { "FROM" } else { "TO" };
     let Some(objects) =
@@ -545,6 +548,27 @@ fn parse_grant_revoke(
             roles,
         })
     }
+}
+
+fn grant_privileges_supported(privileges: &[String], object_kind: SqlGrantObjectKind) -> bool {
+    let supported: &[&str] = match object_kind {
+        SqlGrantObjectKind::Relation | SqlGrantObjectKind::Table => &[
+            "ALL",
+            "SELECT",
+            "INSERT",
+            "UPDATE",
+            "DELETE",
+            "TRUNCATE",
+            "REFERENCES",
+            "TRIGGER",
+        ],
+        SqlGrantObjectKind::Function => &["ALL", "EXECUTE"],
+        SqlGrantObjectKind::Schema => &["ALL", "CREATE", "USAGE"],
+        SqlGrantObjectKind::Sequence => &["ALL", "USAGE", "SELECT", "UPDATE"],
+    };
+    privileges
+        .iter()
+        .all(|privilege| supported.contains(&privilege.as_str()))
 }
 
 fn supported(
@@ -986,6 +1010,22 @@ mod tests {
                 if privileges == &vec!["INSERT".to_owned()]
                     && roles == &vec!["anon".to_owned()]
         ));
+    }
+
+    #[test]
+    fn supported_grant_privileges_are_bounded_by_object_kind() {
+        let statements = supported_statements(
+            "grant all privileges on table public.accounts to anon; grant execute on function private.current_account_id() to authenticated; grant usage, create on schema private to authenticated; grant usage, select, update on sequence public.accounts_id_seq to authenticated;",
+        );
+        assert_eq!(statements.len(), 4);
+    }
+
+    #[test]
+    fn unknown_or_mismatched_grant_privileges_fail_closed() {
+        let statements = unsupported_statements(
+            "grant frobulate on table public.accounts to anon; revoke vacuum on table public.accounts from authenticated; grant select on function private.current_account_id() to authenticated; grant execute on table public.accounts to anon;",
+        );
+        assert_eq!(statements.len(), 4);
     }
 
     #[test]
