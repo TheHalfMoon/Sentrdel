@@ -254,11 +254,7 @@ impl ExplainOutput {
         if draft.evidence_ids.is_empty()
             && draft.contradiction_ids.is_empty()
             && self.envelope.coverage.is_empty()
-            && self
-                .envelope
-                .store_refs
-                .as_ref()
-                .is_none_or(Vec::is_empty)
+            && self.envelope.store_refs.as_ref().is_none_or(Vec::is_empty)
         {
             out.push_str("- none recorded\n");
         }
@@ -424,10 +420,7 @@ mod tests {
         finding_for(&reconciler, None)
     }
 
-    fn finding_for(
-        reconciler: &ReconcilerAuthority,
-        remediation: Option<String>,
-    ) -> Finding {
+    fn finding_for(reconciler: &ReconcilerAuthority, remediation: Option<String>) -> Finding {
         Finding::new_reconciled(
             ReconciledFindingDraft {
                 schema_version: SCHEMA_V1.to_owned(),
@@ -482,8 +475,8 @@ mod tests {
     #[test]
     fn presentation_has_three_ordered_authority_safe_tiers() {
         let finding = finding();
-        let presentation = FindingPresentation::from_finding(&finding, components())
-            .expect("presentation");
+        let presentation =
+            FindingPresentation::from_finding(&finding, components()).expect("presentation");
 
         assert_eq!(presentation.impact.heading, "Impact");
         assert_eq!(
@@ -613,7 +606,12 @@ mod tests {
         );
         assert_eq!(value["command"], "explain");
         assert_eq!(value["decision"], "ALLOW");
-        assert_eq!(value["findings"][0]["evidence_ids"].as_array().map(Vec::len), Some(2));
+        assert_eq!(
+            value["findings"][0]["evidence_ids"]
+                .as_array()
+                .map(Vec::len),
+            Some(2)
+        );
     }
 
     #[test]
