@@ -1,0 +1,94 @@
+name: T078 Temporary Implementation
+
+on:
+  push:
+    branches:
+      - impl/001-t078-clean-pr-fp-release-gate
+
+permissions:
+  contents: write
+
+jobs:
+  implement:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout implementation branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: impl/001-t078-clean-pr-fp-release-gate
+          fetch-depth: 1
+
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.98.0 --profile minimal --component rustfmt
+
+      - name: Implement release gate and remove temporary workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('crates/sentrdel-cli/tests/t077_release_benchmark.rs')
+          text = path.read_text()
+
+          replacements = [
+              (
+                  '''struct ReviewMetrics {\n    clean_cases: u64,\n    clean_false_positive_findings: u64,\n''',
+                  '''struct ReviewMetrics {\n    clean_cases: u64,\n    clean_cases_with_false_positive: u64,\n    clean_false_positive_findings: u64,\n''',
+              ),
+              (
+                  '''struct GuardMetrics {\n''',
+                  '''#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]\n#[serde(rename_all = "SCREAMING_SNAKE_CASE")]\nenum ReleaseGateStatus {\n    Pass,\n    FailThresholdExceeded,\n    UnqualifiedNoCleanCases,\n    EvaluationError,\n}\n\n#[derive(Clone, Debug, Eq, PartialEq, Serialize)]\nstruct CleanPrFalsePositiveGate {\n    status: ReleaseGateStatus,\n    clean_cases_evaluated: u64,\n    clean_cases_with_false_positive: u64,\n    max_false_positive_clean_prs: u64,\n    per_clean_prs: u64,\n}\n\nstruct GuardMetrics {\n''',
+              ),
+              (
+                  '''    review: ReviewMetrics,\n    guard: GuardMetrics,\n''',
+                  '''    review: ReviewMetrics,\n    clean_pr_false_positive_gate: CleanPrFalsePositiveGate,\n    guard: GuardMetrics,\n''',
+              ),
+              (
+                  '''    assert!(clean_secret.is_empty());\n    assert!(clean_actions.is_empty());\n\n    let secret = format!''',
+                  '''    let clean_false_positive_findings =\n        u64::try_from(clean_secret.len() + clean_actions.len()).expect("bounded clean FP count");\n    let clean_cases_with_false_positive = u64::from(clean_false_positive_findings > 0);\n    assert!(clean_secret.is_empty());\n    assert!(clean_actions.is_empty());\n\n    let secret = format!''',
+              ),
+              (
+                  '''    ReviewMetrics {\n        clean_cases: 1,\n        clean_false_positive_findings: 0,\n''',
+                  '''    ReviewMetrics {\n        clean_cases: 1,\n        clean_cases_with_false_positive,\n        clean_false_positive_findings,\n''',
+              ),
+              (
+                  '''fn read_frames(bytes: &[u8]) -> Vec<Vec<u8>> {\n''',
+                  '''fn clean_pr_false_positive_release_gate(review: &ReviewMetrics) -> CleanPrFalsePositiveGate {\n    const MAX_FALSE_POSITIVE_CLEAN_PRS: u64 = 1;\n    const PER_CLEAN_PRS: u64 = 5;\n\n    let status = if review.clean_cases == 0 {\n        ReleaseGateStatus::UnqualifiedNoCleanCases\n    } else if review.clean_cases_with_false_positive > review.clean_cases {\n        ReleaseGateStatus::EvaluationError\n    } else {\n        match review.clean_cases_with_false_positive.checked_mul(PER_CLEAN_PRS) {\n            Some(scaled_false_positives)\n                if scaled_false_positives\n                    <= MAX_FALSE_POSITIVE_CLEAN_PRS.saturating_mul(review.clean_cases) =>\n            {\n                ReleaseGateStatus::Pass\n            }\n            Some(_) | None => ReleaseGateStatus::FailThresholdExceeded,\n        }\n    };\n\n    CleanPrFalsePositiveGate {\n        status,\n        clean_cases_evaluated: review.clean_cases,\n        clean_cases_with_false_positive: review.clean_cases_with_false_positive,\n        max_false_positive_clean_prs: MAX_FALSE_POSITIVE_CLEAN_PRS,\n        per_clean_prs: PER_CLEAN_PRS,\n    }\n}\n\nfn read_frames(bytes: &[u8]) -> Vec<Vec<u8>> {\n''',
+              ),
+              (
+                  '''    ReleaseRunRecord {\n        schema_version: SCHEMA_V1.to_owned(),\n''',
+                  '''    let review = review_metrics();\n    let clean_pr_false_positive_gate = clean_pr_false_positive_release_gate(&review);\n    assert_eq!(\n        clean_pr_false_positive_gate.status,\n        ReleaseGateStatus::Pass,\n        "T078 release gate requires at most 1 clean PR with false positives per 5 clean PRs"\n    );\n\n    ReleaseRunRecord {\n        schema_version: SCHEMA_V1.to_owned(),\n''',
+              ),
+              (
+                  '''        review: review_metrics(),\n        guard: guard_metrics(),\n''',
+                  '''        review,\n        clean_pr_false_positive_gate,\n        guard: guard_metrics(),\n''',
+              ),
+              (
+                  '''    assert_eq!(first.review.clean_cases, 1);\n    assert_eq!(first.review.clean_false_positive_findings, 0);\n''',
+                  '''    assert_eq!(first.review.clean_cases, 1);\n    assert_eq!(first.review.clean_cases_with_false_positive, 0);\n    assert_eq!(first.review.clean_false_positive_findings, 0);\n    assert_eq!(\n        first.clean_pr_false_positive_gate.status,\n        ReleaseGateStatus::Pass\n    );\n''',
+              ),
+              (
+                  '''#[test]\nfn r1_release_suite_is_reproducible_and_exercises_release_boundaries() {\n''',
+                  '''#[test]\nfn clean_pr_false_positive_release_gate_fails_above_one_per_five() {\n    let metrics = |clean_cases, clean_cases_with_false_positive| ReviewMetrics {\n        clean_cases,\n        clean_cases_with_false_positive,\n        clean_false_positive_findings: clean_cases_with_false_positive,\n        vulnerable_cases: 0,\n        vulnerable_signal_groups_expected: 0,\n        vulnerable_signal_groups_detected: 0,\n        coverage_dimensions_expected: 0,\n        coverage_gap_dimensions: 0,\n    };\n\n    assert_eq!(\n        clean_pr_false_positive_release_gate(&metrics(5, 1)).status,\n        ReleaseGateStatus::Pass\n    );\n    assert_eq!(\n        clean_pr_false_positive_release_gate(&metrics(10, 2)).status,\n        ReleaseGateStatus::Pass\n    );\n    assert_eq!(\n        clean_pr_false_positive_release_gate(&metrics(5, 2)).status,\n        ReleaseGateStatus::FailThresholdExceeded\n    );\n    assert_eq!(\n        clean_pr_false_positive_release_gate(&metrics(9, 2)).status,\n        ReleaseGateStatus::FailThresholdExceeded\n    );\n    assert_eq!(\n        clean_pr_false_positive_release_gate(&metrics(0, 0)).status,\n        ReleaseGateStatus::UnqualifiedNoCleanCases\n    );\n    assert_eq!(\n        clean_pr_false_positive_release_gate(&metrics(1, 2)).status,\n        ReleaseGateStatus::EvaluationError\n    );\n}\n\n#[test]\nfn r1_release_suite_is_reproducible_and_exercises_release_boundaries() {\n''',
+              ),
+          ]
+
+          for old, new in replacements:
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'exact replacement target count={count}: {old[:80]!r}')
+              text = text.replace(old, new, 1)
+
+          path.write_text(text)
+          PY
+          cargo +1.98.0 fmt --all
+          cargo +1.98.0 test -p sentrdel-cli --test t077_release_benchmark
+          git rm .github/workflows/t078-implement-temp.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add crates/sentrdel-cli/tests/t077_release_benchmark.rs
+          git diff --cached --check
+          git commit -m "test(bench): enforce T078 clean-PR FP release gate"
+          git push origin HEAD:impl/001-t078-clean-pr-fp-release-gate
