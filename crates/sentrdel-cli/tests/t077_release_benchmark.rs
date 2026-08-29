@@ -585,10 +585,8 @@ fn validate_suite(suite: &ReleaseSuite) {
         MetricState::Measured
     );
     assert_eq!(dimensions["guard_bounded_frame_memory"].owner_task, "T080");
-    for (deferred, owner) in [("review_memory", "T079")] {
-        assert_eq!(dimensions[deferred].state, MetricState::NotMeasured);
-        assert_eq!(dimensions[deferred].owner_task, owner);
-    }
+    assert_eq!(dimensions["review_memory"].state, MetricState::NotMeasured);
+    assert_eq!(dimensions["review_memory"].owner_task, "T079");
 }
 
 fn run_release_suite(suite: &ReleaseSuite) -> ReleaseRunRecord {
