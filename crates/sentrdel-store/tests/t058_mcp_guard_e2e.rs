@@ -58,6 +58,9 @@ fn asel_event(
     provenance.insert("transport".to_owned(), "stdio".to_owned());
     provenance.insert("fixture".to_owned(), "t058".to_owned());
 
+    let result_digest =
+        (kind == EventKind::ToolResult).then(|| "sha256:t058-result".to_owned());
+
     AgentSecurityEventDraft {
         schema_version: SCHEMA_V1.to_owned(),
         session_id: session_id.to_owned(),
@@ -73,7 +76,7 @@ fn asel_event(
         intent_digest: Some("sha256:t058-intent".to_owned()),
         target,
         params_digest: Some("sha256:t058-params".to_owned()),
-        result_digest: (kind == EventKind::ToolResult).then(|| "sha256:t058-result".to_owned()),
+        result_digest,
         policy_decision: None,
         provenance,
         previous_event_hash,
