@@ -1,0 +1,73 @@
+name: T080 Implementation
+
+on:
+  push:
+    branches:
+      - impl/001-t080-mcp-policy-latency-memory
+
+permissions:
+  contents: write
+
+jobs:
+  implement:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout implementation branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: impl/001-t080-mcp-policy-latency-memory
+      - name: Integrate T080 release dimensions
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          suite = Path('tests/benchmark/r1-release-suite.json')
+          text = suite.read_text()
+          for dimension in ('guard_latency', 'guard_bounded_frame_memory'):
+              marker = f'"id": "{dimension}"'
+              start = text.index(marker)
+              state = text.index('"state": "NOT_MEASURED"', start)
+              owner = text.index('"owner_task": "T080"', state)
+              if not (start < state < owner):
+                  raise SystemExit(f'unexpected {dimension} ordering')
+              text = text[:state] + text[state:].replace('"state": "NOT_MEASURED"', '"state": "MEASURED"', 1)
+          suite.write_text(text)
+
+          test = Path('crates/sentrdel-cli/tests/t077_release_benchmark.rs')
+          text = test.read_text()
+          entries = [
+              '        ("guard_latency", "T080"),\n',
+              '        ("guard_bounded_frame_memory", "T080"),\n',
+          ]
+          for entry in entries:
+              if text.count(entry) != 1:
+                  raise SystemExit(f'expected exactly one deferred entry: {entry.strip()}')
+          anchor = '    for (deferred, owner) in [\n'
+          if text.count(anchor) != 1:
+              raise SystemExit('expected exactly one deferred measurement loop')
+          insert = (
+              '    assert_eq!(dimensions["guard_latency"].state, MetricState::Measured);\n'
+              '    assert_eq!(dimensions["guard_latency"].owner_task, "T080");\n'
+              '    assert_eq!(dimensions["guard_bounded_frame_memory"].state, MetricState::Measured);\n'
+              '    assert_eq!(dimensions["guard_bounded_frame_memory"].owner_task, "T080");\n'
+          )
+          text = text.replace(anchor, insert + anchor, 1)
+          for entry in entries:
+              text = text.replace(entry, '', 1)
+          old_count = '    assert_eq!(first.deferred_measurements.len(), 3);'
+          if text.count(old_count) != 1:
+              raise SystemExit('expected deferred measurement count 3')
+          text = text.replace(old_count, '    assert_eq!(first.deferred_measurements.len(), 1);', 1)
+          test.write_text(text)
+          PY
+          rm .github/workflows/t080-implement.yml
+          rustup toolchain install 1.98.0 --profile minimal --component rustfmt
+          cargo +1.98.0 fmt --all
+          cargo +1.98.0 test -p sentrdel-guard --test t080_mcp_policy_benchmark -- --nocapture
+          cargo +1.98.0 test -p sentrdel-cli --test t077_release_benchmark
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add crates/sentrdel-guard/tests/t080_mcp_policy_benchmark.rs crates/sentrdel-cli/tests/t077_release_benchmark.rs tests/benchmark/r1-release-suite.json .github/workflows/t080-implement.yml
+          git commit -m 'test(bench): integrate T080 MCP release dimensions'
+          git push origin HEAD:impl/001-t080-mcp-policy-latency-memory
