@@ -154,6 +154,28 @@ pub fn observe_policy_delta(
                 // therefore does not emit POLICY_ADDED from state absence alone.
             }
             (Some(old), Some(new)) => {
+                if old.command_scope.provenance.is_some()
+                    && new.command_scope.provenance.is_none()
+                    && let Some(after_provenance) = removal_provenance(after, &identity)
+                {
+                    push_delta(
+                        &mut evidence,
+                        limits,
+                        seal_delta(
+                            &authority,
+                            before,
+                            after,
+                            &identity,
+                            "POLICY_REMOVED",
+                            "Supported repository-derived policy was dropped and no supported recreation is proven in the after state",
+                            &old.provenance,
+                            after_provenance,
+                            BTreeMap::new(),
+                            captured_at,
+                        )?,
+                    )?;
+                    continue;
+                }
                 append_supported_changes(
                     &authority,
                     before,
@@ -819,6 +841,62 @@ mod tests {
                 .input_digests
                 .contains(&"sha256:rls".to_owned())
         );
+    }
+
+    #[test]
+    fn removal_survives_later_alter_without_supported_recreation() {
+        let first = migration(
+            "20260829000100",
+            "policy",
+            "sha256:create",
+            "create table public.accounts(id bigint); create policy account_select on public.accounts for select to authenticated using (true);",
+        );
+        let before = state(std::slice::from_ref(&first));
+        let after = state(&[
+            first,
+            migration(
+                "20260829000200",
+                "drop",
+                "sha256:drop",
+                "drop policy account_select on public.accounts;",
+            ),
+            migration(
+                "20260829000300",
+                "alter",
+                "sha256:alter",
+                "alter policy account_select on public.accounts to anon using (true);",
+            ),
+        ]);
+        let evidence = observe_policy_delta(
+            &before,
+            &after,
+            "2026-08-29T13:40:00Z",
+            PolicyPostureLimits::default(),
+        )
+        .unwrap();
+        assert_eq!(evidence.len(), 1);
+        assert_eq!(
+            evidence[0].claim().attributes.get("delta_kind"),
+            Some(&Value::String("POLICY_REMOVED".to_owned()))
+        );
+        assert!(
+            evidence[0]
+                .claim()
+                .input_digests
+                .contains(&"sha256:drop".to_owned())
+        );
+        assert!(
+            !evidence[0]
+                .claim()
+                .input_digests
+                .contains(&"sha256:alter".to_owned())
+        );
+        let posture = after
+            .policies
+            .values()
+            .find(|policy| policy.identity.name == "account_select")
+            .unwrap();
+        assert!(posture.command_scope.provenance.is_none());
     }
 
     #[test]
