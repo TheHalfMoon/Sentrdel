@@ -167,7 +167,7 @@
 - [x] T073 [P] [US5] Implement generic explicit remote HTTP adapter without provider SDK authority; whole-repo upload prohibited by default.
 - [x] T074 [US5] Strictly map reasoner output to INFERENCE/HYPOTHESIS Evidence.
 - [x] T075 [US5] Add prompt-injection authority tests proving no suppression, FACT/VERIFIED escalation, authoritative severity downgrade or kernel-policy downgrade.
-- [ ] T076 [US5] Wire `--reason`/`--no-network` without deterministic review dependence on a model.
+- [x] T076 [US5] Wire `--reason`/`--no-network` without deterministic review dependence on a model.
 
 ---
 
