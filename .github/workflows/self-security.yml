@@ -6,6 +6,8 @@ on:
     branches:
       - main
       - 'impl/**'
+  schedule:
+    - cron: '17 5 * * 1'
 
 permissions:
   contents: read
@@ -74,10 +76,16 @@ jobs:
       - name: Validate source qualification and privileged declarations
         run: python3 scripts/validate_dependency_governance.py --metadata "$RUNNER_TEMP/sentrdel-metadata.json"
 
+      - name: Test release dependency policy validator
+        run: python3 scripts/test_validate_release_dependency_policy.py
+
+      - name: Validate release dependency policy
+        run: python3 scripts/validate_release_dependency_policy.py --metadata "$RUNNER_TEMP/sentrdel-metadata.json"
+
       - name: Validate T037 gix authority surface
         run: python3 scripts/validate_gix_dependency_surface.py --metadata "$RUNNER_TEMP/sentrdel-metadata.json"
 
-      - name: Audit Sentrdel lockfile advisories
+      - name: Refresh advisory data and audit Sentrdel lockfile
         run: cargo +1.98.0 audit --file Cargo.lock
 
       - name: Enforce Sentrdel dependency policy

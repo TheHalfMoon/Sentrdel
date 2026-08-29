@@ -1,0 +1,64 @@
+# Defense-in-depth denylist for Sentrdel's trusted Rust workspace.
+#
+# This list complements, and never replaces, the live RustSec checks performed by
+# cargo-audit/cargo-deny. Entries are limited to packages for which the referenced
+# RustSec advisory classifies the package as malicious and reports no patched
+# versions. Version-scoped advisories remain the authority of RustSec tooling so
+# this file does not accidentally ban known-good versions.
+#
+# Refresh source: https://rustsec.org/advisories/
+# Snapshot reviewed: 2026-08-29
+
+[[package]]
+name = "replit_ruspty"
+advisory = "RUSTSEC-2025-0154"
+source = "https://rustsec.org/advisories/RUSTSEC-2025-0154.html"
+reason = "Removed from crates.io for malicious command execution/network behavior; no patched versions."
+
+[[package]]
+name = "rands"
+advisory = "RUSTSEC-2025-0155"
+source = "https://rustsec.org/advisories/RUSTSEC-2025-0155.html"
+reason = "Malicious rand typosquat with a build-time malware payload; no patched versions."
+
+[[package]]
+name = "rpc-check"
+advisory = "RUSTSEC-2026-0018"
+source = "https://rustsec.org/advisories/RUSTSEC-2026-0018.html"
+reason = "Credential-exfiltration typosquat campaign; no patched versions."
+
+[[package]]
+name = "tracing-check"
+advisory = "RUSTSEC-2026-0019"
+source = "https://rustsec.org/advisories/RUSTSEC-2026-0019.html"
+reason = "Credential-exfiltration typosquat campaign; no patched versions."
+
+[[package]]
+name = "tracings"
+advisory = "RUSTSEC-2026-0027"
+source = "https://rustsec.org/advisories/RUSTSEC-2026-0027.html"
+reason = "Malicious tracing ecosystem typosquat used for credential exfiltration; no patched versions."
+
+[[package]]
+name = "tracing_checks"
+advisory = "RUSTSEC-2026-0028"
+source = "https://rustsec.org/advisories/RUSTSEC-2026-0028.html"
+reason = "Transitively included malicious code in the tracing typosquat campaign; no patched versions."
+
+[[package]]
+name = "time_calibrator"
+advisory = "RUSTSEC-2026-0030"
+source = "https://rustsec.org/advisories/RUSTSEC-2026-0030.html"
+reason = "Malicious package attempted to upload .env files; no patched versions."
+
+[[package]]
+name = "time-sync"
+advisory = "RUSTSEC-2026-0036"
+source = "https://rustsec.org/advisories/RUSTSEC-2026-0036.html"
+reason = "Malicious package attempted to exfiltrate .env files; no patched versions."
+
+[[package]]
+name = "tiny-server"
+advisory = "RUSTSEC-2023-0114"
+source = "https://rustsec.org/advisories/RUSTSEC-2023-0114.html"
+reason = "Typosquatting malware cluster with a build.rs exfiltration payload; no patched versions."
