@@ -1,0 +1,36 @@
+name: T092 Live Verification
+
+on:
+  push:
+    branches:
+      - verify/t092-live-20260829-0824
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout without persisted credentials
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Verify live protected-main governance
+        env:
+          SENTRDEL_TOKEN: ${{ secrets.SENTRDEL_GOVERNANCE_ADMIN_TOKEN }}
+          FALLBACK_GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          unset GITHUB_TOKEN
+          if [ -n "${SENTRDEL_TOKEN:-}" ]; then
+            export GH_TOKEN="$SENTRDEL_TOKEN"
+          elif [ -n "${FALLBACK_GH_TOKEN:-}" ]; then
+            export GH_TOKEN="$FALLBACK_GH_TOKEN"
+          else
+            echo "No bounded governance verification credential is configured."
+            exit 2
+          fi
+          unset SENTRDEL_TOKEN FALLBACK_GH_TOKEN
+          python3 scripts/verify_repository_governance.py
