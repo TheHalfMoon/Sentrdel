@@ -569,12 +569,19 @@ fn is_symbol(byte: u8) -> bool {
     matches!(
         byte,
         b',' | b'.'
-            | b'=' | b'+'
-            | b'-' | b'*'
-            | b'/' | b'%'
-            | b'<' | b'>'
-            | b':' | b'['
-            | b']' | b'{' | b'}'
+            | b'='
+            | b'+'
+            | b'-'
+            | b'*'
+            | b'/'
+            | b'%'
+            | b'<'
+            | b'>'
+            | b':'
+            | b'['
+            | b']'
+            | b'{'
+            | b'}'
     )
 }
 
@@ -635,9 +642,15 @@ mod tests {
 
         assert!(scan.is_clean());
         assert_eq!(scan.statements.len(), 3);
-        assert_eq!(statement_text(input, &scan.statements[0]), "select ';' as value");
+        assert_eq!(
+            statement_text(input, &scan.statements[0]),
+            "select ';' as value"
+        );
         assert!(statement_text(input, &scan.statements[1]).contains("begin; perform 1; end"));
-        assert_eq!(statement_text(input, &scan.statements[2]), "select \"semi;colon\"");
+        assert_eq!(
+            statement_text(input, &scan.statements[2]),
+            "select \"semi;colon\""
+        );
     }
 
     #[test]
@@ -652,10 +665,22 @@ mod tests {
     #[test]
     fn malformed_lexical_state_is_explicitly_diagnostic_not_clean() {
         for (input, expected) in [
-            ("select 'unterminated", SqlDiagnosticKind::UnterminatedSingleQuote),
-            ("select \"unterminated", SqlDiagnosticKind::UnterminatedQuotedIdentifier),
-            ("select $$unterminated", SqlDiagnosticKind::UnterminatedDollarQuote),
-            ("select 1 /* unterminated", SqlDiagnosticKind::UnterminatedBlockComment),
+            (
+                "select 'unterminated",
+                SqlDiagnosticKind::UnterminatedSingleQuote,
+            ),
+            (
+                "select \"unterminated",
+                SqlDiagnosticKind::UnterminatedQuotedIdentifier,
+            ),
+            (
+                "select $$unterminated",
+                SqlDiagnosticKind::UnterminatedDollarQuote,
+            ),
+            (
+                "select 1 /* unterminated",
+                SqlDiagnosticKind::UnterminatedBlockComment,
+            ),
             ("select (1", SqlDiagnosticKind::UnclosedParenthesis),
         ] {
             let scan = scan_sql(input, SqlScanLimits::default()).unwrap();
@@ -738,7 +763,10 @@ mod tests {
                 ..SqlScanLimits::default()
             },
         );
-        assert!(matches!(result, Err(SqlScanError::DollarTagTooLarge { max: 4, .. })));
+        assert!(matches!(
+            result,
+            Err(SqlScanError::DollarTagTooLarge { max: 4, .. })
+        ));
     }
 
     #[test]
