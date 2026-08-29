@@ -1,0 +1,5 @@
+# Intentionally malformed TOML for bounded parser coverage.
+project_id = "sentrdel-r2-adversarial-fixture"
+
+[functions.webhook
+verify_jwt = false
