@@ -1,0 +1,2 @@
+[functions.public-endpoint]
+verify_jwt = false

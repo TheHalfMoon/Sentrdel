@@ -1,0 +1,2 @@
+[functions.secure-endpoint]
+verify_jwt = true
