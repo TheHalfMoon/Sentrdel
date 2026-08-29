@@ -578,11 +578,14 @@ fn validate_suite(suite: &ReleaseSuite) {
     }
     assert_eq!(dimensions["review_latency"].state, MetricState::Measured);
     assert_eq!(dimensions["review_latency"].owner_task, "T079");
-    for (deferred, owner) in [
-        ("review_memory", "T079"),
-        ("guard_latency", "T080"),
-        ("guard_bounded_frame_memory", "T080"),
-    ] {
+    assert_eq!(dimensions["guard_latency"].state, MetricState::Measured);
+    assert_eq!(dimensions["guard_latency"].owner_task, "T080");
+    assert_eq!(
+        dimensions["guard_bounded_frame_memory"].state,
+        MetricState::Measured
+    );
+    assert_eq!(dimensions["guard_bounded_frame_memory"].owner_task, "T080");
+    for (deferred, owner) in [("review_memory", "T079")] {
         assert_eq!(dimensions[deferred].state, MetricState::NotMeasured);
         assert_eq!(dimensions[deferred].owner_task, owner);
     }
@@ -697,7 +700,7 @@ fn r1_release_suite_is_reproducible_and_exercises_release_boundaries() {
     assert!(!first.authority.target_build_execution_allowed);
     assert!(!first.authority.remote_mcp_supported);
 
-    assert_eq!(first.deferred_measurements.len(), 3);
+    assert_eq!(first.deferred_measurements.len(), 1);
     assert!(first.deferred_measurements.values().all(|measurement| {
         measurement.state == MetricState::NotMeasured && measurement.machine.is_none()
     }));

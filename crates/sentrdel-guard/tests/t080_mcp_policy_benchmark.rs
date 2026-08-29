@@ -24,7 +24,11 @@ impl McpPreflightPolicy for FixturePolicy {
     fn evaluate(&self, invocation: &McpInvocation) -> Verdict {
         if invocation.server() == "fixture-server"
             && invocation.tool() == "read_file"
-            && invocation.arguments().get("path").and_then(|value| value.as_str()).is_some()
+            && invocation
+                .arguments()
+                .get("path")
+                .and_then(|value| value.as_str())
+                .is_some()
         {
             Verdict::Allow
         } else {
