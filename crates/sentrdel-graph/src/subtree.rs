@@ -57,8 +57,7 @@ impl GraphProjection {
             let mut candidates = Vec::new();
             for edge_id in self.edge_ids() {
                 let edge = self.edge(edge_id).expect("indexed edge must exist");
-                if frontier_set.contains(&edge.source)
-                    && allowed_relations.contains(&edge.relation)
+                if frontier_set.contains(&edge.source) && allowed_relations.contains(&edge.relation)
                 {
                     candidates.push(edge.clone());
                 }
@@ -111,7 +110,11 @@ impl fmt::Display for ProvenanceSubtreeError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::UnknownRoot(root) => {
-                write!(formatter, "provenance subtree root is not present: {}", root.as_str())
+                write!(
+                    formatter,
+                    "provenance subtree root is not present: {}",
+                    root.as_str()
+                )
             }
             Self::DepthLimitExceeded { requested, maximum } => write!(
                 formatter,
@@ -142,13 +145,7 @@ mod tests {
     }
 
     fn node(kind: GraphNodeKind, key: &str, provenance_id: &str) -> GraphNode {
-        GraphNode::new(
-            kind,
-            key,
-            BTreeMap::new(),
-            vec![provenance(provenance_id)],
-        )
-        .expect("node")
+        GraphNode::new(kind, key, BTreeMap::new(), vec![provenance(provenance_id)]).expect("node")
     }
 
     fn edge(source: &GraphNode, relation: GraphRelation, target: &GraphNode) -> GraphEdge {
@@ -213,11 +210,9 @@ mod tests {
         let root = node(GraphNodeKind::Finding, "finding:a", "finding:canonical");
         let evidence = node(GraphNodeKind::Evidence, "evidence:a", "evidence:canonical");
         let unsupported = edge(&root, GraphRelation::Calls, &evidence);
-        let projection = GraphProjection::from_records(
-            vec![root.clone(), evidence],
-            vec![unsupported],
-        )
-        .expect("projection");
+        let projection =
+            GraphProjection::from_records(vec![root.clone(), evidence], vec![unsupported])
+                .expect("projection");
 
         let subtree = projection
             .provenance_subtree(&root.node_id, 1, &BTreeSet::from([GraphRelation::Supports]))
