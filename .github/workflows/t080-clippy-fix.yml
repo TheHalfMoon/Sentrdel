@@ -19,22 +19,7 @@ jobs:
       - name: Remove single-element deferred loop
         run: |
           set -euo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
-          path = Path('crates/sentrdel-cli/tests/t077_release_benchmark.rs')
-          text = path.read_text()
-          old = '''    for (deferred, owner) in [("review_memory", "T079")] {
-        assert_eq!(dimensions[deferred].state, MetricState::NotMeasured);
-        assert_eq!(dimensions[deferred].owner_task, owner);
-    }
-'''
-          new = '''    assert_eq!(dimensions["review_memory"].state, MetricState::NotMeasured);
-    assert_eq!(dimensions["review_memory"].owner_task, "T079");
-'''
-          if text.count(old) != 1:
-              raise SystemExit('expected exactly one T079 review-memory single-element loop')
-          path.write_text(text.replace(old, new, 1))
-          PY
+          python3 -c 'from pathlib import Path; p=Path("crates/sentrdel-cli/tests/t077_release_benchmark.rs"); t=p.read_text(); old="    for (deferred, owner) in [(\"review_memory\", \"T079\")] {\n        assert_eq!(dimensions[deferred].state, MetricState::NotMeasured);\n        assert_eq!(dimensions[deferred].owner_task, owner);\n    }\n"; new="    assert_eq!(dimensions[\"review_memory\"].state, MetricState::NotMeasured);\n    assert_eq!(dimensions[\"review_memory\"].owner_task, \"T079\");\n"; assert t.count(old)==1; p.write_text(t.replace(old,new,1))'
           rm .github/workflows/t080-clippy-fix.yml
           rustup toolchain install 1.98.0 --profile minimal --component rustfmt --component clippy
           cargo +1.98.0 fmt --all
