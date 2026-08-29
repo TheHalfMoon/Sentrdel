@@ -45,10 +45,16 @@ impl fmt::Display for ProjectDetectionError {
         match self {
             Self::InvalidLimits => formatter.write_str("project detection limits must be non-zero"),
             Self::TooManyPaths { max } => {
-                write!(formatter, "repository path count exceeds detection cap {max}")
+                write!(
+                    formatter,
+                    "repository path count exceeds detection cap {max}"
+                )
             }
             Self::InvalidPath { index, source } => {
-                write!(formatter, "repository path at index {index} is invalid: {source}")
+                write!(
+                    formatter,
+                    "repository path at index {index} is invalid: {source}"
+                )
             }
         }
     }
@@ -108,7 +114,10 @@ fn classify_path(
             languages.insert("rust");
             ecosystems.insert("cargo");
         }
-        "package.json" | "package-lock.json" | "npm-shrinkwrap.json" | "yarn.lock"
+        "package.json"
+        | "package-lock.json"
+        | "npm-shrinkwrap.json"
+        | "yarn.lock"
         | "pnpm-lock.yaml" => {
             ecosystems.insert("npm");
         }
