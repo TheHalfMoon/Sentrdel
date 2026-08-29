@@ -1,0 +1,36 @@
+name: T077 Temporary Rustfmt
+
+on:
+  push:
+    branches:
+      - impl/001-t077-r1-release-benchmark
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout implementation branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: impl/001-t077-r1-release-benchmark
+          fetch-depth: 1
+
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.98.0 --profile minimal --component rustfmt
+
+      - name: Format and remove temporary workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo +1.98.0 fmt --all
+          git rm .github/workflows/t077-format-temp.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add crates/sentrdel-cli/tests/t077_release_benchmark.rs
+          git diff --cached --check
+          git commit -m "style(bench): format T077 release benchmark"
+          git push origin HEAD:impl/001-t077-r1-release-benchmark
