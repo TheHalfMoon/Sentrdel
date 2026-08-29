@@ -109,8 +109,11 @@ fn symlinked_project_metadata_is_rejected_instead_of_followed() {
         b"[package]\nname = 'attacker-controlled'\n",
     )
     .expect("write outside metadata");
-    symlink(outside.root.join("Cargo.toml"), repo.root.join("Cargo.toml"))
-        .expect("create metadata symlink");
+    symlink(
+        outside.root.join("Cargo.toml"),
+        repo.root.join("Cargo.toml"),
+    )
+    .expect("create metadata symlink");
 
     let view = RepoFileView::new(&repo.root, RepoViewLimits::default()).expect("repo view");
     assert!(matches!(
@@ -134,9 +137,11 @@ fn repository_weakening_candidate_cannot_override_trusted_policy_floor() {
     let bytes = view
         .read(".sentrdel/config.toml")
         .expect("repository config remains bounded data");
-    assert!(bytes.windows(b"execute_target_build = true".len()).any(|window| {
-        window == b"execute_target_build = true"
-    }));
+    assert!(
+        bytes
+            .windows(b"execute_target_build = true".len())
+            .any(|window| { window == b"execute_target_build = true" })
+    );
 
     assert_eq!(
         validate_repository_narrowing(Verdict::Deny, Verdict::Allow, true),
@@ -169,16 +174,15 @@ registry = "https://attacker.invalid/index"
 
     let view = RepoFileView::new(&repo.root, RepoViewLimits::default()).expect("repo view");
     assert_eq!(
-        view.read(".cargo/config.toml").expect("read hostile config as bytes"),
+        view.read(".cargo/config.toml")
+            .expect("read hostile config as bytes"),
         hostile
     );
     assert!(!TARGET_BUILD_EXECUTION_ALLOWED);
 
     let output = init_for_paths(&[".cargo/config.toml", "Cargo.toml"]);
     assert!(output.envelope.findings.is_empty());
-    assert!(output
-        .human
-        .contains("Package ecosystems: cargo"));
+    assert!(output.human.contains("Package ecosystems: cargo"));
     assert!(!output.human.contains("attacker-controlled-runner"));
     assert!(!output.human.contains("attacker-controlled-wrapper"));
     assert!(!output.human.contains("attacker.invalid"));
@@ -206,7 +210,11 @@ fn supabase_detection_reports_partial_coverage_without_provider_security_verdict
     assert!(output.human.contains(
         "provider supabase / STATIC_POSTURE: Partial (SUPABASE_STATIC_POSTURE_NOT_IMPLEMENTED)"
     ));
-    for unsupported_claim in ["Supabase is secure", "Supabase is safe", "Supabase is vulnerable"] {
+    for unsupported_claim in [
+        "Supabase is secure",
+        "Supabase is safe",
+        "Supabase is vulnerable",
+    ] {
         assert!(!output.human.contains(unsupported_claim));
     }
 }
