@@ -77,7 +77,7 @@ impl StackDetectionResult {
     }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Debug)]
 pub enum StackDetectorRegistryError {
     EmptyDetectorId,
     DuplicateDetectorId(String),
