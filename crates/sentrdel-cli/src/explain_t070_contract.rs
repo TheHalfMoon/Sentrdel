@@ -10,9 +10,8 @@ use sentrdel_schema::{
 use crate::explain::{ExplainOutput, ImpactComponents};
 
 fn canonical_finding() -> Finding {
-    let reconciler =
-        ReconcilerAuthority::from_runtime("sentrdel-reconciler", "sha256:t070-config")
-            .expect("reconciler authority");
+    let reconciler = ReconcilerAuthority::from_runtime("sentrdel-reconciler", "sha256:t070-config")
+        .expect("reconciler authority");
     Finding::new_reconciled(
         ReconciledFindingDraft {
             schema_version: SCHEMA_V1.to_owned(),
@@ -23,12 +22,14 @@ fn canonical_finding() -> Finding {
             severity: Severity::High,
             epistemic_state: EpistemicState::Corroborated,
             evidence_ids: vec!["evidence:a".to_owned(), "evidence:b".to_owned()],
-            contradiction_ids: vec!["evidence:contradiction".to_owned()],
+            contradiction_ids: Vec::new(),
             primary_location: Some(".github/workflows/ci.yml:12".to_owned()),
             affected_subjects: vec!["workflow:ci".to_owned()],
             first_seen_commit: Some("commit:before".to_owned()),
             last_seen_commit: Some("commit:after".to_owned()),
-            remediation: Some("Reduce workflow permissions to the minimum required scope.".to_owned()),
+            remediation: Some(
+                "Reduce workflow permissions to the minimum required scope.".to_owned(),
+            ),
             updated_at: "2026-08-29T00:00:00Z".to_owned(),
         },
         &reconciler,
@@ -67,15 +68,18 @@ fn human_explanation_preserves_canonical_finding_record_and_authority_axes() {
 
     assert!(rendered.contains("Impact:"));
     assert_eq!(output.finding().to_record(), before);
-    assert_eq!(output.finding().draft().severity, before_severity);
-    assert_eq!(output.finding().draft().epistemic_state, before_epistemic);
-    assert_eq!(*output.finding().workflow_state(), before_workflow);
-    assert_eq!(output.finding().draft().severity, Severity::High);
+    assert_eq!(&output.finding().draft().severity, &before_severity);
     assert_eq!(
-        output.finding().draft().epistemic_state,
-        EpistemicState::Corroborated
+        &output.finding().draft().epistemic_state,
+        &before_epistemic
     );
-    assert_eq!(*output.finding().workflow_state(), WorkflowState::New);
+    assert_eq!(output.finding().workflow_state(), &before_workflow);
+    assert_eq!(&output.finding().draft().severity, &Severity::High);
+    assert_eq!(
+        &output.finding().draft().epistemic_state,
+        &EpistemicState::Corroborated
+    );
+    assert_eq!(output.finding().workflow_state(), &WorkflowState::New);
 }
 
 #[test]
@@ -94,7 +98,10 @@ fn json_explanation_preserves_canonical_finding_record_and_authority_axes() {
     assert_eq!(value["command"], "explain");
     assert_eq!(value["decision"], "ALLOW");
     assert_eq!(output.finding().to_record(), before);
-    assert_eq!(output.finding().draft().severity, before_severity);
-    assert_eq!(output.finding().draft().epistemic_state, before_epistemic);
-    assert_eq!(*output.finding().workflow_state(), before_workflow);
+    assert_eq!(&output.finding().draft().severity, &before_severity);
+    assert_eq!(
+        &output.finding().draft().epistemic_state,
+        &before_epistemic
+    );
+    assert_eq!(output.finding().workflow_state(), &before_workflow);
 }
