@@ -1,0 +1,60 @@
+name: Cross-platform CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  cross-platform:
+    name: Cross-platform ${{ matrix.platform }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux
+            os: ubuntu-24.04
+          - platform: macos
+            os: macos-14
+          - platform: windows
+            os: windows-2025
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - name: Checkout without persisted credentials
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.98.0 --profile minimal --component rustfmt --component clippy
+
+      - name: Verify pinned toolchain
+        run: |
+          rustc +1.98.0 --version
+          cargo +1.98.0 --version
+
+      - name: Format contract
+        run: cargo +1.98.0 fmt --all -- --check
+
+      - name: Check workspace base contracts
+        run: cargo +1.98.0 check --workspace --all-targets --locked
+
+      - name: Test supported CLI and guard paths
+        run: cargo +1.98.0 test -p sentrdel-cli -p sentrdel-guard --locked
+
+      - name: Clippy supported CLI and guard paths
+        run: cargo +1.98.0 clippy -p sentrdel-cli -p sentrdel-guard --all-targets --locked -- -D warnings
+
+      - name: Guard seam qualification
+        run: cargo +1.98.0 test -p sentrdel-guard --locked
+
+# T081 scope: this matrix compiles the Rust workspace/base contracts and proves
+# supported CLI/guard test and lint paths on Linux, macOS, and Windows. It does
+# not claim identical operating-system interception or external-engine process
+# containment semantics. Those remain separately qualified by their owning
+# seams and fidelity declarations.

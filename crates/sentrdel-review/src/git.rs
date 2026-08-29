@@ -360,11 +360,11 @@ fn working_tree_changes(
     Ok(changes)
 }
 
-fn filesystem_mode(metadata: &fs::Metadata) -> String {
+fn filesystem_mode(_metadata: &fs::Metadata) -> String {
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        if metadata.permissions().mode() & 0o111 != 0 {
+        if _metadata.permissions().mode() & 0o111 != 0 {
             return "100755".to_owned();
         }
     }
