@@ -65,13 +65,13 @@
     },
     {
       "id": "guard_latency",
-      "state": "NOT_MEASURED",
+      "state": "MEASURED",
       "owner_task": "T080",
       "scenarios": ["mcp-in-process-policy"]
     },
     {
       "id": "guard_bounded_frame_memory",
-      "state": "NOT_MEASURED",
+      "state": "MEASURED",
       "owner_task": "T080",
       "scenarios": ["mcp-bounded-frame-resource"]
     }
