@@ -32,7 +32,11 @@ fn detects_languages_and_ecosystems_from_paths_without_execution() {
 #[test]
 fn javascript_and_typescript_are_distinct_and_manifest_does_not_invent_language() {
     let detected = detect_language_ecosystems(
-        ["frontend/package.json", "frontend/index.js", "frontend/types.d.ts"],
+        [
+            "frontend/package.json",
+            "frontend/index.js",
+            "frontend/types.d.ts",
+        ],
         DetectionLimits::default(),
     )
     .expect("bounded detection");
@@ -56,7 +60,12 @@ fn unknown_files_do_not_create_posture_or_ecosystem_claims() {
 #[test]
 fn input_order_and_duplicate_paths_do_not_change_output() {
     let first = detect_language_ecosystems(
-        ["src/main.rs", "Cargo.toml", "src/main.rs", "package-lock.json"],
+        [
+            "src/main.rs",
+            "Cargo.toml",
+            "src/main.rs",
+            "package-lock.json",
+        ],
         DetectionLimits::default(),
     )
     .expect("bounded detection");
@@ -72,10 +81,7 @@ fn input_order_and_duplicate_paths_do_not_change_output() {
 #[test]
 fn invalid_paths_and_resource_caps_fail_closed() {
     assert!(matches!(
-        detect_language_ecosystems(
-            ["src/main.rs", "../escape.py"],
-            DetectionLimits::default()
-        ),
+        detect_language_ecosystems(["src/main.rs", "../escape.py"], DetectionLimits::default()),
         Err(ProjectDetectionError::InvalidPath { index: 1, .. })
     ));
 
