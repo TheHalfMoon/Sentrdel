@@ -108,12 +108,31 @@ struct ExistingReviewCase {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 struct ReviewMetrics {
     clean_cases: u64,
+    clean_cases_with_false_positive: u64,
     clean_false_positive_findings: u64,
     vulnerable_cases: u64,
     vulnerable_signal_groups_expected: u64,
     vulnerable_signal_groups_detected: u64,
     coverage_dimensions_expected: u64,
     coverage_gap_dimensions: u64,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+enum ReleaseGateStatus {
+    Pass,
+    FailThresholdExceeded,
+    UnqualifiedNoCleanCases,
+    EvaluationError,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+struct CleanPrFalsePositiveGate {
+    status: ReleaseGateStatus,
+    clean_cases_evaluated: u64,
+    clean_cases_with_false_positive: u64,
+    max_false_positive_clean_prs: u64,
+    per_clean_prs: u64,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
@@ -149,6 +168,7 @@ struct ReleaseRunRecord {
     baseline_identity: String,
     candidate_identity: String,
     review: ReviewMetrics,
+    clean_pr_false_positive_gate: CleanPrFalsePositiveGate,
     guard: GuardMetrics,
     authority: AuthorityMetrics,
     deferred_measurements: BTreeMap<String, DeferredMeasurement>,
@@ -232,6 +252,9 @@ fn review_metrics() -> ReviewMetrics {
         CAPTURED_AT,
     )
     .expect("clean workflow scan");
+    let clean_false_positive_findings =
+        u64::try_from(clean_secret.len() + clean_actions.len()).expect("bounded clean FP count");
+    let clean_cases_with_false_positive = u64::from(clean_false_positive_findings > 0);
     assert!(clean_secret.is_empty());
     assert!(clean_actions.is_empty());
 
@@ -296,12 +319,45 @@ fn review_metrics() -> ReviewMetrics {
 
     ReviewMetrics {
         clean_cases: 1,
-        clean_false_positive_findings: 0,
+        clean_cases_with_false_positive,
+        clean_false_positive_findings,
         vulnerable_cases: 1,
         vulnerable_signal_groups_expected: 2,
         vulnerable_signal_groups_detected: 2,
         coverage_dimensions_expected: expected_coverage.len() as u64,
         coverage_gap_dimensions: matrix.gap_count as u64,
+    }
+}
+
+fn clean_pr_false_positive_release_gate(review: &ReviewMetrics) -> CleanPrFalsePositiveGate {
+    const MAX_FALSE_POSITIVE_CLEAN_PRS: u64 = 1;
+    const PER_CLEAN_PRS: u64 = 5;
+
+    let status = if review.clean_cases == 0 {
+        ReleaseGateStatus::UnqualifiedNoCleanCases
+    } else if review.clean_cases_with_false_positive > review.clean_cases {
+        ReleaseGateStatus::EvaluationError
+    } else {
+        match review
+            .clean_cases_with_false_positive
+            .checked_mul(PER_CLEAN_PRS)
+        {
+            Some(scaled_false_positives)
+                if scaled_false_positives
+                    <= MAX_FALSE_POSITIVE_CLEAN_PRS.saturating_mul(review.clean_cases) =>
+            {
+                ReleaseGateStatus::Pass
+            }
+            Some(_) | None => ReleaseGateStatus::FailThresholdExceeded,
+        }
+    };
+
+    CleanPrFalsePositiveGate {
+        status,
+        clean_cases_evaluated: review.clean_cases,
+        clean_cases_with_false_positive: review.clean_cases_with_false_positive,
+        max_false_positive_clean_prs: MAX_FALSE_POSITIVE_CLEAN_PRS,
+        per_clean_prs: PER_CLEAN_PRS,
     }
 }
 
@@ -549,17 +605,65 @@ fn run_release_suite(suite: &ReleaseSuite) -> ReleaseRunRecord {
         })
         .collect::<BTreeMap<_, _>>();
 
+    let review = review_metrics();
+    let clean_pr_false_positive_gate = clean_pr_false_positive_release_gate(&review);
+    assert_eq!(
+        clean_pr_false_positive_gate.status,
+        ReleaseGateStatus::Pass,
+        "T078 release gate requires at most 1 clean PR with false positives per 5 clean PRs"
+    );
+
     ReleaseRunRecord {
         schema_version: SCHEMA_V1.to_owned(),
         suite_version: suite.suite_version.clone(),
         corpus_class: suite.corpus_class.clone(),
         baseline_identity: suite.baseline_identity.clone(),
         candidate_identity: suite.candidate_identity.clone(),
-        review: review_metrics(),
+        review,
+        clean_pr_false_positive_gate,
         guard: guard_metrics(),
         authority: authority_metrics(),
         deferred_measurements,
     }
+}
+
+#[test]
+fn clean_pr_false_positive_release_gate_fails_above_one_per_five() {
+    let metrics = |clean_cases, clean_cases_with_false_positive| ReviewMetrics {
+        clean_cases,
+        clean_cases_with_false_positive,
+        clean_false_positive_findings: clean_cases_with_false_positive,
+        vulnerable_cases: 0,
+        vulnerable_signal_groups_expected: 0,
+        vulnerable_signal_groups_detected: 0,
+        coverage_dimensions_expected: 0,
+        coverage_gap_dimensions: 0,
+    };
+
+    assert_eq!(
+        clean_pr_false_positive_release_gate(&metrics(5, 1)).status,
+        ReleaseGateStatus::Pass
+    );
+    assert_eq!(
+        clean_pr_false_positive_release_gate(&metrics(10, 2)).status,
+        ReleaseGateStatus::Pass
+    );
+    assert_eq!(
+        clean_pr_false_positive_release_gate(&metrics(5, 2)).status,
+        ReleaseGateStatus::FailThresholdExceeded
+    );
+    assert_eq!(
+        clean_pr_false_positive_release_gate(&metrics(9, 2)).status,
+        ReleaseGateStatus::FailThresholdExceeded
+    );
+    assert_eq!(
+        clean_pr_false_positive_release_gate(&metrics(0, 0)).status,
+        ReleaseGateStatus::UnqualifiedNoCleanCases
+    );
+    assert_eq!(
+        clean_pr_false_positive_release_gate(&metrics(1, 2)).status,
+        ReleaseGateStatus::EvaluationError
+    );
 }
 
 #[test]
@@ -570,7 +674,12 @@ fn r1_release_suite_is_reproducible_and_exercises_release_boundaries() {
     assert_eq!(first, second, "release suite replay must be deterministic");
 
     assert_eq!(first.review.clean_cases, 1);
+    assert_eq!(first.review.clean_cases_with_false_positive, 0);
     assert_eq!(first.review.clean_false_positive_findings, 0);
+    assert_eq!(
+        first.clean_pr_false_positive_gate.status,
+        ReleaseGateStatus::Pass
+    );
     assert_eq!(first.review.vulnerable_signal_groups_expected, 2);
     assert_eq!(first.review.vulnerable_signal_groups_detected, 2);
     assert_eq!(first.review.coverage_gap_dimensions, 1);
