@@ -19,12 +19,6 @@ const MAX_REASONER_ID_BYTES: usize = 512;
 const MAX_OBSERVED_AT_BYTES: usize = 4_096;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum ReasonerNetworkAccess {
-    OfflineOnly,
-    NetworkRequired,
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ReviewReasoningState {
     Disabled,
     Covered,
@@ -70,9 +64,15 @@ impl fmt::Display for ReviewReasoningConfigError {
 
 impl Error for ReviewReasoningConfigError {}
 
+/// Run optional model reasoning after deterministic review.
+///
+/// `--no-network` is deliberately an absolute ceiling for the current R1
+/// reasoner surface. Both built-in adapters are HTTP-backed, including the
+/// localhost/Ollama-compatible adapter, so no `Reasoner` is invoked while the
+/// flag is active. A future truly offline adapter requires a separate authority
+/// contract rather than a caller-supplied capability label.
 pub fn run_optional_reasoning<R: Reasoner + ?Sized>(
     flags: ReviewReasoningFlags,
-    network_access: ReasonerNetworkAccess,
     reasoner: &R,
     request: &ReasonerRequest,
     observed_at: &str,
@@ -86,7 +86,7 @@ pub fn run_optional_reasoning<R: Reasoner + ?Sized>(
     validate_observed_at(observed_at)?;
     let input_digests = normalized_input_digests(request);
 
-    if flags.no_network() && network_access == ReasonerNetworkAccess::NetworkRequired {
+    if flags.no_network() {
         return Ok(ReviewReasoningOutcome {
             state: ReviewReasoningState::SkippedByPolicy,
             evidence: Vec::new(),
@@ -274,7 +274,6 @@ mod tests {
         let reasoner = CountingReasoner::new("fixture", false);
         let outcome = run_optional_reasoning(
             ReviewReasoningFlags::new(false, false),
-            ReasonerNetworkAccess::NetworkRequired,
             &reasoner,
             &request(),
             "ignored while disabled\n",
@@ -288,12 +287,11 @@ mod tests {
     }
 
     #[test]
-    fn no_network_skips_network_reasoner_without_invocation() {
-        let reasoner = CountingReasoner::new("remote-fixture", false);
+    fn no_network_skips_every_current_reasoner_without_invocation() {
+        let reasoner = CountingReasoner::new("http-fixture", false);
         let request = request();
         let outcome = run_optional_reasoning(
             ReviewReasoningFlags::new(true, true),
-            ReasonerNetworkAccess::NetworkRequired,
             &reasoner,
             &request,
             "2026-08-29T00:00:00Z",
@@ -313,16 +311,15 @@ mod tests {
     }
 
     #[test]
-    fn no_network_allows_explicit_offline_reasoner() {
-        let reasoner = CountingReasoner::new("offline-fixture", false);
+    fn reason_flag_allows_advisory_reasoning_when_network_is_not_disabled() {
+        let reasoner = CountingReasoner::new("http-fixture", false);
         let outcome = run_optional_reasoning(
-            ReviewReasoningFlags::new(true, true),
-            ReasonerNetworkAccess::OfflineOnly,
+            ReviewReasoningFlags::new(true, false),
             &reasoner,
             &request(),
             "2026-08-29T00:00:00Z",
         )
-        .expect("offline reasoning");
+        .expect("optional reasoning");
 
         assert_eq!(reasoner.calls.get(), 1);
         assert_eq!(outcome.state, ReviewReasoningState::Covered);
@@ -358,7 +355,6 @@ mod tests {
 
         let outcome = run_optional_reasoning(
             ReviewReasoningFlags::new(true, false),
-            ReasonerNetworkAccess::NetworkRequired,
             &reasoner,
             &request(),
             "2026-08-29T00:00:00Z",
@@ -392,7 +388,6 @@ mod tests {
         assert_eq!(
             run_optional_reasoning(
                 ReviewReasoningFlags::new(true, false),
-                ReasonerNetworkAccess::OfflineOnly,
                 &invalid_id,
                 &request(),
                 "2026-08-29T00:00:00Z",
@@ -405,7 +400,6 @@ mod tests {
         assert_eq!(
             run_optional_reasoning(
                 ReviewReasoningFlags::new(true, false),
-                ReasonerNetworkAccess::OfflineOnly,
                 &reasoner,
                 &request(),
                 "bad\ntime",
