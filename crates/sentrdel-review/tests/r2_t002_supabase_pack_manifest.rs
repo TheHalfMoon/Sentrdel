@@ -1,5 +1,7 @@
 use sentrdel_review::{
-    pack_registry::{PackCoverageDimension, PackOutputKind, SecurityPackRegistry, ValidatedPackManifest},
+    pack_registry::{
+        PackCoverageDimension, PackOutputKind, SecurityPackRegistry, ValidatedPackManifest,
+    },
     supabase_pack::{
         SUPABASE_CAPABILITY_STATIC_AUTH_CONFIG, SUPABASE_CAPABILITY_STATIC_DATABASE,
         SUPABASE_CAPABILITY_STATIC_EDGE_FUNCTIONS, SUPABASE_CAPABILITY_STATIC_KEY_BOUNDARY,
