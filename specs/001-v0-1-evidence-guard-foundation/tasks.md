@@ -178,7 +178,7 @@
 - [x] T079 [P] Add warm review latency target (<5s p95 <2k changed LOC; <30s broader target) with benchmark-machine metadata.
 - [x] T080 [P] Add MCP in-process policy latency target (<50ms p95 excluding downstream/human/framing wait) plus bounded-frame memory tests.
 - [x] T081 Add cross-platform GitHub Actions CI for fmt/clippy/test/base contracts on Linux/macOS/Windows; guard tests truthfully platform/seam-qualified.
-- [ ] T082 Complete self-security CI beyond the early T091 gate: source/dependency qualification validation, Rust 1.98.0 pin/lockfile checks, malicious-package denylist/advisory refresh path, privileged dependency documentation and release-grade policy. `cargo-vet`, if later used, is only for the trusted Sentrdel workspace and never run against arbitrary target repos.
+- [x] T082 Complete self-security CI beyond the early T091 gate: source/dependency qualification validation, Rust 1.98.0 pin/lockfile checks, malicious-package denylist/advisory refresh path, privileged dependency documentation and release-grade policy. `cargo-vet`, if later used, is only for the trusted Sentrdel workspace and never run against arbitrary target repos.
 - [ ] T083 [P] Document R1 threat model/trust boundaries in `docs/security/threat-model.md` and keep root `SECURITY.md` aligned, including context/instruction authority and MCP credential inheritance boundaries.
 - [ ] T084 [P] Document architecture/Evidence/ASEL including trusted-head limitations, stdio MCP scope, evaluation-plane limits, and candidate-only future learning authority.
 - [ ] T085 Update README with implemented/verified capabilities and explicit non-claims; Supabase deep pack, remote MCP, Verify, general Security Memory and autonomous Research/Learning remain roadmap only.
