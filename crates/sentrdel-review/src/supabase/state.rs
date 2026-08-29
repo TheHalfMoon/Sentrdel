@@ -507,7 +507,6 @@ fn apply_supported_statement(
                 relation: relation.clone(),
                 name: policy,
             };
-            state.policy_removals.remove(&identity);
             let posture = state
                 .policies
                 .entry(identity.clone())
