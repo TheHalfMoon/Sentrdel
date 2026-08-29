@@ -4,18 +4,14 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use sentrdel_review::config_detection::CiMcpConfigDetection;
-use sentrdel_review::pack_registry::{
-    PackCoverageDimension, SecurityPackRegistry,
-};
-use sentrdel_review::profile::{
-    ProjectCoverageSubjectKind, build_project_profile_snapshot,
-};
+use sentrdel_review::pack_registry::{PackCoverageDimension, SecurityPackRegistry};
+use sentrdel_review::profile::{ProjectCoverageSubjectKind, build_project_profile_snapshot};
+use sentrdel_review::project_detection::DetectionLimits;
 use sentrdel_review::project_detection::LanguageEcosystemDetection;
 use sentrdel_review::stack_detection::{
     PathMatchRule, StackDetectorRegistry, StackDetectorSpec, StackKind,
 };
 use sentrdel_review::supabase_detection::detect_supabase;
-use sentrdel_review::project_detection::DetectionLimits;
 use sentrdel_schema::SCHEMA_V1;
 use sentrdel_schema::coverage::CoverageState;
 use sentrdel_schema::pack::{SecurityPackManifest, SourceProvenance};
@@ -47,10 +43,7 @@ fn pack(pack_id: &str, subject: &str) -> SecurityPackManifest {
         evidence_capabilities: vec![format!("{subject}.posture")],
         required_engines: Vec::new(),
         required_features: Vec::new(),
-        coverage_dimensions: vec![
-            "DETECTION".to_owned(),
-            "STATIC_POSTURE".to_owned(),
-        ],
+        coverage_dimensions: vec!["DETECTION".to_owned(), "STATIC_POSTURE".to_owned()],
     }
 }
 
@@ -84,7 +77,10 @@ fn project_profile_is_deterministic_honest_and_persistable() {
         )
         .unwrap();
     let supabase = detect_supabase(
-        ["supabase/config.toml", "supabase/migrations/20260829_init.sql"],
+        [
+            "supabase/config.toml",
+            "supabase/migrations/20260829_init.sql",
+        ],
         DetectionLimits::default(),
     )
     .unwrap();
@@ -177,10 +173,7 @@ fn project_profile_is_deterministic_honest_and_persistable() {
         let store = Store::open(&path).unwrap();
         assert!(store.put_project_profile(&snapshot.profile).unwrap());
         assert!(!store.put_project_profile(&snapshot.profile).unwrap());
-        let loaded = store
-            .get_project_profile("repo:fixture")
-            .unwrap()
-            .unwrap();
+        let loaded = store.get_project_profile("repo:fixture").unwrap().unwrap();
         assert_eq!(loaded, snapshot.profile);
     }
     cleanup(&path);
@@ -188,14 +181,11 @@ fn project_profile_is_deterministic_honest_and_persistable() {
 
 #[test]
 fn profile_rejects_blank_persistence_identity_inputs() {
-    let stacks = StackDetectorRegistry::new(&[]).unwrap().detect(
-        std::iter::empty::<&str>(),
-        DetectionLimits::default(),
-    ).unwrap();
-    let supabase = detect_supabase(
-        std::iter::empty::<&str>(),
-        DetectionLimits::default(),
-    ).unwrap();
+    let stacks = StackDetectorRegistry::new(&[])
+        .unwrap()
+        .detect(std::iter::empty::<&str>(), DetectionLimits::default())
+        .unwrap();
+    let supabase = detect_supabase(std::iter::empty::<&str>(), DetectionLimits::default()).unwrap();
     let packs = SecurityPackRegistry::new();
     let languages = LanguageEcosystemDetection {
         languages: Vec::new(),
@@ -206,26 +196,32 @@ fn profile_rejects_blank_persistence_identity_inputs() {
         mcp_configurations: Vec::new(),
     };
 
-    assert!(build_project_profile_snapshot(
-        " ",
-        "sha256:root",
-        &languages,
-        &configs,
-        &stacks,
-        &supabase,
-        &packs,
-        "2026-08-29T00:00:00Z",
-        "2026-08-29T00:00:00Z",
-    ).is_err());
-    assert!(build_project_profile_snapshot(
-        "repo:fixture",
-        " ",
-        &languages,
-        &configs,
-        &stacks,
-        &supabase,
-        &packs,
-        "2026-08-29T00:00:00Z",
-        "2026-08-29T00:00:00Z",
-    ).is_err());
+    assert!(
+        build_project_profile_snapshot(
+            " ",
+            "sha256:root",
+            &languages,
+            &configs,
+            &stacks,
+            &supabase,
+            &packs,
+            "2026-08-29T00:00:00Z",
+            "2026-08-29T00:00:00Z",
+        )
+        .is_err()
+    );
+    assert!(
+        build_project_profile_snapshot(
+            "repo:fixture",
+            " ",
+            &languages,
+            &configs,
+            &stacks,
+            &supabase,
+            &packs,
+            "2026-08-29T00:00:00Z",
+            "2026-08-29T00:00:00Z",
+        )
+        .is_err()
+    );
 }

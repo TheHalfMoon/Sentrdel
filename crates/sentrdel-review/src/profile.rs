@@ -9,9 +9,9 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::error::Error;
 use std::fmt;
 
+use sentrdel_schema::SCHEMA_V1;
 use sentrdel_schema::coverage::CoverageState;
 use sentrdel_schema::project::{DetectedFramework, DetectedProvider, PackStatus, ProjectProfile};
-use sentrdel_schema::SCHEMA_V1;
 
 use crate::config_detection::CiMcpConfigDetection;
 use crate::pack_registry::{PackCoverageDimension, SecurityPackRegistry};
@@ -89,11 +89,15 @@ pub enum ProjectProfileError {
 impl fmt::Display for ProjectProfileError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::EmptyRepositoryId => formatter.write_str("project profile repository id must not be empty"),
+            Self::EmptyRepositoryId => {
+                formatter.write_str("project profile repository id must not be empty")
+            }
             Self::EmptyRepositoryRootDigest => {
                 formatter.write_str("project profile repository root digest must not be empty")
             }
-            Self::EmptyTimestamp(field) => write!(formatter, "project profile {field} must not be empty"),
+            Self::EmptyTimestamp(field) => {
+                write!(formatter, "project profile {field} must not be empty")
+            }
         }
     }
 }
@@ -202,15 +206,16 @@ fn build_project_coverage_matrix(
     supabase: &SupabaseDetection,
     packs: &SecurityPackRegistry,
 ) -> ProjectCoverageMatrix {
-    let pack_dimensions: BTreeMap<&str, BTreeSet<PackCoverageDimension>> = packs
-        .iter()
-        .fold(BTreeMap::new(), |mut by_subject, (_, pack)| {
-            by_subject
-                .entry(pack.manifest().provider_or_framework.as_str())
-                .or_default()
-                .extend(pack.coverage_dimensions().iter().copied());
-            by_subject
-        });
+    let pack_dimensions: BTreeMap<&str, BTreeSet<PackCoverageDimension>> =
+        packs
+            .iter()
+            .fold(BTreeMap::new(), |mut by_subject, (_, pack)| {
+                by_subject
+                    .entry(pack.manifest().provider_or_framework.as_str())
+                    .or_default()
+                    .extend(pack.coverage_dimensions().iter().copied());
+                by_subject
+            });
 
     let mut entries = Vec::new();
     for provider in &profile.detected_providers {
@@ -239,10 +244,12 @@ fn build_project_coverage_matrix(
         provider.provider_id == "supabase"
             || stack_present(&stacks.providers, &provider.provider_id)
     }));
-    debug_assert!(profile
-        .detected_frameworks
-        .iter()
-        .all(|framework| stack_present(&stacks.frameworks, &framework.framework_id)));
+    debug_assert!(
+        profile
+            .detected_frameworks
+            .iter()
+            .all(|framework| stack_present(&stacks.frameworks, &framework.framework_id))
+    );
 
     entries.sort_by(|left, right| left.key.cmp(&right.key));
     let gap_count = entries.iter().filter(|entry| entry.is_gap()).count();
