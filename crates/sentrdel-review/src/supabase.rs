@@ -175,9 +175,7 @@ where
             )?
             .to_owned();
 
-        total_path_bytes = total_path_bytes
-            .checked_add(path.as_str().len())
-            .unwrap_or(usize::MAX);
+        total_path_bytes = total_path_bytes.saturating_add(path.as_str().len());
         if total_path_bytes > limits.max_total_path_bytes {
             return Err(SupabaseMigrationDiscoveryError::TotalPathBytesExceeded {
                 max: limits.max_total_path_bytes,
@@ -302,8 +300,8 @@ mod tests {
             migrations[0].path.as_str(),
             "supabase/migrations/20260829000100_first.sql"
         );
-        assert!(!SUPABASE_MIGRATION_EXECUTION_ALLOWED);
-        assert!(!crate::TARGET_BUILD_EXECUTION_ALLOWED);
+        const { assert!(!SUPABASE_MIGRATION_EXECUTION_ALLOWED) };
+        const { assert!(!crate::TARGET_BUILD_EXECUTION_ALLOWED) };
     }
 
     #[test]
