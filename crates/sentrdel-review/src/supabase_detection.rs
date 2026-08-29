@@ -76,12 +76,20 @@ pub enum SupabaseDetectionError {
 impl fmt::Display for SupabaseDetectionError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::InvalidLimits => formatter.write_str("Supabase detection limits must be non-zero"),
+            Self::InvalidLimits => {
+                formatter.write_str("Supabase detection limits must be non-zero")
+            }
             Self::TooManyPaths { max } => {
-                write!(formatter, "repository path count exceeds Supabase detection cap {max}")
+                write!(
+                    formatter,
+                    "repository path count exceeds Supabase detection cap {max}"
+                )
             }
             Self::InvalidPath { index, source } => {
-                write!(formatter, "repository path at index {index} is invalid: {source}")
+                write!(
+                    formatter,
+                    "repository path at index {index} is invalid: {source}"
+                )
             }
         }
     }
@@ -154,7 +162,8 @@ fn classify_supabase_path(path: &NormalizedRepoPath) -> Option<SupabaseSignalKin
     }
     if let Some(relative) = value.strip_prefix("supabase/functions/") {
         let mut parts = relative.split('/');
-        if matches!((parts.next(), parts.next()), (Some(name), Some(file)) if !name.is_empty() && !file.is_empty()) {
+        if matches!((parts.next(), parts.next()), (Some(name), Some(file)) if !name.is_empty() && !file.is_empty())
+        {
             return Some(SupabaseSignalKind::EdgeFunction);
         }
     }
@@ -184,7 +193,11 @@ mod tests {
         let posture = detection.static_posture.unwrap();
         assert_eq!(posture.status.as_str(), "NOT_IMPLEMENTED");
         assert_eq!(posture.coverage_state, CoverageState::Partial);
-        assert!(posture.roadmap.contains("R2: Supabase P0 Static/Posture Pack"));
+        assert!(
+            posture
+                .roadmap
+                .contains("R2: Supabase P0 Static/Posture Pack")
+        );
     }
 
     #[test]
@@ -222,7 +235,13 @@ mod tests {
         assert_eq!(first, second);
 
         assert!(matches!(
-            detect_supabase(["supabase/config.toml"], DetectionLimits { max_paths: 0, max_path_bytes: 1 }),
+            detect_supabase(
+                ["supabase/config.toml"],
+                DetectionLimits {
+                    max_paths: 0,
+                    max_path_bytes: 1
+                }
+            ),
             Err(SupabaseDetectionError::InvalidLimits)
         ));
     }
