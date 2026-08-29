@@ -42,6 +42,10 @@ impl Drop for TempRepo {
     }
 }
 
+fn assert_target_build_execution_disabled() {
+    assert!(!std::hint::black_box(TARGET_BUILD_EXECUTION_ALLOWED));
+}
+
 fn empty_stacks() -> sentrdel_review::stack_detection::StackDetectionResult {
     StackDetectorRegistry::new(&[])
         .expect("empty stack registry")
@@ -94,7 +98,7 @@ fn oversized_repository_input_fails_closed_before_init_can_treat_it_as_inventory
             ..
         })
     ));
-    assert!(!TARGET_BUILD_EXECUTION_ALLOWED);
+    assert_target_build_execution_disabled();
 }
 
 #[cfg(unix)]
@@ -120,7 +124,7 @@ fn symlinked_project_metadata_is_rejected_instead_of_followed() {
         view.read("Cargo.toml"),
         Err(RepoViewError::SymlinkEncountered(_))
     ));
-    assert!(!TARGET_BUILD_EXECUTION_ALLOWED);
+    assert_target_build_execution_disabled();
 }
 
 #[test]
@@ -154,7 +158,7 @@ fn repository_weakening_candidate_cannot_override_trusted_policy_floor() {
         validate_repository_narrowing(Verdict::Allow, Verdict::Deny, false),
         Err(RepositoryNarrowingError::EvidenceLoggingDisabled)
     );
-    assert!(!TARGET_BUILD_EXECUTION_ALLOWED);
+    assert_target_build_execution_disabled();
 }
 
 #[test]
@@ -178,7 +182,7 @@ registry = "https://attacker.invalid/index"
             .expect("read hostile config as bytes"),
         hostile
     );
-    assert!(!TARGET_BUILD_EXECUTION_ALLOWED);
+    assert_target_build_execution_disabled();
 
     let output = init_for_paths(&[".cargo/config.toml", "Cargo.toml"]);
     assert!(output.envelope.findings.is_empty());
