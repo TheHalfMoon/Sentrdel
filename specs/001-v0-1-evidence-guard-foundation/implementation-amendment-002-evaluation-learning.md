@@ -1,6 +1,6 @@
 # Implementation Amendment 002 — Evaluation, Controlled Learning, Context Provenance, and Guard Credential Boundaries
 
-**Status:** PROPOSED_BINDING_AMENDMENT  
+**Status:** BINDING_APPLIED  
 **Date:** 2026-08-26  
 **Applies to:** `specs/001-v0-1-evidence-guard-foundation/` and roadmap sequencing  
 **Constitution impact:** No exception requested. This amendment tightens Principles II, III, IV, VIII, and IX and preserves the R1 product category.
@@ -218,49 +218,33 @@ The design SHOULD support:
 - declared filesystem/process/network/secret capabilities;
 - authority ceiling;
 - benchmark qualification metadata;
-- signature where applicable;
+- signing/verification state;
 - revocation/retirement state.
 
-Declarative rules receive no ambient process/network/secret capability by default. Privileged/native integrations remain explicitly qualified dependencies or engines.
+R1 does not implement remote community-pack distribution.
 
-## 11. Self-security sequencing amendment
+## 11. R1 binding task consequences
 
-The repository currently has strong bootstrap/schema CI but R1 MUST move self-security controls forward rather than relying solely on Phase 8.
+This amendment is implemented in R1 through the following task additions and ordering changes:
 
-Before release-grade claims, and preferably before broad user-story implementation, project governance SHOULD establish:
+- T088: evaluation contract and benchmark conventions;
+- T089: executable benchmark-core harness and run record;
+- T090: corpus-class separation and protected-holdout semantics;
+- T091: early self-security dependency gates;
+- T092: protected-main governance verification;
+- T093: deny-by-default MCP child-process credential boundary;
+- T095: authority-safe context/learning contract.
 
-- protected `main` ruleset/branch policy;
-- required canonical checks;
-- controlled merge authority;
-- early `cargo-audit`/`cargo-deny` qualification where feasible;
-- continued immutable-action pinning and non-persisted checkout credentials.
+T088-T092 and T095 execute after the foundational substrate and before broad detector growth. T093 executes before MCP server forwarding behavior. T094 is intentionally unused so existing assigned IDs remain stable.
 
-Later release hardening still owns SBOM, artifact provenance/attestation, signing, and full cross-platform release qualification.
+## 12. Non-goals preserved
 
-## 12. R1 execution-order amendment
+This amendment does not authorize:
 
-The canonical near-term order becomes:
-
-1. finish `T032`-`T036` trusted foundation;
-2. execute the newly inserted SentrdelBench/self-security tasks in `tasks.md`;
-3. build a vertical US1 steel thread and prove it under the benchmark before broad detector proliferation;
-4. continue remaining US1 tasks;
-5. before/during US2, enforce the MCP child-environment contract and canary tests;
-6. continue remaining R1 user stories and release qualification.
-
-Full autonomous Research/Learning Plane implementation is **not** authorized by R1. R1 only establishes the evaluation foundation and authority-safe contracts needed to avoid painting the project into a corner.
-
-## 13. Constitution re-check
-
-- **Rust Trusted Core:** unchanged; learning artifacts have lower authority than the core. PASS.
-- **Evidence Before Verdict:** strengthened; feedback/memory/learning remain context/hypothesis until ordinary authority gates. PASS.
-- **Vendor-neutral/local-first:** unchanged. PASS.
-- **Honest/monotonic guardrails:** strengthened by instruction provenance and MCP credential isolation. PASS.
-- **Safe verification:** unchanged; no autonomous exploitation authorized. PASS.
-- **A-to-Z Packs:** strengthened with supply-chain lifecycle expectations. PASS.
-- **Reuse mature infrastructure:** unchanged. PASS.
-- **FP/false-block/latency quality:** strengthened by moving evaluation earlier. PASS.
-- **Sentrdel secures itself:** strengthened by repository and MCP-process controls. PASS.
-- **Spec Kit governance:** preserved; full learning/memory subsystems require dedicated later specs before implementation breadth. PASS.
-
-**Gate result: PASS — no constitutional exception required.**
+- autonomous rule promotion or trusted-core self-modification;
+- autonomous exploitation or production scanning;
+- remote/Streamable HTTP MCP;
+- general-purpose Security Memory implementation in R1;
+- credentialed provider posture without a dedicated later specification;
+- hidden use of protected holdout labels for tuning;
+- weakening canonical Evidence/Finding/policy/verification authority boundaries.
