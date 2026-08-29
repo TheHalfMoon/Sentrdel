@@ -112,11 +112,10 @@ pub fn observe_api_relevant_rls(
         }
 
         let relation_id = object.normalized();
-        let state_provenance = state_provenance(relation).ok_or_else(|| {
-            RlsPostureError::MissingStateProvenance {
+        let state_provenance =
+            state_provenance(relation).ok_or_else(|| RlsPostureError::MissingStateProvenance {
                 relation: relation_id.clone(),
-            }
-        })?;
+            })?;
         let rls_state = rls_state_name(relation.rls_state.value);
         let mut attributes = BTreeMap::new();
         attributes.insert("relation".to_owned(), Value::String(relation_id.clone()));
@@ -187,10 +186,7 @@ fn coverage_name(state: PostureCoverageState) -> &'static str {
     }
 }
 
-fn input_digests(
-    state: &StatementProvenance,
-    exposure: &ConfigExposureProvenance,
-) -> Vec<String> {
+fn input_digests(state: &StatementProvenance, exposure: &ConfigExposureProvenance) -> Vec<String> {
     BTreeSet::from([
         state.content_digest.clone(),
         exposure.content_digest.clone(),
