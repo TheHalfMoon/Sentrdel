@@ -5,6 +5,7 @@
 //! converted into INFERENCE/HYPOTHESIS Evidence through `sentrdel-schema`.
 
 pub mod local;
+pub mod remote;
 
 use sentrdel_schema::evidence::EvidenceRecord;
 use sentrdel_schema::reasoner::ReasonerEvidenceDraft;
