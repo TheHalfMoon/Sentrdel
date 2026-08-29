@@ -140,7 +140,7 @@
 
 ## Phase 5 — US3: Initialize and understand coverage
 
-- [ ] T059 [P] [US3] Implement bounded language/ecosystem detection using files/config only.
+- [x] T059 [P] [US3] Implement bounded language/ecosystem detection using files/config only.
 - [ ] T060 [P] [US3] Implement CI/MCP config detection without reading secret values or opening remote MCP connections.
 - [ ] T061 [US3] Implement Security Pack registry/manifest validation; packs emit Evidence/Coverage only and declare DETECTION/STATIC_POSTURE/LIVE_POSTURE/BUSINESS_LOGIC/RUNTIME dimensions.
 - [ ] T062 [P] [US3] Implement **Supabase detection only** with positive/negative fixtures; R1 output explicitly marks static posture NOT_IMPLEMENTED/PARTIAL and points to roadmap R2 without making a verdict.
