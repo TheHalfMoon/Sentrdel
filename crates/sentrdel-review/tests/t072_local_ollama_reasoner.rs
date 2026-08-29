@@ -148,8 +148,7 @@ fn local_adapter_rejects_response_larger_than_configured_cap() {
 
     let error = reasoner
         .reason(&request)
-        .err()
-        .expect("oversized response must fail");
+        .expect_err("oversized response must fail");
     assert!(
         error.to_string().contains("exceeded configured bounds")
             || error.to_string().contains("exceeds cap")
