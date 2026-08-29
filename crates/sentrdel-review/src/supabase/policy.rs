@@ -123,6 +123,9 @@ pub fn observe_policy_delta(
             after.policies.get(&identity),
         ) {
             (Some(old), None) => {
+                if old.command_scope.provenance.is_none() {
+                    continue;
+                }
                 let after_provenance = removal_provenance(after, &identity).ok_or_else(|| {
                     PolicyPostureError::MissingRemovalProvenance {
                         policy: policy_id(&identity),
@@ -179,6 +182,10 @@ fn append_supported_changes(
     limits: PolicyPostureLimits,
     evidence: &mut Vec<Evidence>,
 ) -> Result<(), PolicyPostureError> {
+    if old.command_scope.provenance.is_none() || new.command_scope.provenance.is_none() {
+        return Ok(());
+    }
+
     if let (Some(old_provenance), Some(new_provenance)) = (
         old.command_scope.provenance.as_ref(),
         new.command_scope.provenance.as_ref(),
@@ -714,6 +721,54 @@ mod tests {
             Some(&Value::String("UNKNOWN".to_owned()))
         );
         assert!(claim.observation.contains("without proving policy creation"));
+    }
+
+    #[test]
+    fn alter_only_removal_does_not_invent_policy_delta() {
+        let before = state(&[migration(
+            "20260829000100",
+            "before",
+            "sha256:before",
+            "alter policy account_access on public.accounts to authenticated using (true);",
+        )]);
+        let after = state(&[migration(
+            "20260829000100",
+            "after",
+            "sha256:after",
+            "drop policy account_access on public.accounts;",
+        )]);
+        let evidence = observe_policy_delta(
+            &before,
+            &after,
+            "2026-08-29T13:40:00Z",
+            PolicyPostureLimits::default(),
+        )
+        .unwrap();
+        assert!(evidence.is_empty());
+    }
+
+    #[test]
+    fn alter_only_role_expansion_does_not_invent_policy_delta() {
+        let before = state(&[migration(
+            "20260829000100",
+            "before",
+            "sha256:before",
+            "alter policy account_access on public.accounts to authenticated using (true);",
+        )]);
+        let after = state(&[migration(
+            "20260829000100",
+            "after",
+            "sha256:after",
+            "alter policy account_access on public.accounts to authenticated, anon using (true);",
+        )]);
+        let evidence = observe_policy_delta(
+            &before,
+            &after,
+            "2026-08-29T13:40:00Z",
+            PolicyPostureLimits::default(),
+        )
+        .unwrap();
+        assert!(evidence.is_empty());
     }
 
     #[test]
