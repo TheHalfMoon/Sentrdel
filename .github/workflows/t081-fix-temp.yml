@@ -1,0 +1,67 @@
+name: T081 Fix Temporary
+
+on:
+  push:
+    branches:
+      - impl/001-t081-cross-platform-ci
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout implementation branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: impl/001-t081-cross-platform-ci
+      - name: Apply deterministic cross-platform fixes and remove temporary workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          runner = Path('crates/sentrdel-engine/src/runner.rs')
+          text = runner.read_text(encoding='utf-8')
+          old = '''                stdout.write_all(&payload).expect("write flood fixture");
+                stdout.flush().expect("flush flood fixture");
+'''
+          new = '''                stdout.write_all(&payload).expect("write flood fixture");
+                stdout.flush().expect("flush flood fixture");
+                // Keep the fixture root alive long enough for the bounded reader to
+                // report the cap before process-group cleanup. Without this, fast
+                // platforms can race root exit against containment termination and
+                // test process-group absence rather than the output-cap contract.
+                thread::sleep(Duration::from_millis(500));
+'''
+          if text.count(old) != 1:
+              raise SystemExit('expected exactly one flood fixture block')
+          runner.write_text(text.replace(old, new), encoding='utf-8')
+
+          git_rs = Path('crates/sentrdel-review/src/git.rs')
+          text = git_rs.read_text(encoding='utf-8')
+          old = '''fn filesystem_mode(metadata: &fs::Metadata) -> String {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        if metadata.permissions().mode() & 0o111 != 0 {
+'''
+          new = '''fn filesystem_mode(_metadata: &fs::Metadata) -> String {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        if _metadata.permissions().mode() & 0o111 != 0 {
+'''
+          if text.count(old) != 1:
+              raise SystemExit('expected exactly one filesystem_mode block')
+          git_rs.write_text(text.replace(old, new), encoding='utf-8')
+          PY
+          rm .github/workflows/t081-fix-temp.yml
+          cargo +1.98.0 fmt --all
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add crates/sentrdel-engine/src/runner.rs crates/sentrdel-review/src/git.rs .github/workflows/t081-fix-temp.yml
+          git commit -m 'test: make T081 cross-platform qualification deterministic'
+          git push origin HEAD:impl/001-t081-cross-platform-ci
