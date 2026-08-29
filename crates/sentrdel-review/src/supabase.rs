@@ -5,6 +5,7 @@
 //! migration ordering. It grants no Finding or policy authority and never
 //! executes migration SQL or provider tooling.
 
+#[allow(clippy::needless_lifetimes)]
 pub mod sql;
 
 use sentrdel_schema::SCHEMA_V1;
