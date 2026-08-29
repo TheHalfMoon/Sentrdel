@@ -191,7 +191,7 @@ fn validate_observed_at(value: &str) -> Result<(), ReviewReasoningConfigError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{CliDecision, CliRepository, CliTiming, review::ReviewOutput};
+    use sentrdel_cli::{CliDecision, CliRepository, CliTiming, review::ReviewOutput};
     use sentrdel_review::reasoner::{ReasonerError, ReasonerLimits};
     use sentrdel_schema::evidence::{
         EpistemicClass, EvidenceAuthority, EvidenceClaim, ProducerKind,
@@ -397,7 +397,13 @@ mod tests {
             coverage.details.as_deref(),
             Some("Optional LLM reasoning failed; native review output remains authoritative.")
         );
-        assert!(!coverage.details.as_deref().unwrap_or_default().contains("untrusted"));
+        assert!(!
+            coverage
+                .details
+                .as_deref()
+                .unwrap_or_default()
+                .contains("untrusted")
+        );
         assert_eq!(baseline.render_json().expect("native json after"), before);
         assert_eq!(baseline.envelope().decision, CliDecision::Deny);
     }
