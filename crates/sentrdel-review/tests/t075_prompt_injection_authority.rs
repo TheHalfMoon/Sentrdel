@@ -93,17 +93,16 @@ fn injection_text_remains_advisory_and_cannot_suppress_or_downgrade_finding() {
         &EpistemicClass::Hypothesis
     );
 
-    let reconciler = ReconcilerAuthority::from_runtime(
-        "sentrdel-reconciler",
-        "sha256:t075-reconciler-config",
-    )
-    .expect("runtime reconciler authority");
+    let reconciler =
+        ReconcilerAuthority::from_runtime("sentrdel-reconciler", "sha256:t075-reconciler-config")
+            .expect("runtime reconciler authority");
     let finding = Finding::new_reconciled(
         ReconciledFindingDraft {
             schema_version: SCHEMA_V1.to_owned(),
             fingerprint: "t075-authority-fixture".to_owned(),
             title: "Prompt injection authority fixture".to_owned(),
-            impact_statement: "A deterministic producer established a blocking condition.".to_owned(),
+            impact_statement: "A deterministic producer established a blocking condition."
+                .to_owned(),
             category: "fixture.prompt-injection".to_owned(),
             severity: Severity::Block,
             epistemic_state: EpistemicState::Detected,
