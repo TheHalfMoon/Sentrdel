@@ -69,10 +69,7 @@ fn human_explanation_preserves_canonical_finding_record_and_authority_axes() {
     assert!(rendered.contains("Impact:"));
     assert_eq!(output.finding().to_record(), before);
     assert_eq!(&output.finding().draft().severity, &before_severity);
-    assert_eq!(
-        &output.finding().draft().epistemic_state,
-        &before_epistemic
-    );
+    assert_eq!(&output.finding().draft().epistemic_state, &before_epistemic);
     assert_eq!(output.finding().workflow_state(), &before_workflow);
     assert_eq!(&output.finding().draft().severity, &Severity::High);
     assert_eq!(
@@ -99,9 +96,6 @@ fn json_explanation_preserves_canonical_finding_record_and_authority_axes() {
     assert_eq!(value["decision"], "ALLOW");
     assert_eq!(output.finding().to_record(), before);
     assert_eq!(&output.finding().draft().severity, &before_severity);
-    assert_eq!(
-        &output.finding().draft().epistemic_state,
-        &before_epistemic
-    );
+    assert_eq!(&output.finding().draft().epistemic_state, &before_epistemic);
     assert_eq!(output.finding().workflow_state(), &before_workflow);
 }
