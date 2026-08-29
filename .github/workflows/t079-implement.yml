@@ -24,45 +24,39 @@ jobs:
 
           suite = Path('tests/benchmark/r1-release-suite.json')
           text = suite.read_text()
-          old = '''    {
-                "id": "review_latency",
-                "state": "NOT_MEASURED",
-                "owner_task": "T079",
-                "scenarios": ["warm-review-small", "warm-review-broader"]
-              },'''.replace('              ', '')
-          new = old.replace('"NOT_MEASURED"', '"MEASURED"')
-          if text.count(old) != 1:
-              raise SystemExit('expected exactly one deferred review_latency dimension')
-          suite.write_text(text.replace(old, new, 1))
+          marker = '"id": "review_latency"'
+          start = text.index(marker)
+          state = text.index('"state": "NOT_MEASURED"', start)
+          owner = text.index('"owner_task": "T079"', state)
+          if not (start < state < owner):
+              raise SystemExit('unexpected review_latency dimension ordering')
+          text = text[:state] + text[state:].replace('"state": "NOT_MEASURED"', '"state": "MEASURED"', 1)
+          suite.write_text(text)
 
           test = Path('crates/sentrdel-cli/tests/t077_release_benchmark.rs')
           text = test.read_text()
-          old = '''    for (deferred, owner) in [
-              ("review_latency", "T079"),
-              ("review_memory", "T079"),
-              ("guard_latency", "T080"),
-              ("guard_bounded_frame_memory", "T080"),
-          ] {'''.replace('          ', '')
-          new = '''    assert_eq!(dimensions["review_latency"].state, MetricState::Measured);
-          assert_eq!(dimensions["review_latency"].owner_task, "T079");
-          for (deferred, owner) in [
-              ("review_memory", "T079"),
-              ("guard_latency", "T080"),
-              ("guard_bounded_frame_memory", "T080"),
-          ] {'''.replace('          ', '')
-          if text.count(old) != 1:
-              raise SystemExit('expected T077 deferred measurement loop')
-          text = text.replace(old, new, 1)
-          old = '    assert_eq!(first.deferred_measurements.len(), 4);'
-          new = '    assert_eq!(first.deferred_measurements.len(), 3);'
-          if text.count(old) != 1:
+          old_entry = '        ("review_latency", "T079"),\n'
+          if text.count(old_entry) != 1:
+              raise SystemExit('expected exactly one review_latency deferred entry')
+          anchor = '    for (deferred, owner) in [\n'
+          insert = (
+              '    assert_eq!(dimensions["review_latency"].state, MetricState::Measured);\n'
+              '    assert_eq!(dimensions["review_latency"].owner_task, "T079");\n'
+          )
+          if text.count(anchor) != 1:
+              raise SystemExit('expected exactly one deferred measurement loop')
+          text = text.replace(anchor, insert + anchor, 1).replace(old_entry, '', 1)
+          old_count = '    assert_eq!(first.deferred_measurements.len(), 4);'
+          if text.count(old_count) != 1:
               raise SystemExit('expected deferred measurement count')
-          test.write_text(text.replace(old, new, 1))
+          text = text.replace(old_count, '    assert_eq!(first.deferred_measurements.len(), 3);', 1)
+          test.write_text(text)
           PY
           rm .github/workflows/t079-implement.yml
           rustup toolchain install 1.98.0 --profile minimal --component rustfmt
-          cargo +1.98.0 fmt --all -- --check || cargo +1.98.0 fmt --all
-          cargo +1.98.0 test -p sentrdel-cli --test t079_review_latency --test t077_release_benchmark
+          cargo +1.98.0 fmt --all
+          cargo +1.98.0 test -p sentrdel-cli --test t079_review_latency -- --nocapture
+          cargo +1.98.0 test -p sentrdel-cli --test t077_release_benchmark
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add crates/sentrdel-cli/tests/t079_review_latency.rs crates/sentrdel-cli/tests/t077_release_benchmark.rs tests/benchmark/r1-release-suite.json .github/workflows/t079-implement.yml
