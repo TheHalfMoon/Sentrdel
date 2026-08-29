@@ -180,7 +180,7 @@
 - [x] T081 Add cross-platform GitHub Actions CI for fmt/clippy/test/base contracts on Linux/macOS/Windows; guard tests truthfully platform/seam-qualified.
 - [x] T082 Complete self-security CI beyond the early T091 gate: source/dependency qualification validation, Rust 1.98.0 pin/lockfile checks, malicious-package denylist/advisory refresh path, privileged dependency documentation and release-grade policy. `cargo-vet`, if later used, is only for the trusted Sentrdel workspace and never run against arbitrary target repos.
 - [x] T083 [P] Document R1 threat model/trust boundaries in `docs/security/threat-model.md` and keep root `SECURITY.md` aligned, including context/instruction authority and MCP credential inheritance boundaries.
-- [ ] T084 [P] Document architecture/Evidence/ASEL including trusted-head limitations, stdio MCP scope, evaluation-plane limits, and candidate-only future learning authority.
+- [x] T084 [P] Document architecture/Evidence/ASEL including trusted-head limitations, stdio MCP scope, evaluation-plane limits, and candidate-only future learning authority.
 - [ ] T085 Update README with implemented/verified capabilities and explicit non-claims; Supabase deep pack, remote MCP, Verify, general Security Memory and autonomous Research/Learning remain roadmap only.
 - [ ] T086 Run final Spec Kit consistency analysis against constitution + major review + implementation amendments + spec/plan/contracts/tasks and record repairs in `analysis.md`.
 - [ ] T087 Run implementation closeout: workspace tests/lints/adversarial suite/benchmarks, no secret canary persistence, no inherited engine/MCP credentials, no unqualified donor/privileged dependency, protected-main governance state recorded, exact results in `implementation-closeout.md`.
