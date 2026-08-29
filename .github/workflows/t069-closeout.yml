@@ -1,0 +1,41 @@
+name: T069 Closeout
+
+on:
+  push:
+    branches:
+      - closeout/001-t069-explain-command
+
+permissions:
+  contents: write
+
+jobs:
+  closeout:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout closeout branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: closeout/001-t069-explain-command
+          fetch-depth: 1
+
+      - name: Mark T069 complete and remove temporary workflow
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('specs/001-v0-1-evidence-guard-foundation/tasks.md')
+          text = path.read_text(encoding='utf-8')
+          old = '- [ ] T069 [US4] Implement `sentrdel explain <finding-id>` human/JSON modes.'
+          new = '- [x] T069 [US4] Implement `sentrdel explain <finding-id>` human/JSON modes.'
+          if text.count(old) != 1:
+              raise SystemExit(f'expected exactly one T069 open checkbox, found {text.count(old)}')
+          path.write_text(text.replace(old, new), encoding='utf-8')
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add specs/001-v0-1-evidence-guard-foundation/tasks.md
+          git commit -m 'docs(spec): close T069 explain task'
+          git rm .github/workflows/t069-closeout.yml
+          git commit -m 'ci(temp): remove T069 closeout workflow'
+          git push origin HEAD:closeout/001-t069-explain-command
