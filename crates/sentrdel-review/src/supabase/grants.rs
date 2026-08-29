@@ -104,6 +104,14 @@ pub fn observe_api_role_grants(
             if !is_api_facing_role(&grant.role) {
                 continue;
             }
+            if grant.privilege == "ALL"
+                && relation
+                    .last_security_change
+                    .as_ref()
+                    .is_some_and(|latest| statement_is_after(latest, provenance))
+            {
+                continue;
+            }
             if evidence.len() >= limits.max_grants {
                 return Err(ApiRoleGrantError::TooManyGrants {
                     max: limits.max_grants,
@@ -197,6 +205,11 @@ fn seal_grant(
 
 fn is_api_facing_role(role: &str) -> bool {
     API_FACING_ROLES.contains(&role)
+}
+
+fn statement_is_after(candidate: &StatementProvenance, baseline: &StatementProvenance) -> bool {
+    (candidate.migration_order, candidate.statement_index)
+        > (baseline.migration_order, baseline.statement_index)
 }
 
 fn coverage_name(state: PostureCoverageState) -> &'static str {
@@ -316,6 +329,35 @@ mod tests {
                 && item.claim().attributes.get("hosted_grant_state")
                     == Some(&Value::String("UNKNOWN".to_owned()))
         }));
+    }
+
+    #[test]
+    fn later_security_change_suppresses_stale_all_wildcard_grant() {
+        let state = reduce_repository_posture(
+            &[migration(
+                "20260829000100",
+                "all_then_revoke",
+                "sha256:all-then-revoke",
+                "create table public.accounts(id bigint); grant all on table public.accounts to authenticated; revoke select on table public.accounts from authenticated; grant update on table public.accounts to authenticated;",
+            )],
+            SqlScanLimits::default(),
+        )
+        .unwrap();
+
+        let evidence = observe_api_role_grants(
+            &state,
+            &exposure(&["public"]),
+            "2026-08-29T14:00:00Z",
+            ApiRoleGrantLimits::default(),
+        )
+        .unwrap();
+        let privileges: BTreeSet<_> = evidence
+            .iter()
+            .filter_map(|item| item.claim().attributes.get("privilege"))
+            .filter_map(Value::as_str)
+            .collect();
+        assert_eq!(privileges, BTreeSet::from(["UPDATE"]));
+        assert!(!privileges.contains("ALL"));
     }
 
     #[test]
