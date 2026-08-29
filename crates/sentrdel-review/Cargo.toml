@@ -20,5 +20,4 @@ sentrdel-schema = { version = "=0.0.0", path = "../sentrdel-schema" }
 serde_json.workspace = true
 
 [dev-dependencies]
-sentrdel-store = { version = "=0.0.0", path = "../sentrdel-store" }
 serde.workspace = true
