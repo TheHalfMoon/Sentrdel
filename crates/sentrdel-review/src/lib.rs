@@ -13,6 +13,7 @@ pub mod reconcile;
 pub mod secrets;
 pub mod structural;
 pub mod structural_rules;
+pub mod supabase_detection;
 pub mod view;
 
 pub const TARGET_BUILD_EXECUTION_ALLOWED: bool = false;

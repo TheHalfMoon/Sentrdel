@@ -1,0 +1,2 @@
+# Synthetic misleading-path fixture. This file must not trigger Supabase detection.
+project_id = "not-a-root-supabase-project"
