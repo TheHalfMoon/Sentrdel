@@ -174,7 +174,7 @@
 ## Phase 8 — Release Hardening and Cross-Cutting Quality
 
 - [x] T077 **Expand** the T088-T090 SentrdelBench Core into the complete reproducible R1 release benchmark for clean/vulnerable PRs, false positives, latency, memory, guard false-block, MCP malformed-input and authority-boundary scenarios; public large-scale SentrdelBench remains roadmap R9.
-- [ ] T078 Add release gate failing if clean-PR FP exceeds 1 per 5 clean PRs for gated rules.
+- [x] T078 Add release gate failing if clean-PR FP exceeds 1 per 5 clean PRs for gated rules.
 - [ ] T079 [P] Add warm review latency target (<5s p95 <2k changed LOC; <30s broader target) with benchmark-machine metadata.
 - [ ] T080 [P] Add MCP in-process policy latency target (<50ms p95 excluding downstream/human/framing wait) plus bounded-frame memory tests.
 - [ ] T081 Add cross-platform GitHub Actions CI for fmt/clippy/test/base contracts on Linux/macOS/Windows; guard tests truthfully platform/seam-qualified.
