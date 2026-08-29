@@ -20,8 +20,7 @@ pub const SUPABASE_CAPABILITY_STATIC_STORAGE: &str = "supabase.static-posture.st
 pub const SUPABASE_CAPABILITY_STATIC_AUTH_CONFIG: &str = "supabase.static-posture.auth-config";
 pub const SUPABASE_CAPABILITY_STATIC_EDGE_FUNCTIONS: &str =
     "supabase.static-posture.edge-functions";
-pub const SUPABASE_CAPABILITY_STATIC_KEY_BOUNDARY: &str =
-    "supabase.static-posture.key-boundary";
+pub const SUPABASE_CAPABILITY_STATIC_KEY_BOUNDARY: &str = "supabase.static-posture.key-boundary";
 pub const SUPABASE_CAPABILITY_LIVE_POSTURE: &str = "supabase.live-posture";
 pub const SUPABASE_CAPABILITY_BUSINESS_LOGIC: &str = "supabase.business-logic";
 pub const SUPABASE_CAPABILITY_RUNTIME: &str = "supabase.runtime";
