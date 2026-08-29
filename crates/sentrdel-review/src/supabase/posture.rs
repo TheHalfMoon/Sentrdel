@@ -310,8 +310,8 @@ mod tests {
         assert_eq!(snapshot.hosted_exposure, HostedExposureState::Unknown);
         assert_eq!(evidence.len(), 3);
         assert!(evidence.iter().all(|item| {
-            item.claim.security_interpretation.is_none()
-                && item.claim.attributes.get("hosted_exposure")
+            item.claim().security_interpretation.is_none()
+                && item.claim().attributes.get("hosted_exposure")
                     == Some(&Value::String("UNKNOWN".to_owned()))
         }));
     }
@@ -363,7 +363,7 @@ mod tests {
         );
         assert_eq!(snapshot.hosted_exposure, HostedExposureState::Unknown);
         assert!(evidence.iter().all(|item| {
-            item.claim.attributes.get("exposure_source")
+            item.claim().attributes.get("exposure_source")
                 == Some(&Value::String("SUPPORTED_REPOSITORY_DEFAULT".to_owned()))
         }));
     }
