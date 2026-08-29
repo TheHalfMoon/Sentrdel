@@ -1,0 +1,79 @@
+{
+  "suite_version": "sentrdelbench-r1-release/t077-v1",
+  "corpus_class": "DEVELOPMENT_EVALUATION",
+  "baseline_identity": "sha256:5555555555555555555555555555555555555555555555555555555555555555",
+  "candidate_identity": "sha256:6666666666666666666666666666666666666666666666666666666666666666",
+  "inputs": {
+    "review_corpus": "tests/benchmark/development-evaluation/t049-review-steel-thread.json",
+    "mcp_client_fixture": "fixtures/mcp/t058-client.jsonl",
+    "mcp_server_fixture": "fixtures/mcp/t058-server.jsonl"
+  },
+  "dimensions": [
+    {
+      "id": "review_clean_false_positive",
+      "state": "MEASURED",
+      "owner_task": "T077",
+      "scenarios": ["t049-clean-review", "t049-hostile-repository-review"]
+    },
+    {
+      "id": "review_vulnerable_detection",
+      "state": "MEASURED",
+      "owner_task": "T077",
+      "scenarios": ["t049-vulnerable-review"]
+    },
+    {
+      "id": "review_coverage_gap",
+      "state": "MEASURED",
+      "owner_task": "T077",
+      "scenarios": ["t049-missing-engine-review"]
+    },
+    {
+      "id": "deterministic_replay",
+      "state": "MEASURED",
+      "owner_task": "T077",
+      "scenarios": ["release-suite-replay"]
+    },
+    {
+      "id": "authority_boundary",
+      "state": "MEASURED",
+      "owner_task": "T077",
+      "scenarios": ["target-no-exec", "reasoner-hypothesis-only", "guard-deny-absorbing"]
+    },
+    {
+      "id": "guard_false_block",
+      "state": "MEASURED",
+      "owner_task": "T077",
+      "scenarios": ["mcp-allow-not-false-blocked"]
+    },
+    {
+      "id": "mcp_malformed_input",
+      "state": "MEASURED",
+      "owner_task": "T077",
+      "scenarios": ["mcp-giant-frame", "mcp-unterminated-frame"]
+    },
+    {
+      "id": "review_latency",
+      "state": "NOT_MEASURED",
+      "owner_task": "T079",
+      "scenarios": ["warm-review-small", "warm-review-broader"]
+    },
+    {
+      "id": "review_memory",
+      "state": "NOT_MEASURED",
+      "owner_task": "T079",
+      "scenarios": ["bounded-review-resource"]
+    },
+    {
+      "id": "guard_latency",
+      "state": "NOT_MEASURED",
+      "owner_task": "T080",
+      "scenarios": ["mcp-in-process-policy"]
+    },
+    {
+      "id": "guard_bounded_frame_memory",
+      "state": "NOT_MEASURED",
+      "owner_task": "T080",
+      "scenarios": ["mcp-bounded-frame-resource"]
+    }
+  ]
+}
