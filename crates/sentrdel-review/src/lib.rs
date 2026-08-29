@@ -6,6 +6,7 @@ pub mod dependency;
 pub mod git;
 pub mod github_actions;
 pub mod osv;
+pub mod project_detection;
 pub mod reconcile;
 pub mod secrets;
 pub mod structural;
