@@ -105,31 +105,56 @@ pub fn observe_api_role_grants(
                 continue;
             }
             if grant.privilege == "ALL"
-                && relation
-                    .last_revoke_by_role
-                    .get(&grant.role)
-                    .is_some_and(|latest| statement_is_after(latest, provenance))
+                && let Some(revoke_provenance) = relation.last_revoke_by_role.get(&grant.role)
+                && statement_is_after(revoke_provenance, provenance)
             {
+                push_bounded(
+                    &mut evidence,
+                    limits,
+                    seal_partial_wildcard_coverage(
+                        &authority,
+                        state,
+                        object.normalized(),
+                        &grant.role,
+                        provenance,
+                        revoke_provenance,
+                        exposure_provenance,
+                        captured_at,
+                    )?,
+                )?;
                 continue;
             }
-            if evidence.len() >= limits.max_grants {
-                return Err(ApiRoleGrantError::TooManyGrants {
-                    max: limits.max_grants,
-                });
-            }
-            evidence.push(seal_grant(
-                &authority,
-                state,
-                object.normalized(),
-                grant,
-                provenance,
-                exposure_provenance,
-                captured_at,
-            )?);
+            push_bounded(
+                &mut evidence,
+                limits,
+                seal_grant(
+                    &authority,
+                    state,
+                    object.normalized(),
+                    grant,
+                    provenance,
+                    exposure_provenance,
+                    captured_at,
+                )?,
+            )?;
         }
     }
 
     Ok(evidence)
+}
+
+fn push_bounded(
+    evidence: &mut Vec<Evidence>,
+    limits: ApiRoleGrantLimits,
+    item: Evidence,
+) -> Result<(), ApiRoleGrantError> {
+    if evidence.len() >= limits.max_grants {
+        return Err(ApiRoleGrantError::TooManyGrants {
+            max: limits.max_grants,
+        });
+    }
+    evidence.push(item);
+    Ok(())
 }
 
 fn seal_grant(
@@ -141,40 +166,19 @@ fn seal_grant(
     exposure_provenance: &ConfigExposureProvenance,
     captured_at: &str,
 ) -> Result<Evidence, ApiRoleGrantError> {
-    let mut attributes = BTreeMap::new();
-    attributes.insert("relation".to_owned(), Value::String(relation.clone()));
-    attributes.insert("role".to_owned(), Value::String(grant.role.clone()));
+    let mut attributes = common_attributes(state, &relation, &grant.role);
     attributes.insert(
         "privilege".to_owned(),
         Value::String(grant.privilege.clone()),
     );
-    attributes.insert("api_relevant".to_owned(), Value::Bool(true));
-    attributes.insert("api_facing_role".to_owned(), Value::Bool(true));
-    attributes.insert("repository_derived".to_owned(), Value::Bool(true));
     attributes.insert(
-        "repository_posture_coverage".to_owned(),
-        Value::String(coverage_name(state.coverage_state).to_owned()),
-    );
-    attributes.insert(
-        "hosted_grant_state".to_owned(),
-        Value::String("UNKNOWN".to_owned()),
-    );
-    attributes.insert(
-        "live_posture".to_owned(),
-        Value::String("NOT_EXECUTED".to_owned()),
-    );
-    attributes.insert(
-        "rls_interpretation".to_owned(),
-        Value::String("INDEPENDENT_CONTROL".to_owned()),
-    );
-    attributes.insert(
-        "policy_interpretation".to_owned(),
-        Value::String("INDEPENDENT_CONTROL".to_owned()),
+        "grant_state_coverage".to_owned(),
+        Value::String("COMPLETE_FOR_OBSERVATION".to_owned()),
     );
 
     Ok(authority.seal(EvidenceClaim {
         schema_version: SCHEMA_V1.to_owned(),
-        input_digests: input_digests(provenance, exposure_provenance),
+        input_digests: input_digests([provenance], exposure_provenance),
         observation: format!(
             "Repository-derived migration state grants {} on API-relevant relation {relation} to API-facing role {}",
             grant.privilege, grant.role
@@ -183,16 +187,7 @@ fn seal_grant(
         category: "supabase_api_role_grant".to_owned(),
         epistemic_class: EpistemicClass::Fact,
         confidence_band: None,
-        subjects: vec![
-            EvidenceSubject {
-                kind: "supabase_relation".to_owned(),
-                id: relation,
-            },
-            EvidenceSubject {
-                kind: "supabase_role".to_owned(),
-                id: grant.role.clone(),
-            },
-        ],
+        subjects: grant_subjects(relation, grant.role.clone()),
         locations: vec![
             statement_location(provenance),
             config_location(exposure_provenance),
@@ -201,6 +196,102 @@ fn seal_grant(
         reproduction: None,
         captured_at: captured_at.to_owned(),
     })?)
+}
+
+fn seal_partial_wildcard_coverage(
+    authority: &EvidenceAuthority,
+    state: &RepositoryPostureState,
+    relation: String,
+    role: &str,
+    grant_provenance: &StatementProvenance,
+    revoke_provenance: &StatementProvenance,
+    exposure_provenance: &ConfigExposureProvenance,
+    captured_at: &str,
+) -> Result<Evidence, ApiRoleGrantError> {
+    let mut attributes = common_attributes(state, &relation, role);
+    attributes.insert(
+        "grant_state_coverage".to_owned(),
+        Value::String("PARTIAL".to_owned()),
+    );
+    attributes.insert(
+        "coverage_gap".to_owned(),
+        Value::String("PARTIAL_REVOKE_AFTER_ALL".to_owned()),
+    );
+    attributes.insert(
+        "exact_remaining_privileges".to_owned(),
+        Value::String("NOT_ENUMERATED".to_owned()),
+    );
+
+    Ok(authority.seal(EvidenceClaim {
+        schema_version: SCHEMA_V1.to_owned(),
+        input_digests: input_digests(
+            [grant_provenance, revoke_provenance],
+            exposure_provenance,
+        ),
+        observation: format!(
+            "Repository-derived GRANT ALL on API-relevant relation {relation} to API-facing role {role} is followed by a supported partial REVOKE; the bounded model does not enumerate the exact remaining privilege set"
+        ),
+        security_interpretation: None,
+        category: "supabase_api_role_grant_coverage_gap".to_owned(),
+        epistemic_class: EpistemicClass::Fact,
+        confidence_band: None,
+        subjects: grant_subjects(relation, role.to_owned()),
+        locations: vec![
+            statement_location(grant_provenance),
+            statement_location(revoke_provenance),
+            config_location(exposure_provenance),
+        ],
+        attributes,
+        reproduction: None,
+        captured_at: captured_at.to_owned(),
+    })?)
+}
+
+fn common_attributes(
+    state: &RepositoryPostureState,
+    relation: &str,
+    role: &str,
+) -> BTreeMap<String, Value> {
+    BTreeMap::from([
+        ("relation".to_owned(), Value::String(relation.to_owned())),
+        ("role".to_owned(), Value::String(role.to_owned())),
+        ("api_relevant".to_owned(), Value::Bool(true)),
+        ("api_facing_role".to_owned(), Value::Bool(true)),
+        ("repository_derived".to_owned(), Value::Bool(true)),
+        (
+            "repository_posture_coverage".to_owned(),
+            Value::String(coverage_name(state.coverage_state).to_owned()),
+        ),
+        (
+            "hosted_grant_state".to_owned(),
+            Value::String("UNKNOWN".to_owned()),
+        ),
+        (
+            "live_posture".to_owned(),
+            Value::String("NOT_EXECUTED".to_owned()),
+        ),
+        (
+            "rls_interpretation".to_owned(),
+            Value::String("INDEPENDENT_CONTROL".to_owned()),
+        ),
+        (
+            "policy_interpretation".to_owned(),
+            Value::String("INDEPENDENT_CONTROL".to_owned()),
+        ),
+    ])
+}
+
+fn grant_subjects(relation: String, role: String) -> Vec<EvidenceSubject> {
+    vec![
+        EvidenceSubject {
+            kind: "supabase_relation".to_owned(),
+            id: relation,
+        },
+        EvidenceSubject {
+            kind: "supabase_role".to_owned(),
+            id: role,
+        },
+    ]
 }
 
 fn is_api_facing_role(role: &str) -> bool {
@@ -219,16 +310,17 @@ fn coverage_name(state: PostureCoverageState) -> &'static str {
     }
 }
 
-fn input_digests(
-    grant: &StatementProvenance,
+fn input_digests<'a>(
+    statements: impl IntoIterator<Item = &'a StatementProvenance>,
     exposure: &ConfigExposureProvenance,
 ) -> Vec<String> {
-    BTreeSet::from([
-        grant.content_digest.clone(),
-        exposure.content_digest.clone(),
-    ])
-    .into_iter()
-    .collect()
+    statements
+        .into_iter()
+        .map(|value| value.content_digest.clone())
+        .chain(std::iter::once(exposure.content_digest.clone()))
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect()
 }
 
 fn statement_location(provenance: &StatementProvenance) -> EvidenceLocation {
@@ -332,7 +424,7 @@ mod tests {
     }
 
     #[test]
-    fn later_revoke_suppresses_stale_all_wildcard_grant() {
+    fn later_revoke_suppresses_stale_all_and_exposes_partial_grant_coverage() {
         let state = reduce_repository_posture(
             &[migration(
                 "20260829000100",
@@ -358,6 +450,48 @@ mod tests {
             .collect();
         assert_eq!(privileges, BTreeSet::from(["UPDATE"]));
         assert!(!privileges.contains("ALL"));
+        let gap = evidence
+            .iter()
+            .find(|item| item.claim().category == "supabase_api_role_grant_coverage_gap")
+            .unwrap();
+        assert_eq!(
+            gap.claim().attributes.get("grant_state_coverage"),
+            Some(&Value::String("PARTIAL".to_owned()))
+        );
+        assert_eq!(
+            gap.claim().attributes.get("coverage_gap"),
+            Some(&Value::String("PARTIAL_REVOKE_AFTER_ALL".to_owned()))
+        );
+    }
+
+    #[test]
+    fn partial_revoke_after_all_is_visible_even_without_later_explicit_grant() {
+        let state = reduce_repository_posture(
+            &[migration(
+                "20260829000100",
+                "all_then_revoke_only",
+                "sha256:all-revoke-only",
+                "create table public.accounts(id bigint); grant all on table public.accounts to authenticated; revoke select on table public.accounts from authenticated;",
+            )],
+            SqlScanLimits::default(),
+        )
+        .unwrap();
+        let evidence = observe_api_role_grants(
+            &state,
+            &exposure(&["public"]),
+            "2026-08-29T14:00:00Z",
+            ApiRoleGrantLimits::default(),
+        )
+        .unwrap();
+        assert_eq!(evidence.len(), 1);
+        assert_eq!(
+            evidence[0].claim().category,
+            "supabase_api_role_grant_coverage_gap"
+        );
+        assert!(evidence[0]
+            .claim()
+            .input_digests
+            .contains(&"sha256:all-revoke-only".to_owned()));
     }
 
     #[test]
@@ -390,6 +524,9 @@ mod tests {
             .filter_map(Value::as_str)
             .collect();
         assert_eq!(privileges, BTreeSet::from(["ALL"]));
+        assert!(evidence
+            .iter()
+            .all(|item| item.claim().category != "supabase_api_role_grant_coverage_gap"));
     }
 
     #[test]
