@@ -302,11 +302,13 @@ fn parse_drop(cursor: &mut Cursor<'_>) -> (SqlParseCoverage, Option<SupportedSql
         if !cursor.consume_keyword("ON") {
             return unsupported();
         }
-        return supported_from(
-            cursor
-                .parse_object_name()
-                .map(|relation| SupportedSqlStatement::DropPolicy { policy, relation }),
-        );
+        let Some(relation) = cursor.parse_object_name() else {
+            return unsupported();
+        };
+        if !cursor.is_at_end() {
+            return unsupported();
+        }
+        return supported(SupportedSqlStatement::DropPolicy { policy, relation });
     }
     if cursor.consume_keyword("FUNCTION") {
         cursor.consume_sequence(&["IF", "EXISTS"]);
@@ -1041,6 +1043,27 @@ mod tests {
             &statements[3],
             SupportedSqlStatement::AlterPolicy { roles: None, .. }
         ));
+    }
+
+    #[test]
+    fn canonical_drop_policy_remains_supported() {
+        let statements = supported_statements(
+            "drop policy account_read on public.accounts; drop policy if exists account_write on public.accounts;",
+        );
+        assert_eq!(statements.len(), 2);
+        assert!(statements.iter().all(|statement| matches!(
+            statement,
+            SupportedSqlStatement::DropPolicy { relation, .. }
+                if relation.normalized() == "public.accounts"
+        )));
+    }
+
+    #[test]
+    fn drop_policy_trailing_semantics_fail_closed() {
+        let statements = unsupported_statements(
+            "drop policy account_read on public.accounts cascade; drop policy account_write on public.accounts frobulate; drop policy account_delete on public.accounts,;",
+        );
+        assert_eq!(statements.len(), 3);
     }
 
     #[test]
