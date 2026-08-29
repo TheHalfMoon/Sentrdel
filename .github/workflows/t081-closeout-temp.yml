@@ -16,7 +16,7 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           ref: closeout/001-t081-cross-platform-ci
-      - name: Mark T081 complete and remove temporary workflow
+      - name: Mark T081 complete and remove temporary helper artifacts
         shell: bash
         run: |
           set -euo pipefail
@@ -24,15 +24,15 @@ jobs:
           from pathlib import Path
           path = Path('specs/001-v0-1-evidence-guard-foundation/tasks.md')
           text = path.read_text(encoding='utf-8')
-          old = '- [ ] T081 [P] Add cross-platform CI coverage for base contracts and supported CLI/guard paths without overstating uniform OS enforcement.'
-          new = '- [x] T081 [P] Add cross-platform CI coverage for base contracts and supported CLI/guard paths without overstating uniform OS enforcement.'
+          old = '- [ ] T081 Add cross-platform GitHub Actions CI for fmt/clippy/test/base contracts on Linux/macOS/Windows; guard tests truthfully platform/seam-qualified.'
+          new = '- [x] T081 Add cross-platform GitHub Actions CI for fmt/clippy/test/base contracts on Linux/macOS/Windows; guard tests truthfully platform/seam-qualified.'
           if text.count(old) != 1:
               raise SystemExit('expected exactly one open T081 task line')
           path.write_text(text.replace(old, new), encoding='utf-8')
           PY
-          rm .github/workflows/t081-closeout-temp.yml
+          rm -f .github/workflows/t081-closeout-temp.yml .t081-closeout-trigger
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add specs/001-v0-1-evidence-guard-foundation/tasks.md .github/workflows/t081-closeout-temp.yml
+          git add -A
           git commit -m 'docs(spec): close T081 cross-platform CI task'
           git push origin HEAD:closeout/001-t081-cross-platform-ci
