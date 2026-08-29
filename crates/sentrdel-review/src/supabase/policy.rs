@@ -179,14 +179,13 @@ fn append_supported_changes(
     limits: PolicyPostureLimits,
     evidence: &mut Vec<Evidence>,
 ) -> Result<(), PolicyPostureError> {
-    if old.command_scope.value != PolicyCommandScope::All
+    if let (Some(old_provenance), Some(new_provenance)) = (
+        old.command_scope.provenance.as_ref(),
+        new.command_scope.provenance.as_ref(),
+    ) && old.command_scope.value != PolicyCommandScope::All
+        && old.command_scope.value != PolicyCommandScope::Unknown
         && new.command_scope.value == PolicyCommandScope::All
     {
-        let provenance = new
-            .command_scope
-            .provenance
-            .as_ref()
-            .unwrap_or(&new.provenance);
         push_delta(
             evidence,
             limits,
@@ -197,11 +196,8 @@ fn append_supported_changes(
                 &new.identity,
                 "COMMAND_SCOPE_EXPANDED_TO_ALL",
                 "Supported policy command scope changed to ALL",
-                old.command_scope
-                    .provenance
-                    .as_ref()
-                    .unwrap_or(&old.provenance),
-                provenance,
+                old_provenance,
+                new_provenance,
                 BTreeMap::from([
                     (
                         "before_command_scope".to_owned(),
@@ -217,14 +213,18 @@ fn append_supported_changes(
         )?;
     }
 
-    let added_roles: Vec<String> = new
-        .roles
-        .value
-        .difference(&old.roles.value)
-        .cloned()
-        .collect();
-    if !added_roles.is_empty() {
-        let provenance = new.roles.provenance.as_ref().unwrap_or(&new.provenance);
+    if let (Some(old_provenance), Some(new_provenance)) = (
+        old.roles.provenance.as_ref(),
+        new.roles.provenance.as_ref(),
+    ) && old.roles.value.is_subset(&new.roles.value)
+        && old.roles.value != new.roles.value
+    {
+        let added_roles: Vec<String> = new
+            .roles
+            .value
+            .difference(&old.roles.value)
+            .cloned()
+            .collect();
         push_delta(
             evidence,
             limits,
@@ -234,9 +234,9 @@ fn append_supported_changes(
                 after,
                 &new.identity,
                 "ROLE_SCOPE_EXPANDED",
-                "Supported policy role set gained one or more roles",
-                old.roles.provenance.as_ref().unwrap_or(&old.provenance),
-                provenance,
+                "Supported policy role set gained one or more roles without removing prior roles",
+                old_provenance,
+                new_provenance,
                 BTreeMap::from([(
                     "added_roles".to_owned(),
                     Value::Array(added_roles.into_iter().map(Value::String).collect()),
@@ -246,48 +246,46 @@ fn append_supported_changes(
         )?;
     }
 
-    append_expression_presence_change(
-        authority,
-        before,
-        after,
-        old,
-        new,
-        "USING",
-        old.using_expression.value,
-        new.using_expression.value,
-        old.using_expression
-            .provenance
-            .as_ref()
-            .unwrap_or(&old.provenance),
-        new.using_expression
-            .provenance
-            .as_ref()
-            .unwrap_or(&new.provenance),
-        captured_at,
-        limits,
-        evidence,
-    )?;
-    append_expression_presence_change(
-        authority,
-        before,
-        after,
-        old,
-        new,
-        "WITH_CHECK",
-        old.check_expression.value,
-        new.check_expression.value,
-        old.check_expression
-            .provenance
-            .as_ref()
-            .unwrap_or(&old.provenance),
-        new.check_expression
-            .provenance
-            .as_ref()
-            .unwrap_or(&new.provenance),
-        captured_at,
-        limits,
-        evidence,
-    )?;
+    if let (Some(old_provenance), Some(new_provenance)) = (
+        old.using_expression.provenance.as_ref(),
+        new.using_expression.provenance.as_ref(),
+    ) {
+        append_expression_presence_change(
+            authority,
+            before,
+            after,
+            old,
+            new,
+            "USING",
+            old.using_expression.value,
+            new.using_expression.value,
+            old_provenance,
+            new_provenance,
+            captured_at,
+            limits,
+            evidence,
+        )?;
+    }
+    if let (Some(old_provenance), Some(new_provenance)) = (
+        old.check_expression.provenance.as_ref(),
+        new.check_expression.provenance.as_ref(),
+    ) {
+        append_expression_presence_change(
+            authority,
+            before,
+            after,
+            old,
+            new,
+            "WITH_CHECK",
+            old.check_expression.value,
+            new.check_expression.value,
+            old_provenance,
+            new_provenance,
+            captured_at,
+            limits,
+            evidence,
+        )?;
+    }
 
     Ok(())
 }
@@ -759,6 +757,54 @@ mod tests {
                     .get("expression_semantic_equivalence")
                     == Some(&Value::String("NOT_EVALUATED".to_owned()))
         }));
+    }
+
+    #[test]
+    fn role_replacement_is_not_reported_as_structural_widening() {
+        let before = state(&[migration(
+            "20260829000100",
+            "before",
+            "sha256:before",
+            "create table public.accounts(id bigint); create policy account_access on public.accounts for select to authenticated using (true);",
+        )]);
+        let after = state(&[migration(
+            "20260829000100",
+            "after",
+            "sha256:after",
+            "create table public.accounts(id bigint); create policy account_access on public.accounts for select to anon using (true);",
+        )]);
+        let evidence = observe_policy_delta(
+            &before,
+            &after,
+            "2026-08-29T13:40:00Z",
+            PolicyPostureLimits::default(),
+        )
+        .unwrap();
+        assert!(evidence.is_empty());
+    }
+
+    #[test]
+    fn unknown_prior_property_state_does_not_invent_structural_delta() {
+        let before = state(&[migration(
+            "20260829000100",
+            "before",
+            "sha256:before",
+            "alter policy account_access on public.accounts to authenticated;",
+        )]);
+        let after = state(&[migration(
+            "20260829000100",
+            "after",
+            "sha256:after",
+            "alter policy account_access on public.accounts to authenticated using (true);",
+        )]);
+        let evidence = observe_policy_delta(
+            &before,
+            &after,
+            "2026-08-29T13:40:00Z",
+            PolicyPostureLimits::default(),
+        )
+        .unwrap();
+        assert!(evidence.is_empty());
     }
 
     #[test]
