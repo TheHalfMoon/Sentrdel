@@ -61,6 +61,7 @@ pub enum ConfigParseCoverage {
 pub enum ConfigDiagnosticKind {
     MalformedSyntax,
     DuplicateSupportedKey,
+    DuplicateSupportedTable,
     UnsupportedSecurityRelevantKey,
     UnsupportedSecurityRelevantTable,
 }
@@ -225,6 +226,9 @@ pub fn parse_supabase_config(
     let mut posture = SupabaseConfigPosture::new(path.clone(), content_digest.to_owned());
     let mut table = ConfigTable::Root;
     let mut section_count = 0_usize;
+    let mut seen_api_table = false;
+    let mut seen_auth_table = false;
+    let mut seen_function_tables = BTreeSet::<String>::new();
     let mut seen_api_enabled = false;
     let mut seen_api_schemas = false;
     let mut ambiguous_function_jwt = BTreeSet::<String>::new();
@@ -250,7 +254,36 @@ pub fn parse_supabase_config(
                     max: limits.max_sections,
                 });
             }
-            table = parse_table_header(line, line_number, limits, &mut posture)?;
+            let next_table = parse_table_header(line, line_number, limits, &mut posture)?;
+            match &next_table {
+                ConfigTable::Api => {
+                    if seen_api_table {
+                        posture.degrade(limits, duplicate_table(line_number, "api"))?;
+                    } else {
+                        seen_api_table = true;
+                    }
+                }
+                ConfigTable::Auth => {
+                    if seen_auth_table {
+                        posture.degrade(limits, duplicate_table(line_number, "auth"))?;
+                    } else {
+                        seen_auth_table = true;
+                    }
+                }
+                ConfigTable::Function(function_name) => {
+                    if !seen_function_tables.insert(function_name.clone()) {
+                        posture.degrade(
+                            limits,
+                            duplicate_table(
+                                line_number,
+                                &format!("functions.{function_name}"),
+                            ),
+                        )?;
+                    }
+                }
+                ConfigTable::Root | ConfigTable::Other => {}
+            }
+            table = next_table;
             continue;
         }
 
@@ -703,6 +736,15 @@ fn duplicate_key(line: usize, table: &str, key: &str) -> ConfigDiagnostic {
     }
 }
 
+fn duplicate_table(line: usize, table: &str) -> ConfigDiagnostic {
+    ConfigDiagnostic {
+        line,
+        kind: ConfigDiagnosticKind::DuplicateSupportedTable,
+        table: Some(table.to_owned()),
+        key: None,
+    }
+}
+
 fn unsupported_key(line: usize, table: &str, key: &str) -> ConfigDiagnostic {
     ConfigDiagnostic {
         line,
@@ -835,6 +877,35 @@ mod tests {
         assert!(posture.diagnostics.iter().all(|item| {
             item.kind == ConfigDiagnosticKind::DuplicateSupportedKey
         }));
+    }
+
+    #[test]
+    fn duplicate_supported_tables_degrade_coverage_even_without_duplicate_keys() {
+        let posture = parse(
+            "[api]\nenabled = true\n[api]\nschemas = [\"public\"]\n[functions.webhook]\n[functions.webhook]\nverify_jwt = true\n",
+        );
+        assert_eq!(posture.parse_coverage, ConfigParseCoverage::Partial);
+        assert_eq!(
+            posture
+                .diagnostics
+                .iter()
+                .filter(|item| item.kind == ConfigDiagnosticKind::DuplicateSupportedTable)
+                .count(),
+            2
+        );
+        assert_eq!(posture.api_enabled.as_ref().map(|value| value.value), Some(true));
+        assert_eq!(
+            posture.api_exposed_schemas.as_ref().map(|value| value.value.clone()),
+            Some(BTreeSet::from(["public".to_owned()]))
+        );
+        assert_eq!(
+            posture
+                .edge_function_auth
+                .get("webhook")
+                .and_then(|value| value.platform_jwt_verification.as_ref())
+                .map(|value| value.value),
+            Some(true)
+        );
     }
 
     #[test]
