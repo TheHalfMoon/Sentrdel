@@ -106,7 +106,10 @@ impl fmt::Display for ReasonerRequestError {
             }
             Self::RequestSizeOverflow => formatter.write_str("reasoner request size overflow"),
             Self::Serialization(message) => {
-                write!(formatter, "reasoner request serialization failed: {message}")
+                write!(
+                    formatter,
+                    "reasoner request serialization failed: {message}"
+                )
             }
         }
     }
