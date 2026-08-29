@@ -447,30 +447,33 @@ fn parse_table_header(
         return Ok(ConfigTable::Other);
     }
     let parts: Vec<&str> = inner.split('.').map(str::trim).collect();
+    if parts
+        .iter()
+        .any(|part| part.len() > limits.max_identifier_bytes)
+    {
+        return Err(SupabaseConfigError::IdentifierTooLong {
+            line: line_number,
+            max: limits.max_identifier_bytes,
+        });
+    }
     if parts.len() > MAX_SUPPORTED_TABLE_DEPTH {
-        posture.degrade(
-            limits,
-            ConfigDiagnostic {
-                line: line_number,
-                kind: ConfigDiagnosticKind::UnsupportedSecurityRelevantTable,
-                table: bounded_label(inner, limits.max_identifier_bytes),
-                key: None,
-            },
-        )?;
+        if security_relevant_table(&parts) {
+            posture.degrade(
+                limits,
+                ConfigDiagnostic {
+                    line: line_number,
+                    kind: ConfigDiagnosticKind::UnsupportedSecurityRelevantTable,
+                    table: bounded_label(inner, limits.max_identifier_bytes),
+                    key: None,
+                },
+            )?;
+        }
         return Ok(ConfigTable::Other);
     }
-    if parts.iter().any(|part| {
-        !valid_identifier(part, limits.max_identifier_bytes)
-    }) {
-        if parts
-            .iter()
-            .any(|part| part.len() > limits.max_identifier_bytes)
-        {
-            return Err(SupabaseConfigError::IdentifierTooLong {
-                line: line_number,
-                max: limits.max_identifier_bytes,
-            });
-        }
+    if parts
+        .iter()
+        .any(|part| !valid_identifier(part, limits.max_identifier_bytes))
+    {
         posture.degrade(
             limits,
             ConfigDiagnostic {
@@ -514,8 +517,27 @@ fn parse_table_header(
             )?;
             Ok(ConfigTable::Other)
         }
+        _ if security_relevant_table(&parts) => {
+            posture.degrade(
+                limits,
+                ConfigDiagnostic {
+                    line: line_number,
+                    kind: ConfigDiagnosticKind::UnsupportedSecurityRelevantTable,
+                    table: bounded_label(inner, limits.max_identifier_bytes),
+                    key: None,
+                },
+            )?;
+            Ok(ConfigTable::Other)
+        }
         _ => Ok(ConfigTable::Other),
     }
+}
+
+fn security_relevant_table(parts: &[&str]) -> bool {
+    matches!(
+        parts.first().copied(),
+        Some("api" | "auth" | "functions")
+    )
 }
 
 fn parse_string_array(
@@ -757,6 +779,44 @@ mod tests {
             .diagnostics
             .iter()
             .any(|item| item.kind == ConfigDiagnosticKind::MalformedSyntax));
+    }
+
+    #[test]
+    fn unsupported_security_relevant_nested_tables_degrade_coverage() {
+        let posture = parse(
+            "[api.extra]\nenabled = true\n[auth.smtp]\nenabled = true\n[functions.webhook.extra]\nverify_jwt = false\n",
+        );
+        assert_eq!(posture.parse_coverage, ConfigParseCoverage::Partial);
+        assert_eq!(posture.diagnostics.len(), 3);
+        assert!(posture.diagnostics.iter().all(|item| {
+            item.kind == ConfigDiagnosticKind::UnsupportedSecurityRelevantTable
+        }));
+        assert!(posture.edge_function_auth.is_empty());
+    }
+
+    #[test]
+    fn unrelated_nested_tables_remain_outside_r2_security_scope() {
+        let posture = parse("[analytics.deep.table]\nenabled = true\n");
+        assert_eq!(posture.parse_coverage, ConfigParseCoverage::Complete);
+        assert!(posture.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn oversized_identifier_fails_closed_before_depth_handling() {
+        let limits = SupabaseConfigLimits {
+            max_identifier_bytes: 8,
+            ..SupabaseConfigLimits::default()
+        };
+        let result = parse_supabase_config(
+            &path(),
+            "sha256:config",
+            b"[api.oversized_identifier.extra]\nenabled = true\n",
+            limits,
+        );
+        assert!(matches!(
+            result,
+            Err(SupabaseConfigError::IdentifierTooLong { line: 1, max: 8 })
+        ));
     }
 
     #[test]
