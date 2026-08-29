@@ -135,6 +135,7 @@ pub struct RelationPosture {
     pub exists_in_supported_history: PostureProperty<bool>,
     pub rls_state: PostureProperty<RlsState>,
     pub grants: BTreeMap<GrantKey, StatementProvenance>,
+    pub last_revoke_by_role: BTreeMap<String, StatementProvenance>,
     pub policy_ids: BTreeSet<PolicyIdentity>,
     pub exposure_state: PostureProperty<ExposureState>,
     pub view_security_invoker: PostureProperty<ViewSecurityInvokerState>,
@@ -148,6 +149,7 @@ impl RelationPosture {
             exists_in_supported_history: PostureProperty::new(false),
             rls_state: PostureProperty::new(RlsState::Unknown),
             grants: BTreeMap::new(),
+            last_revoke_by_role: BTreeMap::new(),
             policy_ids: BTreeSet::new(),
             exposure_state: PostureProperty::new(ExposureState::Unknown),
             view_security_invoker: PostureProperty::new(ViewSecurityInvokerState::Unknown),
@@ -679,6 +681,13 @@ fn apply_grant_change(
                     continue;
                 };
                 let posture = relation_posture_mut(state, object);
+                if revoke {
+                    for role in &roles {
+                        posture
+                            .last_revoke_by_role
+                            .insert(role.clone(), provenance.clone());
+                    }
+                }
                 mutate_grants(&mut posture.grants, revoke, &privileges, &roles, provenance);
                 posture.last_security_change = Some(provenance.clone());
             }
