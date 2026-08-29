@@ -58,6 +58,7 @@ fn in_process_policy_p95_excludes_transport_and_wait_time() {
     assert_eq!(policy.evaluate(&invocation), Verdict::Allow);
     let mut samples = Vec::with_capacity(POLICY_SAMPLES);
     for _ in 0..POLICY_SAMPLES {
+        // Keep transport, downstream forwarding, human approval, and framing wait outside this timer.
         let started = Instant::now();
         let verdict = black_box(&policy).evaluate(black_box(&invocation));
         let elapsed = started.elapsed();
