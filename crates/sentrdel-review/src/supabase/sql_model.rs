@@ -731,21 +731,38 @@ impl<'a> Cursor<'a> {
     }
 
     fn identifier_list_until(&mut self, stop_words: &[&str]) -> Option<Vec<String>> {
-        let mut values = Vec::new();
-        while self.position < self.tokens.len() {
-            if self
+        if self.position >= self.tokens.len()
+            || self
                 .peek_keyword()
                 .is_some_and(|value| stop_words.contains(&value.as_str()))
-            {
-                break;
-            }
-            if self.consume_symbol(",") {
-                continue;
-            }
+        {
+            return None;
+        }
+
+        let mut values = Vec::new();
+        loop {
             if values.len() >= DEFAULT_MAX_SQL_MODEL_LIST_ITEMS {
                 return None;
             }
             values.push(self.parse_identifier()?);
+
+            if self.position >= self.tokens.len()
+                || self
+                    .peek_keyword()
+                    .is_some_and(|value| stop_words.contains(&value.as_str()))
+            {
+                break;
+            }
+            if !self.consume_symbol(",") {
+                return None;
+            }
+            if self.position >= self.tokens.len()
+                || self
+                    .peek_keyword()
+                    .is_some_and(|value| stop_words.contains(&value.as_str()))
+            {
+                return None;
+            }
         }
         Some(values)
     }
@@ -1056,6 +1073,14 @@ mod tests {
                 ..
             }
         ));
+    }
+
+    #[test]
+    fn malformed_role_lists_fail_closed() {
+        let statements = unsupported_statements(
+            "create policy missing_comma on public.accounts to anon authenticated using (true); create policy leading_comma on public.accounts to , anon using (true); alter policy trailing_comma on public.accounts to authenticated, using (true); grant select on table public.accounts to anon authenticated;",
+        );
+        assert_eq!(statements.len(), 4);
     }
 
     #[test]
