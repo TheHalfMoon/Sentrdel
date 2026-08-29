@@ -371,8 +371,8 @@ mod tests {
             coverage.details.as_deref(),
             Some("Optional LLM reasoning failed; native review output remains authoritative.")
         );
-        assert!(!
-            coverage
+        assert!(
+            !coverage
                 .details
                 .as_deref()
                 .unwrap_or_default()
