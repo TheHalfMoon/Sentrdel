@@ -10,6 +10,8 @@ mod explain;
 mod explain_t070_contract;
 #[allow(dead_code)]
 mod guard_git_hooks;
+#[allow(dead_code)]
+mod review_reasoning;
 
 use std::process::ExitCode;
 
