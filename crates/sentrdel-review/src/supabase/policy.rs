@@ -108,6 +108,11 @@ pub fn observe_policy_delta(
     limits: PolicyPostureLimits,
 ) -> Result<Vec<Evidence>, PolicyPostureError> {
     validate_inputs(captured_at, limits)?;
+    if before.policies.len() > limits.max_postures || after.policies.len() > limits.max_postures {
+        return Err(PolicyPostureError::TooManyPostures {
+            max: limits.max_postures,
+        });
+    }
     let authority = authority()?;
     let identities: BTreeSet<_> = before
         .policies
@@ -1169,6 +1174,18 @@ mod tests {
         )]);
         assert!(matches!(
             observe_policy_posture(
+                &value,
+                "2026-08-29T13:40:00Z",
+                PolicyPostureLimits {
+                    max_postures: 1,
+                    max_deltas: 1,
+                },
+            ),
+            Err(PolicyPostureError::TooManyPostures { max: 1 })
+        ));
+        assert!(matches!(
+            observe_policy_delta(
+                &value,
                 &value,
                 "2026-08-29T13:40:00Z",
                 PolicyPostureLimits {
