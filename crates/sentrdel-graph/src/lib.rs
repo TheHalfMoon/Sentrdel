@@ -28,13 +28,13 @@ pub use scip::{
     ScipOccurrenceRole, ScipPosition, ScipProducerQualification, ScipRange, ingest_scip,
     scip_coverage_gap,
 };
-pub use subtree::{
-    MAX_PROVENANCE_SUBTREE_DEPTH, MAX_PROVENANCE_SUBTREE_NODES, ProvenanceSubtree,
-    ProvenanceSubtreeError, ProvenanceSubtreeNode,
-};
 pub use sentrdel_schema::graph::{
     GraphConfidenceBasis, GraphConfidenceSource, GraphContractError, GraphEdge, GraphEdgeId,
     GraphNode, GraphNodeId, GraphNodeKind, GraphProvenanceId, GraphRelation,
+};
+pub use subtree::{
+    MAX_PROVENANCE_SUBTREE_DEPTH, MAX_PROVENANCE_SUBTREE_NODES, ProvenanceSubtree,
+    ProvenanceSubtreeError, ProvenanceSubtreeNode,
 };
 
 /// Sentrdel intentionally owns a thin security/evidence graph rather than a
