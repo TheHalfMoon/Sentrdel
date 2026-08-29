@@ -105,7 +105,10 @@ pub fn observe_storage_authorization_posture(
         if object.kind != SupabaseObjectKind::Table || object.schema != STORAGE_SCHEMA {
             continue;
         }
-        if !relation.exists_in_supported_history.value {
+        let has_relation_posture = relation.exists_in_supported_history.value
+            || relation.rls_state.provenance.is_some();
+        let has_policy_posture = !relation.policy_ids.is_empty();
+        if !has_relation_posture && !has_policy_posture {
             continue;
         }
         relation_count = relation_count.saturating_add(1);
@@ -114,12 +117,14 @@ pub fn observe_storage_authorization_posture(
                 max: limits.max_relations,
             });
         }
-        evidence.push(seal_relation(
-            &authority,
-            state,
-            relation,
-            captured_at,
-        )?);
+        if has_relation_posture {
+            evidence.push(seal_relation(
+                &authority,
+                state,
+                relation,
+                captured_at,
+            )?);
+        }
 
         for policy_id in &relation.policy_ids {
             let Some(policy) = state.policies.get(policy_id) else {
@@ -212,6 +217,10 @@ fn seal_policy(
         policy.identity.relation.normalized(),
         policy.identity.name
     );
+    let relation_exists_in_history = state
+        .relations
+        .get(&policy.identity.relation)
+        .is_some_and(|relation| relation.exists_in_supported_history.value);
     let mut attributes = BTreeMap::new();
     attributes.insert("policy".to_owned(), Value::String(policy_id.clone()));
     attributes.insert(
@@ -244,6 +253,17 @@ fn seal_policy(
     );
     attributes.insert("storage_schema".to_owned(), Value::Bool(true));
     attributes.insert("repository_derived".to_owned(), Value::Bool(true));
+    attributes.insert(
+        "repository_relation_existence".to_owned(),
+        Value::String(
+            if relation_exists_in_history {
+                "OBSERVED_IN_SUPPORTED_HISTORY"
+            } else {
+                "NOT_PROVEN"
+            }
+            .to_owned(),
+        ),
+    );
     attributes.insert(
         "repository_posture_coverage".to_owned(),
         Value::String(coverage_name(state.coverage_state).to_owned()),
@@ -403,6 +423,35 @@ mod tests {
                 && item.claim().attributes.get("hosted_storage_state")
                     == Some(&Value::String("UNKNOWN".to_owned()))
         }));
+    }
+
+    #[test]
+    fn provider_managed_storage_table_policy_is_not_dropped_without_create_table() {
+        let state = state(
+            "create policy storage_owner_select on storage.objects for select to authenticated using (owner_id = auth.uid());",
+        );
+        let evidence = observe_storage_authorization_posture(
+            &state,
+            "2026-08-29T14:00:00Z",
+            StoragePostureLimits::default(),
+        )
+        .unwrap();
+        assert_eq!(evidence.len(), 1);
+        assert_eq!(
+            evidence[0].claim().category,
+            "supabase_storage_policy_posture"
+        );
+        assert_eq!(
+            evidence[0]
+                .claim()
+                .attributes
+                .get("repository_relation_existence"),
+            Some(&Value::String("NOT_PROVEN".to_owned()))
+        );
+        assert_eq!(
+            evidence[0].claim().attributes.get("hosted_storage_state"),
+            Some(&Value::String("UNKNOWN".to_owned()))
+        );
     }
 
     #[test]
