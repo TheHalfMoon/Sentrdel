@@ -713,16 +713,32 @@ impl<'a> Cursor<'a> {
     }
 
     fn keyword_list_until(&mut self, marker: &str) -> Option<Vec<String>> {
-        let mut values = Vec::new();
+        if self.position >= self.tokens.len() || self.peek_keyword().as_deref() == Some(marker) {
+            return None;
+        }
+
+        let first = self.peek_keyword()?;
+        self.position += 1;
+        if first == "PRIVILEGES" {
+            return None;
+        }
+        if first == "ALL" {
+            if self.peek_keyword().as_deref() == Some("PRIVILEGES") {
+                self.position += 1;
+            }
+            return (self.peek_keyword().as_deref() == Some(marker)).then_some(vec![first]);
+        }
+
+        let mut values = vec![first];
         while self.position < self.tokens.len() && self.peek_keyword().as_deref() != Some(marker) {
-            if self.consume_symbol(",") {
-                continue;
+            if !self.consume_symbol(",") || self.peek_keyword().as_deref() == Some(marker) {
+                return None;
             }
             let value = self.peek_keyword()?;
-            self.position += 1;
-            if value == "PRIVILEGES" && values.last().is_some_and(|last| last == "ALL") {
-                continue;
+            if value == "ALL" || value == "PRIVILEGES" {
+                return None;
             }
+            self.position += 1;
             if values.len() >= DEFAULT_MAX_SQL_MODEL_LIST_ITEMS {
                 return None;
             }
@@ -1016,6 +1032,14 @@ mod tests {
     fn supported_grant_privileges_are_bounded_by_object_kind() {
         let statements = supported_statements(
             "grant all privileges on table public.accounts to anon; grant execute on function private.current_account_id() to authenticated; grant usage, create on schema private to authenticated; grant usage, select, update on sequence public.accounts_id_seq to authenticated;",
+        );
+        assert_eq!(statements.len(), 4);
+    }
+
+    #[test]
+    fn malformed_grant_privilege_lists_fail_closed() {
+        let statements = unsupported_statements(
+            "grant select insert on table public.accounts to anon; grant select, on table public.accounts to anon; grant all, select on table public.accounts to anon; grant privileges on table public.accounts to anon;",
         );
         assert_eq!(statements.len(), 4);
     }
