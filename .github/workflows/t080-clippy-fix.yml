@@ -1,0 +1,48 @@
+name: T080 Clippy Fix
+
+on:
+  push:
+    branches:
+      - impl/001-t080-mcp-policy-latency-memory
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout implementation branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: impl/001-t080-mcp-policy-latency-memory
+      - name: Remove single-element deferred loop
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('crates/sentrdel-cli/tests/t077_release_benchmark.rs')
+          text = path.read_text()
+          old = '''    for (deferred, owner) in [("review_memory", "T079")] {
+        assert_eq!(dimensions[deferred].state, MetricState::NotMeasured);
+        assert_eq!(dimensions[deferred].owner_task, owner);
+    }
+'''
+          new = '''    assert_eq!(dimensions["review_memory"].state, MetricState::NotMeasured);
+    assert_eq!(dimensions["review_memory"].owner_task, "T079");
+'''
+          if text.count(old) != 1:
+              raise SystemExit('expected exactly one T079 review-memory single-element loop')
+          path.write_text(text.replace(old, new, 1))
+          PY
+          rm .github/workflows/t080-clippy-fix.yml
+          rustup toolchain install 1.98.0 --profile minimal --component rustfmt --component clippy
+          cargo +1.98.0 fmt --all
+          cargo +1.98.0 clippy -p sentrdel-cli --test t077_release_benchmark -- -D warnings
+          cargo +1.98.0 test -p sentrdel-cli --test t077_release_benchmark
+          cargo +1.98.0 test -p sentrdel-guard --test t080_mcp_policy_benchmark
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add crates/sentrdel-cli/tests/t077_release_benchmark.rs .github/workflows/t080-clippy-fix.yml
+          git commit -m 'test(bench): fix T080 release-suite clippy gate'
+          git push origin HEAD:impl/001-t080-mcp-policy-latency-memory
