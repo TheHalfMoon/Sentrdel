@@ -22,7 +22,7 @@
 ## Phase 1 — Provider contract and benchmark fixtures
 
 - [x] R2-T002 Add the versioned Supabase R2 Security Pack manifest and provider coverage dimension constants using existing R1 `SecurityPackManifest`/Coverage contracts; no Finding or policy override capability.
-- [ ] R2-T003 [P] Create positive/negative/adversarial fixture repository matrix under `fixtures/repos/r2-supabase/` for RLS, grants, policies, SECURITY DEFINER/search_path, Storage, Auth config, Edge Function auth, key authority contexts, malformed/oversized/dynamic SQL, ambiguous migration order, and secret canaries.
+- [x] R2-T003 [P] Create positive/negative/adversarial fixture repository matrix under `fixtures/repos/r2-supabase/` for RLS, grants, policies, SECURITY DEFINER/search_path, Storage, Auth config, Edge Function auth, key authority contexts, malformed/oversized/dynamic SQL, ambiguous migration order, and secret canaries.
 - [ ] R2-T004 [P] Extend SentrdelBench corpus metadata for R2 supported scope, expected Evidence groups, clean cases, explicit coverage-gap cases, and authority assertions before release-gating rules are added.
 
 **Checkpoint:** provider manifest and ground-truth fixture/evaluation contracts exist before parser/rule breadth.
