@@ -106,8 +106,8 @@ pub fn observe_api_role_grants(
             }
             if grant.privilege == "ALL"
                 && relation
-                    .last_security_change
-                    .as_ref()
+                    .last_revoke_by_role
+                    .get(&grant.role)
                     .is_some_and(|latest| statement_is_after(latest, provenance))
             {
                 continue;
@@ -332,7 +332,7 @@ mod tests {
     }
 
     #[test]
-    fn later_security_change_suppresses_stale_all_wildcard_grant() {
+    fn later_revoke_suppresses_stale_all_wildcard_grant() {
         let state = reduce_repository_posture(
             &[migration(
                 "20260829000100",
@@ -358,6 +358,38 @@ mod tests {
             .collect();
         assert_eq!(privileges, BTreeSet::from(["UPDATE"]));
         assert!(!privileges.contains("ALL"));
+    }
+
+    #[test]
+    fn unrelated_rls_and_policy_changes_do_not_suppress_all_wildcard_grant() {
+        let state = reduce_repository_posture(
+            &[migration(
+                "20260829000100",
+                "all_then_independent_changes",
+                "sha256:all-independent",
+                "create table public.accounts(id bigint); grant all on table public.accounts to authenticated; alter table public.accounts enable row level security; create policy account_read on public.accounts for select to authenticated using (true);",
+            )],
+            SqlScanLimits::default(),
+        )
+        .unwrap();
+
+        let relation = state.relations.values().next().unwrap();
+        assert_eq!(relation.rls_state.value, RlsState::Enabled);
+        assert_eq!(relation.policy_ids.len(), 1);
+
+        let evidence = observe_api_role_grants(
+            &state,
+            &exposure(&["public"]),
+            "2026-08-29T14:00:00Z",
+            ApiRoleGrantLimits::default(),
+        )
+        .unwrap();
+        let privileges: BTreeSet<_> = evidence
+            .iter()
+            .filter_map(|item| item.claim().attributes.get("privilege"))
+            .filter_map(Value::as_str)
+            .collect();
+        assert_eq!(privileges, BTreeSet::from(["ALL"]));
     }
 
     #[test]
