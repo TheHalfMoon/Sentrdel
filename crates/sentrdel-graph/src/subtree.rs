@@ -154,18 +154,16 @@ mod tests {
     fn edge(source: &GraphNode, relation: GraphRelation, target: &GraphNode) -> GraphEdge {
         GraphEdge::new(
             source.node_id.clone(),
-            relation,
             target.node_id.clone(),
-            BTreeMap::new(),
+            relation,
+            GraphConfidenceSource::new(
+                "fixture",
+                Some("1".to_owned()),
+                GraphConfidenceBasis::Extracted,
+            )
+            .expect("confidence"),
             vec![provenance("evidence:edge")],
-            Some(
-                GraphConfidenceSource::new(
-                    "fixture",
-                    Some("1".to_owned()),
-                    GraphConfidenceBasis::Extracted,
-                )
-                .expect("confidence"),
-            ),
+            BTreeMap::new(),
         )
         .expect("edge")
     }
