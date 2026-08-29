@@ -1,5 +1,5 @@
 use sentrdel_review::project_detection::DetectionLimits;
-use sentrdel_review::supabase_detection::{detect_supabase, SupabaseDetectionError};
+use sentrdel_review::supabase_detection::{SupabaseDetectionError, detect_supabase};
 
 #[test]
 fn supabase_detection_fails_closed_on_path_budget_or_noncanonical_path() {
