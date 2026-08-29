@@ -32,6 +32,10 @@ const CREDENTIAL_CANARIES: &[&str] = &[
     "DATABASE_URL",
     "SUPABASE_SERVICE_ROLE_KEY",
 ];
+const _: () = assert!(
+    !R1_REMOTE_MCP_SUPPORTED,
+    "R1 must not expose remote MCP transport"
+);
 
 struct Policy(Verdict);
 
@@ -190,11 +194,6 @@ fn fixture_stdio_guard_covers_policy_versions_untrusted_content_and_bounds() {
         unterminated.read_frame(),
         Err(McpProtocolError::UnterminatedFrame { .. })
     ));
-
-    assert!(
-        !R1_REMOTE_MCP_SUPPORTED,
-        "R1 must not expose remote MCP transport"
-    );
 }
 
 #[test]
