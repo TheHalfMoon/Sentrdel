@@ -99,10 +99,12 @@ fn unsupported_force_rls_cannot_be_invented_as_enabled_or_clean() {
         .expect("supported prior state must remain present");
     assert_eq!(relation.rls_state.value, RlsState::Disabled);
     assert_eq!(state.coverage_state, PostureCoverageState::Partial);
-    assert!(state
-        .coverage_gaps
-        .iter()
-        .any(|gap| gap.kind == PostureCoverageGapKind::UnsupportedSecurityRelevant));
+    assert!(
+        state
+            .coverage_gaps
+            .iter()
+            .any(|gap| gap.kind == PostureCoverageGapKind::UnsupportedSecurityRelevant)
+    );
 }
 
 #[test]
@@ -120,9 +122,12 @@ fn malformed_security_sql_preserves_unknown_instead_of_clean_posture() {
 
     assert_eq!(state.coverage_state, PostureCoverageState::Partial);
     assert!(state.relations.is_empty());
-    assert!(state.coverage_gaps.iter().any(|gap| {
-        gap.kind == PostureCoverageGapKind::MalformedOrBoundedRejection
-    }));
+    assert!(
+        state
+            .coverage_gaps
+            .iter()
+            .any(|gap| { gap.kind == PostureCoverageGapKind::MalformedOrBoundedRejection })
+    );
 }
 
 #[test]
@@ -191,7 +196,10 @@ fn ignored_query_scope_does_not_mask_unsupported_security_scope() {
 
     assert_eq!(state.coverage_state, PostureCoverageState::Partial);
     assert!(state.relations.is_empty());
-    assert!(state.coverage_gaps.iter().any(|gap| {
-        gap.kind == PostureCoverageGapKind::UnsupportedSecurityRelevant
-    }));
+    assert!(
+        state
+            .coverage_gaps
+            .iter()
+            .any(|gap| { gap.kind == PostureCoverageGapKind::UnsupportedSecurityRelevant })
+    );
 }
