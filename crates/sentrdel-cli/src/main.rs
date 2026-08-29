@@ -6,6 +6,8 @@ pub mod bootstrap;
 // else in the workspace.
 #[allow(dead_code)]
 mod explain;
+#[cfg(test)]
+mod explain_t070_contract;
 #[allow(dead_code)]
 mod guard_git_hooks;
 
