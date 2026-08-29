@@ -95,10 +95,7 @@ pub enum PackRegistryError {
     EmptyField(&'static str),
     EmptyList(&'static str),
     EmptyListValue(&'static str),
-    DuplicateListValue {
-        field: &'static str,
-        value: String,
-    },
+    DuplicateListValue { field: &'static str, value: String },
     UnsupportedCoverageDimension(String),
     DuplicatePackId(String),
 }
@@ -107,15 +104,28 @@ impl fmt::Display for PackRegistryError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::UnsupportedSchemaVersion(version) => {
-                write!(formatter, "unsupported Security Pack schema version: {version}")
+                write!(
+                    formatter,
+                    "unsupported Security Pack schema version: {version}"
+                )
             }
-            Self::EmptyField(field) => write!(formatter, "Security Pack field {field} must not be empty"),
-            Self::EmptyList(field) => write!(formatter, "Security Pack list {field} must not be empty"),
+            Self::EmptyField(field) => {
+                write!(formatter, "Security Pack field {field} must not be empty")
+            }
+            Self::EmptyList(field) => {
+                write!(formatter, "Security Pack list {field} must not be empty")
+            }
             Self::EmptyListValue(field) => {
-                write!(formatter, "Security Pack list {field} contains an empty value")
+                write!(
+                    formatter,
+                    "Security Pack list {field} contains an empty value"
+                )
             }
             Self::DuplicateListValue { field, value } => {
-                write!(formatter, "Security Pack list {field} contains duplicate value {value:?}")
+                write!(
+                    formatter,
+                    "Security Pack list {field} contains duplicate value {value:?}"
+                )
             }
             Self::UnsupportedCoverageDimension(value) => write!(
                 formatter,
@@ -123,7 +133,10 @@ impl fmt::Display for PackRegistryError {
                 SUPPORTED_COVERAGE_DIMENSIONS.join(",")
             ),
             Self::DuplicatePackId(pack_id) => {
-                write!(formatter, "Security Pack id is already registered: {pack_id}")
+                write!(
+                    formatter,
+                    "Security Pack id is already registered: {pack_id}"
+                )
             }
         }
     }
@@ -143,8 +156,14 @@ pub fn validate_pack_manifest(
     validate_nonempty("pack_id", &manifest.pack_id)?;
     validate_nonempty("version", &manifest.version)?;
     validate_nonempty("provider_or_framework", &manifest.provider_or_framework)?;
-    validate_nonempty("source_provenance.source_id", &manifest.source_provenance.source_id)?;
-    validate_nonempty("source_provenance.exact_ref", &manifest.source_provenance.exact_ref)?;
+    validate_nonempty(
+        "source_provenance.source_id",
+        &manifest.source_provenance.source_id,
+    )?;
+    validate_nonempty(
+        "source_provenance.exact_ref",
+        &manifest.source_provenance.exact_ref,
+    )?;
     validate_nonempty(
         "source_provenance.license_expression",
         &manifest.source_provenance.license_expression,
@@ -153,8 +172,16 @@ pub fn validate_pack_manifest(
         validate_nonempty("source_provenance.integrity_digest", digest)?;
     }
 
-    validate_unique_list("detection_capabilities", &manifest.detection_capabilities, false)?;
-    validate_unique_list("evidence_capabilities", &manifest.evidence_capabilities, false)?;
+    validate_unique_list(
+        "detection_capabilities",
+        &manifest.detection_capabilities,
+        false,
+    )?;
+    validate_unique_list(
+        "evidence_capabilities",
+        &manifest.evidence_capabilities,
+        false,
+    )?;
     validate_unique_list("required_engines", &manifest.required_engines, true)?;
     validate_unique_list("required_features", &manifest.required_features, true)?;
     validate_unique_list("coverage_dimensions", &manifest.coverage_dimensions, false)?;
@@ -309,7 +336,10 @@ mod tests {
         duplicate.coverage_dimensions = vec!["DETECTION".to_owned(), "DETECTION".to_owned()];
         assert!(matches!(
             validate_pack_manifest(duplicate),
-            Err(PackRegistryError::DuplicateListValue { field: "coverage_dimensions", .. })
+            Err(PackRegistryError::DuplicateListValue {
+                field: "coverage_dimensions",
+                ..
+            })
         ));
     }
 
