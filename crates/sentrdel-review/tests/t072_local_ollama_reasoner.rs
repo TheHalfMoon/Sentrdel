@@ -101,13 +101,20 @@ fn local_adapter_uses_bounded_ollama_generate_contract() {
             .with_timeouts(Duration::from_secs(2), Duration::from_secs(2)),
     )
     .expect("local reasoner");
-    let request = ReasonerRequest::new("analyze selected evidence", Vec::new(), ReasonerLimits::default())
-        .expect("bounded request");
+    let request = ReasonerRequest::new(
+        "analyze selected evidence",
+        Vec::new(),
+        ReasonerLimits::default(),
+    )
+    .expect("bounded request");
 
     let drafts = reasoner.reason(&request).expect("local reasoning");
     assert_eq!(reasoner.id(), "local-ollama-http");
     assert_eq!(drafts.len(), 1);
-    assert_eq!(drafts[0].epistemic_class, ReasonerEpistemicClass::Hypothesis);
+    assert_eq!(
+        drafts[0].epistemic_class,
+        ReasonerEpistemicClass::Hypothesis
+    );
 
     let wire = captured.recv().expect("captured request");
     handle.join().expect("fixture server");
@@ -116,14 +123,13 @@ fn local_adapter_uses_bounded_ollama_generate_contract() {
     assert!(header.starts_with("POST /api/generate HTTP/1.1\r\n"));
     assert!(!header.to_ascii_lowercase().contains("authorization:"));
 
-    let body: serde_json::Value = serde_json::from_slice(&wire[body_start..]).expect("request JSON");
+    let body: serde_json::Value =
+        serde_json::from_slice(&wire[body_start..]).expect("request JSON");
     assert_eq!(body["model"], "fixture-model");
     assert_eq!(body["stream"], false);
     assert_eq!(body["format"], "json");
-    let prompt: serde_json::Value = serde_json::from_str(
-        body["prompt"].as_str().expect("prompt string"),
-    )
-    .expect("prompt JSON");
+    let prompt: serde_json::Value =
+        serde_json::from_str(body["prompt"].as_str().expect("prompt string")).expect("prompt JSON");
     assert_eq!(prompt["instruction"], "analyze selected evidence");
     assert_eq!(prompt["evidence"], serde_json::json!([]));
 }
@@ -144,6 +150,9 @@ fn local_adapter_rejects_response_larger_than_configured_cap() {
         .reason(&request)
         .err()
         .expect("oversized response must fail");
-    assert!(error.to_string().contains("exceeded configured bounds") || error.to_string().contains("exceeds cap"));
+    assert!(
+        error.to_string().contains("exceeded configured bounds")
+            || error.to_string().contains("exceeds cap")
+    );
     handle.join().expect("fixture server");
 }

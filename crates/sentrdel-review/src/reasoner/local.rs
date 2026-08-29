@@ -80,7 +80,9 @@ impl LocalOllamaReasoner {
             "stream": false,
             "format": "json",
         }))
-        .map_err(|error| ReasonerError::new(format!("local reasoner request encoding failed: {error}")))?;
+        .map_err(|error| {
+            ReasonerError::new(format!("local reasoner request encoding failed: {error}"))
+        })?;
         if body.len() > MAX_HTTP_REQUEST_BODY_BYTES {
             return Err(ReasonerError::new(format!(
                 "local reasoner HTTP request body size {} exceeds cap {MAX_HTTP_REQUEST_BODY_BYTES}",
@@ -90,16 +92,27 @@ impl LocalOllamaReasoner {
         Ok(body)
     }
 
-    fn call_ollama(&self, request: &ReasonerRequest) -> Result<Vec<ReasonerEvidenceDraft>, ReasonerError> {
+    fn call_ollama(
+        &self,
+        request: &ReasonerRequest,
+    ) -> Result<Vec<ReasonerEvidenceDraft>, ReasonerError> {
         let body = self.request_body(request)?;
-        let mut stream = TcpStream::connect_timeout(&self.config.address, self.config.connect_timeout)
-            .map_err(|error| ReasonerError::new(format!("local reasoner connect failed: {error}")))?;
+        let mut stream =
+            TcpStream::connect_timeout(&self.config.address, self.config.connect_timeout).map_err(
+                |error| ReasonerError::new(format!("local reasoner connect failed: {error}")),
+            )?;
         stream
             .set_read_timeout(Some(self.config.io_timeout))
-            .map_err(|error| ReasonerError::new(format!("local reasoner read-timeout setup failed: {error}")))?;
+            .map_err(|error| {
+                ReasonerError::new(format!("local reasoner read-timeout setup failed: {error}"))
+            })?;
         stream
             .set_write_timeout(Some(self.config.io_timeout))
-            .map_err(|error| ReasonerError::new(format!("local reasoner write-timeout setup failed: {error}")))?;
+            .map_err(|error| {
+                ReasonerError::new(format!(
+                    "local reasoner write-timeout setup failed: {error}"
+                ))
+            })?;
 
         let head = format!(
             "POST /api/generate HTTP/1.1\r\nHost: {}\r\nContent-Type: application/json\r\nAccept: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
@@ -110,7 +123,9 @@ impl LocalOllamaReasoner {
             .write_all(head.as_bytes())
             .and_then(|()| stream.write_all(&body))
             .and_then(|()| stream.flush())
-            .map_err(|error| ReasonerError::new(format!("local reasoner request write failed: {error}")))?;
+            .map_err(|error| {
+                ReasonerError::new(format!("local reasoner request write failed: {error}"))
+            })?;
 
         let max_wire_bytes = MAX_HTTP_HEADER_BYTES
             .checked_add(self.config.max_response_bytes)
@@ -120,9 +135,13 @@ impl LocalOllamaReasoner {
         stream
             .take(u64::try_from(max_wire_bytes).unwrap_or(u64::MAX))
             .read_to_end(&mut wire)
-            .map_err(|error| ReasonerError::new(format!("local reasoner response read failed: {error}")))?;
+            .map_err(|error| {
+                ReasonerError::new(format!("local reasoner response read failed: {error}"))
+            })?;
         if wire.len() == max_wire_bytes {
-            return Err(ReasonerError::new("local reasoner response exceeded configured bounds"));
+            return Err(ReasonerError::new(
+                "local reasoner response exceeded configured bounds",
+            ));
         }
 
         parse_ollama_response(&wire, self.config.max_response_bytes)
@@ -144,7 +163,9 @@ impl Reasoner for LocalOllamaReasoner {
 
 fn validate_config(config: &LocalOllamaConfig) -> Result<(), ReasonerError> {
     if !config.enabled {
-        return Err(ReasonerError::new("local reasoner is disabled by configuration"));
+        return Err(ReasonerError::new(
+            "local reasoner is disabled by configuration",
+        ));
     }
     if !config.address.ip().is_loopback() {
         return Err(ReasonerError::new(
@@ -161,7 +182,9 @@ fn validate_config(config: &LocalOllamaConfig) -> Result<(), ReasonerError> {
         )));
     }
     if config.connect_timeout.is_zero() || config.io_timeout.is_zero() {
-        return Err(ReasonerError::new("local reasoner timeouts must be non-zero"));
+        return Err(ReasonerError::new(
+            "local reasoner timeouts must be non-zero",
+        ));
     }
     if config.max_response_bytes == 0 || config.max_response_bytes > MAX_CONFIGURED_RESPONSE_BYTES {
         return Err(ReasonerError::new(format!(
@@ -178,7 +201,9 @@ fn parse_ollama_response(
     let header_end = find_bytes(wire, b"\r\n\r\n")
         .ok_or_else(|| ReasonerError::new("local reasoner returned malformed HTTP headers"))?;
     if header_end > MAX_HTTP_HEADER_BYTES {
-        return Err(ReasonerError::new("local reasoner HTTP headers exceeded cap"));
+        return Err(ReasonerError::new(
+            "local reasoner HTTP headers exceeded cap",
+        ));
     }
 
     let header = std::str::from_utf8(&wire[..header_end])
@@ -190,7 +215,9 @@ fn parse_ollama_response(
     let mut status_parts = status.split_whitespace();
     let protocol = status_parts.next().unwrap_or_default();
     if protocol != "HTTP/1.1" && protocol != "HTTP/1.0" {
-        return Err(ReasonerError::new("local reasoner returned unsupported HTTP version"));
+        return Err(ReasonerError::new(
+            "local reasoner returned unsupported HTTP version",
+        ));
     }
     let status_code = status_parts
         .next()
@@ -205,23 +232,26 @@ fn parse_ollama_response(
     let mut content_length = None;
     for line in lines {
         let Some((name, value)) = line.split_once(':') else {
-            return Err(ReasonerError::new("local reasoner returned malformed HTTP header"));
+            return Err(ReasonerError::new(
+                "local reasoner returned malformed HTTP header",
+            ));
         };
-        if name.eq_ignore_ascii_case("transfer-encoding") && !value.trim().eq_ignore_ascii_case("identity") {
+        if name.eq_ignore_ascii_case("transfer-encoding")
+            && !value.trim().eq_ignore_ascii_case("identity")
+        {
             return Err(ReasonerError::new(
                 "local reasoner chunked/encoded HTTP responses are not supported in T072",
             ));
         }
         if name.eq_ignore_ascii_case("content-length") {
             if content_length.is_some() {
-                return Err(ReasonerError::new("local reasoner returned duplicate Content-Length"));
+                return Err(ReasonerError::new(
+                    "local reasoner returned duplicate Content-Length",
+                ));
             }
-            content_length = Some(
-                value
-                    .trim()
-                    .parse::<usize>()
-                    .map_err(|_| ReasonerError::new("local reasoner returned invalid Content-Length"))?,
-            );
+            content_length = Some(value.trim().parse::<usize>().map_err(|_| {
+                ReasonerError::new("local reasoner returned invalid Content-Length")
+            })?);
         }
     }
 
@@ -243,8 +273,9 @@ fn parse_ollama_response(
         )));
     }
 
-    let outer: serde_json::Value = serde_json::from_slice(body)
-        .map_err(|error| ReasonerError::new(format!("local reasoner response JSON invalid: {error}")))?;
+    let outer: serde_json::Value = serde_json::from_slice(body).map_err(|error| {
+        ReasonerError::new(format!("local reasoner response JSON invalid: {error}"))
+    })?;
     let response = outer
         .get("response")
         .and_then(serde_json::Value::as_str)
@@ -254,5 +285,7 @@ fn parse_ollama_response(
 }
 
 fn find_bytes(haystack: &[u8], needle: &[u8]) -> Option<usize> {
-    haystack.windows(needle.len()).position(|window| window == needle)
+    haystack
+        .windows(needle.len())
+        .position(|window| window == needle)
 }
