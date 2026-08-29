@@ -4,6 +4,8 @@
 //! They are advisory producers: their output remains untrusted and can only be
 //! converted into INFERENCE/HYPOTHESIS Evidence through `sentrdel-schema`.
 
+pub mod local;
+
 use sentrdel_schema::evidence::EvidenceRecord;
 use sentrdel_schema::reasoner::ReasonerEvidenceDraft;
 use std::error::Error;
