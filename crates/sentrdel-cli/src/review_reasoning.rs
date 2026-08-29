@@ -4,6 +4,7 @@
 //! This module can append advisory LLM Evidence and explicit coverage only; it
 //! cannot mutate canonical Findings, the native review decision, or policy.
 
+use sentrdel_cli::reasoning::ReviewReasoningFlags;
 use sentrdel_review::reasoner::{Reasoner, ReasonerRequest, reason_to_evidence};
 use sentrdel_schema::{
     SCHEMA_V1,
@@ -16,12 +17,6 @@ const REASONER_COVERAGE_ID: &str = "coverage:review:optional-reasoner";
 const REASONER_CAPABILITY: &str = "optional_llm_reasoning";
 const MAX_REASONER_ID_BYTES: usize = 512;
 const MAX_OBSERVED_AT_BYTES: usize = 4_096;
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct ReviewReasoningFlags {
-    pub reason: bool,
-    pub no_network: bool,
-}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ReasonerNetworkAccess {
@@ -82,7 +77,7 @@ pub fn run_optional_reasoning<R: Reasoner + ?Sized>(
     request: &ReasonerRequest,
     observed_at: &str,
 ) -> Result<ReviewReasoningOutcome, ReviewReasoningConfigError> {
-    if !flags.reason {
+    if !flags.reason_enabled() {
         return Ok(ReviewReasoningOutcome::disabled());
     }
 
@@ -91,7 +86,7 @@ pub fn run_optional_reasoning<R: Reasoner + ?Sized>(
     validate_observed_at(observed_at)?;
     let input_digests = normalized_input_ids(request);
 
-    if flags.no_network && network_access == ReasonerNetworkAccess::NetworkRequired {
+    if flags.no_network() && network_access == ReasonerNetworkAccess::NetworkRequired {
         return Ok(ReviewReasoningOutcome {
             state: ReviewReasoningState::SkippedByPolicy,
             evidence: Vec::new(),
@@ -282,10 +277,7 @@ mod tests {
     fn disabled_reasoning_never_calls_provider_and_emits_no_coverage() {
         let reasoner = CountingReasoner::new("fixture", false);
         let outcome = run_optional_reasoning(
-            ReviewReasoningFlags {
-                reason: false,
-                no_network: false,
-            },
+            ReviewReasoningFlags::new(false, false),
             ReasonerNetworkAccess::NetworkRequired,
             &reasoner,
             &request(),
@@ -305,10 +297,7 @@ mod tests {
         let request = request();
         let expected_input_id = request.evidence[0].evidence_id.clone();
         let outcome = run_optional_reasoning(
-            ReviewReasoningFlags {
-                reason: true,
-                no_network: true,
-            },
+            ReviewReasoningFlags::new(true, true),
             ReasonerNetworkAccess::NetworkRequired,
             &reasoner,
             &request,
@@ -332,10 +321,7 @@ mod tests {
     fn no_network_allows_explicit_offline_reasoner() {
         let reasoner = CountingReasoner::new("offline-fixture", false);
         let outcome = run_optional_reasoning(
-            ReviewReasoningFlags {
-                reason: true,
-                no_network: true,
-            },
+            ReviewReasoningFlags::new(true, true),
             ReasonerNetworkAccess::OfflineOnly,
             &reasoner,
             &request(),
@@ -376,10 +362,7 @@ mod tests {
         let reasoner = CountingReasoner::new("failing-fixture", true);
 
         let outcome = run_optional_reasoning(
-            ReviewReasoningFlags {
-                reason: true,
-                no_network: false,
-            },
+            ReviewReasoningFlags::new(true, false),
             ReasonerNetworkAccess::NetworkRequired,
             &reasoner,
             &request(),
@@ -413,10 +396,7 @@ mod tests {
         let invalid_id = CountingReasoner::new("bad\nid", false);
         assert_eq!(
             run_optional_reasoning(
-                ReviewReasoningFlags {
-                    reason: true,
-                    no_network: false,
-                },
+                ReviewReasoningFlags::new(true, false),
                 ReasonerNetworkAccess::OfflineOnly,
                 &invalid_id,
                 &request(),
@@ -429,10 +409,7 @@ mod tests {
         let reasoner = CountingReasoner::new("fixture", false);
         assert_eq!(
             run_optional_reasoning(
-                ReviewReasoningFlags {
-                    reason: true,
-                    no_network: false,
-                },
+                ReviewReasoningFlags::new(true, false),
                 ReasonerNetworkAccess::OfflineOnly,
                 &reasoner,
                 &request(),
