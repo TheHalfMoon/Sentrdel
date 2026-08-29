@@ -118,7 +118,10 @@ pub fn observe_policy_delta(
     let mut evidence = Vec::new();
 
     for identity in identities {
-        match (before.policies.get(&identity), after.policies.get(&identity)) {
+        match (
+            before.policies.get(&identity),
+            after.policies.get(&identity),
+        ) {
             (Some(old), None) => {
                 let after_provenance = removal_provenance(after, &identity).ok_or_else(|| {
                     PolicyPostureError::MissingRemovalProvenance {
@@ -517,10 +520,7 @@ fn authority() -> Result<EvidenceAuthority, PolicyPostureError> {
 
 fn common_policy_attributes(identity: &PolicyIdentity) -> BTreeMap<String, Value> {
     BTreeMap::from([
-        (
-            "policy".to_owned(),
-            Value::String(policy_id(identity)),
-        ),
+        ("policy".to_owned(), Value::String(policy_id(identity))),
         (
             "relation".to_owned(),
             Value::String(identity.relation.normalized()),
@@ -695,10 +695,12 @@ mod tests {
             evidence[0].claim().attributes.get("delta_kind"),
             Some(&Value::String("POLICY_REMOVED".to_owned()))
         );
-        assert!(evidence[0]
-            .claim()
-            .input_digests
-            .contains(&"sha256:drop".to_owned()));
+        assert!(
+            evidence[0]
+                .claim()
+                .input_digests
+                .contains(&"sha256:drop".to_owned())
+        );
     }
 
     #[test]
@@ -731,7 +733,10 @@ mod tests {
         assert!(kinds.contains("ROLE_SCOPE_EXPANDED"));
         assert!(evidence.iter().all(|item| {
             item.claim().security_interpretation.is_none()
-                && item.claim().attributes.get("expression_semantic_equivalence")
+                && item
+                    .claim()
+                    .attributes
+                    .get("expression_semantic_equivalence")
                     == Some(&Value::String("NOT_EVALUATED".to_owned()))
         }));
     }
