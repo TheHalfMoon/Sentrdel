@@ -43,7 +43,7 @@
 
 ## Phase 3 — Database and Storage static posture
 
-- [ ] R2-T010 Implement conservative API/exposed-schema evidence from repository-visible Supabase configuration/defaults only where the contract proves it; unknown hosted exposure remains UNKNOWN.
+- [x] R2-T010 Implement conservative API/exposed-schema evidence from repository-visible Supabase configuration/defaults only where the contract proves it; unknown hosted exposure remains UNKNOWN.
 - [ ] R2-T011 Implement RLS posture producer for API-relevant relations, keeping direct RLS observations separate from security interpretation and final live-state claims.
 - [ ] R2-T012 [P] Implement supported policy posture/delta producer, including policy removal/widening observations without pretending to solve arbitrary SQL boolean equivalence.
 - [ ] R2-T013 [P] Implement supported GRANT/REVOKE posture for API-facing roles; grants remain an independent control from RLS/policies.
