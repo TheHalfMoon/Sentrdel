@@ -218,6 +218,7 @@ fn append_supported_changes(
         new.roles.provenance.as_ref(),
     ) && old.roles.value.is_subset(&new.roles.value)
         && old.roles.value != new.roles.value
+        && !old.roles.value.contains("public")
     {
         let added_roles: Vec<String> = new
             .roles
@@ -772,6 +773,30 @@ mod tests {
             "after",
             "sha256:after",
             "create table public.accounts(id bigint); create policy account_access on public.accounts for select to anon using (true);",
+        )]);
+        let evidence = observe_policy_delta(
+            &before,
+            &after,
+            "2026-08-29T13:40:00Z",
+            PolicyPostureLimits::default(),
+        )
+        .unwrap();
+        assert!(evidence.is_empty());
+    }
+
+    #[test]
+    fn adding_roles_to_public_is_not_reported_as_authorization_widening() {
+        let before = state(&[migration(
+            "20260829000100",
+            "before",
+            "sha256:before",
+            "create table public.accounts(id bigint); create policy account_access on public.accounts for select to public using (true);",
+        )]);
+        let after = state(&[migration(
+            "20260829000100",
+            "after",
+            "sha256:after",
+            "create table public.accounts(id bigint); create policy account_access on public.accounts for select to public, anon, authenticated using (true);",
         )]);
         let evidence = observe_policy_delta(
             &before,
