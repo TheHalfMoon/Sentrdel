@@ -378,6 +378,11 @@ fn seal_posture(
     policy: &PolicyPosture,
     captured_at: &str,
 ) -> Result<Evidence, PolicyPostureError> {
+    let repository_policy_existence = if policy.command_scope.provenance.is_some() {
+        "OBSERVED_IN_SUPPORTED_HISTORY"
+    } else {
+        "NOT_PROVEN"
+    };
     let mut attributes = common_policy_attributes(&policy.identity);
     attributes.insert(
         "command_scope".to_owned(),
@@ -398,6 +403,10 @@ fn seal_posture(
     );
     attributes.insert("repository_derived".to_owned(), Value::Bool(true));
     attributes.insert(
+        "repository_policy_existence".to_owned(),
+        Value::String(repository_policy_existence.to_owned()),
+    );
+    attributes.insert(
         "hosted_policy_state".to_owned(),
         Value::String("UNKNOWN".to_owned()),
     );
@@ -406,13 +415,22 @@ fn seal_posture(
         Value::String("NOT_EVALUATED".to_owned()),
     );
 
+    let observation = if repository_policy_existence == "OBSERVED_IN_SUPPORTED_HISTORY" {
+        format!(
+            "Supported repository-derived policy posture is present for {}",
+            policy_id(&policy.identity)
+        )
+    } else {
+        format!(
+            "Supported repository-derived policy attributes were observed without proving policy creation for {}",
+            policy_id(&policy.identity)
+        )
+    };
+
     Ok(authority.seal(EvidenceClaim {
         schema_version: SCHEMA_V1.to_owned(),
         input_digests: property_digests(policy),
-        observation: format!(
-            "Supported repository-derived policy posture is present for {}",
-            policy_id(&policy.identity)
-        ),
+        observation,
         security_interpretation: None,
         category: "supabase_policy_posture".to_owned(),
         epistemic_class: EpistemicClass::Fact,
@@ -661,10 +679,41 @@ mod tests {
             Some(&Value::String("PRESENT".to_owned()))
         );
         assert_eq!(
+            claim.attributes.get("repository_policy_existence"),
+            Some(&Value::String("OBSERVED_IN_SUPPORTED_HISTORY".to_owned()))
+        );
+        assert_eq!(
             claim.attributes.get("expression_semantic_equivalence"),
             Some(&Value::String("NOT_EVALUATED".to_owned()))
         );
         assert!(claim.security_interpretation.is_none());
+    }
+
+    #[test]
+    fn alter_only_posture_does_not_claim_policy_existence() {
+        let value = state(&[migration(
+            "20260829000100",
+            "alter_only",
+            "sha256:alter",
+            "alter policy account_access on public.accounts to authenticated using (true);",
+        )]);
+        let evidence = observe_policy_posture(
+            &value,
+            "2026-08-29T13:40:00Z",
+            PolicyPostureLimits::default(),
+        )
+        .unwrap();
+        assert_eq!(evidence.len(), 1);
+        let claim = evidence[0].claim();
+        assert_eq!(
+            claim.attributes.get("repository_policy_existence"),
+            Some(&Value::String("NOT_PROVEN".to_owned()))
+        );
+        assert_eq!(
+            claim.attributes.get("command_scope"),
+            Some(&Value::String("UNKNOWN".to_owned()))
+        );
+        assert!(claim.observation.contains("without proving policy creation"));
     }
 
     #[test]
