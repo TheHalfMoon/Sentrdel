@@ -589,11 +589,11 @@ fn starts_with(bytes: &[u8], index: usize, needle: &[u8]) -> bool {
     bytes.get(index..index.saturating_add(needle.len())) == Some(needle)
 }
 
-fn dollar_delimiter<'a>(
-    bytes: &'a [u8],
+fn dollar_delimiter(
+    bytes: &[u8],
     start: usize,
     max_tag_bytes: usize,
-) -> Result<Option<&'a [u8]>, SqlScanError> {
+) -> Result<Option<&[u8]>, SqlScanError> {
     if bytes.get(start) != Some(&b'$') {
         return Ok(None);
     }
