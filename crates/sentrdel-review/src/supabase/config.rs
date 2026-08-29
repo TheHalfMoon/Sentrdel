@@ -320,7 +320,12 @@ pub fn parse_supabase_config(
         }
 
         match &table {
-            ConfigTable::Root | ConfigTable::Other => {}
+            ConfigTable::Root => {
+                if security_relevant_root_key(key) {
+                    posture.degrade(limits, unsupported_root_key(line_number, key))?;
+                }
+            }
+            ConfigTable::Other => {}
             ConfigTable::Api => match key {
                 "enabled" => {
                     if seen_api_enabled {
@@ -573,6 +578,10 @@ fn security_relevant_table(parts: &[&str]) -> bool {
     )
 }
 
+fn security_relevant_root_key(key: &str) -> bool {
+    matches!(key, "api" | "auth" | "functions")
+}
+
 fn parse_string_array(
     raw: &str,
     line_number: usize,
@@ -754,6 +763,15 @@ fn unsupported_key(line: usize, table: &str, key: &str) -> ConfigDiagnostic {
     }
 }
 
+fn unsupported_root_key(line: usize, key: &str) -> ConfigDiagnostic {
+    ConfigDiagnostic {
+        line,
+        kind: ConfigDiagnosticKind::UnsupportedSecurityRelevantKey,
+        table: None,
+        key: Some(key.to_owned()),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -834,6 +852,31 @@ mod tests {
             item.kind == ConfigDiagnosticKind::UnsupportedSecurityRelevantTable
         }));
         assert!(posture.edge_function_auth.is_empty());
+    }
+
+    #[test]
+    fn root_security_namespaces_degrade_coverage() {
+        let posture = parse(
+            "project_id = \"fixture\"\napi = { enabled = false }\nauth = { enabled = true }\nfunctions = { webhook = { verify_jwt = false } }\n",
+        );
+        assert_eq!(posture.parse_coverage, ConfigParseCoverage::Partial);
+        assert_eq!(posture.diagnostics.len(), 3);
+        assert!(posture.diagnostics.iter().all(|item| {
+            item.kind == ConfigDiagnosticKind::UnsupportedSecurityRelevantKey
+                && item.table.is_none()
+        }));
+        assert_eq!(
+            posture
+                .diagnostics
+                .iter()
+                .filter_map(|item| item.key.clone())
+                .collect::<BTreeSet<_>>(),
+            BTreeSet::from([
+                "api".to_owned(),
+                "auth".to_owned(),
+                "functions".to_owned(),
+            ])
+        );
     }
 
     #[test]
