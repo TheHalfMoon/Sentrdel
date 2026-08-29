@@ -3,8 +3,8 @@
 //! This module defines only the versioned Sentrdel-owned provider manifest and
 //! provider coverage capability names. It grants no Finding or policy authority.
 
-use sentrdel_schema::pack::{SecurityPackManifest, SourceProvenance};
 use sentrdel_schema::SCHEMA_V1;
+use sentrdel_schema::pack::{SecurityPackManifest, SourceProvenance};
 
 pub const SUPABASE_R2_PACK_ID: &str = "sentrdel.supabase.static-posture";
 pub const SUPABASE_R2_PACK_VERSION: &str = "1";
