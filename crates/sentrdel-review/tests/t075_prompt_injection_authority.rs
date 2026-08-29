@@ -87,10 +87,10 @@ fn injection_text_remains_advisory_and_cannot_suppress_or_downgrade_finding() {
     )
     .expect("injection text remains valid advisory evidence");
     assert_eq!(evidence.len(), 1);
-    assert_eq!(evidence[0].producer().kind, ProducerKind::LlmReasoner);
+    assert_eq!(&evidence[0].producer().kind, &ProducerKind::LlmReasoner);
     assert_eq!(
-        evidence[0].claim().epistemic_class,
-        EpistemicClass::Hypothesis
+        &evidence[0].claim().epistemic_class,
+        &EpistemicClass::Hypothesis
     );
 
     let reconciler = ReconcilerAuthority::from_runtime(
@@ -121,6 +121,9 @@ fn injection_text_remains_advisory_and_cannot_suppress_or_downgrade_finding() {
     .expect("canonical finding");
 
     assert_eq!(finding.workflow_state(), &WorkflowState::New);
-    assert_eq!(finding.draft().severity, Severity::Block);
-    assert_eq!(finding.draft().evidence_ids, vec![evidence[0].evidence_id()]);
+    assert_eq!(&finding.draft().severity, &Severity::Block);
+    assert_eq!(
+        finding.draft().evidence_ids,
+        vec![evidence[0].evidence_id().to_owned()]
+    );
 }
