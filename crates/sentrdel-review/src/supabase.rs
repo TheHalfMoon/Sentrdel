@@ -6,6 +6,7 @@
 //! executes migration SQL or provider tooling.
 
 pub mod posture;
+pub mod rls;
 pub mod sql;
 pub mod sql_model;
 pub mod state;
