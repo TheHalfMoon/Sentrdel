@@ -244,15 +244,7 @@ fn parse_create(cursor: &mut Cursor<'_>) -> (SqlParseCoverage, Option<SupportedS
 
     if matches!(
         cursor.peek_keyword().as_deref(),
-        Some(
-            "MATERIALIZED"
-                | "TEMP"
-                | "TEMPORARY"
-                | "UNLOGGED"
-                | "TRIGGER"
-                | "ROLE"
-                | "EXTENSION"
-        )
+        Some("MATERIALIZED" | "TEMP" | "TEMPORARY" | "UNLOGGED" | "TRIGGER" | "ROLE" | "EXTENSION")
     ) {
         unsupported()
     } else {
@@ -382,9 +374,10 @@ fn parse_create_policy(
         vec!["public".to_owned()]
     };
 
-    if cursor.peek_keyword().is_some_and(|value| {
-        value != "USING" && value != "WITH"
-    }) {
+    if cursor
+        .peek_keyword()
+        .is_some_and(|value| value != "USING" && value != "WITH")
+    {
         return unsupported();
     }
 
@@ -404,7 +397,10 @@ fn parse_alter_policy(
     let Some((policy, relation)) = parse_policy_identity(cursor) else {
         return unsupported();
     };
-    if cursor.consume_keyword("RENAME") || cursor.contains_keyword("AS") || cursor.contains_keyword("FOR") {
+    if cursor.consume_keyword("RENAME")
+        || cursor.contains_keyword("AS")
+        || cursor.contains_keyword("FOR")
+    {
         return unsupported();
     }
 
@@ -420,9 +416,10 @@ fn parse_alter_policy(
         None
     };
 
-    if cursor.peek_keyword().is_some_and(|value| {
-        value != "USING" && value != "WITH"
-    }) {
+    if cursor
+        .peek_keyword()
+        .is_some_and(|value| value != "USING" && value != "WITH")
+    {
         return unsupported();
     }
 
@@ -489,8 +486,9 @@ fn parse_grant_revoke(
     revoke: bool,
 ) -> (SqlParseCoverage, Option<SupportedSqlStatement>) {
     cursor.consume_keyword(if revoke { "REVOKE" } else { "GRANT" });
-    if revoke && (cursor.peek_keyword().as_deref() == Some("GRANT")
-        || cursor.peek_keyword().as_deref() == Some("ADMIN"))
+    if revoke
+        && (cursor.peek_keyword().as_deref() == Some("GRANT")
+            || cursor.peek_keyword().as_deref() == Some("ADMIN"))
     {
         return unsupported();
     }
@@ -515,7 +513,8 @@ fn parse_grant_revoke(
     };
 
     let marker = if revoke { "FROM" } else { "TO" };
-    let Some(objects) = cursor.object_list_until(marker, object_kind == SqlGrantObjectKind::Function)
+    let Some(objects) =
+        cursor.object_list_until(marker, object_kind == SqlGrantObjectKind::Function)
     else {
         return unsupported();
     };
