@@ -51,6 +51,6 @@
 
 ## Remaining gate
 
-- [ ] Planning PR is exact-head qualified, review-clean, merged with expected-head protection, and proven canonical on protected `main`.
+- [x] Planning PR is exact-head qualified, review-clean, merged with expected-head protection, and proven canonical on protected `main`.
 
 Until the remaining gate is satisfied, no R2 product implementation is authorized.

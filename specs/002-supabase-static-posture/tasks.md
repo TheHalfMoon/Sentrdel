@@ -1,7 +1,7 @@
 # Tasks: Supabase P0 Static/Posture Pack
 
 **Input:** Constitution, R1 canonical contracts, R2 `spec.md`, `clarification-closeout.md`, `research.md`, `plan.md`, `data-model.md`, `contracts/static-posture-contract.md`, `checklists/implementation-readiness.md`.  
-**Status:** PLANNING — implementation blocked until R2 planning is canonical and the readiness closeout is complete.
+**Status:** IMPLEMENTATION_READY — R2 planning is canonical; proceed in task order.
 
 ## Format
 
@@ -13,7 +13,7 @@
 
 ## Phase 0 — Canonical planning gate
 
-- [ ] R2-T001 Canonicalize the complete R2 Spec Kit planning slice on protected `main`: exact-head applicable CI, clean review state, expected-head merge, post-merge protected-main evidence, then close the final item in `checklists/implementation-readiness.md`. **Blocks every product implementation task below.**
+- [x] R2-T001 Canonicalize the complete R2 Spec Kit planning slice on protected `main`: exact-head applicable CI, clean review state, expected-head merge, post-merge protected-main evidence, then close the final item in `checklists/implementation-readiness.md`. **Blocks every product implementation task below.**
 
 **Checkpoint:** R2 planning and readiness are canonical. No product code changes occur before this checkpoint.
 
