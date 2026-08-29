@@ -1,0 +1,37 @@
+name: T092 Live Governance Verification Temporary
+
+on:
+  push:
+    branches:
+      - verify/t092-live-governance-20260829-0825
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout without persisted credentials
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Select bounded governance credential and verify
+        shell: bash
+        env:
+          SENTRDEL_GOVERNANCE_ADMIN_TOKEN: ${{ secrets.SENTRDEL_GOVERNANCE_ADMIN_TOKEN }}
+          FALLBACK_GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          set -euo pipefail
+          unset GITHUB_TOKEN || true
+          if [[ -n "${SENTRDEL_GOVERNANCE_ADMIN_TOKEN:-}" ]]; then
+            export GH_TOKEN="$SENTRDEL_GOVERNANCE_ADMIN_TOKEN"
+            echo "credential-source=SENTRDEL_GOVERNANCE_ADMIN_TOKEN"
+          elif [[ -n "${FALLBACK_GH_TOKEN:-}" ]]; then
+            export GH_TOKEN="$FALLBACK_GH_TOKEN"
+            echo "credential-source=GH_TOKEN"
+          else
+            echo "credential-source=NONE"
+            exit 78
+          fi
+          python3 scripts/verify_repository_governance.py
