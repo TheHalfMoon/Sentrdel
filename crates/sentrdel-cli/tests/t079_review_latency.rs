@@ -1,10 +1,8 @@
 #![forbid(unsafe_code)]
 
 use sentrdel_review::{
-    secrets::scan_changed_secrets,
-    structural::StructuralRegistry,
-    structural_rules::high_signal_structural_rules,
-    view::NormalizedRepoPath,
+    secrets::scan_changed_secrets, structural::StructuralRegistry,
+    structural_rules::high_signal_structural_rules, view::NormalizedRepoPath,
 };
 use serde::Serialize;
 use std::{
@@ -66,7 +64,8 @@ fn p95(samples: &mut [Duration]) -> Duration {
 fn measure_warm_review(changed_loc: usize, sample_count: usize) -> Duration {
     let source = benchmark_source(changed_loc);
     let path = NormalizedRepoPath::parse("src/t079-benchmark.js", 512).expect("benchmark path");
-    let registry = StructuralRegistry::new(high_signal_structural_rules()).expect("structural rules");
+    let registry =
+        StructuralRegistry::new(high_signal_structural_rules()).expect("structural rules");
 
     let warm_secret = scan_changed_secrets(&path, &source, CAPTURED_AT).expect("warm secret scan");
     let warm_structural = registry.scan(&path, &source).expect("warm structural scan");
