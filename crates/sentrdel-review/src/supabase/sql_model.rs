@@ -374,10 +374,23 @@ fn parse_create_policy(
         vec!["public".to_owned()]
     };
 
-    if cursor
-        .peek_keyword()
-        .is_some_and(|value| value != "USING" && value != "WITH")
-    {
+    let has_using = if cursor.consume_keyword("USING") {
+        if !cursor.consume_nonempty_parenthesized() {
+            return unsupported();
+        }
+        true
+    } else {
+        false
+    };
+    let has_with_check = if cursor.consume_sequence(&["WITH", "CHECK"]) {
+        if !cursor.consume_nonempty_parenthesized() {
+            return unsupported();
+        }
+        true
+    } else {
+        false
+    };
+    if !cursor.is_at_end() {
         return unsupported();
     }
 
@@ -386,8 +399,8 @@ fn parse_create_policy(
         relation,
         command,
         roles,
-        has_using: cursor.contains_keyword("USING"),
-        has_with_check: cursor.contains_sequence(&["WITH", "CHECK"]),
+        has_using,
+        has_with_check,
     })
 }
 
@@ -416,10 +429,23 @@ fn parse_alter_policy(
         None
     };
 
-    if cursor
-        .peek_keyword()
-        .is_some_and(|value| value != "USING" && value != "WITH")
-    {
+    let has_using = if cursor.consume_keyword("USING") {
+        if !cursor.consume_nonempty_parenthesized() {
+            return unsupported();
+        }
+        true
+    } else {
+        false
+    };
+    let has_with_check = if cursor.consume_sequence(&["WITH", "CHECK"]) {
+        if !cursor.consume_nonempty_parenthesized() {
+            return unsupported();
+        }
+        true
+    } else {
+        false
+    };
+    if !cursor.is_at_end() {
         return unsupported();
     }
 
@@ -427,8 +453,8 @@ fn parse_alter_policy(
         policy,
         relation,
         roles,
-        has_using: cursor.contains_keyword("USING"),
-        has_with_check: cursor.contains_sequence(&["WITH", "CHECK"]),
+        has_using,
+        has_with_check,
     })
 }
 
@@ -632,6 +658,42 @@ impl<'a> Cursor<'a> {
             self.position = start;
             false
         }
+    }
+
+    fn consume_nonempty_parenthesized(&mut self) -> bool {
+        let start = self.position;
+        if !self.consume_symbol("(") {
+            return false;
+        }
+        let mut depth = 1_usize;
+        let mut has_expression_token = false;
+        while self.position < self.tokens.len() {
+            let token = &self.tokens[self.position];
+            if token.kind == SqlTokenKind::Symbol {
+                match token_text(self.input, token) {
+                    "(" => {
+                        depth = depth.saturating_add(1);
+                        self.position += 1;
+                    }
+                    ")" => {
+                        depth -= 1;
+                        self.position += 1;
+                        if depth == 0 {
+                            return has_expression_token;
+                        }
+                    }
+                    _ => {
+                        has_expression_token = true;
+                        self.position += 1;
+                    }
+                }
+            } else {
+                has_expression_token = true;
+                self.position += 1;
+            }
+        }
+        self.position = start;
+        false
     }
 
     fn parse_identifier(&mut self) -> Option<String> {
@@ -961,6 +1023,38 @@ mod tests {
         assert!(matches!(
             &statements[3],
             SupportedSqlStatement::AlterPolicy { roles: None, .. }
+        ));
+    }
+
+    #[test]
+    fn malformed_policy_clause_markers_fail_closed() {
+        let statements = unsupported_statements(
+            "create policy bare_using on public.accounts using; create policy empty_using on public.accounts using (); create policy bad_with on public.accounts with nope; alter policy bare_alter on public.accounts using; alter policy empty_check on public.accounts with check ();",
+        );
+        assert_eq!(statements.len(), 5);
+    }
+
+    #[test]
+    fn opaque_nested_policy_expressions_remain_supported() {
+        let statements = supported_statements(
+            "create policy nested on public.accounts to authenticated using ((owner_id = auth.uid()) and (active = true)) with check ((owner_id = auth.uid())); alter policy nested on public.accounts using ((owner_id = auth.uid()));",
+        );
+        assert_eq!(statements.len(), 2);
+        assert!(matches!(
+            &statements[0],
+            SupportedSqlStatement::CreatePolicy {
+                has_using: true,
+                has_with_check: true,
+                ..
+            }
+        ));
+        assert!(matches!(
+            &statements[1],
+            SupportedSqlStatement::AlterPolicy {
+                has_using: true,
+                has_with_check: false,
+                ..
+            }
         ));
     }
 
