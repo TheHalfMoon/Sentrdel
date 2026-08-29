@@ -35,11 +35,9 @@ use std::{
 };
 
 const CAPTURED_AT: &str = "2026-08-29T00:00:00Z";
-const RELEASE_SUITE_BYTES: &[u8] =
-    include_bytes!("../../../tests/benchmark/r1-release-suite.json");
-const REVIEW_CORPUS_BYTES: &[u8] = include_bytes!(
-    "../../../tests/benchmark/development-evaluation/t049-review-steel-thread.json"
-);
+const RELEASE_SUITE_BYTES: &[u8] = include_bytes!("../../../tests/benchmark/r1-release-suite.json");
+const REVIEW_CORPUS_BYTES: &[u8] =
+    include_bytes!("../../../tests/benchmark/development-evaluation/t049-review-steel-thread.json");
 const MCP_CLIENT_BYTES: &[u8] = include_bytes!("../../../fixtures/mcp/t058-client.jsonl");
 const MCP_SERVER_BYTES: &[u8] = include_bytes!("../../../fixtures/mcp/t058-server.jsonl");
 const SAFE_WORKFLOW: &[u8] = br#"name: safe
@@ -469,7 +467,10 @@ fn validate_suite(suite: &ReleaseSuite) {
         "t049-missing-engine-review",
         "t049-hostile-repository-review",
     ] {
-        assert!(case_ids.contains(required), "missing review release case {required}");
+        assert!(
+            case_ids.contains(required),
+            "missing review release case {required}"
+        );
     }
 
     let unique_dimensions = suite
@@ -497,7 +498,10 @@ fn validate_suite(suite: &ReleaseSuite) {
         "guard_latency",
         "guard_bounded_frame_memory",
     ] {
-        assert!(dimensions.contains_key(required), "missing release dimension {required}");
+        assert!(
+            dimensions.contains_key(required),
+            "missing release dimension {required}"
+        );
         assert!(
             !dimensions[required].scenarios.is_empty(),
             "release dimension {required} has no scenario"
