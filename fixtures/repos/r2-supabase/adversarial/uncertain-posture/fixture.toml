@@ -1,0 +1,24 @@
+schema_version = 1
+fixture_class = "adversarial"
+
+[oversized_sql]
+path = "supabase/migrations/generated_oversized.sql"
+materialization = "repeat_ascii_comment"
+requested_bytes = 1048577
+expected = "MALFORMED_OR_BOUNDED_REJECTION"
+
+[ambiguous_order]
+order_key = "20260829000300"
+paths = [
+  "supabase/migrations/20260829000300_enable.sql",
+  "supabase/migrations/20260829000300_disable.sql",
+]
+expected = "UNCERTAIN"
+
+[dynamic_sql]
+path = "supabase/migrations/20260829000200_dynamic.sql"
+expected = "UNSUPPORTED_SECURITY_RELEVANT"
+
+[secret_canary]
+path = "supabase/functions/webhook/index.ts"
+expected_persistence = "REDACTED"

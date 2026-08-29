@@ -1,0 +1,8 @@
+project_id = "sentrdel-r2-safe-fixture"
+
+[api]
+enabled = true
+schemas = ["public", "storage"]
+
+[functions.webhook]
+verify_jwt = true
