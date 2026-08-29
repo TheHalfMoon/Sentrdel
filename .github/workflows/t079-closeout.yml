@@ -1,0 +1,37 @@
+name: T079 Closeout
+
+on:
+  push:
+    branches:
+      - closeout/001-t079-review-latency-benchmark
+
+permissions:
+  contents: write
+
+jobs:
+  closeout:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout closeout branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: closeout/001-t079-review-latency-benchmark
+      - name: Mark T079 complete and remove temporary workflow
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('specs/001-v0-1-evidence-guard-foundation/tasks.md')
+          text = path.read_text()
+          old = '- [ ] T079 [P] Add warm review latency target (<5s p95 <2k changed LOC; <30s broader target) with benchmark-machine metadata.'
+          new = '- [x] T079 [P] Add warm review latency target (<5s p95 <2k changed LOC; <30s broader target) with benchmark-machine metadata.'
+          if text.count(old) != 1:
+              raise SystemExit('expected exactly one open T079 checkbox')
+          path.write_text(text.replace(old, new, 1))
+          PY
+          rm .github/workflows/t079-closeout.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add specs/001-v0-1-evidence-guard-foundation/tasks.md .github/workflows/t079-closeout.yml
+          git commit -m 'docs(spec): close T079 review latency task'
+          git push origin HEAD:closeout/001-t079-review-latency-benchmark
