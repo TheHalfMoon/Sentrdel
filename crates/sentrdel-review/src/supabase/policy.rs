@@ -64,7 +64,7 @@ impl fmt::Display for PolicyPostureError {
             }
             Self::MissingRemovalProvenance { policy } => write!(
                 formatter,
-                "removed policy {policy} lacks after-state relation security provenance"
+                "removed policy {policy} lacks exact repository removal provenance"
             ),
             Self::Evidence(error) => {
                 write!(formatter, "cannot seal policy posture evidence: {error}")
@@ -145,23 +145,10 @@ pub fn observe_policy_delta(
                     )?,
                 )?;
             }
-            (None, Some(new)) => {
-                push_delta(
-                    &mut evidence,
-                    limits,
-                    seal_delta(
-                        &authority,
-                        before,
-                        after,
-                        &identity,
-                        "POLICY_ADDED",
-                        "Supported repository-derived policy is present in the after state and absent from the before state",
-                        &new.provenance,
-                        &new.provenance,
-                        BTreeMap::new(),
-                        captured_at,
-                    )?,
-                )?;
+            (None, Some(_)) => {
+                // Presence in the after state does not by itself provide a bounded
+                // before-input provenance anchor for an absence claim. R2-T012
+                // therefore does not emit POLICY_ADDED from state absence alone.
             }
             (Some(old), Some(new)) => {
                 append_supported_changes(
@@ -491,10 +478,7 @@ fn removal_provenance<'a>(
     after: &'a RepositoryPostureState,
     identity: &PolicyIdentity,
 ) -> Option<&'a StatementProvenance> {
-    after
-        .relations
-        .get(&identity.relation)
-        .and_then(|relation| relation.last_security_change.as_ref())
+    after.policy_removals.get(identity)
 }
 
 fn validate_inputs(
@@ -666,7 +650,7 @@ mod tests {
     }
 
     #[test]
-    fn removal_is_direct_delta_with_after_state_provenance() {
+    fn removal_keeps_exact_drop_provenance_after_unrelated_security_change() {
         let first = migration(
             "20260829000100",
             "policy",
@@ -681,6 +665,12 @@ mod tests {
                 "drop",
                 "sha256:drop",
                 "drop policy account_select on public.accounts;",
+            ),
+            migration(
+                "20260829000300",
+                "rls",
+                "sha256:rls",
+                "alter table public.accounts enable row level security;",
             ),
         ]);
         let evidence = observe_policy_delta(
@@ -701,6 +691,36 @@ mod tests {
                 .input_digests
                 .contains(&"sha256:drop".to_owned())
         );
+        assert!(
+            !evidence[0]
+                .claim()
+                .input_digests
+                .contains(&"sha256:rls".to_owned())
+        );
+    }
+
+    #[test]
+    fn new_policy_without_before_provenance_anchor_does_not_invent_added_delta() {
+        let before = state(&[migration(
+            "20260829000100",
+            "before",
+            "sha256:before",
+            "create table public.accounts(id bigint);",
+        )]);
+        let after = state(&[migration(
+            "20260829000100",
+            "after",
+            "sha256:after",
+            "create table public.accounts(id bigint); create policy account_select on public.accounts for select to authenticated using (true);",
+        )]);
+        let evidence = observe_policy_delta(
+            &before,
+            &after,
+            "2026-08-29T13:40:00Z",
+            PolicyPostureLimits::default(),
+        )
+        .unwrap();
+        assert!(evidence.is_empty());
     }
 
     #[test]
