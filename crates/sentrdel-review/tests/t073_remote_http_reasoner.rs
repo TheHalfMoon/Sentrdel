@@ -8,7 +8,9 @@ use std::thread;
 use std::time::Duration;
 
 fn find_bytes(haystack: &[u8], needle: &[u8]) -> Option<usize> {
-    haystack.windows(needle.len()).position(|window| window == needle)
+    haystack
+        .windows(needle.len())
+        .position(|window| window == needle)
 }
 
 fn serve_once(body: String) -> (SocketAddr, mpsc::Receiver<Vec<u8>>, thread::JoinHandle<()>) {
@@ -51,7 +53,9 @@ fn serve_once(body: String) -> (SocketAddr, mpsc::Receiver<Vec<u8>>, thread::Joi
             body.len(),
             body
         );
-        stream.write_all(response.as_bytes()).expect("write response");
+        stream
+            .write_all(response.as_bytes())
+            .expect("write response");
     });
     (address, receiver, handle)
 }
@@ -105,8 +109,12 @@ fn explicit_remote_adapter_sends_only_bounded_reasoner_contract() {
             .with_timeouts(Duration::from_secs(2), Duration::from_secs(2)),
     )
     .expect("remote reasoner");
-    let request = ReasonerRequest::new("review selected evidence", Vec::new(), ReasonerLimits::default())
-        .expect("bounded request");
+    let request = ReasonerRequest::new(
+        "review selected evidence",
+        Vec::new(),
+        ReasonerLimits::default(),
+    )
+    .expect("bounded request");
 
     let drafts = reasoner.reason(&request).expect("remote reasoning");
     assert_eq!(reasoner.id(), "explicit-remote-http");
@@ -121,7 +129,8 @@ fn explicit_remote_adapter_sends_only_bounded_reasoner_contract() {
     assert!(header.contains("Host: reasoner.example\r\n"));
     assert!(!header.to_ascii_lowercase().contains("authorization:"));
 
-    let body: serde_json::Value = serde_json::from_slice(&wire[body_start..]).expect("request JSON");
+    let body: serde_json::Value =
+        serde_json::from_slice(&wire[body_start..]).expect("request JSON");
     assert_eq!(body["schema"], "sentrdel-reasoner-v1");
     assert_eq!(body["instruction"], "review selected evidence");
     assert_eq!(body["evidence"], serde_json::json!([]));
