@@ -93,14 +93,26 @@ impl fmt::Display for StackDetectorRegistryError {
         match self {
             Self::EmptyDetectorId => formatter.write_str("stack detector id must not be empty"),
             Self::DuplicateDetectorId(id) => write!(formatter, "duplicate stack detector id: {id}"),
-            Self::EmptyRuleSet(id) => write!(formatter, "stack detector {id} must declare at least one path rule"),
+            Self::EmptyRuleSet(id) => write!(
+                formatter,
+                "stack detector {id} must declare at least one path rule"
+            ),
             Self::EmptyRuleValue { detector_id } => {
-                write!(formatter, "stack detector {detector_id} contains an empty path rule")
+                write!(
+                    formatter,
+                    "stack detector {detector_id} contains an empty path rule"
+                )
             }
             Self::InvalidLimits => formatter.write_str("stack detection limits must be non-zero"),
-            Self::TooManyPaths { max } => write!(formatter, "repository path count exceeds stack detection cap {max}"),
+            Self::TooManyPaths { max } => write!(
+                formatter,
+                "repository path count exceeds stack detection cap {max}"
+            ),
             Self::InvalidPath { index, source } => {
-                write!(formatter, "repository path at index {index} is invalid: {source}")
+                write!(
+                    formatter,
+                    "repository path at index {index} is invalid: {source}"
+                )
             }
         }
     }
@@ -134,7 +146,11 @@ impl<'a> StackDetectorRegistry<'a> {
             if spec.any_path_rules.is_empty() {
                 return Err(StackDetectorRegistryError::EmptyRuleSet(spec.id.to_owned()));
             }
-            if spec.any_path_rules.iter().any(|rule| rule_value(*rule).is_empty()) {
+            if spec
+                .any_path_rules
+                .iter()
+                .any(|rule| rule_value(*rule).is_empty())
+            {
                 return Err(StackDetectorRegistryError::EmptyRuleValue {
                     detector_id: spec.id.to_owned(),
                 });
@@ -254,9 +270,11 @@ mod tests {
         ));
 
         const EMPTY_RULES: &[PathMatchRule] = &[];
-        const EMPTY_SPEC: &[StackDetectorSpec] = &[
-            StackDetectorSpec::new("fixture", StackKind::Provider, EMPTY_RULES),
-        ];
+        const EMPTY_SPEC: &[StackDetectorSpec] = &[StackDetectorSpec::new(
+            "fixture",
+            StackKind::Provider,
+            EMPTY_RULES,
+        )];
         assert!(matches!(
             StackDetectorRegistry::new(EMPTY_SPEC),
             Err(StackDetectorRegistryError::EmptyRuleSet(id)) if id == "fixture"
