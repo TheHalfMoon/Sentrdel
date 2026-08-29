@@ -8,6 +8,7 @@ pub mod git;
 pub mod github_actions;
 pub mod osv;
 pub mod pack_registry;
+pub mod profile;
 pub mod project_detection;
 pub mod reconcile;
 pub mod secrets;
