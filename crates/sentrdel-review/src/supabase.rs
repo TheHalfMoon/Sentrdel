@@ -142,7 +142,8 @@ where
     I: IntoIterator<Item = S>,
     S: AsRef<str>,
 {
-    if limits.max_migrations == 0 || limits.max_path_bytes == 0 || limits.max_total_path_bytes == 0 {
+    if limits.max_migrations == 0 || limits.max_path_bytes == 0 || limits.max_total_path_bytes == 0
+    {
         return Err(SupabaseMigrationDiscoveryError::InvalidLimits);
     }
 
@@ -167,9 +168,11 @@ where
         let path = NormalizedRepoPath::parse(raw_path, limits.max_path_bytes)
             .map_err(|source| SupabaseMigrationDiscoveryError::InvalidPath { index, source })?;
         let order_key = migration_order_key(relative)
-            .ok_or_else(|| SupabaseMigrationDiscoveryError::UnsupportedMigrationFilename {
-                path: path.clone(),
-            })?
+            .ok_or_else(
+                || SupabaseMigrationDiscoveryError::UnsupportedMigrationFilename {
+                    path: path.clone(),
+                },
+            )?
             .to_owned();
 
         total_path_bytes = total_path_bytes
