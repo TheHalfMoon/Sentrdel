@@ -1,0 +1,56 @@
+name: T092 Live Governance Verification
+
+on:
+  push:
+    branches:
+      - verify/t092-live-20260829-0845
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout without persisted credentials
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+
+      - name: Select bounded governance credential
+        id: credential
+        env:
+          SENTRDEL_GOVERNANCE_ADMIN_TOKEN: ${{ secrets.SENTRDEL_GOVERNANCE_ADMIN_TOKEN }}
+          GH_TOKEN_FALLBACK: ${{ secrets.GH_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -n "${SENTRDEL_GOVERNANCE_ADMIN_TOKEN}" ]]; then
+            echo "source=SENTRDEL_GOVERNANCE_ADMIN_TOKEN" >> "$GITHUB_OUTPUT"
+            printf '%s' "$SENTRDEL_GOVERNANCE_ADMIN_TOKEN" > "$RUNNER_TEMP/governance-token"
+          elif [[ -n "${GH_TOKEN_FALLBACK}" ]]; then
+            echo "source=GH_TOKEN" >> "$GITHUB_OUTPUT"
+            printf '%s' "$GH_TOKEN_FALLBACK" > "$RUNNER_TEMP/governance-token"
+          else
+            echo "source=NONE" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Verify protected main governance read-only
+        if: steps.credential.outputs.source != 'NONE'
+        env:
+          SENTRDEL_REPOSITORY: TheHalfMoon/Sentrdel
+          SENTRDEL_BRANCH: main
+        shell: bash
+        run: |
+          set -euo pipefail
+          unset GITHUB_TOKEN
+          TOKEN="$(cat "$RUNNER_TEMP/governance-token")"
+          trap 'rm -f "$RUNNER_TEMP/governance-token"' EXIT
+          GH_TOKEN="$TOKEN" python3 scripts/verify_repository_governance.py
+
+      - name: Fail closed when no bounded credential exists
+        if: steps.credential.outputs.source == 'NONE'
+        shell: bash
+        run: |
+          echo "No bounded governance credential is available." >&2
+          exit 1
