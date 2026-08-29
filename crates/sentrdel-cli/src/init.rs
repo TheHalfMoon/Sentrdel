@@ -29,7 +29,9 @@ impl fmt::Display for InitOutputError {
         match self {
             Self::Contract(error) => write!(formatter, "init CLI contract failed: {error}"),
             Self::Json(error) => write!(formatter, "init JSON serialization failed: {error}"),
-            Self::Format(error) => write!(formatter, "init human output formatting failed: {error}"),
+            Self::Format(error) => {
+                write!(formatter, "init human output formatting failed: {error}")
+            }
         }
     }
 }
@@ -85,7 +87,13 @@ pub fn build_init_output(
         .coverage
         .entries
         .iter()
-        .map(|entry| coverage_record(entry, &profile.repository_root_digest, &profile.refreshed_at))
+        .map(|entry| {
+            coverage_record(
+                entry,
+                &profile.repository_root_digest,
+                &profile.refreshed_at,
+            )
+        })
         .collect();
     let diagnostics = inventory_diagnostics(snapshot)?;
     let envelope = CliEnvelope::new(
@@ -187,7 +195,12 @@ fn inventory_diagnostics(
         &profile.security_packs,
     )?;
 
-    for entry in snapshot.coverage.entries.iter().filter(|entry| entry.is_gap()) {
+    for entry in snapshot
+        .coverage
+        .entries
+        .iter()
+        .filter(|entry| entry.is_gap())
+    {
         diagnostics.push(CliDiagnostic::new(
             format!(
                 "INIT_COVERAGE_{}_{}",
@@ -322,9 +335,7 @@ const fn dimension_name(dimension: PackCoverageDimension) -> &'static str {
     dimension.as_str()
 }
 
-const fn provider_dimension(
-    dimension: PackCoverageDimension,
-) -> Option<ProviderCoverageDimension> {
+const fn provider_dimension(dimension: PackCoverageDimension) -> Option<ProviderCoverageDimension> {
     match dimension {
         PackCoverageDimension::Detection => Some(ProviderCoverageDimension::Detection),
         PackCoverageDimension::StaticPosture => Some(ProviderCoverageDimension::StaticPosture),

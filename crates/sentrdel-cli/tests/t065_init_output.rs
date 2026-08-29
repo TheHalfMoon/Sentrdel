@@ -8,9 +8,9 @@ use sentrdel_review::stack_detection::{
     PathMatchRule, StackDetectorRegistry, StackDetectorSpec, StackKind,
 };
 use sentrdel_review::supabase_detection::detect_supabase;
+use sentrdel_schema::SCHEMA_V1;
 use sentrdel_schema::coverage::CoverageState;
 use sentrdel_schema::pack::{SecurityPackManifest, SourceProvenance};
-use sentrdel_schema::SCHEMA_V1;
 use serde_json::Value;
 
 const NEXT_RULES: &[PathMatchRule] = &[PathMatchRule::Basename("next.config.mjs")];
@@ -48,11 +48,7 @@ fn snapshot() -> sentrdel_review::profile::ProjectProfileSnapshot {
             DetectionLimits::default(),
         )
         .unwrap();
-    let supabase = detect_supabase(
-        ["supabase/config.toml"],
-        DetectionLimits::default(),
-    )
-    .unwrap();
+    let supabase = detect_supabase(["supabase/config.toml"], DetectionLimits::default()).unwrap();
     let mut packs = SecurityPackRegistry::new();
     packs.register(pack()).unwrap();
     build_project_profile_snapshot(
@@ -79,7 +75,11 @@ fn snapshot() -> sentrdel_review::profile::ProjectProfileSnapshot {
 fn human_init_output_leads_with_inventory_and_makes_gaps_visible() {
     let output = build_init_output(&snapshot(), ".", 7).unwrap();
     assert_eq!(output.envelope.decision, CliDecision::Allow);
-    assert!(output.human.starts_with("Sentrdel init\nRepository: repo:fixture (.)\n"));
+    assert!(
+        output
+            .human
+            .starts_with("Sentrdel init\nRepository: repo:fixture (.)\n")
+    );
     for expected in [
         "Languages: typescript",
         "Package ecosystems: npm",
