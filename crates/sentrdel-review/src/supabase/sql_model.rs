@@ -782,7 +782,7 @@ impl<'a> Cursor<'a> {
             if self.peek_keyword().as_deref() == Some(marker) {
                 break;
             }
-            if !self.consume_symbol(",") {
+            if !self.consume_symbol(",") || self.peek_keyword().as_deref() == Some(marker) {
                 return None;
             }
         }
@@ -1051,6 +1051,27 @@ mod tests {
                 if privileges == &vec!["INSERT".to_owned()]
                     && roles == &vec!["anon".to_owned()]
         ));
+    }
+
+    #[test]
+    fn canonical_multi_object_grants_remain_supported() {
+        let statements = supported_statements(
+            "grant select on table public.accounts, public.profiles to authenticated; revoke select on table public.accounts, public.profiles from authenticated;",
+        );
+        assert_eq!(statements.len(), 2);
+        assert!(statements.iter().all(|statement| match statement {
+            SupportedSqlStatement::Grant { objects, .. }
+            | SupportedSqlStatement::Revoke { objects, .. } => objects.len() == 2,
+            _ => false,
+        }));
+    }
+
+    #[test]
+    fn trailing_grant_object_separators_fail_closed() {
+        let statements = unsupported_statements(
+            "grant select on table public.accounts, to anon; revoke select on table public.accounts, from authenticated; grant execute on function private.current_account_id(), to authenticated;",
+        );
+        assert_eq!(statements.len(), 3);
     }
 
     #[test]
