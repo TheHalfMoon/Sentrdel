@@ -9,12 +9,12 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::error::Error;
 use std::fmt;
 
-use serde_json::Value;
 use sentrdel_schema::SCHEMA_V1;
 use sentrdel_schema::evidence::{
     EpistemicClass, Evidence, EvidenceAuthority, EvidenceClaim, EvidenceLocation, EvidenceSubject,
     EvidenceValidationError, ProducerKind,
 };
+use serde_json::Value;
 
 use crate::view::NormalizedRepoPath;
 
@@ -128,9 +128,14 @@ impl fmt::Display for ApiExposureError {
                 "API exposed schema count {count} exceeds bounded cap {max}"
             ),
             Self::InvalidSchemaName { schema } => {
-                write!(formatter, "API exposed schema name is not bounded/canonical: {schema:?}")
+                write!(
+                    formatter,
+                    "API exposed schema name is not bounded/canonical: {schema:?}"
+                )
             }
-            Self::Evidence(error) => write!(formatter, "cannot seal API exposure evidence: {error}"),
+            Self::Evidence(error) => {
+                write!(formatter, "cannot seal API exposure evidence: {error}")
+            }
         }
     }
 }
@@ -260,9 +265,9 @@ fn config_location(provenance: &ConfigExposureProvenance) -> EvidenceLocation {
 fn validate_schema_name(schema: &str) -> Result<(), ApiExposureError> {
     let valid = !schema.is_empty()
         && schema.len() <= DEFAULT_MAX_API_SCHEMA_NAME_BYTES
-        && schema.bytes().all(|byte| {
-            byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'_'
-        });
+        && schema
+            .bytes()
+            .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'_');
     if valid {
         Ok(())
     } else {
