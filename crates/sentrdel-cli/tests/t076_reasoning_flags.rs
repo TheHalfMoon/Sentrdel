@@ -10,8 +10,7 @@ fn reason_is_opt_in_and_no_network_is_an_absolute_network_ceiling() {
     assert!(enabled.reason_enabled());
     assert!(enabled.network_reasoning_allowed());
 
-    let no_network =
-        ReviewReasoningFlags::from_args(["review", REASON_FLAG, NO_NETWORK_FLAG]);
+    let no_network = ReviewReasoningFlags::from_args(["review", REASON_FLAG, NO_NETWORK_FLAG]);
     assert!(no_network.reason_enabled());
     assert!(no_network.no_network());
     assert!(!no_network.network_reasoning_allowed());
