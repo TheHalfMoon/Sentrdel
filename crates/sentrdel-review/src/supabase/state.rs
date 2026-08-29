@@ -237,6 +237,7 @@ pub struct RepositoryPostureState {
     pub schemas: BTreeMap<String, StatementProvenance>,
     pub relations: BTreeMap<SupabaseObjectId, RelationPosture>,
     pub policies: BTreeMap<PolicyIdentity, PolicyPosture>,
+    pub policy_removals: BTreeMap<PolicyIdentity, StatementProvenance>,
     pub functions: BTreeMap<SupabaseObjectId, FunctionPosture>,
     pub generic_grants: BTreeMap<GenericGrantTarget, BTreeMap<GrantKey, StatementProvenance>>,
     pub coverage_state: PostureCoverageState,
@@ -249,6 +250,7 @@ impl Default for RepositoryPostureState {
             schemas: BTreeMap::new(),
             relations: BTreeMap::new(),
             policies: BTreeMap::new(),
+            policy_removals: BTreeMap::new(),
             functions: BTreeMap::new(),
             generic_grants: BTreeMap::new(),
             coverage_state: PostureCoverageState::Complete,
@@ -484,6 +486,7 @@ fn apply_supported_statement(
                 },
                 provenance: provenance.clone(),
             };
+            state.policy_removals.remove(&identity);
             state.policies.insert(identity.clone(), posture);
             let relation_posture = relation_posture_mut(state, relation);
             relation_posture.policy_ids.insert(identity);
@@ -504,6 +507,7 @@ fn apply_supported_statement(
                 relation: relation.clone(),
                 name: policy,
             };
+            state.policy_removals.remove(&identity);
             let posture = state
                 .policies
                 .entry(identity.clone())
@@ -543,6 +547,9 @@ fn apply_supported_statement(
                 name: policy,
             };
             state.policies.remove(&identity);
+            state
+                .policy_removals
+                .insert(identity.clone(), provenance.clone());
             let relation_posture = relation_posture_mut(state, relation);
             relation_posture.policy_ids.remove(&identity);
             relation_posture.last_security_change = Some(provenance.clone());
