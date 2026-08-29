@@ -429,9 +429,7 @@ fn apply_supported_statement(
                 return;
             };
             let posture = relation_posture_mut(state, object);
-            posture
-                .exists_in_supported_history
-                .set(true, provenance);
+            posture.exists_in_supported_history.set(true, provenance);
             posture.last_security_change = Some(provenance.clone());
         }
         SupportedSqlStatement::AlterTableRls { relation, enabled } => {
@@ -590,9 +588,7 @@ fn apply_supported_statement(
                 .functions
                 .entry(object.clone())
                 .or_insert_with(|| FunctionPosture::new(object, provenance));
-            posture
-                .exists_in_supported_history
-                .set(true, provenance);
+            posture.exists_in_supported_history.set(true, provenance);
             posture
                 .security_mode
                 .set(function_security(security_mode), provenance);
@@ -642,9 +638,7 @@ fn apply_supported_statement(
                 return;
             };
             let posture = relation_posture_mut(state, object);
-            posture
-                .exists_in_supported_history
-                .set(true, provenance);
+            posture.exists_in_supported_history.set(true, provenance);
             posture.view_security_invoker.set(
                 match security_invoker {
                     Some(true) => ViewSecurityInvokerState::Enabled,
@@ -685,13 +679,7 @@ fn apply_grant_change(
                     continue;
                 };
                 let posture = relation_posture_mut(state, object);
-                mutate_grants(
-                    &mut posture.grants,
-                    revoke,
-                    &privileges,
-                    &roles,
-                    provenance,
-                );
+                mutate_grants(&mut posture.grants, revoke, &privileges, &roles, provenance);
                 posture.last_security_change = Some(provenance.clone());
             }
             SqlGrantObjectKind::Function => {
@@ -841,12 +829,11 @@ mod tests {
             "create table public.accounts(id bigint); alter table public.accounts enable row level security;",
         );
 
-        let forward = reduce_repository_posture(
-            &[earlier.clone(), later.clone()],
-            SqlScanLimits::default(),
-        )
-        .unwrap();
-        let reversed = reduce_repository_posture(&[later, earlier], SqlScanLimits::default()).unwrap();
+        let forward =
+            reduce_repository_posture(&[earlier.clone(), later.clone()], SqlScanLimits::default())
+                .unwrap();
+        let reversed =
+            reduce_repository_posture(&[later, earlier], SqlScanLimits::default()).unwrap();
         assert_eq!(forward, reversed);
 
         let object = SupabaseObjectId {
@@ -902,16 +889,23 @@ mod tests {
         assert_eq!(policy.using_expression.value, ExpressionPresence::Present);
         assert_eq!(policy.check_expression.value, ExpressionPresence::Present);
         assert_eq!(
-            policy.command_scope.provenance.as_ref().unwrap().migration_order,
+            policy
+                .command_scope
+                .provenance
+                .as_ref()
+                .unwrap()
+                .migration_order,
             0
         );
         assert_eq!(policy.roles.provenance.as_ref().unwrap().migration_order, 1);
-        assert!(state
-            .relations
-            .get(&relation)
-            .unwrap()
-            .policy_ids
-            .contains(&identity));
+        assert!(
+            state
+                .relations
+                .get(&relation)
+                .unwrap()
+                .policy_ids
+                .contains(&identity)
+        );
 
         let dropped = reduce_repository_posture(
             &[
@@ -932,12 +926,14 @@ mod tests {
         )
         .unwrap();
         assert!(!dropped.policies.contains_key(&identity));
-        assert!(!dropped
-            .relations
-            .get(&relation)
-            .unwrap()
-            .policy_ids
-            .contains(&identity));
+        assert!(
+            !dropped
+                .relations
+                .get(&relation)
+                .unwrap()
+                .policy_ids
+                .contains(&identity)
+        );
     }
 
     #[test]
@@ -1015,10 +1011,7 @@ mod tests {
         };
         let function = state.functions.get(&function_id).unwrap();
         assert_eq!(function.security_mode.value, FunctionSecurityState::Unknown);
-        assert_eq!(
-            function.search_path.value,
-            FunctionSearchPathState::Unknown
-        );
+        assert_eq!(function.search_path.value, FunctionSearchPathState::Unknown);
     }
 
     #[test]
