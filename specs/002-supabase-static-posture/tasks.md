@@ -31,7 +31,7 @@
 
 ## Phase 2 — Bounded migration and SQL substrate
 
-- [ ] R2-T005 Implement canonical Supabase migration discovery/order from bounded repository paths; reject ambiguous duplicate order keys and never execute migrations.
+- [x] R2-T005 Implement canonical Supabase migration discovery/order from bounded repository paths; reject ambiguous duplicate order keys and never execute migrations.
 - [ ] R2-T006 Implement bounded SQL tokenizer/statement splitter with explicit caps for bytes, statements, tokens/nesting, and diagnostics; hostile comments/strings/dollar quoting cannot cause unbounded behavior.
 - [ ] R2-T007 Implement the supported SQL statement model for schemas/relations, RLS enable/disable, policies, grants/revokes, functions/security attributes, and minimal view/exposure attributes required by R2.
 - [ ] R2-T008 Implement deterministic repository-derived posture state reduction with per-property statement provenance and first-class UNKNOWN state.
