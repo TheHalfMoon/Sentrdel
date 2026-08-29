@@ -84,7 +84,7 @@ pub fn run_optional_reasoning<R: Reasoner + ?Sized>(
     let producer_id = reasoner.id();
     validate_reasoner_id(producer_id)?;
     validate_observed_at(observed_at)?;
-    let input_digests = normalized_input_ids(request);
+    let input_digests = normalized_input_digests(request);
 
     if flags.no_network() && network_access == ReasonerNetworkAccess::NetworkRequired {
         return Ok(ReviewReasoningOutcome {
@@ -152,15 +152,15 @@ fn coverage_record(
     }
 }
 
-fn normalized_input_ids(request: &ReasonerRequest) -> Vec<String> {
-    let mut ids = request
+fn normalized_input_digests(request: &ReasonerRequest) -> Vec<String> {
+    let mut digests = request
         .evidence
         .iter()
-        .map(|record| record.evidence_id.clone())
+        .flat_map(|record| record.claim.input_digests.iter().cloned())
         .collect::<Vec<_>>();
-    ids.sort();
-    ids.dedup();
-    ids
+    digests.sort();
+    digests.dedup();
+    digests
 }
 
 fn validate_reasoner_id(value: &str) -> Result<(), ReviewReasoningConfigError> {
@@ -224,11 +224,7 @@ mod tests {
                 return Err(ReasonerError::new("untrusted provider failure detail"));
             }
             Ok(vec![ReasonerEvidenceDraft {
-                input_digests: request
-                    .evidence
-                    .iter()
-                    .map(|record| record.evidence_id.clone())
-                    .collect(),
+                input_digests: normalized_input_digests(request),
                 observation: "model advisory".to_owned(),
                 security_interpretation: "possible impact".to_owned(),
                 category: "reasoner.t076-fixture".to_owned(),
@@ -295,7 +291,6 @@ mod tests {
     fn no_network_skips_network_reasoner_without_invocation() {
         let reasoner = CountingReasoner::new("remote-fixture", false);
         let request = request();
-        let expected_input_id = request.evidence[0].evidence_id.clone();
         let outcome = run_optional_reasoning(
             ReviewReasoningFlags::new(true, true),
             ReasonerNetworkAccess::NetworkRequired,
@@ -314,7 +309,7 @@ mod tests {
             coverage.reason_code.as_deref(),
             Some("REASONER_DISABLED_BY_NO_NETWORK")
         );
-        assert_eq!(coverage.input_digests, vec![expected_input_id]);
+        assert_eq!(coverage.input_digests, vec!["sha256:fixture"]);
     }
 
     #[test]
