@@ -1,0 +1,41 @@
+name: T061 Closeout
+
+on:
+  push:
+    branches:
+      - closeout/001-t061-security-pack-registry
+
+permissions:
+  contents: write
+
+jobs:
+  closeout:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout closeout branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: true
+          fetch-depth: 0
+      - name: Record canonical T061 completion and remove temporary workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('specs/001-v0-1-evidence-guard-foundation/tasks.md')
+          text = path.read_text()
+          old = '- [ ] T061 [US3] Implement Security Pack registry/manifest validation; packs emit Evidence/Coverage only and declare DETECTION/STATIC_POSTURE/LIVE_POSTURE/BUSINESS_LOGIC/RUNTIME dimensions.'
+          new = old.replace('- [ ]', '- [x]', 1)
+          if text.count(old) != 1:
+              raise SystemExit('expected exactly one open T061 task line')
+          path.write_text(text.replace(old, new, 1))
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add specs/001-v0-1-evidence-guard-foundation/tasks.md
+          git commit -m 'docs(spec): close T061 security pack registry task'
+          git rm .github/workflows/t061-closeout.yml
+          git commit -m 'ci(temp): remove T061 closeout workflow'
+          git push origin HEAD:closeout/001-t061-security-pack-registry
