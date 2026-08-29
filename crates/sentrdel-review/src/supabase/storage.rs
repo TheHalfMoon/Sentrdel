@@ -221,6 +221,11 @@ fn seal_policy(
         .relations
         .get(&policy.identity.relation)
         .is_some_and(|relation| relation.exists_in_supported_history.value);
+    let repository_policy_existence = if policy.command_scope.provenance.is_some() {
+        "OBSERVED_IN_SUPPORTED_HISTORY"
+    } else {
+        "NOT_PROVEN"
+    };
     let mut attributes = BTreeMap::new();
     attributes.insert("policy".to_owned(), Value::String(policy_id.clone()));
     attributes.insert(
@@ -265,6 +270,10 @@ fn seal_policy(
         ),
     );
     attributes.insert(
+        "repository_policy_existence".to_owned(),
+        Value::String(repository_policy_existence.to_owned()),
+    );
+    attributes.insert(
         "repository_posture_coverage".to_owned(),
         Value::String(coverage_name(state.coverage_state).to_owned()),
     );
@@ -281,12 +290,20 @@ fn seal_policy(
         Value::String("NOT_EXECUTED".to_owned()),
     );
 
+    let observation = if repository_policy_existence == "OBSERVED_IN_SUPPORTED_HISTORY" {
+        format!(
+            "Supported repository-derived Storage authorization policy posture is present for {policy_id}"
+        )
+    } else {
+        format!(
+            "Supported repository-derived Storage policy attributes were observed without proving policy creation for {policy_id}"
+        )
+    };
+
     Ok(authority.seal(EvidenceClaim {
         schema_version: SCHEMA_V1.to_owned(),
         input_digests: policy_digests(policy),
-        observation: format!(
-            "Supported repository-derived Storage authorization policy posture is present for {policy_id}"
-        ),
+        observation,
         security_interpretation: None,
         category: "supabase_storage_policy_posture".to_owned(),
         epistemic_class: EpistemicClass::Fact,
@@ -418,6 +435,13 @@ mod tests {
             evidence[1].claim().category,
             "supabase_storage_policy_posture"
         );
+        assert_eq!(
+            evidence[1]
+                .claim()
+                .attributes
+                .get("repository_policy_existence"),
+            Some(&Value::String("OBSERVED_IN_SUPPORTED_HISTORY".to_owned()))
+        );
         assert!(evidence.iter().all(|item| {
             item.claim().security_interpretation.is_none()
                 && item.claim().attributes.get("hosted_storage_state")
@@ -449,9 +473,41 @@ mod tests {
             Some(&Value::String("NOT_PROVEN".to_owned()))
         );
         assert_eq!(
+            evidence[0]
+                .claim()
+                .attributes
+                .get("repository_policy_existence"),
+            Some(&Value::String("OBSERVED_IN_SUPPORTED_HISTORY".to_owned()))
+        );
+        assert_eq!(
             evidence[0].claim().attributes.get("hosted_storage_state"),
             Some(&Value::String("UNKNOWN".to_owned()))
         );
+    }
+
+    #[test]
+    fn alter_only_storage_policy_does_not_claim_policy_existence() {
+        let state = state(
+            "alter policy storage_owner_select on storage.objects to authenticated using (true);",
+        );
+        let evidence = observe_storage_authorization_posture(
+            &state,
+            "2026-08-29T14:00:00Z",
+            StoragePostureLimits::default(),
+        )
+        .unwrap();
+        assert_eq!(evidence.len(), 1);
+        let policy = &evidence[0];
+        assert_eq!(policy.claim().category, "supabase_storage_policy_posture");
+        assert_eq!(
+            policy.claim().attributes.get("repository_policy_existence"),
+            Some(&Value::String("NOT_PROVEN".to_owned()))
+        );
+        assert_eq!(
+            policy.claim().attributes.get("repository_relation_existence"),
+            Some(&Value::String("NOT_PROVEN".to_owned()))
+        );
+        assert!(policy.claim().observation.contains("without proving policy creation"));
     }
 
     #[test]
