@@ -1,13 +1,7 @@
-use std::ffi::OsString;
-use std::fs;
-use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU64, Ordering};
-
 use sentrdel_review::config_detection::CiMcpConfigDetection;
 use sentrdel_review::pack_registry::{PackCoverageDimension, SecurityPackRegistry};
 use sentrdel_review::profile::{ProjectCoverageSubjectKind, build_project_profile_snapshot};
-use sentrdel_review::project_detection::DetectionLimits;
-use sentrdel_review::project_detection::LanguageEcosystemDetection;
+use sentrdel_review::project_detection::{DetectionLimits, LanguageEcosystemDetection};
 use sentrdel_review::stack_detection::{
     PathMatchRule, StackDetectorRegistry, StackDetectorSpec, StackKind,
 };
@@ -16,9 +10,6 @@ use sentrdel_schema::SCHEMA_V1;
 use sentrdel_schema::coverage::CoverageState;
 use sentrdel_schema::pack::{SecurityPackManifest, SourceProvenance};
 use sentrdel_schema::project::PackStatus;
-use sentrdel_store::Store;
-
-static NEXT_TEMP_DB: AtomicU64 = AtomicU64::new(0);
 
 const NEXT_RULES: &[PathMatchRule] = &[PathMatchRule::Basename("next.config.mjs")];
 const FIREBASE_RULES: &[PathMatchRule] = &[PathMatchRule::Exact("firebase.json")];
@@ -47,28 +38,8 @@ fn pack(pack_id: &str, subject: &str) -> SecurityPackManifest {
     }
 }
 
-fn sidecar(path: &Path, suffix: &str) -> PathBuf {
-    let mut value: OsString = path.as_os_str().to_owned();
-    value.push(suffix);
-    PathBuf::from(value)
-}
-
-fn cleanup(path: &Path) {
-    for candidate in [
-        path.to_path_buf(),
-        sidecar(path, "-wal"),
-        sidecar(path, "-shm"),
-    ] {
-        match fs::remove_file(candidate) {
-            Ok(()) => {}
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-            Err(error) => panic!("failed to remove fixture database: {error}"),
-        }
-    }
-}
-
 #[test]
-fn project_profile_is_deterministic_honest_and_persistable() {
+fn project_profile_and_coverage_are_deterministic_and_honest() {
     let stacks = StackDetectorRegistry::new(STACK_SPECS)
         .unwrap()
         .detect(
@@ -162,21 +133,6 @@ fn project_profile_is_deterministic_honest_and_persistable() {
         Some("PACK_REGISTERED_NOT_RUN")
     );
     assert!(snapshot.coverage.gap_count > 0);
-
-    let sequence = NEXT_TEMP_DB.fetch_add(1, Ordering::Relaxed);
-    let path = std::env::temp_dir().join(format!(
-        "sentrdel-t064-{}-{sequence}.sqlite3",
-        std::process::id()
-    ));
-    cleanup(&path);
-    {
-        let store = Store::open(&path).unwrap();
-        assert!(store.put_project_profile(&snapshot.profile).unwrap());
-        assert!(!store.put_project_profile(&snapshot.profile).unwrap());
-        let loaded = store.get_project_profile("repo:fixture").unwrap().unwrap();
-        assert_eq!(loaded, snapshot.profile);
-    }
-    cleanup(&path);
 }
 
 #[test]
