@@ -7,6 +7,7 @@
 
 pub mod guard_mcp;
 pub mod init;
+pub mod reasoning;
 pub mod review;
 
 use std::{error::Error, fmt, process::ExitCode};
