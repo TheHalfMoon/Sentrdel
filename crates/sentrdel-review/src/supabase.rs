@@ -10,6 +10,7 @@ pub mod rls;
 pub mod sql;
 pub mod sql_model;
 pub mod state;
+pub mod storage;
 
 use sentrdel_schema::SCHEMA_V1;
 use sentrdel_schema::pack::{SecurityPackManifest, SourceProvenance};
