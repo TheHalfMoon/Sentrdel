@@ -2,8 +2,8 @@
 //!
 //! This module consumes the bounded lexical scan produced by `supabase::sql` and
 //! reduces only the security-relevant statement shapes authorized by the R2
-//! contract. It never executes SQL and it deliberately classifies unsupported
-//! security-relevant syntax instead of inventing semantics.
+//! contract. It never executes SQL and deliberately leaves unsupported
+//! security-relevant syntax visible for later coverage handling.
 
 use super::sql::{
     SqlDiagnostic, SqlScanError, SqlScanLimits, SqlStatementSpan, SqlToken, SqlTokenKind, scan_sql,
@@ -39,7 +39,6 @@ pub enum SqlPolicyCommand {
     Insert,
     Update,
     Delete,
-    Unknown,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -89,7 +88,6 @@ pub enum SupportedSqlStatement {
     AlterPolicy {
         policy: String,
         relation: SqlObjectName,
-        command: SqlPolicyCommand,
         roles: Vec<String>,
         has_using: bool,
         has_with_check: bool,
@@ -146,25 +144,28 @@ pub struct SqlModelScan {
 pub fn parse_sql_model(input: &str, limits: SqlScanLimits) -> Result<SqlModelScan, SqlScanError> {
     let scan = scan_sql(input, limits)?;
     let malformed = !scan.diagnostics.is_empty();
-    let mut statements = Vec::with_capacity(scan.statements.len());
-
-    for (statement_index, span) in scan.statements.iter().enumerate() {
-        let tokens = scan
-            .tokens
-            .get(span.token_start..span.token_end)
-            .unwrap_or_default();
-        let (coverage, supported) = if malformed {
-            (SqlParseCoverage::MalformedOrBoundedRejection, None)
-        } else {
-            parse_statement(input, tokens)
-        };
-        statements.push(SqlStatementModel {
-            statement_index,
-            span: span.clone(),
-            coverage,
-            supported,
-        });
-    }
+    let statements = scan
+        .statements
+        .iter()
+        .enumerate()
+        .map(|(statement_index, span)| {
+            let tokens = scan
+                .tokens
+                .get(span.token_start..span.token_end)
+                .unwrap_or_default();
+            let (coverage, supported) = if malformed {
+                (SqlParseCoverage::MalformedOrBoundedRejection, None)
+            } else {
+                parse_statement(input, tokens)
+            };
+            SqlStatementModel {
+                statement_index,
+                span: span.clone(),
+                coverage,
+                supported,
+            }
+        })
+        .collect();
 
     Ok(SqlModelScan {
         statements,
@@ -177,55 +178,45 @@ fn parse_statement(
     tokens: &[SqlToken],
 ) -> (SqlParseCoverage, Option<SupportedSqlStatement>) {
     let mut cursor = Cursor::new(input, tokens);
-    let Some(first) = cursor.peek_keyword() else {
-        return ignored();
-    };
-
-    match first.as_str() {
-        "CREATE" => parse_create(&mut cursor),
-        "ALTER" => parse_alter(&mut cursor),
-        "DROP" => parse_drop(&mut cursor),
-        "GRANT" => parse_grant_revoke(&mut cursor, false),
-        "REVOKE" => parse_grant_revoke(&mut cursor, true),
-        "DO" | "EXECUTE" => unsupported(),
+    match cursor.peek_keyword().as_deref() {
+        Some("CREATE") => parse_create(&mut cursor),
+        Some("ALTER") => parse_alter(&mut cursor),
+        Some("DROP") => parse_drop(&mut cursor),
+        Some("GRANT") => parse_grant_revoke(&mut cursor, false),
+        Some("REVOKE") => parse_grant_revoke(&mut cursor, true),
+        Some("DO" | "EXECUTE") => unsupported(),
         _ => ignored(),
     }
 }
 
 fn parse_create(cursor: &mut Cursor<'_>) -> (SqlParseCoverage, Option<SupportedSqlStatement>) {
     cursor.consume_keyword("CREATE");
-    if cursor.consume_keyword("OR") {
-        if !cursor.consume_keyword("REPLACE") {
-            return unsupported();
-        }
+    if cursor.consume_keyword("OR") && !cursor.consume_keyword("REPLACE") {
+        return unsupported();
     }
 
     if cursor.consume_keyword("SCHEMA") {
-        cursor.consume_keywords(&["IF", "NOT", "EXISTS"]);
-        return supported_with(
+        cursor.consume_sequence(&["IF", "NOT", "EXISTS"]);
+        return supported_from(
             cursor
                 .parse_object_name()
                 .map(|schema| SupportedSqlStatement::CreateSchema { schema }),
         );
     }
-
     if cursor.consume_keyword("TABLE") {
-        cursor.consume_keywords(&["IF", "NOT", "EXISTS"]);
-        return supported_with(
+        cursor.consume_sequence(&["IF", "NOT", "EXISTS"]);
+        return supported_from(
             cursor
                 .parse_object_name()
                 .map(|relation| SupportedSqlStatement::CreateTable { relation }),
         );
     }
-
     if cursor.consume_keyword("POLICY") {
-        return parse_policy(cursor, false);
+        return parse_create_policy(cursor);
     }
-
     if cursor.consume_keyword("FUNCTION") {
-        return parse_function(cursor, FunctionAction::Create);
+        return parse_function(cursor, false);
     }
-
     if cursor.consume_keyword("VIEW") {
         let Some(view) = cursor.parse_object_name() else {
             return unsupported();
@@ -241,188 +232,154 @@ fn parse_create(cursor: &mut Cursor<'_>) -> (SqlParseCoverage, Option<SupportedS
         cursor.peek_keyword().as_deref(),
         Some("TRIGGER" | "ROLE" | "EXTENSION")
     ) {
-        return unsupported();
+        unsupported()
+    } else {
+        ignored()
     }
-
-    ignored()
 }
 
 fn parse_alter(cursor: &mut Cursor<'_>) -> (SqlParseCoverage, Option<SupportedSqlStatement>) {
     cursor.consume_keyword("ALTER");
-
     if cursor.consume_keyword("TABLE") {
-        cursor.consume_keywords(&["IF", "EXISTS"]);
+        cursor.consume_sequence(&["IF", "EXISTS"]);
         let Some(relation) = cursor.parse_object_name() else {
             return unsupported();
         };
-        if cursor.consume_keyword("ENABLE")
-            && cursor.consume_keyword("ROW")
-            && cursor.consume_keyword("LEVEL")
-            && cursor.consume_keyword("SECURITY")
-        {
-            return supported(SupportedSqlStatement::AlterTableRls {
-                relation,
-                enabled: true,
-            });
+        let enabled = if cursor.consume_sequence(&["ENABLE", "ROW", "LEVEL", "SECURITY"]) {
+            Some(true)
+        } else if cursor.consume_sequence(&["DISABLE", "ROW", "LEVEL", "SECURITY"]) {
+            Some(false)
+        } else {
+            None
+        };
+        if let Some(enabled) = enabled {
+            return supported(SupportedSqlStatement::AlterTableRls { relation, enabled });
         }
-        if cursor.consume_keyword("DISABLE")
-            && cursor.consume_keyword("ROW")
-            && cursor.consume_keyword("LEVEL")
-            && cursor.consume_keyword("SECURITY")
-        {
-            return supported(SupportedSqlStatement::AlterTableRls {
-                relation,
-                enabled: false,
-            });
-        }
-        if cursor.remaining_contains_keywords(&["ROW", "LEVEL", "SECURITY"])
-            || cursor.remaining_contains_keyword("POLICY")
+        if cursor.contains_sequence(&["ROW", "LEVEL", "SECURITY"])
+            || cursor.contains_keyword("POLICY")
         {
             return unsupported();
         }
         return ignored();
     }
-
     if cursor.consume_keyword("POLICY") {
-        return parse_policy(cursor, true);
+        return parse_alter_policy(cursor);
     }
-
     if cursor.consume_keyword("FUNCTION") {
-        return parse_function(cursor, FunctionAction::Alter);
+        return parse_function(cursor, true);
     }
-
     ignored()
 }
 
 fn parse_drop(cursor: &mut Cursor<'_>) -> (SqlParseCoverage, Option<SupportedSqlStatement>) {
     cursor.consume_keyword("DROP");
-
     if cursor.consume_keyword("POLICY") {
-        cursor.consume_keywords(&["IF", "EXISTS"]);
+        cursor.consume_sequence(&["IF", "EXISTS"]);
         let Some(policy) = cursor.parse_identifier() else {
             return unsupported();
         };
         if !cursor.consume_keyword("ON") {
             return unsupported();
         }
-        return supported_with(
+        return supported_from(
             cursor
                 .parse_object_name()
                 .map(|relation| SupportedSqlStatement::DropPolicy { policy, relation }),
         );
     }
-
     if cursor.consume_keyword("FUNCTION") {
-        cursor.consume_keywords(&["IF", "EXISTS"]);
-        return supported_with(
+        cursor.consume_sequence(&["IF", "EXISTS"]);
+        return supported_from(
             cursor
                 .parse_object_name()
                 .map(|function| SupportedSqlStatement::DropFunction { function }),
         );
     }
-
     if matches!(
         cursor.peek_keyword().as_deref(),
         Some("ROLE" | "TRIGGER" | "EXTENSION")
     ) {
-        return unsupported();
-    }
-
-    ignored()
-}
-
-fn parse_policy(
-    cursor: &mut Cursor<'_>,
-    is_alter: bool,
-) -> (SqlParseCoverage, Option<SupportedSqlStatement>) {
-    let Some(policy) = cursor.parse_identifier() else {
-        return unsupported();
-    };
-    if !cursor.consume_keyword("ON") {
-        return unsupported();
-    }
-    let Some(relation) = cursor.parse_object_name() else {
-        return unsupported();
-    };
-
-    let command = cursor
-        .keyword_after("FOR")
-        .map_or(SqlPolicyCommand::All, |value| match value.as_str() {
-            "ALL" => SqlPolicyCommand::All,
-            "SELECT" => SqlPolicyCommand::Select,
-            "INSERT" => SqlPolicyCommand::Insert,
-            "UPDATE" => SqlPolicyCommand::Update,
-            "DELETE" => SqlPolicyCommand::Delete,
-            _ => SqlPolicyCommand::Unknown,
-        });
-    let roles = cursor.identifier_list_after("TO", policy_clause_stop_words());
-    let has_using = cursor.remaining_contains_keyword("USING");
-    let has_with_check = cursor.remaining_contains_sequence(&["WITH", "CHECK"]);
-
-    if command == SqlPolicyCommand::Unknown {
-        return unsupported();
-    }
-
-    if is_alter {
-        supported(SupportedSqlStatement::AlterPolicy {
-            policy,
-            relation,
-            command,
-            roles,
-            has_using,
-            has_with_check,
-        })
+        unsupported()
     } else {
-        supported(SupportedSqlStatement::CreatePolicy {
-            policy,
-            relation,
-            command,
-            roles,
-            has_using,
-            has_with_check,
-        })
+        ignored()
     }
 }
 
-fn policy_clause_stop_words() -> &'static [&'static str] {
-    &["USING", "WITH", "AS", "FOR"]
+fn parse_create_policy(
+    cursor: &mut Cursor<'_>,
+) -> (SqlParseCoverage, Option<SupportedSqlStatement>) {
+    let Some((policy, relation)) = parse_policy_identity(cursor) else {
+        return unsupported();
+    };
+    let command = match cursor.keyword_after("FOR").as_deref() {
+        None | Some("ALL") => SqlPolicyCommand::All,
+        Some("SELECT") => SqlPolicyCommand::Select,
+        Some("INSERT") => SqlPolicyCommand::Insert,
+        Some("UPDATE") => SqlPolicyCommand::Update,
+        Some("DELETE") => SqlPolicyCommand::Delete,
+        Some(_) => return unsupported(),
+    };
+    let roles = cursor.identifiers_after("TO", &["USING", "WITH", "AS", "FOR"]);
+    supported(SupportedSqlStatement::CreatePolicy {
+        policy,
+        relation,
+        command,
+        roles,
+        has_using: cursor.contains_keyword("USING"),
+        has_with_check: cursor.contains_sequence(&["WITH", "CHECK"]),
+    })
 }
 
-#[derive(Clone, Copy)]
-enum FunctionAction {
-    Create,
-    Alter,
+fn parse_alter_policy(
+    cursor: &mut Cursor<'_>,
+) -> (SqlParseCoverage, Option<SupportedSqlStatement>) {
+    let Some((policy, relation)) = parse_policy_identity(cursor) else {
+        return unsupported();
+    };
+    supported(SupportedSqlStatement::AlterPolicy {
+        policy,
+        relation,
+        roles: cursor.identifiers_after("TO", &["USING", "WITH"]),
+        has_using: cursor.contains_keyword("USING"),
+        has_with_check: cursor.contains_sequence(&["WITH", "CHECK"]),
+    })
+}
+
+fn parse_policy_identity(cursor: &mut Cursor<'_>) -> Option<(String, SqlObjectName)> {
+    let policy = cursor.parse_identifier()?;
+    cursor.consume_keyword("ON").then_some(())?;
+    let relation = cursor.parse_object_name()?;
+    Some((policy, relation))
 }
 
 fn parse_function(
     cursor: &mut Cursor<'_>,
-    action: FunctionAction,
+    alter: bool,
 ) -> (SqlParseCoverage, Option<SupportedSqlStatement>) {
-    cursor.consume_keywords(&["IF", "EXISTS"]);
+    cursor.consume_sequence(&["IF", "EXISTS"]);
     let Some(function) = cursor.parse_object_name() else {
         return unsupported();
     };
-
-    let security_mode = if cursor.remaining_contains_sequence(&["SECURITY", "DEFINER"]) {
+    let security_mode = if cursor.contains_sequence(&["SECURITY", "DEFINER"]) {
         SqlFunctionSecurityMode::Definer
-    } else if cursor.remaining_contains_sequence(&["SECURITY", "INVOKER"]) {
+    } else if cursor.contains_sequence(&["SECURITY", "INVOKER"]) {
         SqlFunctionSecurityMode::Invoker
     } else {
         SqlFunctionSecurityMode::Unspecified
     };
     let search_path = cursor.search_path_attribute();
-
-    match action {
-        FunctionAction::Create => supported(SupportedSqlStatement::CreateFunction {
+    if alter {
+        supported(SupportedSqlStatement::AlterFunction {
             function,
             security_mode,
             search_path,
-        }),
-        FunctionAction::Alter => supported(SupportedSqlStatement::AlterFunction {
+        })
+    } else {
+        supported(SupportedSqlStatement::CreateFunction {
             function,
             security_mode,
             search_path,
-        }),
+        })
     }
 }
 
@@ -430,15 +387,9 @@ fn parse_grant_revoke(
     cursor: &mut Cursor<'_>,
     revoke: bool,
 ) -> (SqlParseCoverage, Option<SupportedSqlStatement>) {
-    if revoke {
-        cursor.consume_keyword("REVOKE");
-        if cursor.consume_keyword("GRANT") {
-            if !(cursor.consume_keyword("OPTION") && cursor.consume_keyword("FOR")) {
-                return unsupported();
-            }
-        }
-    } else {
-        cursor.consume_keyword("GRANT");
+    cursor.consume_keyword(if revoke { "REVOKE" } else { "GRANT" });
+    if revoke && cursor.consume_keyword("GRANT") && !cursor.consume_sequence(&["OPTION", "FOR"]) {
+        return unsupported();
     }
 
     let Some(privileges) = cursor.keyword_list_until("ON") else {
@@ -447,7 +398,6 @@ fn parse_grant_revoke(
     if privileges.is_empty() || !cursor.consume_keyword("ON") {
         return unsupported();
     }
-
     let object_kind = if cursor.consume_keyword("TABLE") {
         SqlGrantObjectKind::Table
     } else if cursor.consume_keyword("FUNCTION") {
@@ -459,20 +409,14 @@ fn parse_grant_revoke(
     } else {
         SqlGrantObjectKind::Relation
     };
-
-    let role_marker = if revoke { "FROM" } else { "TO" };
-    let Some(objects) = cursor.object_list_until(role_marker) else {
+    let marker = if revoke { "FROM" } else { "TO" };
+    let Some(objects) = cursor.object_list_until(marker) else {
         return unsupported();
     };
-    if objects.is_empty() || !cursor.consume_keyword(role_marker) {
+    if objects.is_empty() || !cursor.consume_keyword(marker) {
         return unsupported();
     }
-    let roles = cursor.identifier_list_until(&[
-        "CASCADE",
-        "RESTRICT",
-        "GRANTED",
-        "WITH",
-    ]);
+    let roles = cursor.identifiers_until(&["CASCADE", "RESTRICT", "GRANTED", "WITH"]);
     if roles.is_empty() {
         return unsupported();
     }
@@ -494,11 +438,13 @@ fn parse_grant_revoke(
     }
 }
 
-fn supported(statement: SupportedSqlStatement) -> (SqlParseCoverage, Option<SupportedSqlStatement>) {
+fn supported(
+    statement: SupportedSqlStatement,
+) -> (SqlParseCoverage, Option<SupportedSqlStatement>) {
     (SqlParseCoverage::Supported, Some(statement))
 }
 
-fn supported_with(
+fn supported_from(
     statement: Option<SupportedSqlStatement>,
 ) -> (SqlParseCoverage, Option<SupportedSqlStatement>) {
     statement.map_or_else(unsupported, supported)
@@ -542,10 +488,10 @@ impl<'a> Cursor<'a> {
         }
     }
 
-    fn consume_keywords(&mut self, expected: &[&str]) -> bool {
+    fn consume_sequence(&mut self, expected: &[&str]) -> bool {
         let start = self.position;
-        for keyword in expected {
-            if !self.consume_keyword(keyword) {
+        for value in expected {
+            if !self.consume_keyword(value) {
                 self.position = start;
                 return false;
             }
@@ -566,8 +512,7 @@ impl<'a> Cursor<'a> {
     }
 
     fn parse_identifier(&mut self) -> Option<String> {
-        let token = self.tokens.get(self.position)?;
-        let value = normalized_identifier(self.input, token)?;
+        let value = normalized_identifier(self.input, self.tokens.get(self.position)?)?;
         self.position += 1;
         Some(value)
     }
@@ -583,43 +528,34 @@ impl<'a> Cursor<'a> {
         Some(SqlObjectName { parts })
     }
 
-    fn remaining_contains_keyword(&self, expected: &str) -> bool {
+    fn contains_keyword(&self, expected: &str) -> bool {
         self.tokens[self.position..]
             .iter()
             .any(|token| keyword(self.input, token).as_deref() == Some(expected))
     }
 
-    fn remaining_contains_keywords(&self, expected: &[&str]) -> bool {
-        expected
-            .iter()
-            .all(|value| self.remaining_contains_keyword(value))
-    }
-
-    fn remaining_contains_sequence(&self, expected: &[&str]) -> bool {
-        if expected.is_empty() {
-            return true;
-        }
-        self.tokens[self.position..].windows(expected.len()).any(|window| {
-            window
-                .iter()
-                .zip(expected.iter())
-                .all(|(token, value)| keyword(self.input, token).as_deref() == Some(*value))
-        })
+    fn contains_sequence(&self, expected: &[&str]) -> bool {
+        self.tokens[self.position..]
+            .windows(expected.len())
+            .any(|window| {
+                window
+                    .iter()
+                    .zip(expected)
+                    .all(|(token, value)| keyword(self.input, token).as_deref() == Some(*value))
+            })
     }
 
     fn keyword_after(&self, marker: &str) -> Option<String> {
         let remaining = &self.tokens[self.position..];
-        for (index, token) in remaining.iter().enumerate() {
-            if keyword(self.input, token).as_deref() == Some(marker) {
-                return remaining
-                    .get(index + 1)
-                    .and_then(|value| keyword(self.input, value));
-            }
-        }
-        None
+        let index = remaining
+            .iter()
+            .position(|token| keyword(self.input, token).as_deref() == Some(marker))?;
+        remaining
+            .get(index + 1)
+            .and_then(|token| keyword(self.input, token))
     }
 
-    fn identifier_list_after(&self, marker: &str, stop_words: &[&str]) -> Vec<String> {
+    fn identifiers_after(&self, marker: &str, stop_words: &[&str]) -> Vec<String> {
         let remaining = &self.tokens[self.position..];
         let Some(index) = remaining
             .iter()
@@ -630,7 +566,7 @@ impl<'a> Cursor<'a> {
         collect_identifiers(self.input, &remaining[index + 1..], stop_words)
     }
 
-    fn identifier_list_until(&mut self, stop_words: &[&str]) -> Vec<String> {
+    fn identifiers_until(&mut self, stop_words: &[&str]) -> Vec<String> {
         let start = self.position;
         while self.position < self.tokens.len() {
             if self
@@ -685,26 +621,24 @@ impl<'a> Cursor<'a> {
 
     fn find_boolean_assignment(&self, name: &str) -> Option<bool> {
         let remaining = &self.tokens[self.position..];
-        for (index, token) in remaining.iter().enumerate() {
-            if keyword(self.input, token).as_deref() != Some(name) {
-                continue;
-            }
-            let mut value_index = index + 1;
-            if remaining.get(value_index).is_some_and(|token| {
-                token.kind == SqlTokenKind::Symbol && token_text(self.input, token) == "="
-            }) {
-                value_index += 1;
-            }
-            return remaining
-                .get(value_index)
-                .and_then(|token| keyword(self.input, token))
-                .and_then(|value| match value.as_str() {
-                    "TRUE" | "ON" => Some(true),
-                    "FALSE" | "OFF" => Some(false),
-                    _ => None,
-                });
+        let index = remaining
+            .iter()
+            .position(|token| keyword(self.input, token).as_deref() == Some(name))?;
+        let mut value_index = index + 1;
+        if remaining.get(value_index).is_some_and(|token| {
+            token.kind == SqlTokenKind::Symbol && token_text(self.input, token) == "="
+        }) {
+            value_index += 1;
         }
-        None
+        match remaining
+            .get(value_index)
+            .and_then(|token| keyword(self.input, token))?
+            .as_str()
+        {
+            "TRUE" | "ON" => Some(true),
+            "FALSE" | "OFF" => Some(false),
+            _ => None,
+        }
     }
 
     fn search_path_attribute(&self) -> SqlSearchPathAttribute {
@@ -731,11 +665,9 @@ impl<'a> Cursor<'a> {
             {
                 continue;
             }
-
             let mut value_index = index + 2;
             if remaining.get(value_index).is_some_and(|token| {
-                let text = token_text(self.input, token);
-                (token.kind == SqlTokenKind::Symbol && text == "=")
+                (token.kind == SqlTokenKind::Symbol && token_text(self.input, token) == "=")
                     || keyword(self.input, token).as_deref() == Some("TO")
             }) {
                 value_index += 1;
@@ -753,7 +685,6 @@ impl<'a> Cursor<'a> {
             {
                 return SqlSearchPathAttribute::MutableOrDefault;
             }
-
             let mut values = Vec::new();
             for token in &remaining[value_index..] {
                 if keyword(self.input, token).is_some_and(|keyword| {
@@ -778,10 +709,11 @@ impl<'a> Cursor<'a> {
                 }
                 values.push(value);
             }
-            if values.is_empty() {
-                return SqlSearchPathAttribute::MutableOrDefault;
-            }
-            return SqlSearchPathAttribute::PinnedExplicit(values);
+            return if values.is_empty() {
+                SqlSearchPathAttribute::MutableOrDefault
+            } else {
+                SqlSearchPathAttribute::PinnedExplicit(values)
+            };
         }
         SqlSearchPathAttribute::Unspecified
     }
@@ -814,10 +746,7 @@ fn token_text<'a>(input: &'a str, token: &SqlToken) -> &'a str {
 }
 
 fn keyword(input: &str, token: &SqlToken) -> Option<String> {
-    if token.kind != SqlTokenKind::Word {
-        return None;
-    }
-    Some(token_text(input, token).to_ascii_uppercase())
+    (token.kind == SqlTokenKind::Word).then(|| token_text(input, token).to_ascii_uppercase())
 }
 
 fn normalized_identifier(input: &str, token: &SqlToken) -> Option<String> {
@@ -835,12 +764,10 @@ fn normalized_identifier(input: &str, token: &SqlToken) -> Option<String> {
 fn normalized_search_path_value(input: &str, token: &SqlToken) -> Option<String> {
     match token.kind {
         SqlTokenKind::Word | SqlTokenKind::QuotedIdentifier => normalized_identifier(input, token),
-        SqlTokenKind::StringLiteral => {
-            let text = token_text(input, token);
-            text.strip_prefix('\'')
-                .and_then(|value| value.strip_suffix('\''))
-                .map(|value| value.replace("''", "'"))
-        }
+        SqlTokenKind::StringLiteral => token_text(input, token)
+            .strip_prefix('\'')
+            .and_then(|value| value.strip_suffix('\''))
+            .map(|value| value.replace("''", "'")),
         _ => None,
     }
 }
@@ -890,7 +817,7 @@ mod tests {
     #[test]
     fn models_policy_scope_roles_and_expression_presence() {
         let statements = supported_statements(
-            "create policy \"Account read\" on public.accounts for select to anon, authenticated using (owner_id = auth.uid()) with check (owner_id = auth.uid());",
+            "create policy \"Account read\" on public.accounts for select to anon, authenticated using (owner_id = auth.uid()) with check (owner_id = auth.uid()); alter policy \"Account read\" on public.accounts to authenticated using (true);",
         );
         assert!(matches!(
             &statements[0],
@@ -904,6 +831,18 @@ mod tests {
             } if policy == "Account read"
                 && relation.normalized() == "public.accounts"
                 && roles == &vec!["anon".to_owned(), "authenticated".to_owned()]
+        ));
+        assert!(matches!(
+            &statements[1],
+            SupportedSqlStatement::AlterPolicy {
+                policy,
+                relation,
+                roles,
+                has_using: true,
+                has_with_check: false,
+            } if policy == "Account read"
+                && relation.normalized() == "public.accounts"
+                && roles == &vec!["authenticated".to_owned()]
         ));
     }
 
@@ -1003,7 +942,8 @@ mod tests {
 
     #[test]
     fn ordinary_query_scope_is_ignored_not_upgraded_to_security_state() {
-        let scan = parse_sql_model("select * from public.accounts;", SqlScanLimits::default()).unwrap();
+        let scan =
+            parse_sql_model("select * from public.accounts;", SqlScanLimits::default()).unwrap();
         assert_eq!(scan.statements.len(), 1);
         assert_eq!(
             scan.statements[0].coverage,
