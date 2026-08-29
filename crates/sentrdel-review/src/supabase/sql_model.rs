@@ -88,7 +88,7 @@ pub enum SupportedSqlStatement {
     AlterPolicy {
         policy: String,
         relation: SqlObjectName,
-        roles: Vec<String>,
+        roles: Option<Vec<String>>,
         has_using: bool,
         has_with_check: bool,
     },
@@ -184,18 +184,26 @@ fn parse_statement(
         Some("DROP") => parse_drop(&mut cursor),
         Some("GRANT") => parse_grant_revoke(&mut cursor, false),
         Some("REVOKE") => parse_grant_revoke(&mut cursor, true),
-        Some("DO" | "EXECUTE") => unsupported(),
+        Some("DO" | "CALL" | "EXECUTE" | "PREPARE" | "SET" | "RESET") => unsupported(),
         _ => ignored(),
     }
 }
 
 fn parse_create(cursor: &mut Cursor<'_>) -> (SqlParseCoverage, Option<SupportedSqlStatement>) {
     cursor.consume_keyword("CREATE");
-    if cursor.consume_keyword("OR") && !cursor.consume_keyword("REPLACE") {
-        return unsupported();
-    }
+    let or_replace = if cursor.consume_keyword("OR") {
+        if !cursor.consume_keyword("REPLACE") {
+            return unsupported();
+        }
+        true
+    } else {
+        false
+    };
 
     if cursor.consume_keyword("SCHEMA") {
+        if or_replace {
+            return unsupported();
+        }
         cursor.consume_sequence(&["IF", "NOT", "EXISTS"]);
         return supported_from(
             cursor
@@ -204,6 +212,9 @@ fn parse_create(cursor: &mut Cursor<'_>) -> (SqlParseCoverage, Option<SupportedS
         );
     }
     if cursor.consume_keyword("TABLE") {
+        if or_replace {
+            return unsupported();
+        }
         cursor.consume_sequence(&["IF", "NOT", "EXISTS"]);
         return supported_from(
             cursor
@@ -212,6 +223,9 @@ fn parse_create(cursor: &mut Cursor<'_>) -> (SqlParseCoverage, Option<SupportedS
         );
     }
     if cursor.consume_keyword("POLICY") {
+        if or_replace {
+            return unsupported();
+        }
         return parse_create_policy(cursor);
     }
     if cursor.consume_keyword("FUNCTION") {
@@ -230,7 +244,15 @@ fn parse_create(cursor: &mut Cursor<'_>) -> (SqlParseCoverage, Option<SupportedS
 
     if matches!(
         cursor.peek_keyword().as_deref(),
-        Some("TRIGGER" | "ROLE" | "EXTENSION")
+        Some(
+            "MATERIALIZED"
+                | "TEMP"
+                | "TEMPORARY"
+                | "UNLOGGED"
+                | "TRIGGER"
+                | "ROLE"
+                | "EXTENSION"
+        )
     ) {
         unsupported()
     } else {
@@ -268,7 +290,14 @@ fn parse_alter(cursor: &mut Cursor<'_>) -> (SqlParseCoverage, Option<SupportedSq
     if cursor.consume_keyword("FUNCTION") {
         return parse_function(cursor, true);
     }
-    ignored()
+    if matches!(
+        cursor.peek_keyword().as_deref(),
+        Some("DEFAULT" | "ROLE" | "SCHEMA" | "VIEW")
+    ) {
+        unsupported()
+    } else {
+        ignored()
+    }
 }
 
 fn parse_drop(cursor: &mut Cursor<'_>) -> (SqlParseCoverage, Option<SupportedSqlStatement>) {
@@ -289,15 +318,17 @@ fn parse_drop(cursor: &mut Cursor<'_>) -> (SqlParseCoverage, Option<SupportedSql
     }
     if cursor.consume_keyword("FUNCTION") {
         cursor.consume_sequence(&["IF", "EXISTS"]);
-        return supported_from(
-            cursor
-                .parse_object_name()
-                .map(|function| SupportedSqlStatement::DropFunction { function }),
-        );
+        let Some(function) = cursor.parse_object_name() else {
+            return unsupported();
+        };
+        if !cursor.consume_empty_function_signature() || !cursor.is_at_end() {
+            return unsupported();
+        }
+        return supported(SupportedSqlStatement::DropFunction { function });
     }
     if matches!(
         cursor.peek_keyword().as_deref(),
-        Some("ROLE" | "TRIGGER" | "EXTENSION")
+        Some("TABLE" | "VIEW" | "SCHEMA" | "OWNED" | "ROLE" | "TRIGGER" | "EXTENSION")
     ) {
         unsupported()
     } else {
@@ -311,15 +342,52 @@ fn parse_create_policy(
     let Some((policy, relation)) = parse_policy_identity(cursor) else {
         return unsupported();
     };
-    let command = match cursor.keyword_after("FOR").as_deref() {
-        None | Some("ALL") => SqlPolicyCommand::All,
-        Some("SELECT") => SqlPolicyCommand::Select,
-        Some("INSERT") => SqlPolicyCommand::Insert,
-        Some("UPDATE") => SqlPolicyCommand::Update,
-        Some("DELETE") => SqlPolicyCommand::Delete,
-        Some(_) => return unsupported(),
+
+    if cursor.consume_keyword("AS") {
+        if cursor.consume_keyword("RESTRICTIVE") {
+            return unsupported();
+        }
+        if !cursor.consume_keyword("PERMISSIVE") {
+            return unsupported();
+        }
+    }
+
+    let command = if cursor.consume_keyword("FOR") {
+        if cursor.consume_keyword("ALL") {
+            SqlPolicyCommand::All
+        } else if cursor.consume_keyword("SELECT") {
+            SqlPolicyCommand::Select
+        } else if cursor.consume_keyword("INSERT") {
+            SqlPolicyCommand::Insert
+        } else if cursor.consume_keyword("UPDATE") {
+            SqlPolicyCommand::Update
+        } else if cursor.consume_keyword("DELETE") {
+            SqlPolicyCommand::Delete
+        } else {
+            return unsupported();
+        }
+    } else {
+        SqlPolicyCommand::All
     };
-    let roles = cursor.identifiers_after("TO", &["USING", "WITH", "AS", "FOR"]);
+
+    let roles = if cursor.consume_keyword("TO") {
+        let Some(roles) = cursor.identifier_list_until(&["USING", "WITH"]) else {
+            return unsupported();
+        };
+        if roles.is_empty() {
+            return unsupported();
+        }
+        roles
+    } else {
+        vec!["public".to_owned()]
+    };
+
+    if cursor.peek_keyword().is_some_and(|value| {
+        value != "USING" && value != "WITH"
+    }) {
+        return unsupported();
+    }
+
     supported(SupportedSqlStatement::CreatePolicy {
         policy,
         relation,
@@ -336,10 +404,32 @@ fn parse_alter_policy(
     let Some((policy, relation)) = parse_policy_identity(cursor) else {
         return unsupported();
     };
+    if cursor.consume_keyword("RENAME") || cursor.contains_keyword("AS") || cursor.contains_keyword("FOR") {
+        return unsupported();
+    }
+
+    let roles = if cursor.consume_keyword("TO") {
+        let Some(roles) = cursor.identifier_list_until(&["USING", "WITH"]) else {
+            return unsupported();
+        };
+        if roles.is_empty() {
+            return unsupported();
+        }
+        Some(roles)
+    } else {
+        None
+    };
+
+    if cursor.peek_keyword().is_some_and(|value| {
+        value != "USING" && value != "WITH"
+    }) {
+        return unsupported();
+    }
+
     supported(SupportedSqlStatement::AlterPolicy {
         policy,
         relation,
-        roles: cursor.identifiers_after("TO", &["USING", "WITH"]),
+        roles,
         has_using: cursor.contains_keyword("USING"),
         has_with_check: cursor.contains_sequence(&["WITH", "CHECK"]),
     })
@@ -356,10 +446,20 @@ fn parse_function(
     cursor: &mut Cursor<'_>,
     alter: bool,
 ) -> (SqlParseCoverage, Option<SupportedSqlStatement>) {
-    cursor.consume_sequence(&["IF", "EXISTS"]);
     let Some(function) = cursor.parse_object_name() else {
         return unsupported();
     };
+    if !cursor.consume_empty_function_signature() {
+        return unsupported();
+    }
+    if alter
+        && (cursor.contains_keyword("RENAME")
+            || cursor.contains_keyword("OWNER")
+            || cursor.contains_sequence(&["SET", "SCHEMA"]))
+    {
+        return unsupported();
+    }
+
     let security_mode = if cursor.contains_sequence(&["SECURITY", "DEFINER"]) {
         SqlFunctionSecurityMode::Definer
     } else if cursor.contains_sequence(&["SECURITY", "INVOKER"]) {
@@ -368,6 +468,7 @@ fn parse_function(
         SqlFunctionSecurityMode::Unspecified
     };
     let search_path = cursor.search_path_attribute();
+
     if alter {
         supported(SupportedSqlStatement::AlterFunction {
             function,
@@ -388,7 +489,9 @@ fn parse_grant_revoke(
     revoke: bool,
 ) -> (SqlParseCoverage, Option<SupportedSqlStatement>) {
     cursor.consume_keyword(if revoke { "REVOKE" } else { "GRANT" });
-    if revoke && cursor.consume_keyword("GRANT") && !cursor.consume_sequence(&["OPTION", "FOR"]) {
+    if revoke && (cursor.peek_keyword().as_deref() == Some("GRANT")
+        || cursor.peek_keyword().as_deref() == Some("ADMIN"))
+    {
         return unsupported();
     }
 
@@ -398,6 +501,7 @@ fn parse_grant_revoke(
     if privileges.is_empty() || !cursor.consume_keyword("ON") {
         return unsupported();
     }
+
     let object_kind = if cursor.consume_keyword("TABLE") {
         SqlGrantObjectKind::Table
     } else if cursor.consume_keyword("FUNCTION") {
@@ -409,15 +513,21 @@ fn parse_grant_revoke(
     } else {
         SqlGrantObjectKind::Relation
     };
+
     let marker = if revoke { "FROM" } else { "TO" };
-    let Some(objects) = cursor.object_list_until(marker) else {
+    let Some(objects) = cursor.object_list_until(marker, object_kind == SqlGrantObjectKind::Function)
+    else {
         return unsupported();
     };
     if objects.is_empty() || !cursor.consume_keyword(marker) {
         return unsupported();
     }
-    let roles = cursor.identifiers_until(&["CASCADE", "RESTRICT", "GRANTED", "WITH"]);
-    if roles.is_empty() {
+
+    let Some(roles) = cursor.identifier_list_until(&["CASCADE", "RESTRICT", "GRANTED", "WITH"])
+    else {
+        return unsupported();
+    };
+    if roles.is_empty() || !cursor.is_at_end() {
         return unsupported();
     }
 
@@ -473,6 +583,10 @@ impl<'a> Cursor<'a> {
         }
     }
 
+    fn is_at_end(&self) -> bool {
+        self.position == self.tokens.len()
+    }
+
     fn peek_keyword(&self) -> Option<String> {
         self.tokens
             .get(self.position)
@@ -511,6 +625,16 @@ impl<'a> Cursor<'a> {
         }
     }
 
+    fn consume_empty_function_signature(&mut self) -> bool {
+        let start = self.position;
+        if self.consume_symbol("(") && self.consume_symbol(")") {
+            true
+        } else {
+            self.position = start;
+            false
+        }
+    }
+
     fn parse_identifier(&mut self) -> Option<String> {
         let value = normalized_identifier(self.input, self.tokens.get(self.position)?)?;
         self.position += 1;
@@ -545,29 +669,8 @@ impl<'a> Cursor<'a> {
             })
     }
 
-    fn keyword_after(&self, marker: &str) -> Option<String> {
-        let remaining = &self.tokens[self.position..];
-        let index = remaining
-            .iter()
-            .position(|token| keyword(self.input, token).as_deref() == Some(marker))?;
-        remaining
-            .get(index + 1)
-            .and_then(|token| keyword(self.input, token))
-    }
-
-    fn identifiers_after(&self, marker: &str, stop_words: &[&str]) -> Vec<String> {
-        let remaining = &self.tokens[self.position..];
-        let Some(index) = remaining
-            .iter()
-            .position(|token| keyword(self.input, token).as_deref() == Some(marker))
-        else {
-            return Vec::new();
-        };
-        collect_identifiers(self.input, &remaining[index + 1..], stop_words)
-    }
-
-    fn identifiers_until(&mut self, stop_words: &[&str]) -> Vec<String> {
-        let start = self.position;
+    fn identifier_list_until(&mut self, stop_words: &[&str]) -> Option<Vec<String>> {
+        let mut values = Vec::new();
         while self.position < self.tokens.len() {
             if self
                 .peek_keyword()
@@ -575,25 +678,25 @@ impl<'a> Cursor<'a> {
             {
                 break;
             }
-            self.position += 1;
+            if self.consume_symbol(",") {
+                continue;
+            }
+            if values.len() >= DEFAULT_MAX_SQL_MODEL_LIST_ITEMS {
+                return None;
+            }
+            values.push(self.parse_identifier()?);
         }
-        collect_identifiers(self.input, &self.tokens[start..self.position], &[])
+        Some(values)
     }
 
     fn keyword_list_until(&mut self, marker: &str) -> Option<Vec<String>> {
-        let start = self.position;
-        while self.position < self.tokens.len() && self.peek_keyword().as_deref() != Some(marker) {
-            self.position += 1;
-        }
-        if self.position == self.tokens.len() {
-            return None;
-        }
         let mut values = Vec::new();
-        for token in &self.tokens[start..self.position] {
-            if token.kind == SqlTokenKind::Symbol && token_text(self.input, token) == "," {
+        while self.position < self.tokens.len() && self.peek_keyword().as_deref() != Some(marker) {
+            if self.consume_symbol(",") {
                 continue;
             }
-            let value = keyword(self.input, token)?;
+            let value = self.peek_keyword()?;
+            self.position += 1;
             if value == "PRIVILEGES" && values.last().is_some_and(|last| last == "ALL") {
                 continue;
             }
@@ -602,18 +705,29 @@ impl<'a> Cursor<'a> {
             }
             values.push(value);
         }
-        Some(values)
+        (self.position < self.tokens.len()).then_some(values)
     }
 
-    fn object_list_until(&mut self, marker: &str) -> Option<Vec<SqlObjectName>> {
+    fn object_list_until(
+        &mut self,
+        marker: &str,
+        require_empty_function_signature: bool,
+    ) -> Option<Vec<SqlObjectName>> {
         let mut values = Vec::new();
         while self.position < self.tokens.len() && self.peek_keyword().as_deref() != Some(marker) {
             if values.len() >= DEFAULT_MAX_SQL_MODEL_LIST_ITEMS {
                 return None;
             }
-            values.push(self.parse_object_name()?);
-            if !self.consume_symbol(",") {
+            let object = self.parse_object_name()?;
+            if require_empty_function_signature && !self.consume_empty_function_signature() {
+                return None;
+            }
+            values.push(object);
+            if self.peek_keyword().as_deref() == Some(marker) {
                 break;
+            }
+            if !self.consume_symbol(",") {
+                return None;
             }
         }
         Some(values)
@@ -665,6 +779,7 @@ impl<'a> Cursor<'a> {
             {
                 continue;
             }
+
             let mut value_index = index + 2;
             if remaining.get(value_index).is_some_and(|token| {
                 (token.kind == SqlTokenKind::Symbol && token_text(self.input, token) == "=")
@@ -685,6 +800,7 @@ impl<'a> Cursor<'a> {
             {
                 return SqlSearchPathAttribute::MutableOrDefault;
             }
+
             let mut values = Vec::new();
             for token in &remaining[value_index..] {
                 if keyword(self.input, token).is_some_and(|keyword| {
@@ -704,6 +820,9 @@ impl<'a> Cursor<'a> {
                 if value.is_empty() {
                     return SqlSearchPathAttribute::PinnedEmpty;
                 }
+                if value.eq_ignore_ascii_case("default") || value == "$user" {
+                    return SqlSearchPathAttribute::MutableOrDefault;
+                }
                 if values.len() >= DEFAULT_MAX_SQL_MODEL_LIST_ITEMS {
                     return SqlSearchPathAttribute::MutableOrDefault;
                 }
@@ -717,26 +836,6 @@ impl<'a> Cursor<'a> {
         }
         SqlSearchPathAttribute::Unspecified
     }
-}
-
-fn collect_identifiers(input: &str, tokens: &[SqlToken], stop_words: &[&str]) -> Vec<String> {
-    let mut values = Vec::new();
-    for token in tokens {
-        if token.kind == SqlTokenKind::Symbol && token_text(input, token) == "," {
-            continue;
-        }
-        if keyword(input, token).is_some_and(|value| stop_words.contains(&value.as_str())) {
-            break;
-        }
-        let Some(value) = normalized_identifier(input, token) else {
-            break;
-        };
-        if values.len() >= DEFAULT_MAX_SQL_MODEL_LIST_ITEMS {
-            return Vec::new();
-        }
-        values.push(value);
-    }
-    values
 }
 
 fn token_text<'a>(input: &'a str, token: &SqlToken) -> &'a str {
@@ -788,6 +887,17 @@ mod tests {
             .collect()
     }
 
+    fn unsupported_statements(input: &str) -> Vec<SqlStatementModel> {
+        let statements = parse_sql_model(input, SqlScanLimits::default())
+            .unwrap()
+            .statements;
+        assert!(statements.iter().all(|statement| {
+            statement.coverage == SqlParseCoverage::UnsupportedSecurityRelevant
+                && statement.supported.is_none()
+        }));
+        statements
+    }
+
     #[test]
     fn models_schema_table_and_rls_state_changes() {
         let statements = supported_statements(
@@ -815,9 +925,9 @@ mod tests {
     }
 
     #[test]
-    fn models_policy_scope_roles_and_expression_presence() {
+    fn models_policy_scope_roles_defaults_and_expression_presence() {
         let statements = supported_statements(
-            "create policy \"Account read\" on public.accounts for select to anon, authenticated using (owner_id = auth.uid()) with check (owner_id = auth.uid()); alter policy \"Account read\" on public.accounts to authenticated using (true);",
+            "create policy \"Account read\" on public.accounts for select to anon, authenticated using (owner_id = auth.uid()) with check (owner_id = auth.uid()); alter policy \"Account read\" on public.accounts to authenticated using (true); create policy public_default on public.accounts using (true); alter policy public_default on public.accounts using (owner_id = auth.uid());",
         );
         assert!(matches!(
             &statements[0],
@@ -837,12 +947,21 @@ mod tests {
             SupportedSqlStatement::AlterPolicy {
                 policy,
                 relation,
-                roles,
+                roles: Some(roles),
                 has_using: true,
                 has_with_check: false,
             } if policy == "Account read"
                 && relation.normalized() == "public.accounts"
                 && roles == &vec!["authenticated".to_owned()]
+        ));
+        assert!(matches!(
+            &statements[2],
+            SupportedSqlStatement::CreatePolicy { roles, .. }
+                if roles == &vec!["public".to_owned()]
+        ));
+        assert!(matches!(
+            &statements[3],
+            SupportedSqlStatement::AlterPolicy { roles: None, .. }
         ));
     }
 
@@ -867,6 +986,34 @@ mod tests {
             SupportedSqlStatement::Revoke { privileges, roles, .. }
                 if privileges == &vec!["INSERT".to_owned()]
                     && roles == &vec!["anon".to_owned()]
+        ));
+    }
+
+    #[test]
+    fn models_canonical_empty_signature_function_grants() {
+        let statements = supported_statements(
+            "revoke all on function private.current_account_id() from public; grant execute on function private.current_account_id() to authenticated;",
+        );
+        assert!(matches!(
+            &statements[0],
+            SupportedSqlStatement::Revoke {
+                object_kind: SqlGrantObjectKind::Function,
+                objects,
+                roles,
+                ..
+            } if objects[0].normalized() == "private.current_account_id"
+                && roles == &vec!["public".to_owned()]
+        ));
+        assert!(matches!(
+            &statements[1],
+            SupportedSqlStatement::Grant {
+                privileges,
+                object_kind: SqlGrantObjectKind::Function,
+                objects,
+                roles,
+            } if privileges == &vec!["EXECUTE".to_owned()]
+                && objects[0].normalized() == "private.current_account_id"
+                && roles == &vec!["authenticated".to_owned()]
         ));
     }
 
@@ -899,6 +1046,20 @@ mod tests {
     }
 
     #[test]
+    fn dynamic_search_path_is_not_recorded_as_pinned() {
+        let statements = supported_statements(
+            "create function private.from_current() returns void language sql security definer set search_path from current as $$ select 1 $$; create function private.default_path() returns void language sql security definer set search_path = default as $$ select 1 $$; create function private.user_path() returns void language sql security definer set search_path = '$user', public as $$ select 1 $$;",
+        );
+        assert!(statements.iter().all(|statement| matches!(
+            statement,
+            SupportedSqlStatement::CreateFunction {
+                search_path: SqlSearchPathAttribute::MutableOrDefault,
+                ..
+            }
+        )));
+    }
+
+    #[test]
     fn models_minimal_view_security_invoker_attribute() {
         let statements = supported_statements(
             "create view public.safe_accounts with (security_invoker = true) as select id from private.accounts;",
@@ -914,16 +1075,18 @@ mod tests {
 
     #[test]
     fn unsupported_security_syntax_never_becomes_clean_supported_state() {
-        let scan = parse_sql_model(
-            "alter table public.accounts force row level security; do $$ begin execute 'grant all'; end $$;",
-            SqlScanLimits::default(),
-        )
-        .unwrap();
-        assert_eq!(scan.statements.len(), 2);
-        assert!(scan.statements.iter().all(|statement| {
-            statement.coverage == SqlParseCoverage::UnsupportedSecurityRelevant
-                && statement.supported.is_none()
-        }));
+        let statements = unsupported_statements(
+            "alter table public.accounts force row level security; do $$ begin execute 'grant all'; end $$; drop table public.accounts; create policy restrictive_policy on public.accounts as restrictive using (true);",
+        );
+        assert_eq!(statements.len(), 4);
+    }
+
+    #[test]
+    fn overloaded_functions_and_grant_option_semantics_fail_closed() {
+        let statements = unsupported_statements(
+            "create function public.lookup(value uuid) returns uuid language sql as $$ select value $$; grant execute on function public.lookup(uuid) to anon; grant execute on function public.lookup() to anon with grant option; revoke grant option for execute on function public.lookup() from anon;",
+        );
+        assert_eq!(statements.len(), 4);
     }
 
     #[test]
