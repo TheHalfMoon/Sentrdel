@@ -38,8 +38,8 @@ jobs:
                   '''struct ReviewMetrics {\n    clean_cases: u64,\n    clean_cases_with_false_positive: u64,\n    clean_false_positive_findings: u64,\n''',
               ),
               (
-                  '''struct GuardMetrics {\n''',
-                  '''#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]\n#[serde(rename_all = "SCREAMING_SNAKE_CASE")]\nenum ReleaseGateStatus {\n    Pass,\n    FailThresholdExceeded,\n    UnqualifiedNoCleanCases,\n    EvaluationError,\n}\n\n#[derive(Clone, Debug, Eq, PartialEq, Serialize)]\nstruct CleanPrFalsePositiveGate {\n    status: ReleaseGateStatus,\n    clean_cases_evaluated: u64,\n    clean_cases_with_false_positive: u64,\n    max_false_positive_clean_prs: u64,\n    per_clean_prs: u64,\n}\n\nstruct GuardMetrics {\n''',
+                  '''#[derive(Clone, Debug, Eq, PartialEq, Serialize)]\nstruct GuardMetrics {\n''',
+                  '''#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]\n#[serde(rename_all = "SCREAMING_SNAKE_CASE")]\nenum ReleaseGateStatus {\n    Pass,\n    FailThresholdExceeded,\n    UnqualifiedNoCleanCases,\n    EvaluationError,\n}\n\n#[derive(Clone, Debug, Eq, PartialEq, Serialize)]\nstruct CleanPrFalsePositiveGate {\n    status: ReleaseGateStatus,\n    clean_cases_evaluated: u64,\n    clean_cases_with_false_positive: u64,\n    max_false_positive_clean_prs: u64,\n    per_clean_prs: u64,\n}\n\n#[derive(Clone, Debug, Eq, PartialEq, Serialize)]\nstruct GuardMetrics {\n''',
               ),
               (
                   '''    review: ReviewMetrics,\n    guard: GuardMetrics,\n''',
