@@ -10,8 +10,8 @@ pub const NO_NETWORK_FLAG: &str = "--no-network";
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ReviewReasoningFlags {
-    reason: bool,
-    no_network: bool,
+    pub reason: bool,
+    pub no_network: bool,
 }
 
 impl ReviewReasoningFlags {
