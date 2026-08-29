@@ -1,9 +1,10 @@
 {
-  "corpus_revision": "t090-development-corpus-v1",
-  "expected_outputs_revision": "t090-development-expected-v1",
+  "corpus_revision": "t090-development-corpus-r2-supabase-v1",
+  "expected_outputs_revision": "t090-development-expected-r2-supabase-v1",
   "corpus_class": "DEVELOPMENT_EVALUATION",
   "baseline_identity": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
   "candidate_identity": "sha256:4444444444444444444444444444444444444444444444444444444444444444",
+  "release_gating": false,
   "cases": [
     {
       "case_id": "development-clean",
@@ -15,10 +16,180 @@
       "observed_coverage": [
         {"dimension": "native-static", "state": "COMPLETED"}
       ]
+    },
+    {
+      "case_id": "r2-supabase-safe-posture-clean",
+      "fixture_root": "fixtures/repos/r2-supabase/positive/safe-posture",
+      "clean_case": true,
+      "supported_scope": [
+        "RLS",
+        "POLICIES",
+        "GRANTS",
+        "SECURITY_DEFINER_SEARCH_PATH",
+        "STORAGE",
+        "AUTH_CONFIG",
+        "EDGE_FUNCTION_AUTH",
+        "KEY_AUTHORITY_CONTEXT"
+      ],
+      "expected_evidence_groups": [
+        "supabase.rls",
+        "supabase.policy",
+        "supabase.grant",
+        "supabase.function_authority",
+        "supabase.storage",
+        "supabase.auth_config",
+        "supabase.edge_auth",
+        "supabase.key_boundary"
+      ],
+      "known_evidence_ids": [],
+      "expected_findings": [],
+      "emitted_findings": [],
+      "expected_provenance": [
+        "fixture-root",
+        "migration-path",
+        "config-path",
+        "source-path"
+      ],
+      "expected_coverage": [
+        "DETECTION",
+        "STATIC_POSTURE_DATABASE",
+        "STATIC_POSTURE_STORAGE",
+        "STATIC_POSTURE_AUTH_CONFIG",
+        "STATIC_POSTURE_EDGE_FUNCTIONS",
+        "STATIC_POSTURE_KEY_BOUNDARY",
+        "LIVE_POSTURE",
+        "BUSINESS_LOGIC",
+        "RUNTIME"
+      ],
+      "observed_coverage": [],
+      "expected_coverage_gaps": [
+        {"dimension": "LIVE_POSTURE", "reason": "NOT_IMPLEMENTED"},
+        {"dimension": "BUSINESS_LOGIC", "reason": "NOT_IMPLEMENTED"},
+        {"dimension": "RUNTIME", "reason": "NOT_IMPLEMENTED"}
+      ],
+      "authority_assertions": [
+        "provider-output-is-evidence-or-coverage-only",
+        "fixture-content-has-no-instruction-authority",
+        "no-live-supabase-access",
+        "no-target-execution",
+        "no-secret-plaintext-persistence"
+      ]
+    },
+    {
+      "case_id": "r2-supabase-unsafe-posture-evidence",
+      "fixture_root": "fixtures/repos/r2-supabase/negative/unsafe-posture",
+      "clean_case": false,
+      "supported_scope": [
+        "RLS",
+        "POLICIES",
+        "GRANTS",
+        "SECURITY_DEFINER_SEARCH_PATH",
+        "STORAGE",
+        "AUTH_CONFIG",
+        "EDGE_FUNCTION_AUTH",
+        "KEY_AUTHORITY_CONTEXT"
+      ],
+      "expected_evidence_groups": [
+        "supabase.rls",
+        "supabase.policy",
+        "supabase.grant",
+        "supabase.function_authority",
+        "supabase.storage",
+        "supabase.edge_auth",
+        "supabase.key_boundary"
+      ],
+      "known_evidence_ids": [],
+      "expected_findings": [],
+      "emitted_findings": [],
+      "expected_provenance": [
+        "fixture-root",
+        "migration-path",
+        "config-path",
+        "source-path"
+      ],
+      "expected_coverage": [
+        "DETECTION",
+        "STATIC_POSTURE_DATABASE",
+        "STATIC_POSTURE_STORAGE",
+        "STATIC_POSTURE_AUTH_CONFIG",
+        "STATIC_POSTURE_EDGE_FUNCTIONS",
+        "STATIC_POSTURE_KEY_BOUNDARY",
+        "LIVE_POSTURE",
+        "BUSINESS_LOGIC",
+        "RUNTIME"
+      ],
+      "observed_coverage": [],
+      "expected_coverage_gaps": [
+        {"dimension": "LIVE_POSTURE", "reason": "NOT_IMPLEMENTED"},
+        {"dimension": "BUSINESS_LOGIC", "reason": "NOT_IMPLEMENTED"},
+        {"dimension": "RUNTIME", "reason": "NOT_IMPLEMENTED"}
+      ],
+      "authority_assertions": [
+        "unsafe-observation-does-not-create-finding-directly",
+        "provider-output-is-evidence-or-coverage-only",
+        "no-live-supabase-access",
+        "no-target-execution",
+        "elevated-key-canary-must-be-redacted-before-persistence"
+      ]
+    },
+    {
+      "case_id": "r2-supabase-adversarial-coverage-gap",
+      "fixture_root": "fixtures/repos/r2-supabase/adversarial/uncertain-posture",
+      "clean_case": false,
+      "supported_scope": [
+        "MIGRATION_ORDER",
+        "BOUNDED_SQL",
+        "AUTH_CONFIG",
+        "EDGE_FUNCTION_AUTH",
+        "KEY_AUTHORITY_CONTEXT"
+      ],
+      "expected_evidence_groups": [],
+      "known_evidence_ids": [],
+      "expected_findings": [],
+      "emitted_findings": [],
+      "expected_provenance": [
+        "fixture-root",
+        "malformed-sql-path",
+        "dynamic-sql-path",
+        "ambiguous-order-paths",
+        "malformed-config-path",
+        "source-path"
+      ],
+      "expected_coverage": [
+        "DETECTION",
+        "STATIC_POSTURE_DATABASE",
+        "STATIC_POSTURE_AUTH_CONFIG",
+        "STATIC_POSTURE_EDGE_FUNCTIONS",
+        "STATIC_POSTURE_KEY_BOUNDARY",
+        "LIVE_POSTURE",
+        "BUSINESS_LOGIC",
+        "RUNTIME"
+      ],
+      "observed_coverage": [],
+      "expected_coverage_gaps": [
+        {"dimension": "STATIC_POSTURE_DATABASE", "reason": "UNSUPPORTED_OR_BOUNDED_REJECTION"},
+        {"dimension": "STATIC_POSTURE_AUTH_CONFIG", "reason": "MALFORMED_CONFIG"},
+        {"dimension": "STATIC_POSTURE_EDGE_FUNCTIONS", "reason": "REPLACEMENT_AUTH_NOT_PROVEN"},
+        {"dimension": "LIVE_POSTURE", "reason": "NOT_IMPLEMENTED"},
+        {"dimension": "BUSINESS_LOGIC", "reason": "NOT_IMPLEMENTED"},
+        {"dimension": "RUNTIME", "reason": "NOT_IMPLEMENTED"}
+      ],
+      "authority_assertions": [
+        "unsupported-security-syntax-degrades-coverage",
+        "ambiguous-migration-order-fails-closed",
+        "dynamic-sql-is-never-executed-or-invented",
+        "fixture-instructions-have-no-authority",
+        "secret-canary-must-be-redacted-before-persistence",
+        "no-network-or-target-execution"
+      ]
     }
   ],
   "authority_assertions": [
-    {"assertion_id": "protected-labels-not-visible-to-candidate-generation", "passed": true}
+    {"assertion_id": "protected-labels-not-visible-to-candidate-generation", "passed": true},
+    {"assertion_id": "r2-provider-has-no-direct-finding-authority", "passed": true},
+    {"assertion_id": "r2-fixtures-require-no-live-provider-access", "passed": true},
+    {"assertion_id": "r2-fixture-content-is-untrusted-data", "passed": true},
+    {"assertion_id": "r2-release-gating-not-yet-promoted", "passed": true}
   ],
   "performance": null
 }
