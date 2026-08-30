@@ -466,6 +466,13 @@ fn parse_function(
     };
     let search_path = cursor.search_path_attribute();
 
+    if alter
+        && security_mode == SqlFunctionSecurityMode::Unspecified
+        && search_path == SqlSearchPathAttribute::Unspecified
+    {
+        return unsupported();
+    }
+
     if alter {
         supported(SupportedSqlStatement::AlterFunction {
             function,
@@ -764,8 +771,7 @@ impl<'a> Cursor<'a> {
                 && remaining
                     .get(index + 1)
                     .and_then(|token| keyword(self.input, token))
-                    .as_deref()
-                    == Some("SEARCH_PATH")
+                    .is_some_and(|next| matches!(next.as_str(), "SEARCH_PATH" | "ALL"))
             {
                 return SqlSearchPathAttribute::MutableOrDefault;
             }
@@ -1019,7 +1025,7 @@ mod tests {
     #[test]
     fn models_function_authority_and_search_path_attributes() {
         let statements = supported_statements(
-            "create function private.lookup_role() returns text language sql security definer set search_path = '' as $$ select 'admin' $$; alter function private.lookup_role() security invoker set search_path = pg_catalog, private; drop function private.lookup_role();",
+            "create function private.lookup_role() returns text language sql security definer set search_path = '' as $$ select 'admin' $$; alter function private.lookup_role() security invoker set search_path = pg_catalog, private; alter function private.lookup_role() reset all; drop function private.lookup_role();",
         );
         assert!(matches!(
             &statements[0],
@@ -1039,9 +1045,25 @@ mod tests {
         ));
         assert!(matches!(
             &statements[2],
+            SupportedSqlStatement::AlterFunction {
+                security_mode: SqlFunctionSecurityMode::Unspecified,
+                search_path: SqlSearchPathAttribute::MutableOrDefault,
+                ..
+            }
+        ));
+        assert!(matches!(
+            &statements[3],
             SupportedSqlStatement::DropFunction { function }
                 if function.normalized() == "private.lookup_role"
         ));
+    }
+
+    #[test]
+    fn alter_function_without_supported_authority_mutation_fails_closed() {
+        let statements = unsupported_statements(
+            "alter function private.lookup_role(); alter function private.lookup_role() volatile;",
+        );
+        assert_eq!(statements.len(), 2);
     }
 
     #[test]
