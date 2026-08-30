@@ -451,7 +451,8 @@ fn parse_function(
     }
 
     if alter {
-        let Some((security_mode, search_path)) = cursor.alter_function_authority_attributes() else {
+        let Some((security_mode, search_path)) = cursor.alter_function_authority_attributes()
+        else {
             return unsupported();
         };
         return supported(SupportedSqlStatement::AlterFunction {
