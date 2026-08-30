@@ -257,9 +257,7 @@ fn parse_create(cursor: &mut Cursor<'_>) -> (SqlParseCoverage, Option<SupportedS
     }
 }
 
-fn parse_create_view(
-    cursor: &mut Cursor<'_>,
-) -> (SqlParseCoverage, Option<SupportedSqlStatement>) {
+fn parse_create_view(cursor: &mut Cursor<'_>) -> (SqlParseCoverage, Option<SupportedSqlStatement>) {
     let Some(view) = cursor.parse_object_name() else {
         return unsupported();
     };
