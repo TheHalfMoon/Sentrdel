@@ -1015,7 +1015,12 @@ mod tests {
             FunctionSearchPathState::UnpinnedOrMutable
         );
         assert_eq!(
-            function.search_path.provenance.as_ref().unwrap().content_digest,
+            function
+                .search_path
+                .provenance
+                .as_ref()
+                .unwrap()
+                .content_digest,
             "digest-reset"
         );
         assert_eq!(state.coverage_state, PostureCoverageState::Complete);
