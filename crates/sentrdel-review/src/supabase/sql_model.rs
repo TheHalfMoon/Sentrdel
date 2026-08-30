@@ -464,7 +464,9 @@ fn parse_function(
     } else {
         SqlFunctionSecurityMode::Unspecified
     };
-    let search_path = cursor.search_path_attribute();
+    let Some(search_path) = cursor.search_path_attribute() else {
+        return unsupported();
+    };
 
     if alter
         && security_mode == SqlFunctionSecurityMode::Unspecified
@@ -761,85 +763,173 @@ impl<'a> Cursor<'a> {
         }
     }
 
-    fn search_path_attribute(&self) -> SqlSearchPathAttribute {
+    fn is_function_attribute_boundary(&self, token: &SqlToken) -> bool {
+        keyword(self.input, token).is_some_and(|value| {
+            matches!(
+                value.as_str(),
+                "LANGUAGE"
+                    | "SECURITY"
+                    | "AS"
+                    | "SET"
+                    | "RESET"
+                    | "COST"
+                    | "ROWS"
+                    | "IMMUTABLE"
+                    | "STABLE"
+                    | "VOLATILE"
+                    | "LEAKPROOF"
+                    | "STRICT"
+                    | "CALLED"
+                    | "RETURNS"
+                    | "PARALLEL"
+                    | "SUPPORT"
+                    | "WINDOW"
+                    | "TRANSFORM"
+            )
+        })
+    }
+
+    fn search_path_attribute(&self) -> Option<SqlSearchPathAttribute> {
         let remaining = &self.tokens[self.position..];
-        for (index, token) in remaining.iter().enumerate() {
-            let Some(value) = keyword(self.input, token) else {
+        let mut observed = None;
+        let mut index = 0_usize;
+
+        while index < remaining.len() {
+            let Some(value) = keyword(self.input, &remaining[index]) else {
+                index += 1;
                 continue;
             };
-            if value == "RESET"
-                && remaining
-                    .get(index + 1)
-                    .and_then(|token| keyword(self.input, token))
-                    .is_some_and(|next| matches!(next.as_str(), "SEARCH_PATH" | "ALL"))
-            {
-                return SqlSearchPathAttribute::MutableOrDefault;
-            }
-            if value != "SET"
-                || remaining
-                    .get(index + 1)
-                    .and_then(|token| keyword(self.input, token))
-                    .as_deref()
-                    != Some("SEARCH_PATH")
-            {
-                continue;
-            }
 
-            let mut value_index = index + 2;
-            if remaining.get(value_index).is_some_and(|token| {
-                (token.kind == SqlTokenKind::Symbol && token_text(self.input, token) == "=")
-                    || keyword(self.input, token).as_deref() == Some("TO")
-            }) {
-                value_index += 1;
-            }
-            if remaining
-                .get(value_index)
-                .and_then(|token| keyword(self.input, token))
-                .as_deref()
-                == Some("FROM")
-                && remaining
-                    .get(value_index + 1)
-                    .and_then(|token| keyword(self.input, token))
+            if value == "RESET" {
+                let next = remaining
+                    .get(index + 1)
+                    .and_then(|token| keyword(self.input, token));
+                if next
                     .as_deref()
-                    == Some("CURRENT")
-            {
-                return SqlSearchPathAttribute::MutableOrDefault;
-            }
-
-            let mut values = Vec::new();
-            for token in &remaining[value_index..] {
-                if keyword(self.input, token).is_some_and(|keyword| {
-                    matches!(
-                        keyword.as_str(),
-                        "LANGUAGE" | "SECURITY" | "AS" | "SET" | "RESET" | "COST" | "ROWS"
-                    )
-                }) {
-                    break;
-                }
-                if token.kind == SqlTokenKind::Symbol && token_text(self.input, token) == "," {
+                    .is_some_and(|next| matches!(next, "SEARCH_PATH" | "ALL"))
+                {
+                    if observed.is_some() {
+                        return None;
+                    }
+                    let end = index + 2;
+                    if remaining
+                        .get(end)
+                        .is_some_and(|token| !self.is_function_attribute_boundary(token))
+                    {
+                        return None;
+                    }
+                    observed = Some(SqlSearchPathAttribute::MutableOrDefault);
+                    index = end;
                     continue;
                 }
-                let Some(value) = normalized_search_path_value(self.input, token) else {
-                    break;
-                };
-                if value.is_empty() {
-                    return SqlSearchPathAttribute::PinnedEmpty;
-                }
-                if value.eq_ignore_ascii_case("default") || value == "$user" {
-                    return SqlSearchPathAttribute::MutableOrDefault;
-                }
-                if values.len() >= DEFAULT_MAX_SQL_MODEL_LIST_ITEMS {
-                    return SqlSearchPathAttribute::MutableOrDefault;
-                }
-                values.push(value);
             }
-            return if values.is_empty() {
-                SqlSearchPathAttribute::MutableOrDefault
-            } else {
-                SqlSearchPathAttribute::PinnedExplicit(values)
-            };
+
+            if value == "SET"
+                && remaining
+                    .get(index + 1)
+                    .and_then(|token| keyword(self.input, token))
+                    .as_deref()
+                    == Some("SEARCH_PATH")
+            {
+                if observed.is_some() {
+                    return None;
+                }
+
+                let mut value_index = index + 2;
+                if remaining
+                    .get(value_index)
+                    .and_then(|token| keyword(self.input, token))
+                    .as_deref()
+                    == Some("FROM")
+                {
+                    if remaining
+                        .get(value_index + 1)
+                        .and_then(|token| keyword(self.input, token))
+                        .as_deref()
+                        != Some("CURRENT")
+                    {
+                        return None;
+                    }
+                    let end = value_index + 2;
+                    if remaining
+                        .get(end)
+                        .is_some_and(|token| !self.is_function_attribute_boundary(token))
+                    {
+                        return None;
+                    }
+                    observed = Some(SqlSearchPathAttribute::MutableOrDefault);
+                    index = end;
+                    continue;
+                }
+
+                let has_assignment = remaining.get(value_index).is_some_and(|token| {
+                    (token.kind == SqlTokenKind::Symbol && token_text(self.input, token) == "=")
+                        || keyword(self.input, token).as_deref() == Some("TO")
+                });
+                if !has_assignment {
+                    return None;
+                }
+                value_index += 1;
+                if value_index >= remaining.len() {
+                    return None;
+                }
+
+                let mut values = Vec::new();
+                let mut expect_value = true;
+                let mut cursor_index = value_index;
+                while cursor_index < remaining.len() {
+                    let token = &remaining[cursor_index];
+                    if self.is_function_attribute_boundary(token) {
+                        if expect_value {
+                            return None;
+                        }
+                        break;
+                    }
+                    if expect_value {
+                        if token.kind == SqlTokenKind::Symbol && token_text(self.input, token) == "," {
+                            return None;
+                        }
+                        let value = normalized_search_path_value(self.input, token)?;
+                        if values.len() >= DEFAULT_MAX_SQL_MODEL_LIST_ITEMS {
+                            return None;
+                        }
+                        values.push(value);
+                        expect_value = false;
+                        cursor_index += 1;
+                    } else if token.kind == SqlTokenKind::Symbol
+                        && token_text(self.input, token) == ","
+                    {
+                        expect_value = true;
+                        cursor_index += 1;
+                    } else {
+                        return None;
+                    }
+                }
+
+                if expect_value || values.is_empty() {
+                    return None;
+                }
+                let attribute = if values.len() == 1 && values[0].is_empty() {
+                    SqlSearchPathAttribute::PinnedEmpty
+                } else if values.iter().any(String::is_empty) {
+                    return None;
+                } else if values
+                    .iter()
+                    .any(|value| value.eq_ignore_ascii_case("default") || value == "$user")
+                {
+                    SqlSearchPathAttribute::MutableOrDefault
+                } else {
+                    SqlSearchPathAttribute::PinnedExplicit(values)
+                };
+                observed = Some(attribute);
+                index = cursor_index;
+                continue;
+            }
+
+            index += 1;
         }
-        SqlSearchPathAttribute::Unspecified
+
+        Some(observed.unwrap_or(SqlSearchPathAttribute::Unspecified))
     }
 }
 
@@ -1064,6 +1154,14 @@ mod tests {
             "alter function private.lookup_role(); alter function private.lookup_role() volatile;",
         );
         assert_eq!(statements.len(), 2);
+    }
+
+    #[test]
+    fn malformed_search_path_grammar_fails_closed() {
+        let statements = unsupported_statements(
+            "alter function private.lookup_role() set search_path private; alter function private.lookup_role() set search_path = private public; alter function private.lookup_role() set search_path = , private; alter function private.lookup_role() set search_path = private,; alter function private.lookup_role() set search_path to; alter function private.lookup_role() reset search_path garbage;",
+        );
+        assert_eq!(statements.len(), 6);
     }
 
     #[test]
