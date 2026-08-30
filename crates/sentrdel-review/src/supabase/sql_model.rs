@@ -709,6 +709,14 @@ impl<'a> Cursor<'a> {
 
     fn parse_role_identifier(&mut self) -> Option<String> {
         let token = self.tokens.get(self.position)?;
+        if token.kind == SqlTokenKind::Word
+            && matches!(
+                keyword(self.input, token).as_deref(),
+                Some("CURRENT_ROLE" | "CURRENT_USER" | "SESSION_USER")
+            )
+        {
+            return None;
+        }
         let value = normalized_identifier(self.input, token)?;
         self.position += 1;
         if token.kind == SqlTokenKind::QuotedIdentifier && value == "public" {
@@ -1182,6 +1190,28 @@ mod tests {
             &statements[3],
             SupportedSqlStatement::Grant { roles, .. }
                 if roles == &vec!["\"public\"".to_owned()]
+        ));
+    }
+
+    #[test]
+    fn dynamic_role_specifications_fail_closed_but_quoted_names_remain_supported() {
+        let unsupported = unsupported_statements(
+            "create policy current_user_policy on public.accounts to current_user using (true); grant select on table public.accounts to current_role; revoke select on table public.accounts from session_user;",
+        );
+        assert_eq!(unsupported.len(), 3);
+
+        let supported = supported_statements(
+            "create policy named_current_user on public.accounts to \"current_user\" using (true); grant select on table public.accounts to \"current_role\";",
+        );
+        assert!(matches!(
+            &supported[0],
+            SupportedSqlStatement::CreatePolicy { roles, .. }
+                if roles == &vec!["current_user".to_owned()]
+        ));
+        assert!(matches!(
+            &supported[1],
+            SupportedSqlStatement::Grant { roles, .. }
+                if roles == &vec!["current_role".to_owned()]
         ));
     }
 
