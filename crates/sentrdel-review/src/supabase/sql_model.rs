@@ -365,7 +365,7 @@ fn parse_create_policy(
     };
 
     let roles = if cursor.consume_keyword("TO") {
-        let Some(roles) = cursor.identifier_list_until(&["USING", "WITH"]) else {
+        let Some(roles) = cursor.role_list_until(&["USING", "WITH"]) else {
             return unsupported();
         };
         if roles.is_empty() {
@@ -420,7 +420,7 @@ fn parse_alter_policy(
     }
 
     let roles = if cursor.consume_keyword("TO") {
-        let Some(roles) = cursor.identifier_list_until(&["USING", "WITH"]) else {
+        let Some(roles) = cursor.role_list_until(&["USING", "WITH"]) else {
             return unsupported();
         };
         if roles.is_empty() {
@@ -553,7 +553,7 @@ fn parse_grant_revoke(
         return unsupported();
     }
 
-    let Some(roles) = cursor.identifier_list_until(&["CASCADE", "RESTRICT", "GRANTED", "WITH"])
+    let Some(roles) = cursor.role_list_until(&["CASCADE", "RESTRICT", "GRANTED", "WITH"])
     else {
         return unsupported();
     };
@@ -707,6 +707,17 @@ impl<'a> Cursor<'a> {
         Some(value)
     }
 
+    fn parse_role_identifier(&mut self) -> Option<String> {
+        let token = self.tokens.get(self.position)?;
+        let value = normalized_identifier(self.input, token)?;
+        self.position += 1;
+        if token.kind == SqlTokenKind::QuotedIdentifier && value == "public" {
+            Some("\"public\"".to_owned())
+        } else {
+            Some(value)
+        }
+    }
+
     fn parse_object_name(&mut self) -> Option<SqlObjectName> {
         let mut parts = vec![self.parse_identifier()?];
         while self.consume_symbol(".") {
@@ -750,6 +761,43 @@ impl<'a> Cursor<'a> {
                 return None;
             }
             values.push(self.parse_identifier()?);
+
+            if self.position >= self.tokens.len()
+                || self
+                    .peek_keyword()
+                    .is_some_and(|value| stop_words.contains(&value.as_str()))
+            {
+                break;
+            }
+            if !self.consume_symbol(",") {
+                return None;
+            }
+            if self.position >= self.tokens.len()
+                || self
+                    .peek_keyword()
+                    .is_some_and(|value| stop_words.contains(&value.as_str()))
+            {
+                return None;
+            }
+        }
+        Some(values)
+    }
+
+    fn role_list_until(&mut self, stop_words: &[&str]) -> Option<Vec<String>> {
+        if self.position >= self.tokens.len()
+            || self
+                .peek_keyword()
+                .is_some_and(|value| stop_words.contains(&value.as_str()))
+        {
+            return None;
+        }
+
+        let mut values = Vec::new();
+        loop {
+            if values.len() >= DEFAULT_MAX_SQL_MODEL_LIST_ITEMS {
+                return None;
+            }
+            values.push(self.parse_role_identifier()?);
 
             if self.position >= self.tokens.len()
                 || self
@@ -1107,6 +1155,34 @@ mod tests {
             "create policy missing_comma on public.accounts to anon authenticated using (true); create policy leading_comma on public.accounts to , anon using (true); alter policy trailing_comma on public.accounts to authenticated, using (true); grant select on table public.accounts to anon authenticated;",
         );
         assert_eq!(statements.len(), 4);
+    }
+
+    #[test]
+    fn quoted_public_role_remains_distinct_from_public_pseudo_role() {
+        let statements = supported_statements(
+            "create policy all_roles on public.accounts to public using (true); create policy named_public on public.accounts to \"public\" using (true); grant select on table public.accounts to public; grant select on table public.accounts to \"public\";",
+        );
+        assert_eq!(statements.len(), 4);
+        assert!(matches!(
+            &statements[0],
+            SupportedSqlStatement::CreatePolicy { roles, .. }
+                if roles == &vec!["public".to_owned()]
+        ));
+        assert!(matches!(
+            &statements[1],
+            SupportedSqlStatement::CreatePolicy { roles, .. }
+                if roles == &vec!["\"public\"".to_owned()]
+        ));
+        assert!(matches!(
+            &statements[2],
+            SupportedSqlStatement::Grant { roles, .. }
+                if roles == &vec!["public".to_owned()]
+        ));
+        assert!(matches!(
+            &statements[3],
+            SupportedSqlStatement::Grant { roles, .. }
+                if roles == &vec!["\"public\"".to_owned()]
+        ));
     }
 
     #[test]
