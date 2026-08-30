@@ -886,7 +886,9 @@ impl<'a> Cursor<'a> {
                         break;
                     }
                     if expect_value {
-                        if token.kind == SqlTokenKind::Symbol && token_text(self.input, token) == "," {
+                        if token.kind == SqlTokenKind::Symbol
+                            && token_text(self.input, token) == ","
+                        {
                             return None;
                         }
                         let value = normalized_search_path_value(self.input, token)?;
