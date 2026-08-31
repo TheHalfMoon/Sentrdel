@@ -19,4 +19,4 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.SENTRDEL_GOVERNANCE_ADMIN_TOKEN }}
         run: python3 scripts/verify_repository_governance.py
 
-# Probe target main after canonical R2-T021 closeout: 696bad028d27ca61218fd02a31ac755b54e30e23
+# Probe target main after canonical R2-T022 implementation: 2a820a111f9d957e957fdd77a49c36c3fb141587
