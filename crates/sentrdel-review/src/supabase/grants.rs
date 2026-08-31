@@ -198,6 +198,7 @@ fn seal_grant(
     })?)
 }
 
+#[allow(clippy::too_many_arguments)]
 fn seal_partial_wildcard_coverage(
     authority: &EvidenceAuthority,
     state: &RepositoryPostureState,
