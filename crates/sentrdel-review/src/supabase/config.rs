@@ -965,7 +965,7 @@ mod tests {
             "[api] # api table\nenabled = true # direct fact\nschemas = [\"public\", \"storage\"] # static exposure\n",
         );
         assert_eq!(posture.parse_coverage, ConfigParseCoverage::Complete);
-        assert_eq!(posture.api_enabled.unwrap().value, true);
+        assert!(posture.api_enabled.unwrap().value);
         assert_eq!(posture.api_exposed_schemas.unwrap().value.len(), 2);
     }
 
