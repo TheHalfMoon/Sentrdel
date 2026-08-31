@@ -848,7 +848,8 @@ mod tests {
         assert_eq!(posture.parse_coverage, ConfigParseCoverage::Partial);
         assert_eq!(posture.diagnostics.len(), 3);
         assert!(posture.diagnostics.iter().all(|item| {
-            item.kind == ConfigDiagnosticKind::UnsupportedSecurityRelevantKey && item.table.is_none()
+            item.kind == ConfigDiagnosticKind::UnsupportedSecurityRelevantKey
+                && item.table.is_none()
         }));
         assert_eq!(
             posture
