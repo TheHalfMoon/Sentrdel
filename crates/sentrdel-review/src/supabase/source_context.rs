@@ -87,7 +87,7 @@ pub fn classify_source_execution_context(
     let path_context = classify_path(path);
     let directive_context = leading_execution_directive(source);
 
-    let context = match path_context {
+    Ok(match path_context {
         SourceExecutionContext::TestOrFixture => SourceExecutionContext::TestOrFixture,
         SourceExecutionContext::EdgeFunction => {
             if directive_context == Some(SourceExecutionContext::BrowserOrClient) {
@@ -113,37 +113,28 @@ pub fn classify_source_execution_context(
         SourceExecutionContext::Unknown => {
             directive_context.unwrap_or(SourceExecutionContext::Unknown)
         }
-    };
-
-    Ok(context)
+    })
 }
 
 fn classify_path(path: &NormalizedRepoPath) -> SourceExecutionContext {
-    let components: Vec<&str> = path.as_str().split('/').collect();
-    let file_name = components.last().copied().unwrap_or_default();
+    let path = path.as_str();
+    let file_name = path.rsplit('/').next().unwrap_or(path);
 
-    if components.iter().any(|component| {
-        matches!(
-            component.to_ascii_lowercase().as_str(),
-            "test" | "tests" | "__tests__" | "fixture" | "fixtures" | "testdata"
-        )
-    }) || is_test_file(file_name)
+    if path_has_component(
+        path,
+        &["test", "tests", "__tests__", "fixture", "fixtures", "testdata"],
+    ) || is_test_file(file_name)
     {
         return SourceExecutionContext::TestOrFixture;
     }
 
-    if components.len() >= 3 && components[0] == "supabase" && components[1] == "functions" {
+    if path.starts_with("supabase/functions/") {
         return SourceExecutionContext::EdgeFunction;
     }
 
-    let browser = components
-        .iter()
-        .any(|component| is_browser_component(component))
+    let browser = path_has_component(path, &["browser", "client", "frontend"])
         || is_browser_file(file_name);
-    let server = components
-        .iter()
-        .any(|component| is_server_component(component))
-        || is_server_file(file_name);
+    let server = path_has_component(path, &["server", "backend"]) || is_server_file(file_name);
 
     match (browser, server) {
         (true, false) => SourceExecutionContext::BrowserOrClient,
@@ -152,23 +143,17 @@ fn classify_path(path: &NormalizedRepoPath) -> SourceExecutionContext {
     }
 }
 
+fn path_has_component(path: &str, names: &[&str]) -> bool {
+    path.split('/').any(|component| {
+        names
+            .iter()
+            .any(|name| component.eq_ignore_ascii_case(name))
+    })
+}
+
 fn is_test_file(file_name: &str) -> bool {
     let lower = file_name.to_ascii_lowercase();
     lower.contains(".test.") || lower.contains(".spec.")
-}
-
-fn is_browser_component(component: &&str) -> bool {
-    matches!(
-        component.to_ascii_lowercase().as_str(),
-        "browser" | "client" | "frontend"
-    )
-}
-
-fn is_server_component(component: &&str) -> bool {
-    matches!(
-        component.to_ascii_lowercase().as_str(),
-        "server" | "backend"
-    )
 }
 
 fn is_browser_file(file_name: &str) -> bool {
