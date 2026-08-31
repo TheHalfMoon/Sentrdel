@@ -6,6 +6,7 @@
 //! executes migration SQL or provider tooling.
 
 pub mod config;
+pub mod grants;
 pub mod policy;
 pub mod posture;
 pub mod rls;
