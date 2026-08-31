@@ -6,29 +6,17 @@ on:
       - ci/temp-governance-reverify-20260901
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   rustfmt-probe:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout exact T022 head
+      - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
-          ref: cc841cca014064fb081609034480f04d61fc41fe
+          persist-credentials: false
       - name: Install pinned Rust toolchain
         run: rustup toolchain install 1.98.0 --profile minimal --component rustfmt
-      - name: Format exact T022 head
-        run: cargo +1.98.0 fmt --all
-      - name: Commit canonical rustfmt output to T022 branch
-        run: |
-          set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add crates/sentrdel-review/src/supabase.rs crates/sentrdel-review/src/supabase/edge_auth.rs
-          if git diff --cached --quiet; then
-            echo "No formatting change required"
-            exit 0
-          fi
-          git commit -m "style(r2): apply canonical rustfmt to T022"
-          git push origin HEAD:feat/002-r2-t022-edge-function-auth
+      - name: Verify temporary branch formatting
+        run: cargo +1.98.0 fmt --all -- --check
