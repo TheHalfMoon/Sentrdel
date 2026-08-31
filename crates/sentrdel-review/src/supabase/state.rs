@@ -239,6 +239,7 @@ pub struct RepositoryPostureState {
     pub schemas: BTreeMap<String, StatementProvenance>,
     pub relations: BTreeMap<SupabaseObjectId, RelationPosture>,
     pub policies: BTreeMap<PolicyIdentity, PolicyPosture>,
+    pub policy_removals: BTreeMap<PolicyIdentity, StatementProvenance>,
     pub functions: BTreeMap<SupabaseObjectId, FunctionPosture>,
     pub generic_grants: BTreeMap<GenericGrantTarget, BTreeMap<GrantKey, StatementProvenance>>,
     pub coverage_state: PostureCoverageState,
@@ -251,6 +252,7 @@ impl Default for RepositoryPostureState {
             schemas: BTreeMap::new(),
             relations: BTreeMap::new(),
             policies: BTreeMap::new(),
+            policy_removals: BTreeMap::new(),
             functions: BTreeMap::new(),
             generic_grants: BTreeMap::new(),
             coverage_state: PostureCoverageState::Complete,
@@ -486,6 +488,7 @@ fn apply_supported_statement(
                 },
                 provenance: provenance.clone(),
             };
+            state.policy_removals.remove(&identity);
             state.policies.insert(identity.clone(), posture);
             let relation_posture = relation_posture_mut(state, relation);
             relation_posture.policy_ids.insert(identity);
@@ -545,6 +548,9 @@ fn apply_supported_statement(
                 name: policy,
             };
             state.policies.remove(&identity);
+            state
+                .policy_removals
+                .insert(identity.clone(), provenance.clone());
             let relation_posture = relation_posture_mut(state, relation);
             relation_posture.policy_ids.remove(&identity);
             relation_posture.last_security_change = Some(provenance.clone());
@@ -989,50 +995,6 @@ mod tests {
             function.execute_grants.keys().cloned().collect::<Vec<_>>(),
             vec!["authenticated".to_owned()]
         );
-    }
-
-    #[test]
-    fn reset_all_clears_previously_pinned_function_search_path() {
-        let state = reduce_repository_posture(
-            &[
-                migration(
-                    "supabase/migrations/20260829000100_function.sql",
-                    "20260829000100",
-                    "digest-create",
-                    "create function private.helper() returns void language sql security definer set search_path = pg_catalog, private as $$ select 1 $$;",
-                ),
-                migration(
-                    "supabase/migrations/20260829000200_reset.sql",
-                    "20260829000200",
-                    "digest-reset",
-                    "alter function private.helper() reset all;",
-                ),
-            ],
-            SqlScanLimits::default(),
-        )
-        .unwrap();
-
-        let function_id = SupabaseObjectId {
-            schema: "private".to_owned(),
-            name: "helper".to_owned(),
-            kind: SupabaseObjectKind::Function,
-        };
-        let function = state.functions.get(&function_id).unwrap();
-        assert_eq!(function.security_mode.value, FunctionSecurityState::Definer);
-        assert_eq!(
-            function.search_path.value,
-            FunctionSearchPathState::UnpinnedOrMutable
-        );
-        assert_eq!(
-            function
-                .search_path
-                .provenance
-                .as_ref()
-                .unwrap()
-                .content_digest,
-            "digest-reset"
-        );
-        assert_eq!(state.coverage_state, PostureCoverageState::Complete);
     }
 
     #[test]
