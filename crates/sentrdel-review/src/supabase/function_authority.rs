@@ -51,13 +51,21 @@ pub enum FunctionAuthorityError {
 impl fmt::Display for FunctionAuthorityError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::InvalidLimits => formatter.write_str("function authority limits must be non-zero"),
+            Self::InvalidLimits => {
+                formatter.write_str("function authority limits must be non-zero")
+            }
             Self::EmptyCapturedAt => formatter.write_str("captured_at must not be empty"),
             Self::TooManyEvidence { max } => {
-                write!(formatter, "function authority evidence exceeds bounded cap {max}")
+                write!(
+                    formatter,
+                    "function authority evidence exceeds bounded cap {max}"
+                )
             }
             Self::Evidence(error) => {
-                write!(formatter, "cannot seal function authority evidence: {error}")
+                write!(
+                    formatter,
+                    "cannot seal function authority evidence: {error}"
+                )
             }
         }
     }
@@ -131,14 +139,7 @@ pub fn observe_function_authority(
             push_bounded(
                 &mut evidence,
                 limits,
-                seal_execute_grant(
-                    &authority,
-                    state,
-                    function,
-                    role,
-                    provenance,
-                    captured_at,
-                )?,
+                seal_execute_grant(&authority, state, function, role, provenance, captured_at)?,
             )?;
         }
     }
@@ -322,10 +323,7 @@ fn identity_provenance(function: &FunctionPosture) -> Option<&StatementProvenanc
         .or_else(|| function.execute_grants.values().next())
 }
 
-fn common_attributes(
-    state: &RepositoryPostureState,
-    function: &str,
-) -> BTreeMap<String, Value> {
+fn common_attributes(state: &RepositoryPostureState, function: &str) -> BTreeMap<String, Value> {
     BTreeMap::from([
         ("function".to_owned(), Value::String(function.to_owned())),
         ("repository_derived".to_owned(), Value::Bool(true)),
