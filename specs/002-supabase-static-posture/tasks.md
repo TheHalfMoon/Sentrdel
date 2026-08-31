@@ -56,7 +56,7 @@
 ## Phase 4 — Config, key authority, Auth, and Edge Functions
 
 - [x] R2-T017 Implement bounded allowlisted `supabase/config.toml` parser with explicit size/depth/collection limits; unknown security-relevant configuration degrades affected coverage.
-- [ ] R2-T018 Implement Supabase key authority classification for modern publishable/secret and legacy anon/service-role classes while routing secret material through the R1 redaction-before-persist boundary.
+- [x] R2-T018 Implement Supabase key authority classification for modern publishable/secret and legacy anon/service-role classes while routing secret material through the R1 redaction-before-persist boundary.
 - [ ] R2-T019 Implement conservative source execution-context classification for browser/client, server, Edge Function, test/fixture, and UNKNOWN contexts using bounded repository evidence only.
 - [ ] R2-T020 Implement elevated secret/service-role key-in-client-context producer with negative fixtures proving backend/Edge Function use is not automatically a finding.
 - [ ] R2-T021 Implement bounded repository-visible Auth/API configuration posture checks frozen by the R2 contract; unsupported hosted-only settings remain visible coverage gaps.
