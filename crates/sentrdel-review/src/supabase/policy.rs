@@ -199,6 +199,7 @@ pub fn observe_policy_delta(
     Ok(evidence)
 }
 
+#[allow(clippy::too_many_arguments)]
 fn append_supported_changes(
     authority: &EvidenceAuthority,
     before: &RepositoryPostureState,
@@ -348,7 +349,7 @@ fn append_expression_presence_change(
     authority: &EvidenceAuthority,
     before: &RepositoryPostureState,
     after: &RepositoryPostureState,
-    old: &PolicyPosture,
+    _old: &PolicyPosture,
     new: &PolicyPosture,
     clause: &str,
     old_value: ExpressionPresence,
