@@ -11,8 +11,10 @@ use std::fmt;
 use sentrdel_schema::SCHEMA_V1;
 use sentrdel_schema::coverage::{CoverageRecord, CoverageState, ProviderCoverageDimension};
 
-use super::config::{ConfigDiagnostic, ConfigParseCoverage, SupabaseConfigPosture, SUPABASE_CONFIG_PATH};
 use super::COVERAGE_STATIC_POSTURE_AUTH_CONFIG;
+use super::config::{
+    ConfigDiagnostic, ConfigParseCoverage, SUPABASE_CONFIG_PATH, SupabaseConfigPosture,
+};
 
 const PRODUCER_ID: &str = "sentrdel.supabase.auth-api-config";
 pub const AUTH_API_TARGET_EXECUTION_ALLOWED: bool = false;
@@ -36,9 +38,8 @@ impl fmt::Display for AuthApiConfigError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::EmptyObservedAt => formatter.write_str("observed_at must not be empty"),
-            Self::WrongConfigPath => formatter.write_str(
-                "Auth/API posture accepts only bounded supabase/config.toml posture",
-            ),
+            Self::WrongConfigPath => formatter
+                .write_str("Auth/API posture accepts only bounded supabase/config.toml posture"),
             Self::EmptyContentDigest => {
                 formatter.write_str("Auth/API posture requires a config content digest")
             }
@@ -51,10 +52,7 @@ impl Error for AuthApiConfigError {}
 #[must_use]
 fn auth_api_diagnostic(diagnostic: &ConfigDiagnostic) -> bool {
     let table_relevant = diagnostic.table.as_deref().is_some_and(|table| {
-        table == "auth"
-            || table == "api"
-            || table.starts_with("auth.")
-            || table.starts_with("api.")
+        table == "auth" || table == "api" || table.starts_with("auth.") || table.starts_with("api.")
     });
     let root_relevant = diagnostic.table.is_none()
         && diagnostic
@@ -96,8 +94,7 @@ pub fn assess_auth_api_config(
     };
     let partial = relevant_diagnostic_count > 0
         || missing_required_api_fact
-        || posture.parse_coverage == ConfigParseCoverage::Partial
-            && relevant_diagnostic_count > 0;
+        || posture.parse_coverage == ConfigParseCoverage::Partial && relevant_diagnostic_count > 0;
 
     let (state, reason_code, details) = if partial {
         (
@@ -145,9 +142,7 @@ pub fn assess_auth_api_config(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::supabase::config::{
-        SupabaseConfigLimits, parse_supabase_config,
-    };
+    use crate::supabase::config::{SupabaseConfigLimits, parse_supabase_config};
     use crate::view::NormalizedRepoPath;
 
     const OBSERVED_AT: &str = "2026-08-31T22:50:00Z";
@@ -200,12 +195,14 @@ mod tests {
 
         assert_eq!(posture.parse_coverage, ConfigParseCoverage::Partial);
         assert_eq!(assessment.auth_api_coverage.state, CoverageState::Partial);
-        assert!(assessment
-            .auth_api_coverage
-            .details
-            .as_deref()
-            .unwrap()
-            .contains("relevant_diagnostics=2"));
+        assert!(
+            assessment
+                .auth_api_coverage
+                .details
+                .as_deref()
+                .unwrap()
+                .contains("relevant_diagnostics=2")
+        );
     }
 
     #[test]
