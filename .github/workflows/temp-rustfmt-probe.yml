@@ -12,21 +12,21 @@ jobs:
   rustfmt-probe:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout exact T020 head
+      - name: Checkout exact T021 head
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
-          ref: affa61cb9def3e463691ecc857e1a8873a4daae9
+          ref: 7dfb75cd135bbaf2ccdca4dee0bd1ab0fe3c28b8
           persist-credentials: false
       - name: Install pinned Rust toolchain
         run: rustup toolchain install 1.98.0 --profile minimal --component rustfmt
-      - name: Format exact T020 head
+      - name: Format exact T021 head
         run: cargo +1.98.0 fmt --all
-      - name: Upload formatted T020 sources
+      - name: Upload formatted T021 sources
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: t020-rustfmt-sources
+          name: t021-rustfmt-sources
           path: |
             crates/sentrdel-review/src/supabase.rs
-            crates/sentrdel-review/src/supabase/key_boundary.rs
+            crates/sentrdel-review/src/supabase/auth_api.rs
           if-no-files-found: error
           retention-days: 1
