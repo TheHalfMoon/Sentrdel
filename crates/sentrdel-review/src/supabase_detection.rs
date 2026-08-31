@@ -1,4 +1,4 @@
-//! Bounded Supabase presence detection for R1.
+//! Bounded Supabase presence detection and R2 static-posture handoff.
 //!
 //! This module recognizes only repository-relative Supabase project layout
 //! signals. It does not parse configuration values, inspect credentials, run
@@ -10,6 +10,7 @@ use std::error::Error;
 use std::fmt;
 
 use crate::project_detection::DetectionLimits;
+use crate::supabase::SUPABASE_R2_PACK_ID;
 use crate::view::{NormalizedRepoPath, RepoViewError};
 
 pub const SUPABASE_R2_ROADMAP: &str =
@@ -31,14 +32,14 @@ pub struct SupabaseSignal {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum SupabaseStaticPostureStatus {
-    NotImplemented,
+    Available,
 }
 
 impl SupabaseStaticPostureStatus {
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {
-            Self::NotImplemented => "NOT_IMPLEMENTED",
+            Self::Available => "AVAILABLE",
         }
     }
 }
@@ -46,7 +47,11 @@ impl SupabaseStaticPostureStatus {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SupabaseStaticPostureCoverage {
     pub status: SupabaseStaticPostureStatus,
+    /// Detection can hand off to the native R2 pack, but producer Coverage is
+    /// not fabricated here. Until orchestration actually runs, this remains
+    /// UNAVAILABLE rather than being misreported as PARTIAL or COVERED.
     pub coverage_state: CoverageState,
+    pub pack_id: &'static str,
     pub roadmap: &'static str,
 }
 
@@ -54,8 +59,8 @@ pub struct SupabaseStaticPostureCoverage {
 pub struct SupabaseDetection {
     pub detected: bool,
     pub signals: Vec<SupabaseSignal>,
-    /// Present only when Supabase is detected. R1 deliberately reports static
-    /// posture as NOT_IMPLEMENTED/PARTIAL instead of inferring a verdict.
+    /// Present only when Supabase is detected. This is a control-plane handoff
+    /// to the compiled-in R2 pack, not security Evidence or a verdict.
     pub static_posture: Option<SupabaseStaticPostureCoverage>,
 }
 
@@ -133,8 +138,9 @@ where
     let signals: Vec<_> = signals.into_iter().collect();
     let detected = !signals.is_empty();
     let static_posture = detected.then_some(SupabaseStaticPostureCoverage {
-        status: SupabaseStaticPostureStatus::NotImplemented,
-        coverage_state: CoverageState::Partial,
+        status: SupabaseStaticPostureStatus::Available,
+        coverage_state: CoverageState::Unavailable,
+        pack_id: SUPABASE_R2_PACK_ID,
         roadmap: SUPABASE_R2_ROADMAP,
     });
 
@@ -175,7 +181,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn positive_layout_is_detection_only_and_posture_is_explicitly_partial() {
+    fn positive_layout_preserves_detection_and_hands_off_to_r2_without_verdict() {
         let detection = detect_supabase(
             [
                 "supabase/config.toml",
@@ -191,8 +197,9 @@ mod tests {
         assert_eq!(detection.signals.len(), 4);
         assert!(!detection.has_security_verdict());
         let posture = detection.static_posture.unwrap();
-        assert_eq!(posture.status.as_str(), "NOT_IMPLEMENTED");
-        assert_eq!(posture.coverage_state, CoverageState::Partial);
+        assert_eq!(posture.status.as_str(), "AVAILABLE");
+        assert_eq!(posture.coverage_state, CoverageState::Unavailable);
+        assert_eq!(posture.pack_id, SUPABASE_R2_PACK_ID);
         assert!(
             posture
                 .roadmap
