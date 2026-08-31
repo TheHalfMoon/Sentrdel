@@ -37,7 +37,10 @@ impl fmt::Display for KeyBoundaryError {
                 formatter.write_str("source content digest must not be empty")
             }
             Self::Evidence(error) => {
-                write!(formatter, "cannot seal Supabase key-boundary evidence: {error}")
+                write!(
+                    formatter,
+                    "cannot seal Supabase key-boundary evidence: {error}"
+                )
             }
         }
     }
@@ -162,7 +165,10 @@ mod tests {
         .unwrap();
 
         assert_eq!(key.key_class, SupabaseKeyClass::Secret);
-        assert_eq!(evidence.claim().category, "supabase_elevated_key_client_boundary");
+        assert_eq!(
+            evidence.claim().category,
+            "supabase_elevated_key_client_boundary"
+        );
         assert_eq!(evidence.claim().epistemic_class, EpistemicClass::Fact);
         assert!(evidence.claim().security_interpretation.is_none());
         assert_eq!(evidence.claim().input_digests, vec![DIGEST.to_owned()]);
@@ -170,7 +176,10 @@ mod tests {
             evidence.claim().attributes.get("execution_context"),
             Some(&Value::String("BROWSER_OR_CLIENT".to_owned()))
         );
-        assert_eq!(evidence.claim().locations[0].repo_relative_path, "src/browser.ts");
+        assert_eq!(
+            evidence.claim().locations[0].repo_relative_path,
+            "src/browser.ts"
+        );
         assert!(!format!("{evidence:?}").contains(canary));
     }
 
@@ -210,9 +219,12 @@ mod tests {
             ("tests/client.ts", SourceExecutionContext::TestOrFixture),
             ("src/lib/supabase.ts", SourceExecutionContext::Unknown),
         ] {
-            let key = observe_key_literal("sb_secret_SYNTHETIC_SAFE_CONTEXT", location(path, 3))
-                .unwrap()
-                .unwrap();
+            let key = observe_key_literal(
+                "sb_secret_SYNTHETIC_SAFE_CONTEXT",
+                location(path, 3),
+            )
+            .unwrap()
+            .unwrap();
             assert!(
                 observe_elevated_key_client_boundary(&key, context, DIGEST, CAPTURED_AT)
                     .unwrap()
