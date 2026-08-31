@@ -753,43 +753,6 @@ impl<'a> Cursor<'a> {
             })
     }
 
-    fn identifier_list_until(&mut self, stop_words: &[&str]) -> Option<Vec<String>> {
-        if self.position >= self.tokens.len()
-            || self
-                .peek_keyword()
-                .is_some_and(|value| stop_words.contains(&value.as_str()))
-        {
-            return None;
-        }
-
-        let mut values = Vec::new();
-        loop {
-            if values.len() >= DEFAULT_MAX_SQL_MODEL_LIST_ITEMS {
-                return None;
-            }
-            values.push(self.parse_identifier()?);
-
-            if self.position >= self.tokens.len()
-                || self
-                    .peek_keyword()
-                    .is_some_and(|value| stop_words.contains(&value.as_str()))
-            {
-                break;
-            }
-            if !self.consume_symbol(",") {
-                return None;
-            }
-            if self.position >= self.tokens.len()
-                || self
-                    .peek_keyword()
-                    .is_some_and(|value| stop_words.contains(&value.as_str()))
-            {
-                return None;
-            }
-        }
-        Some(values)
-    }
-
     fn role_list_until(&mut self, stop_words: &[&str]) -> Option<Vec<String>> {
         if self.position >= self.tokens.len()
             || self
@@ -997,7 +960,6 @@ fn normalized_identifier(input: &str, token: &SqlToken) -> Option<String> {
         _ => None,
     }
 }
-
 fn normalized_search_path_value(input: &str, token: &SqlToken) -> Option<String> {
     match token.kind {
         SqlTokenKind::Word | SqlTokenKind::QuotedIdentifier => normalized_identifier(input, token),
