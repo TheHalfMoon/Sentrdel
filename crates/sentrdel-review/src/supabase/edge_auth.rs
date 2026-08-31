@@ -77,7 +77,7 @@ impl Default for EdgeAuthLimits {
     }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct EdgeAuthPosture {
     pub function_name: String,
     pub platform_jwt_verification: PlatformJwtVerification,
