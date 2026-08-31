@@ -8,6 +8,7 @@
 pub mod config;
 pub mod function_authority;
 pub mod grants;
+pub mod key_authority;
 pub mod policy;
 pub mod posture;
 pub mod rls;

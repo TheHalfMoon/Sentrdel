@@ -83,6 +83,32 @@ impl From<EvidenceValidationError> for SecretScanError {
     }
 }
 
+pub(crate) fn redacted_secret_display(secret_type: &str) -> String {
+    format!("[REDACTED:{secret_type}]")
+}
+
+pub(crate) fn sanitized_secret_fingerprint(
+    rule_id: &str,
+    secret_type: &str,
+    path: &NormalizedRepoPath,
+    line_number: u64,
+    start_column: u64,
+    end_column: u64,
+) -> Result<String, String> {
+    content_id(
+        "secret-observation-fingerprint",
+        &(
+            rule_id,
+            secret_type,
+            path.as_str(),
+            line_number,
+            start_column,
+            end_column,
+        ),
+    )
+    .map_err(|error| error.to_string())
+}
+
 pub fn scan_changed_secrets(
     path: &NormalizedRepoPath,
     bytes: &[u8],
@@ -109,18 +135,15 @@ pub fn scan_changed_secrets(
                 let line_number = u64::try_from(line_index + 1).unwrap_or(u64::MAX);
                 let start_column = u64::try_from(start + 1).unwrap_or(u64::MAX);
                 let end_column = u64::try_from(start + rule.total_len + 1).unwrap_or(u64::MAX);
-                let fingerprint = content_id(
-                    "secret-observation-fingerprint",
-                    &(
-                        rule.id,
-                        rule.secret_type,
-                        path.as_str(),
-                        line_number,
-                        start_column,
-                        end_column,
-                    ),
+                let fingerprint = sanitized_secret_fingerprint(
+                    rule.id,
+                    rule.secret_type,
+                    path,
+                    line_number,
+                    start_column,
+                    end_column,
                 )
-                .map_err(|error| SecretScanError::Canonical(error.to_string()))?;
+                .map_err(SecretScanError::Canonical)?;
 
                 let mut attributes = BTreeMap::new();
                 attributes.insert("rule_id".to_owned(), Value::String(rule.id.to_owned()));
@@ -130,7 +153,7 @@ pub fn scan_changed_secrets(
                 );
                 attributes.insert(
                     "redacted_display".to_owned(),
-                    Value::String(format!("[REDACTED:{}]", rule.secret_type)),
+                    Value::String(redacted_secret_display(rule.secret_type)),
                 );
                 attributes.insert(
                     "sanitized_fingerprint".to_owned(),
