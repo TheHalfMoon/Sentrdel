@@ -46,7 +46,7 @@
 - [x] R2-T010 Implement conservative API/exposed-schema evidence from repository-visible Supabase configuration/defaults only where the contract proves it; unknown hosted exposure remains UNKNOWN.
 - [x] R2-T011 Implement RLS posture producer for API-relevant relations, keeping direct RLS observations separate from security interpretation and final live-state claims.
 - [x] R2-T012 [P] Implement supported policy posture/delta producer, including policy removal/widening observations without pretending to solve arbitrary SQL boolean equivalence.
-- [ ] R2-T013 [P] Implement supported GRANT/REVOKE posture for API-facing roles; grants remain an independent control from RLS/policies.
+- [x] R2-T013 [P] Implement supported GRANT/REVOKE posture for API-facing roles; grants remain an independent control from RLS/policies.
 - [ ] R2-T014 Implement SECURITY DEFINER/search_path/schema/execute-grant posture producer; SECURITY DEFINER alone is not labeled exploitable.
 - [x] R2-T015 [P] Map supported Storage authorization policy SQL through the same relation/policy evidence substrate with Storage-specific subjects/coverage.
 - [ ] R2-T016 Add positive/negative/correlation tests proving RLS, grants, policies, function authority, and Storage Evidence preserve independent provenance and reconcile only through the existing R1 reconciler.
