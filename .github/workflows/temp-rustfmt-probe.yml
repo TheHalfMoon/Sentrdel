@@ -6,7 +6,7 @@ on:
       - ci/temp-governance-reverify-20260901
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   rustfmt-probe:
@@ -16,17 +16,19 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           ref: cc841cca014064fb081609034480f04d61fc41fe
-          persist-credentials: false
       - name: Install pinned Rust toolchain
         run: rustup toolchain install 1.98.0 --profile minimal --component rustfmt
       - name: Format exact T022 head
         run: cargo +1.98.0 fmt --all
-      - name: Upload formatted T022 sources
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: t022-rustfmt-sources
-          path: |
-            crates/sentrdel-review/src/supabase.rs
-            crates/sentrdel-review/src/supabase/edge_auth.rs
-          if-no-files-found: error
-          retention-days: 1
+      - name: Commit canonical rustfmt output to T022 branch
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add crates/sentrdel-review/src/supabase.rs crates/sentrdel-review/src/supabase/edge_auth.rs
+          if git diff --cached --quiet; then
+            echo "No formatting change required"
+            exit 0
+          fi
+          git commit -m "style(r2): apply canonical rustfmt to T022"
+          git push origin HEAD:feat/002-r2-t022-edge-function-auth
