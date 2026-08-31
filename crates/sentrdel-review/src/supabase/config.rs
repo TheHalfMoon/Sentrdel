@@ -155,7 +155,9 @@ impl fmt::Display for SupabaseConfigError {
             Self::NonCanonicalPath => formatter.write_str(
                 "Supabase configuration parser accepts only canonical supabase/config.toml",
             ),
-            Self::EmptyContentDigest => formatter.write_str("config content digest must not be empty"),
+            Self::EmptyContentDigest => {
+                formatter.write_str("config content digest must not be empty")
+            }
             Self::ConfigTooLarge { max } => {
                 write!(formatter, "Supabase config exceeds byte cap {max}")
             }
@@ -163,23 +165,35 @@ impl fmt::Display for SupabaseConfigError {
                 write!(formatter, "Supabase config exceeds line cap {max}")
             }
             Self::LineTooLong { line, max } => {
-                write!(formatter, "Supabase config line {line} exceeds byte cap {max}")
+                write!(
+                    formatter,
+                    "Supabase config line {line} exceeds byte cap {max}"
+                )
             }
             Self::TooManySections { max } => {
                 write!(formatter, "Supabase config exceeds table cap {max}")
             }
             Self::TooManySchemas { max } => {
-                write!(formatter, "Supabase config exposed schema count exceeds cap {max}")
+                write!(
+                    formatter,
+                    "Supabase config exposed schema count exceeds cap {max}"
+                )
             }
             Self::TooManyFunctions { max } => {
-                write!(formatter, "Supabase config function table count exceeds cap {max}")
+                write!(
+                    formatter,
+                    "Supabase config function table count exceeds cap {max}"
+                )
             }
             Self::IdentifierTooLong { line, max } => write!(
                 formatter,
                 "Supabase config identifier at line {line} exceeds byte cap {max}"
             ),
             Self::TooManyDiagnostics { max } => {
-                write!(formatter, "Supabase config diagnostic count exceeds cap {max}")
+                write!(
+                    formatter,
+                    "Supabase config diagnostic count exceeds cap {max}"
+                )
             }
             Self::NonUtf8 => formatter.write_str("Supabase config must be UTF-8"),
         }
@@ -274,10 +288,7 @@ pub fn parse_supabase_config(
                     if !seen_function_tables.insert(function_name.clone()) {
                         posture.degrade(
                             limits,
-                            duplicate_table(
-                                line_number,
-                                &format!("functions.{function_name}"),
-                            ),
+                            duplicate_table(line_number, &format!("functions.{function_name}")),
                         )?;
                     }
                 }
@@ -330,10 +341,7 @@ pub fn parse_supabase_config(
                 "enabled" => {
                     if seen_api_enabled {
                         posture.api_enabled = None;
-                        posture.degrade(
-                            limits,
-                            duplicate_key(line_number, "api", key),
-                        )?;
+                        posture.degrade(limits, duplicate_key(line_number, "api", key))?;
                     } else if let Some(value) = parse_bool(raw_value.trim()) {
                         posture.api_enabled = Some(ConfigValue {
                             value,
@@ -342,53 +350,35 @@ pub fn parse_supabase_config(
                         seen_api_enabled = true;
                     } else {
                         seen_api_enabled = true;
-                        posture.degrade(
-                            limits,
-                            malformed_key(line_number, "api", key),
-                        )?;
+                        posture.degrade(limits, malformed_key(line_number, "api", key))?;
                     }
                 }
                 "schemas" => {
                     if seen_api_schemas {
                         posture.api_exposed_schemas = None;
-                        posture.degrade(
-                            limits,
-                            duplicate_key(line_number, "api", key),
-                        )?;
+                        posture.degrade(limits, duplicate_key(line_number, "api", key))?;
                     } else {
                         seen_api_schemas = true;
-                        match parse_string_array(
-                            raw_value.trim(),
-                            line_number,
-                            limits,
-                        )? {
+                        match parse_string_array(raw_value.trim(), line_number, limits)? {
                             Some(value) => {
                                 posture.api_exposed_schemas = Some(ConfigValue {
                                     value,
                                     line: line_number,
                                 });
                             }
-                            None => posture.degrade(
-                                limits,
-                                malformed_key(line_number, "api", key),
-                            )?,
+                            None => {
+                                posture.degrade(limits, malformed_key(line_number, "api", key))?
+                            }
                         }
                     }
                 }
-                _ => posture.degrade(
-                    limits,
-                    unsupported_key(line_number, "api", key),
-                )?,
+                _ => posture.degrade(limits, unsupported_key(line_number, "api", key))?,
             },
             ConfigTable::Function(function_name) => {
                 if key != "verify_jwt" {
                     posture.degrade(
                         limits,
-                        unsupported_key(
-                            line_number,
-                            &format!("functions.{function_name}"),
-                            key,
-                        ),
+                        unsupported_key(line_number, &format!("functions.{function_name}"), key),
                     )?;
                     continue;
                 }
@@ -405,11 +395,7 @@ pub fn parse_supabase_config(
                     ambiguous_function_jwt.insert(function_name.clone());
                     posture.degrade(
                         limits,
-                        duplicate_key(
-                            line_number,
-                            &format!("functions.{function_name}"),
-                            key,
-                        ),
+                        duplicate_key(line_number, &format!("functions.{function_name}"), key),
                     )?;
                 } else if let Some(value) = parse_bool(raw_value.trim()) {
                     entry.platform_jwt_verification = Some(ConfigValue {
@@ -420,18 +406,13 @@ pub fn parse_supabase_config(
                     ambiguous_function_jwt.insert(function_name.clone());
                     posture.degrade(
                         limits,
-                        malformed_key(
-                            line_number,
-                            &format!("functions.{function_name}"),
-                            key,
-                        ),
+                        malformed_key(line_number, &format!("functions.{function_name}"), key),
                     )?;
                 }
             }
-            ConfigTable::Auth => posture.degrade(
-                limits,
-                unsupported_key(line_number, "auth", key),
-            )?,
+            ConfigTable::Auth => {
+                posture.degrade(limits, unsupported_key(line_number, "auth", key))?
+            }
         }
     }
 
@@ -572,10 +553,7 @@ fn parse_table_header(
 }
 
 fn security_relevant_table(parts: &[&str]) -> bool {
-    matches!(
-        parts.first().copied(),
-        Some("api" | "auth" | "functions")
-    )
+    matches!(parts.first().copied(), Some("api" | "auth" | "functions"))
 }
 
 fn security_relevant_root_key(key: &str) -> bool {
@@ -796,9 +774,15 @@ mod tests {
             "project_id = \"fixture\"\n\n[api]\nenabled = true\nschemas = [\"public\", \"storage\"]\n\n[functions.webhook]\nverify_jwt = true\n",
         );
         assert_eq!(posture.parse_coverage, ConfigParseCoverage::Complete);
-        assert_eq!(posture.api_enabled.as_ref().map(|value| value.value), Some(true));
         assert_eq!(
-            posture.api_exposed_schemas.as_ref().map(|value| value.value.clone()),
+            posture.api_enabled.as_ref().map(|value| value.value),
+            Some(true)
+        );
+        assert_eq!(
+            posture
+                .api_exposed_schemas
+                .as_ref()
+                .map(|value| value.value.clone()),
             Some(BTreeSet::from(["public".to_owned(), "storage".to_owned()]))
         );
         assert_eq!(
@@ -830,15 +814,15 @@ mod tests {
 
     #[test]
     fn malformed_security_table_degrades_coverage_without_inventing_state() {
-        let posture = parse(
-            "project_id = \"fixture\"\n[functions.webhook\nverify_jwt = false\n",
-        );
+        let posture = parse("project_id = \"fixture\"\n[functions.webhook\nverify_jwt = false\n");
         assert_eq!(posture.parse_coverage, ConfigParseCoverage::Partial);
         assert!(posture.edge_function_auth.is_empty());
-        assert!(posture
-            .diagnostics
-            .iter()
-            .any(|item| item.kind == ConfigDiagnosticKind::MalformedSyntax));
+        assert!(
+            posture
+                .diagnostics
+                .iter()
+                .any(|item| item.kind == ConfigDiagnosticKind::MalformedSyntax)
+        );
     }
 
     #[test]
@@ -848,9 +832,11 @@ mod tests {
         );
         assert_eq!(posture.parse_coverage, ConfigParseCoverage::Partial);
         assert_eq!(posture.diagnostics.len(), 3);
-        assert!(posture.diagnostics.iter().all(|item| {
-            item.kind == ConfigDiagnosticKind::UnsupportedSecurityRelevantTable
-        }));
+        assert!(
+            posture.diagnostics.iter().all(|item| {
+                item.kind == ConfigDiagnosticKind::UnsupportedSecurityRelevantTable
+            })
+        );
         assert!(posture.edge_function_auth.is_empty());
     }
 
@@ -862,8 +848,7 @@ mod tests {
         assert_eq!(posture.parse_coverage, ConfigParseCoverage::Partial);
         assert_eq!(posture.diagnostics.len(), 3);
         assert!(posture.diagnostics.iter().all(|item| {
-            item.kind == ConfigDiagnosticKind::UnsupportedSecurityRelevantKey
-                && item.table.is_none()
+            item.kind == ConfigDiagnosticKind::UnsupportedSecurityRelevantKey && item.table.is_none()
         }));
         assert_eq!(
             posture
@@ -871,11 +856,7 @@ mod tests {
                 .iter()
                 .filter_map(|item| item.key.clone())
                 .collect::<BTreeSet<_>>(),
-            BTreeSet::from([
-                "api".to_owned(),
-                "auth".to_owned(),
-                "functions".to_owned(),
-            ])
+            BTreeSet::from(["api".to_owned(), "auth".to_owned(), "functions".to_owned(),])
         );
     }
 
@@ -911,15 +892,20 @@ mod tests {
         );
         assert_eq!(posture.parse_coverage, ConfigParseCoverage::Partial);
         assert!(posture.api_enabled.is_none());
-        assert!(posture
-            .edge_function_auth
-            .get("webhook")
-            .unwrap()
-            .platform_jwt_verification
-            .is_none());
-        assert!(posture.diagnostics.iter().all(|item| {
-            item.kind == ConfigDiagnosticKind::DuplicateSupportedKey
-        }));
+        assert!(
+            posture
+                .edge_function_auth
+                .get("webhook")
+                .unwrap()
+                .platform_jwt_verification
+                .is_none()
+        );
+        assert!(
+            posture
+                .diagnostics
+                .iter()
+                .all(|item| { item.kind == ConfigDiagnosticKind::DuplicateSupportedKey })
+        );
     }
 
     #[test]
@@ -936,9 +922,15 @@ mod tests {
                 .count(),
             2
         );
-        assert_eq!(posture.api_enabled.as_ref().map(|value| value.value), Some(true));
         assert_eq!(
-            posture.api_exposed_schemas.as_ref().map(|value| value.value.clone()),
+            posture.api_enabled.as_ref().map(|value| value.value),
+            Some(true)
+        );
+        assert_eq!(
+            posture
+                .api_exposed_schemas
+                .as_ref()
+                .map(|value| value.value.clone()),
             Some(BTreeSet::from(["public".to_owned()]))
         );
         assert_eq!(
@@ -958,9 +950,12 @@ mod tests {
         );
         assert_eq!(posture.parse_coverage, ConfigParseCoverage::Partial);
         assert_eq!(posture.diagnostics.len(), 2);
-        assert!(posture.diagnostics.iter().all(|item| {
-            item.kind == ConfigDiagnosticKind::UnsupportedSecurityRelevantKey
-        }));
+        assert!(
+            posture
+                .diagnostics
+                .iter()
+                .all(|item| { item.kind == ConfigDiagnosticKind::UnsupportedSecurityRelevantKey })
+        );
     }
 
     #[test]
