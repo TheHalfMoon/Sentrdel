@@ -307,6 +307,9 @@ fn parse_alter(cursor: &mut Cursor<'_>) -> (SqlParseCoverage, Option<SupportedSq
             None
         };
         if let Some(enabled) = enabled {
+            if !cursor.is_at_end() {
+                return unsupported();
+            }
             return supported(SupportedSqlStatement::AlterTableRls { relation, enabled });
         }
         if cursor.contains_sequence(&["ROW", "LEVEL", "SECURITY"])
@@ -949,6 +952,14 @@ mod tests {
             SupportedSqlStatement::AlterTableRls { relation, enabled: false }
                 if relation.normalized() == "public.accounts"
         ));
+    }
+
+    #[test]
+    fn rls_state_changes_reject_trailing_unsupported_syntax() {
+        let statements = unsupported_statements(
+            "alter table public.accounts enable row level security unexpected_token; alter table public.accounts disable row level security unexpected_token;",
+        );
+        assert_eq!(statements.len(), 2);
     }
 
     #[test]
