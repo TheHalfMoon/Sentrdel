@@ -5,7 +5,6 @@
 //! migration ordering. It grants no Finding or policy authority and never
 //! executes migration SQL or provider tooling.
 
-pub mod policy;
 pub mod posture;
 pub mod rls;
 pub mod sql;
