@@ -232,24 +232,64 @@ fn parse_create(cursor: &mut Cursor<'_>) -> (SqlParseCoverage, Option<SupportedS
         return parse_function(cursor, false);
     }
     if cursor.consume_keyword("VIEW") {
-        let Some(view) = cursor.parse_object_name() else {
+        if or_replace {
             return unsupported();
-        };
-        let security_invoker = cursor.find_boolean_assignment("SECURITY_INVOKER");
-        return supported(SupportedSqlStatement::CreateView {
-            view,
-            security_invoker,
-        });
+        }
+        return parse_create_view(cursor);
     }
 
     if matches!(
         cursor.peek_keyword().as_deref(),
-        Some("MATERIALIZED" | "TEMP" | "TEMPORARY" | "UNLOGGED" | "TRIGGER" | "ROLE" | "EXTENSION")
+        Some(
+            "MATERIALIZED"
+                | "TEMP"
+                | "TEMPORARY"
+                | "RECURSIVE"
+                | "UNLOGGED"
+                | "TRIGGER"
+                | "ROLE"
+                | "EXTENSION"
+        )
     ) {
         unsupported()
     } else {
         ignored()
     }
+}
+
+fn parse_create_view(cursor: &mut Cursor<'_>) -> (SqlParseCoverage, Option<SupportedSqlStatement>) {
+    let Some(view) = cursor.parse_object_name() else {
+        return unsupported();
+    };
+
+    let security_invoker = if cursor.consume_keyword("WITH") {
+        if !cursor.consume_symbol("(") || !cursor.consume_keyword("SECURITY_INVOKER") {
+            return unsupported();
+        }
+        let value = if cursor.consume_symbol("=") {
+            let Some(value) = cursor.consume_boolean() else {
+                return unsupported();
+            };
+            value
+        } else {
+            true
+        };
+        if !cursor.consume_symbol(")") {
+            return unsupported();
+        }
+        Some(value)
+    } else {
+        None
+    };
+
+    if !cursor.consume_keyword("AS") || cursor.is_at_end() {
+        return unsupported();
+    }
+
+    supported(SupportedSqlStatement::CreateView {
+        view,
+        security_invoker,
+    })
 }
 
 fn parse_alter(cursor: &mut Cursor<'_>) -> (SqlParseCoverage, Option<SupportedSqlStatement>) {
@@ -267,6 +307,9 @@ fn parse_alter(cursor: &mut Cursor<'_>) -> (SqlParseCoverage, Option<SupportedSq
             None
         };
         if let Some(enabled) = enabled {
+            if !cursor.is_at_end() {
+                return unsupported();
+            }
             return supported(SupportedSqlStatement::AlterTableRls { relation, enabled });
         }
         if cursor.contains_sequence(&["ROW", "LEVEL", "SECURITY"])
@@ -638,6 +681,16 @@ impl<'a> Cursor<'a> {
         }
     }
 
+    fn consume_boolean(&mut self) -> Option<bool> {
+        if self.consume_keyword("TRUE") || self.consume_keyword("ON") {
+            Some(true)
+        } else if self.consume_keyword("FALSE") || self.consume_keyword("OFF") {
+            Some(false)
+        } else {
+            None
+        }
+    }
+
     fn parse_identifier(&mut self) -> Option<String> {
         let value = normalized_identifier(self.input, self.tokens.get(self.position)?)?;
         self.position += 1;
@@ -734,28 +787,6 @@ impl<'a> Cursor<'a> {
             }
         }
         Some(values)
-    }
-
-    fn find_boolean_assignment(&self, name: &str) -> Option<bool> {
-        let remaining = &self.tokens[self.position..];
-        let index = remaining
-            .iter()
-            .position(|token| keyword(self.input, token).as_deref() == Some(name))?;
-        let mut value_index = index + 1;
-        if remaining.get(value_index).is_some_and(|token| {
-            token.kind == SqlTokenKind::Symbol && token_text(self.input, token) == "="
-        }) {
-            value_index += 1;
-        }
-        match remaining
-            .get(value_index)
-            .and_then(|token| keyword(self.input, token))?
-            .as_str()
-        {
-            "TRUE" | "ON" => Some(true),
-            "FALSE" | "OFF" => Some(false),
-            _ => None,
-        }
     }
 
     fn is_alter_function_action_start(&self, token: &SqlToken) -> bool {
@@ -1189,6 +1220,14 @@ mod tests {
     }
 
     #[test]
+    fn rls_state_changes_reject_trailing_unsupported_syntax() {
+        let statements = unsupported_statements(
+            "alter table public.accounts enable row level security unexpected_token; alter table public.accounts disable row level security unexpected_token;",
+        );
+        assert_eq!(statements.len(), 2);
+    }
+
+    #[test]
     fn models_policy_scope_roles_defaults_and_expression_presence() {
         let statements = supported_statements(
             "create policy \"Account read\" on public.accounts for select to anon, authenticated using (owner_id = auth.uid()) with check (owner_id = auth.uid()); alter policy \"Account read\" on public.accounts to authenticated using (true); create policy public_default on public.accounts using (true); alter policy public_default on public.accounts using (owner_id = auth.uid());",
@@ -1380,15 +1419,38 @@ mod tests {
     #[test]
     fn models_minimal_view_security_invoker_attribute() {
         let statements = supported_statements(
-            "create view public.safe_accounts with (security_invoker = true) as select id from private.accounts;",
+            "create view public.default_accounts as select id from private.accounts; create view public.safe_accounts with (security_invoker = true) as select id from private.accounts; create view public.safe_accounts_implicit with (security_invoker) as select id from private.accounts;",
         );
+        assert_eq!(statements.len(), 3);
         assert!(matches!(
             &statements[0],
+            SupportedSqlStatement::CreateView {
+                view,
+                security_invoker: None,
+            } if view.normalized() == "public.default_accounts"
+        ));
+        assert!(matches!(
+            &statements[1],
             SupportedSqlStatement::CreateView {
                 view,
                 security_invoker: Some(true),
             } if view.normalized() == "public.safe_accounts"
         ));
+        assert!(matches!(
+            &statements[2],
+            SupportedSqlStatement::CreateView {
+                view,
+                security_invoker: Some(true),
+            } if view.normalized() == "public.safe_accounts_implicit"
+        ));
+    }
+
+    #[test]
+    fn unsupported_or_malformed_view_shapes_fail_closed() {
+        let statements = unsupported_statements(
+            "create or replace view public.replaced as select 1; create recursive view public.recursive_view as select 1; create view public.missing_as; create view public.empty_query as; create view public.bad_option with (security_barrier = true) as select 1; create view public.bad_invoker with (security_invoker = maybe) as select 1; create view public.multiple_options with (security_invoker = true, security_barrier = true) as select 1; create view public.trailing_before_as nonsense as select 1;",
+        );
+        assert_eq!(statements.len(), 8);
     }
 
     #[test]
