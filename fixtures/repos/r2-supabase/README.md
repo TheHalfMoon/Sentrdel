@@ -6,7 +6,7 @@ These repositories are synthetic, offline ground-truth inputs for R2. They are d
 
 | Class | Repository | Ground truth |
 |---|---|---|
-| positive | `positive/safe-posture` | RLS enabled, restrictive policies, bounded grants, pinned SECURITY DEFINER search_path, Storage policy, JWT verification enabled, low-authority browser key reference, elevated server key reference |
+| positive | `positive/safe-posture` | RLS enabled, restrictive policies, bounded grants, pinned SECURITY DEFINER search_path, Storage policy, JWT verification enabled, low-authority browser key reference, elevated server and Edge Function key references that are not client-boundary misuse |
 | negative | `negative/unsafe-posture` | RLS disabled/widened, broad grants, widened policy, unpinned SECURITY DEFINER search_path, permissive Storage policy, JWT verification disabled without replacement auth, elevated client key canary |
 | adversarial | `adversarial/uncertain-posture` | malformed SQL, dynamic SQL, ambiguous migration order keys, malformed config, dynamic Edge auth, synthetic secret canaries, and a declared oversized-input case |
 
