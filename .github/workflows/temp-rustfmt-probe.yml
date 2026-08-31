@@ -12,11 +12,23 @@ jobs:
   rustfmt-probe:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout candidate
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           persist-credentials: false
+          ref: feat/002-r2-t024-r1-handoff
       - name: Install pinned Rust toolchain
         run: rustup toolchain install 1.98.0 --profile minimal --component rustfmt
-      - name: Verify temporary branch formatting
-        run: cargo +1.98.0 fmt --all -- --check
+      - name: Format candidate
+        run: cargo +1.98.0 fmt --all
+      - name: Upload formatted candidate files
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: r2-t024-rustfmt
+          path: |
+            crates/sentrdel-review/src/supabase.rs
+            crates/sentrdel-review/src/supabase_detection.rs
+            crates/sentrdel-review/src/profile.rs
+            crates/sentrdel-review/tests/t064_project_profile.rs
+          if-no-files-found: error
+          retention-days: 1
