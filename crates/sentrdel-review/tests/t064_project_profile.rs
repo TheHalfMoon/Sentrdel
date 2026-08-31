@@ -5,6 +5,7 @@ use sentrdel_review::project_detection::{DetectionLimits, LanguageEcosystemDetec
 use sentrdel_review::stack_detection::{
     PathMatchRule, StackDetectorRegistry, StackDetectorSpec, StackKind,
 };
+use sentrdel_review::supabase::{SUPABASE_R2_PACK_ID, register_r2_pack};
 use sentrdel_review::supabase_detection::detect_supabase;
 use sentrdel_schema::SCHEMA_V1;
 use sentrdel_schema::coverage::CoverageState;
@@ -58,6 +59,7 @@ fn project_profile_and_coverage_are_deterministic_and_honest() {
 
     let mut packs = SecurityPackRegistry::new();
     packs.register(pack("nextjs-r1", "nextjs")).unwrap();
+    register_r2_pack(&mut packs).unwrap();
 
     let snapshot = build_project_profile_snapshot(
         "repo:fixture",
@@ -83,7 +85,10 @@ fn project_profile_and_coverage_are_deterministic_and_honest() {
     assert_eq!(snapshot.profile.package_ecosystems, vec!["npm"]);
     assert_eq!(snapshot.profile.ci_systems, vec!["github-actions"]);
     assert_eq!(snapshot.profile.mcp_configurations, vec!["cursor-mcp"]);
-    assert_eq!(snapshot.profile.security_packs, vec!["nextjs-r1"]);
+    assert_eq!(
+        snapshot.profile.security_packs,
+        vec![SUPABASE_R2_PACK_ID.to_owned(), "nextjs-r1".to_owned()]
+    );
 
     let supabase_provider = snapshot
         .profile
@@ -91,7 +96,7 @@ fn project_profile_and_coverage_are_deterministic_and_honest() {
         .iter()
         .find(|provider| provider.provider_id == "supabase")
         .unwrap();
-    assert_eq!(supabase_provider.pack_status, PackStatus::NotImplemented);
+    assert_eq!(supabase_provider.pack_status, PackStatus::Available);
     assert!(supabase_provider.evidence_ids.is_empty());
 
     let firebase_detection = snapshot
@@ -113,11 +118,31 @@ fn project_profile_and_coverage_are_deterministic_and_honest() {
             PackCoverageDimension::StaticPosture,
         )
         .unwrap();
-    assert_eq!(supabase_static.state, CoverageState::Partial);
+    assert_eq!(supabase_static.state, CoverageState::Unavailable);
     assert_eq!(
         supabase_static.reason_code.as_deref(),
-        Some("SUPABASE_STATIC_POSTURE_NOT_IMPLEMENTED")
+        Some("PACK_REGISTERED_NOT_RUN")
     );
+
+    for dimension in [
+        PackCoverageDimension::LivePosture,
+        PackCoverageDimension::BusinessLogic,
+        PackCoverageDimension::Runtime,
+    ] {
+        let gap = snapshot
+            .coverage
+            .get(
+                ProjectCoverageSubjectKind::Provider,
+                "supabase",
+                dimension,
+            )
+            .unwrap();
+        assert_eq!(gap.state, CoverageState::Unsupported);
+        assert_eq!(
+            gap.reason_code.as_deref(),
+            Some("SUPABASE_R2_DIMENSION_NOT_IMPLEMENTED")
+        );
+    }
 
     let next_static = snapshot
         .coverage
@@ -133,6 +158,48 @@ fn project_profile_and_coverage_are_deterministic_and_honest() {
         Some("PACK_REGISTERED_NOT_RUN")
     );
     assert!(snapshot.coverage.gap_count > 0);
+}
+
+#[test]
+fn supabase_without_registered_native_pack_is_not_reported_as_implemented() {
+    let stacks = StackDetectorRegistry::new(&[])
+        .unwrap()
+        .detect(std::iter::empty::<&str>(), DetectionLimits::default())
+        .unwrap();
+    let supabase = detect_supabase(
+        ["supabase/config.toml"],
+        DetectionLimits::default(),
+    )
+    .unwrap();
+    let packs = SecurityPackRegistry::new();
+
+    let snapshot = build_project_profile_snapshot(
+        "repo:fixture",
+        "sha256:root",
+        &LanguageEcosystemDetection {
+            languages: Vec::new(),
+            package_ecosystems: Vec::new(),
+        },
+        &CiMcpConfigDetection {
+            ci_systems: Vec::new(),
+            mcp_configurations: Vec::new(),
+        },
+        &stacks,
+        &supabase,
+        &packs,
+        "2026-08-29T00:00:00Z",
+        "2026-08-29T00:00:00Z",
+    )
+    .unwrap();
+
+    let provider = snapshot
+        .profile
+        .detected_providers
+        .iter()
+        .find(|provider| provider.provider_id == "supabase")
+        .unwrap();
+    assert_eq!(provider.pack_status, PackStatus::NotInstalled);
+    assert!(snapshot.profile.security_packs.is_empty());
 }
 
 #[test]
