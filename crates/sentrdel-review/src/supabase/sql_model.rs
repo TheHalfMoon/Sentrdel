@@ -553,8 +553,7 @@ fn parse_grant_revoke(
         return unsupported();
     }
 
-    let Some(roles) = cursor.role_list_until(&["CASCADE", "RESTRICT", "GRANTED", "WITH"])
-    else {
+    let Some(roles) = cursor.role_list_until(&["CASCADE", "RESTRICT", "GRANTED", "WITH"]) else {
         return unsupported();
     };
     if roles.is_empty() || !cursor.is_at_end() {
