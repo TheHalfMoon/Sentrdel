@@ -58,7 +58,7 @@
 - [x] R2-T017 Implement bounded allowlisted `supabase/config.toml` parser with explicit size/depth/collection limits; unknown security-relevant configuration degrades affected coverage.
 - [x] R2-T018 Implement Supabase key authority classification for modern publishable/secret and legacy anon/service-role classes while routing secret material through the R1 redaction-before-persist boundary.
 - [x] R2-T019 Implement conservative source execution-context classification for browser/client, server, Edge Function, test/fixture, and UNKNOWN contexts using bounded repository evidence only.
-- [ ] R2-T020 Implement elevated secret/service-role key-in-client-context producer with negative fixtures proving backend/Edge Function use is not automatically a finding.
+- [x] R2-T020 Implement elevated secret/service-role key-in-client-context producer with negative fixtures proving backend/Edge Function use is not automatically a finding.
 - [ ] R2-T021 Implement bounded repository-visible Auth/API configuration posture checks frozen by the R2 contract; unsupported hosted-only settings remain visible coverage gaps.
 - [ ] R2-T022 Implement Edge Function authorization posture for platform JWT/auth verification and supported explicit replacement authorization patterns; disabled verification alone is a signal, not unconditional vulnerability.
 - [ ] R2-T023 Add secret-persistence, prompt/instruction-authority, malformed config/source, and no-network/no-target-execution adversarial tests for all Phase 4 paths.
