@@ -122,7 +122,14 @@ fn classify_path(path: &NormalizedRepoPath) -> SourceExecutionContext {
 
     if path_has_component(
         path,
-        &["test", "tests", "__tests__", "fixture", "fixtures", "testdata"],
+        &[
+            "test",
+            "tests",
+            "__tests__",
+            "fixture",
+            "fixtures",
+            "testdata",
+        ],
     ) || is_test_file(file_name)
     {
         return SourceExecutionContext::TestOrFixture;
@@ -132,8 +139,8 @@ fn classify_path(path: &NormalizedRepoPath) -> SourceExecutionContext {
         return SourceExecutionContext::EdgeFunction;
     }
 
-    let browser = path_has_component(path, &["browser", "client", "frontend"])
-        || is_browser_file(file_name);
+    let browser =
+        path_has_component(path, &["browser", "client", "frontend"]) || is_browser_file(file_name);
     let server = path_has_component(path, &["server", "backend"]) || is_server_file(file_name);
 
     match (browser, server) {
