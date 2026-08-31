@@ -81,10 +81,7 @@ pub struct KeyAuthorityLocation {
 
 impl KeyAuthorityLocation {
     fn validate(&self) -> Result<(), KeyAuthorityError> {
-        if self.line == 0
-            || self.start_column == 0
-            || self.end_column <= self.start_column
-        {
+        if self.line == 0 || self.start_column == 0 || self.end_column <= self.start_column {
             return Err(KeyAuthorityError::InvalidLocation);
         }
         Ok(())
@@ -131,9 +128,7 @@ impl fmt::Display for KeyAuthorityError {
 
 impl Error for KeyAuthorityError {}
 
-pub fn classify_key_literal(
-    raw: &str,
-) -> Result<Option<SupabaseKeyClass>, KeyAuthorityError> {
+pub fn classify_key_literal(raw: &str) -> Result<Option<SupabaseKeyClass>, KeyAuthorityError> {
     if raw.len() > DEFAULT_MAX_SUPABASE_KEY_TOKEN_BYTES {
         return Err(KeyAuthorityError::LiteralTooLarge {
             bytes: raw.len(),
@@ -200,8 +195,7 @@ pub fn observe_key_literal(
     let Some(key_class) = classify_key_literal(raw)? else {
         return Ok(None);
     };
-    build_observation(key_class, KeyAuthoritySignal::Literal, location)
-        .map(Some)
+    build_observation(key_class, KeyAuthoritySignal::Literal, location).map(Some)
 }
 
 pub fn observe_key_reference(
@@ -211,8 +205,7 @@ pub fn observe_key_reference(
     let Some(key_class) = classify_key_reference(reference)? else {
         return Ok(None);
     };
-    build_observation(key_class, KeyAuthoritySignal::SemanticReference, location)
-        .map(Some)
+    build_observation(key_class, KeyAuthoritySignal::SemanticReference, location).map(Some)
 }
 
 fn build_observation(
@@ -369,7 +362,11 @@ mod tests {
         );
         let debug = format!("{observation:?}");
         assert!(!debug.contains(canary));
-        assert!(!observation.sanitized_non_secret_fingerprint.contains("SENTRDEL_CANARY"));
+        assert!(
+            !observation
+                .sanitized_non_secret_fingerprint
+                .contains("SENTRDEL_CANARY")
+        );
     }
 
     #[test]
@@ -407,9 +404,11 @@ mod tests {
             "[REDACTED:supabase_legacy_service_role_key]"
         );
         assert!(observation.key_class.is_elevated());
-        assert!(!observation
-            .sanitized_non_secret_fingerprint
-            .contains("SERVICE_ROLE"));
+        assert!(
+            !observation
+                .sanitized_non_secret_fingerprint
+                .contains("SERVICE_ROLE")
+        );
     }
 
     #[test]
@@ -428,7 +427,10 @@ mod tests {
 
     #[test]
     fn caller_controlled_size_and_location_inputs_fail_boundedly() {
-        let oversized_literal = format!("sb_secret_{}", "A".repeat(DEFAULT_MAX_SUPABASE_KEY_TOKEN_BYTES));
+        let oversized_literal = format!(
+            "sb_secret_{}",
+            "A".repeat(DEFAULT_MAX_SUPABASE_KEY_TOKEN_BYTES)
+        );
         assert!(matches!(
             classify_key_literal(&oversized_literal),
             Err(KeyAuthorityError::LiteralTooLarge { .. })
