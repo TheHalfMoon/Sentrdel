@@ -488,10 +488,12 @@ mod tests {
             evidence[0].claim().category,
             "supabase_api_role_grant_coverage_gap"
         );
-        assert!(evidence[0]
-            .claim()
-            .input_digests
-            .contains(&"sha256:all-revoke-only".to_owned()));
+        assert!(
+            evidence[0]
+                .claim()
+                .input_digests
+                .contains(&"sha256:all-revoke-only".to_owned())
+        );
     }
 
     #[test]
@@ -524,9 +526,11 @@ mod tests {
             .filter_map(Value::as_str)
             .collect();
         assert_eq!(privileges, BTreeSet::from(["ALL"]));
-        assert!(evidence
-            .iter()
-            .all(|item| item.claim().category != "supabase_api_role_grant_coverage_gap"));
+        assert!(
+            evidence
+                .iter()
+                .all(|item| item.claim().category != "supabase_api_role_grant_coverage_gap")
+        );
     }
 
     #[test]
