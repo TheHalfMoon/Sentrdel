@@ -558,6 +558,9 @@ fn parse_grant_revoke(
     } else {
         SqlGrantObjectKind::Relation
     };
+    if !grant_privileges_supported(&privileges, object_kind) {
+        return unsupported();
+    }
 
     let marker = if revoke { "FROM" } else { "TO" };
     let Some(objects) =
@@ -592,6 +595,27 @@ fn parse_grant_revoke(
             roles,
         })
     }
+}
+
+fn grant_privileges_supported(privileges: &[String], object_kind: SqlGrantObjectKind) -> bool {
+    let supported: &[&str] = match object_kind {
+        SqlGrantObjectKind::Relation | SqlGrantObjectKind::Table => &[
+            "ALL",
+            "SELECT",
+            "INSERT",
+            "UPDATE",
+            "DELETE",
+            "TRUNCATE",
+            "REFERENCES",
+            "TRIGGER",
+        ],
+        SqlGrantObjectKind::Function => &["ALL", "EXECUTE"],
+        SqlGrantObjectKind::Schema => &["ALL", "CREATE", "USAGE"],
+        SqlGrantObjectKind::Sequence => &["ALL", "USAGE", "SELECT", "UPDATE"],
+    };
+    privileges
+        .iter()
+        .all(|privilege| supported.contains(&privilege.as_str()))
 }
 
 fn supported(
@@ -726,36 +750,69 @@ impl<'a> Cursor<'a> {
     }
 
     fn identifier_list_until(&mut self, stop_words: &[&str]) -> Option<Vec<String>> {
-        let mut values = Vec::new();
-        while self.position < self.tokens.len() {
-            if self
+        if self.position >= self.tokens.len()
+            || self
                 .peek_keyword()
                 .is_some_and(|value| stop_words.contains(&value.as_str()))
-            {
-                break;
-            }
-            if self.consume_symbol(",") {
-                continue;
-            }
+        {
+            return None;
+        }
+
+        let mut values = Vec::new();
+        loop {
             if values.len() >= DEFAULT_MAX_SQL_MODEL_LIST_ITEMS {
                 return None;
             }
             values.push(self.parse_identifier()?);
+
+            if self.position >= self.tokens.len()
+                || self
+                    .peek_keyword()
+                    .is_some_and(|value| stop_words.contains(&value.as_str()))
+            {
+                break;
+            }
+            if !self.consume_symbol(",") {
+                return None;
+            }
+            if self.position >= self.tokens.len()
+                || self
+                    .peek_keyword()
+                    .is_some_and(|value| stop_words.contains(&value.as_str()))
+            {
+                return None;
+            }
         }
         Some(values)
     }
 
     fn keyword_list_until(&mut self, marker: &str) -> Option<Vec<String>> {
-        let mut values = Vec::new();
+        if self.position >= self.tokens.len() || self.peek_keyword().as_deref() == Some(marker) {
+            return None;
+        }
+
+        let first = self.peek_keyword()?;
+        self.position += 1;
+        if first == "PRIVILEGES" {
+            return None;
+        }
+        if first == "ALL" {
+            if self.peek_keyword().as_deref() == Some("PRIVILEGES") {
+                self.position += 1;
+            }
+            return (self.peek_keyword().as_deref() == Some(marker)).then_some(vec![first]);
+        }
+
+        let mut values = vec![first];
         while self.position < self.tokens.len() && self.peek_keyword().as_deref() != Some(marker) {
-            if self.consume_symbol(",") {
-                continue;
+            if !self.consume_symbol(",") || self.peek_keyword().as_deref() == Some(marker) {
+                return None;
             }
             let value = self.peek_keyword()?;
-            self.position += 1;
-            if value == "PRIVILEGES" && values.last().is_some_and(|last| last == "ALL") {
-                continue;
+            if value == "ALL" || value == "PRIVILEGES" {
+                return None;
             }
+            self.position += 1;
             if values.len() >= DEFAULT_MAX_SQL_MODEL_LIST_ITEMS {
                 return None;
             }
@@ -782,7 +839,7 @@ impl<'a> Cursor<'a> {
             if self.peek_keyword().as_deref() == Some(marker) {
                 break;
             }
-            if !self.consume_symbol(",") {
+            if !self.consume_symbol(",") || self.peek_keyword().as_deref() == Some(marker) {
                 return None;
             }
         }
@@ -1269,6 +1326,14 @@ mod tests {
     }
 
     #[test]
+    fn malformed_role_lists_fail_closed() {
+        let statements = unsupported_statements(
+            "create policy missing_comma on public.accounts to anon authenticated using (true); create policy leading_comma on public.accounts to , anon using (true); grant select on table public.accounts to anon authenticated; revoke select on table public.accounts from authenticated,;",
+        );
+        assert_eq!(statements.len(), 4);
+    }
+
+    #[test]
     fn models_grant_and_revoke_without_collapsing_rls() {
         let statements = supported_statements(
             "grant select, insert on table public.accounts to anon, authenticated; revoke insert on table public.accounts from anon;",
@@ -1290,6 +1355,51 @@ mod tests {
                 if privileges == &vec!["INSERT".to_owned()]
                     && roles == &vec!["anon".to_owned()]
         ));
+    }
+
+    #[test]
+    fn canonical_multi_object_grants_remain_supported() {
+        let statements = supported_statements(
+            "grant select on table public.accounts, public.profiles to authenticated; revoke select on table public.accounts, public.profiles from authenticated;",
+        );
+        assert_eq!(statements.len(), 2);
+        assert!(statements.iter().all(|statement| match statement {
+            SupportedSqlStatement::Grant { objects, .. }
+            | SupportedSqlStatement::Revoke { objects, .. } => objects.len() == 2,
+            _ => false,
+        }));
+    }
+
+    #[test]
+    fn trailing_grant_object_separators_fail_closed() {
+        let statements = unsupported_statements(
+            "grant select on table public.accounts, to anon; revoke select on table public.accounts, from authenticated; grant execute on function private.current_account_id(), to authenticated;",
+        );
+        assert_eq!(statements.len(), 3);
+    }
+
+    #[test]
+    fn supported_grant_privileges_are_bounded_by_object_kind() {
+        let statements = supported_statements(
+            "grant all privileges on table public.accounts to anon; grant execute on function private.current_account_id() to authenticated; grant usage, create on schema private to authenticated; grant usage, select, update on sequence public.accounts_id_seq to authenticated;",
+        );
+        assert_eq!(statements.len(), 4);
+    }
+
+    #[test]
+    fn malformed_grant_privilege_lists_fail_closed() {
+        let statements = unsupported_statements(
+            "grant select insert on table public.accounts to anon; grant select, on table public.accounts to anon; grant all, select on table public.accounts to anon; grant privileges on table public.accounts to anon;",
+        );
+        assert_eq!(statements.len(), 4);
+    }
+
+    #[test]
+    fn unknown_or_mismatched_grant_privileges_fail_closed() {
+        let statements = unsupported_statements(
+            "grant frobulate on table public.accounts to anon; revoke vacuum on table public.accounts from authenticated; grant select on function private.current_account_id() to authenticated; grant execute on table public.accounts to anon;",
+        );
+        assert_eq!(statements.len(), 4);
     }
 
     #[test]
