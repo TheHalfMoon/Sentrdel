@@ -59,7 +59,10 @@ impl fmt::Display for StoragePostureError {
             Self::InvalidLimits => formatter.write_str("Storage posture limits must be non-zero"),
             Self::EmptyCapturedAt => formatter.write_str("captured_at must not be empty"),
             Self::TooManyRelations { max } => {
-                write!(formatter, "Storage relation count exceeds bounded cap {max}")
+                write!(
+                    formatter,
+                    "Storage relation count exceeds bounded cap {max}"
+                )
             }
             Self::TooManyPolicies { max } => {
                 write!(formatter, "Storage policy count exceeds bounded cap {max}")
@@ -105,8 +108,8 @@ pub fn observe_storage_authorization_posture(
         if object.kind != SupabaseObjectKind::Table || object.schema != STORAGE_SCHEMA {
             continue;
         }
-        let has_relation_posture = relation.exists_in_supported_history.value
-            || relation.rls_state.provenance.is_some();
+        let has_relation_posture =
+            relation.exists_in_supported_history.value || relation.rls_state.provenance.is_some();
         let has_policy_posture = !relation.policy_ids.is_empty();
         if !has_relation_posture && !has_policy_posture {
             continue;
@@ -118,12 +121,7 @@ pub fn observe_storage_authorization_posture(
             });
         }
         if has_relation_posture {
-            evidence.push(seal_relation(
-                &authority,
-                state,
-                relation,
-                captured_at,
-            )?);
+            evidence.push(seal_relation(&authority, state, relation, captured_at)?);
         }
 
         for policy_id in &relation.policy_ids {
@@ -136,12 +134,7 @@ pub fn observe_storage_authorization_posture(
                     max: limits.max_policies,
                 });
             }
-            evidence.push(seal_policy(
-                &authority,
-                state,
-                policy,
-                captured_at,
-            )?);
+            evidence.push(seal_policy(&authority, state, policy, captured_at)?);
         }
     }
 
@@ -504,10 +497,18 @@ mod tests {
             Some(&Value::String("NOT_PROVEN".to_owned()))
         );
         assert_eq!(
-            policy.claim().attributes.get("repository_relation_existence"),
+            policy
+                .claim()
+                .attributes
+                .get("repository_relation_existence"),
             Some(&Value::String("NOT_PROVEN".to_owned()))
         );
-        assert!(policy.claim().observation.contains("without proving policy creation"));
+        assert!(
+            policy
+                .claim()
+                .observation
+                .contains("without proving policy creation")
+        );
     }
 
     #[test]
@@ -585,9 +586,7 @@ mod tests {
 
     #[test]
     fn caps_and_empty_capture_time_fail_closed() {
-        let state = state(
-            "create table storage.one(id uuid); create table storage.two(id uuid);",
-        );
+        let state = state("create table storage.one(id uuid); create table storage.two(id uuid);");
         assert!(matches!(
             observe_storage_authorization_posture(
                 &state,
@@ -600,11 +599,7 @@ mod tests {
             Err(StoragePostureError::TooManyRelations { max: 1 })
         ));
         assert!(matches!(
-            observe_storage_authorization_posture(
-                &state,
-                "",
-                StoragePostureLimits::default(),
-            ),
+            observe_storage_authorization_posture(&state, "", StoragePostureLimits::default(),),
             Err(StoragePostureError::EmptyCapturedAt)
         ));
         assert!(matches!(
