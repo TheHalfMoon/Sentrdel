@@ -1,4 +1,7 @@
 use sentrdel_review::TARGET_BUILD_EXECUTION_ALLOWED;
+use sentrdel_review::supabase::auth_api::{
+    AUTH_API_PROVIDER_NETWORK_ALLOWED, AUTH_API_TARGET_EXECUTION_ALLOWED, assess_auth_api_config,
+};
 use sentrdel_review::supabase::config::{
     ConfigParseCoverage, SUPABASE_CONFIG_PATH, SupabaseConfigLimits, parse_supabase_config,
 };
@@ -11,10 +14,11 @@ use sentrdel_review::supabase::key_authority::{
 };
 use sentrdel_review::supabase::key_boundary::observe_elevated_key_client_boundary;
 use sentrdel_review::supabase::source_context::{
-    SOURCE_CONTEXT_TARGET_EXECUTION_ALLOWED, SourceContextLimits, SourceExecutionContext,
-    classify_source_execution_context,
+    SOURCE_CONTEXT_TARGET_EXECUTION_ALLOWED, SourceContextError, SourceContextLimits,
+    SourceExecutionContext, classify_source_execution_context,
 };
 use sentrdel_review::view::NormalizedRepoPath;
+use sentrdel_schema::coverage::CoverageState;
 
 const CONFIG_DIGEST: &str = "sha256:r2-t023-config";
 const SOURCE_DIGEST: &str = "sha256:r2-t023-source";
@@ -95,14 +99,30 @@ fn malformed_or_ambiguous_config_and_oversized_source_fail_visible() {
     let config = parse_supabase_config(
         &path(SUPABASE_CONFIG_PATH),
         CONFIG_DIGEST,
-        b"[functions.webhook]\nverify_jwt = false\nverify_jwt = true\n",
+        b"[api]\nenabled = true\n[functions.webhook]\nverify_jwt = false\nverify_jwt = true\n",
         SupabaseConfigLimits::default(),
     )
     .unwrap();
     assert_eq!(config.parse_coverage, ConfigParseCoverage::Partial);
     assert!(!config.diagnostics.is_empty());
 
-    let result = assess_edge_function_auth(
+    let auth_api = assess_auth_api_config(&config, CAPTURED_AT).unwrap();
+    assert_eq!(auth_api.auth_api_coverage.state, CoverageState::Partial);
+    assert!(auth_api.auth_api_coverage.reason_code.is_some());
+
+    let source_context = classify_source_execution_context(
+        &path("src/component.tsx"),
+        "xx",
+        SourceContextLimits {
+            max_source_bytes: 1,
+        },
+    );
+    assert!(matches!(
+        source_context,
+        Err(SourceContextError::SourceTooLarge { bytes: 2, max: 1 })
+    ));
+
+    let edge = assess_edge_function_auth(
         &config,
         "webhook",
         &path("supabase/functions/webhook/index.ts"),
@@ -114,7 +134,7 @@ fn malformed_or_ambiguous_config_and_oversized_source_fail_visible() {
         },
     );
     assert!(matches!(
-        result,
+        edge,
         Err(EdgeAuthError::SourceTooLarge { bytes: 2, max: 1 })
     ));
 }
@@ -156,6 +176,8 @@ fn non_client_contexts_do_not_promote_elevated_key_boundary_evidence() {
 fn phase4_static_paths_cannot_authorize_network_or_target_execution() {
     const { assert!(!TARGET_BUILD_EXECUTION_ALLOWED) };
     const { assert!(!SOURCE_CONTEXT_TARGET_EXECUTION_ALLOWED) };
+    const { assert!(!AUTH_API_TARGET_EXECUTION_ALLOWED) };
+    const { assert!(!AUTH_API_PROVIDER_NETWORK_ALLOWED) };
     const { assert!(!EDGE_AUTH_TARGET_EXECUTION_ALLOWED) };
     const { assert!(!EDGE_AUTH_PROVIDER_NETWORK_ALLOWED) };
 }
