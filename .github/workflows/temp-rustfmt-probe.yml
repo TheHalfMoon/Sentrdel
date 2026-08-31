@@ -1,0 +1,32 @@
+name: Temporary Rustfmt Probe
+
+on:
+  push:
+    branches:
+      - ci/temp-governance-reverify-20260901
+
+permissions:
+  contents: read
+
+jobs:
+  rustfmt-probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact T020 head
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: affa61cb9def3e463691ecc857e1a8873a4daae9
+          persist-credentials: false
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.98.0 --profile minimal --component rustfmt
+      - name: Format exact T020 head
+        run: cargo +1.98.0 fmt --all
+      - name: Upload formatted T020 sources
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: t020-rustfmt-sources
+          path: |
+            crates/sentrdel-review/src/supabase.rs
+            crates/sentrdel-review/src/supabase/key_boundary.rs
+          if-no-files-found: error
+          retention-days: 1
