@@ -219,12 +219,9 @@ mod tests {
             ("tests/client.ts", SourceExecutionContext::TestOrFixture),
             ("src/lib/supabase.ts", SourceExecutionContext::Unknown),
         ] {
-            let key = observe_key_literal(
-                "sb_secret_SYNTHETIC_SAFE_CONTEXT",
-                location(path, 3),
-            )
-            .unwrap()
-            .unwrap();
+            let key = observe_key_literal("sb_secret_SYNTHETIC_SAFE_CONTEXT", location(path, 3))
+                .unwrap()
+                .unwrap();
             assert!(
                 observe_elevated_key_client_boundary(&key, context, DIGEST, CAPTURED_AT)
                     .unwrap()
@@ -272,12 +269,9 @@ mod tests {
 
     #[test]
     fn browser_evidence_requires_timestamp_and_source_digest() {
-        let key = observe_key_literal(
-            "sb_secret_SYNTHETIC_BROWSER",
-            location("src/browser.ts", 7),
-        )
-        .unwrap()
-        .unwrap();
+        let key = observe_key_literal("sb_secret_SYNTHETIC_BROWSER", location("src/browser.ts", 7))
+            .unwrap()
+            .unwrap();
 
         assert!(matches!(
             observe_elevated_key_client_boundary(
