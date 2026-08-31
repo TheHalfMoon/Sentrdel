@@ -49,7 +49,7 @@
 - [x] R2-T013 [P] Implement supported GRANT/REVOKE posture for API-facing roles; grants remain an independent control from RLS/policies.
 - [x] R2-T014 Implement SECURITY DEFINER/search_path/schema/execute-grant posture producer; SECURITY DEFINER alone is not labeled exploitable.
 - [x] R2-T015 [P] Map supported Storage authorization policy SQL through the same relation/policy evidence substrate with Storage-specific subjects/coverage.
-- [ ] R2-T016 Add positive/negative/correlation tests proving RLS, grants, policies, function authority, and Storage Evidence preserve independent provenance and reconcile only through the existing R1 reconciler.
+- [x] R2-T016 Add positive/negative/correlation tests proving RLS, grants, policies, function authority, and Storage Evidence preserve independent provenance and reconcile only through the existing R1 reconciler.
 
 ---
 
