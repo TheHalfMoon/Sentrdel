@@ -87,10 +87,19 @@ pub struct SupabaseMigrationPath {
 #[derive(Debug)]
 pub enum SupabaseMigrationDiscoveryError {
     InvalidLimits,
-    TooManyMigrations { max: usize },
-    TotalPathBytesExceeded { max: usize },
-    InvalidPath { index: usize, source: RepoViewError },
-    UnsupportedMigrationFilename { path: NormalizedRepoPath },
+    TooManyMigrations {
+        max: usize,
+    },
+    TotalPathBytesExceeded {
+        max: usize,
+    },
+    InvalidPath {
+        index: usize,
+        source: RepoViewError,
+    },
+    UnsupportedMigrationFilename {
+        path: NormalizedRepoPath,
+    },
     AmbiguousOrderKey {
         order_key: String,
         first: NormalizedRepoPath,
@@ -101,12 +110,33 @@ pub enum SupabaseMigrationDiscoveryError {
 impl fmt::Display for SupabaseMigrationDiscoveryError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::InvalidLimits => formatter.write_str("Supabase migration discovery limits must be non-zero"),
-            Self::TooManyMigrations { max } => write!(formatter, "Supabase migration count exceeds discovery cap {max}"),
-            Self::TotalPathBytesExceeded { max } => write!(formatter, "Supabase migration path bytes exceed discovery cap {max}"),
-            Self::InvalidPath { index, source } => write!(formatter, "Supabase migration path at input index {index} is invalid: {source}"),
-            Self::UnsupportedMigrationFilename { path } => write!(formatter, "Supabase migration path {path} does not use the supported 14-digit order-key filename form"),
-            Self::AmbiguousOrderKey { order_key, first, second } => write!(formatter, "Supabase migration order key {order_key} is ambiguous between {first} and {second}"),
+            Self::InvalidLimits => {
+                formatter.write_str("Supabase migration discovery limits must be non-zero")
+            }
+            Self::TooManyMigrations { max } => write!(
+                formatter,
+                "Supabase migration count exceeds discovery cap {max}"
+            ),
+            Self::TotalPathBytesExceeded { max } => write!(
+                formatter,
+                "Supabase migration path bytes exceed discovery cap {max}"
+            ),
+            Self::InvalidPath { index, source } => write!(
+                formatter,
+                "Supabase migration path at input index {index} is invalid: {source}"
+            ),
+            Self::UnsupportedMigrationFilename { path } => write!(
+                formatter,
+                "Supabase migration path {path} does not use the supported 14-digit order-key filename form"
+            ),
+            Self::AmbiguousOrderKey {
+                order_key,
+                first,
+                second,
+            } => write!(
+                formatter,
+                "Supabase migration order key {order_key} is ambiguous between {first} and {second}"
+            ),
         }
     }
 }
@@ -128,7 +158,8 @@ where
     I: IntoIterator<Item = S>,
     S: AsRef<str>,
 {
-    if limits.max_migrations == 0 || limits.max_path_bytes == 0 || limits.max_total_path_bytes == 0 {
+    if limits.max_migrations == 0 || limits.max_path_bytes == 0 || limits.max_total_path_bytes == 0
+    {
         return Err(SupabaseMigrationDiscoveryError::InvalidLimits);
     }
 
@@ -145,18 +176,26 @@ where
             continue;
         }
         if migrations.len() >= limits.max_migrations {
-            return Err(SupabaseMigrationDiscoveryError::TooManyMigrations { max: limits.max_migrations });
+            return Err(SupabaseMigrationDiscoveryError::TooManyMigrations {
+                max: limits.max_migrations,
+            });
         }
 
         let path = NormalizedRepoPath::parse(raw_path, limits.max_path_bytes)
             .map_err(|source| SupabaseMigrationDiscoveryError::InvalidPath { index, source })?;
         let order_key = migration_order_key(relative)
-            .ok_or_else(|| SupabaseMigrationDiscoveryError::UnsupportedMigrationFilename { path: path.clone() })?
+            .ok_or_else(
+                || SupabaseMigrationDiscoveryError::UnsupportedMigrationFilename {
+                    path: path.clone(),
+                },
+            )?
             .to_owned();
 
         total_path_bytes = total_path_bytes.saturating_add(path.as_str().len());
         if total_path_bytes > limits.max_total_path_bytes {
-            return Err(SupabaseMigrationDiscoveryError::TotalPathBytesExceeded { max: limits.max_total_path_bytes });
+            return Err(SupabaseMigrationDiscoveryError::TotalPathBytesExceeded {
+                max: limits.max_total_path_bytes,
+            });
         }
 
         if let Some(first) = seen_order_keys.insert(order_key.clone(), path.clone()) {
@@ -170,7 +209,11 @@ where
         migrations.push(SupabaseMigrationPath { path, order_key });
     }
 
-    migrations.sort_by(|left, right| left.order_key.cmp(&right.order_key).then_with(|| left.path.cmp(&right.path)));
+    migrations.sort_by(|left, right| {
+        left.order_key
+            .cmp(&right.order_key)
+            .then_with(|| left.path.cmp(&right.path))
+    });
     Ok(migrations)
 }
 
@@ -208,7 +251,10 @@ pub fn manifest() -> SecurityPackManifest {
         evidence_capabilities: vec!["static-posture-evidence".to_owned()],
         required_engines: Vec::new(),
         required_features: Vec::new(),
-        coverage_dimensions: SUPABASE_R2_COVERAGE_DIMENSIONS.iter().map(|value| (*value).to_owned()).collect(),
+        coverage_dimensions: SUPABASE_R2_COVERAGE_DIMENSIONS
+            .iter()
+            .map(|value| (*value).to_owned())
+            .collect(),
     }
 }
 
@@ -232,7 +278,10 @@ mod tests {
     #[test]
     fn manifest_exposes_exact_r2_coverage_dimensions() {
         let value = manifest();
-        let expected: Vec<String> = SUPABASE_R2_COVERAGE_DIMENSIONS.iter().map(|dimension| (*dimension).to_owned()).collect();
+        let expected: Vec<String> = SUPABASE_R2_COVERAGE_DIMENSIONS
+            .iter()
+            .map(|dimension| (*dimension).to_owned())
+            .collect();
         assert_eq!(value.coverage_dimensions, expected);
     }
 
@@ -263,7 +312,10 @@ mod tests {
         assert_eq!(migrations[0].order_key, "20260829000100");
         assert_eq!(migrations[1].order_key, "20260829000200");
         assert_eq!(migrations[2].order_key, "20260829000300");
-        assert_eq!(migrations[0].path.as_str(), "supabase/migrations/20260829000100_first.sql");
+        assert_eq!(
+            migrations[0].path.as_str(),
+            "supabase/migrations/20260829000100_first.sql"
+        );
         const { assert!(!SUPABASE_MIGRATION_EXECUTION_ALLOWED) };
         const { assert!(!crate::TARGET_BUILD_EXECUTION_ALLOWED) };
     }
@@ -286,8 +338,14 @@ mod tests {
 
     #[test]
     fn unsupported_migration_filename_fails_closed() {
-        let result = discover_migration_paths(["supabase/migrations/not-a-timestamp.sql"], SupabaseMigrationDiscoveryLimits::default());
-        assert!(matches!(result, Err(SupabaseMigrationDiscoveryError::UnsupportedMigrationFilename { .. })));
+        let result = discover_migration_paths(
+            ["supabase/migrations/not-a-timestamp.sql"],
+            SupabaseMigrationDiscoveryLimits::default(),
+        );
+        assert!(matches!(
+            result,
+            Err(SupabaseMigrationDiscoveryError::UnsupportedMigrationFilename { .. })
+        ));
     }
 
     #[test]
@@ -295,7 +353,11 @@ mod tests {
         assert!(matches!(
             discover_migration_paths(
                 ["supabase/migrations/20260829000100_one.sql"],
-                SupabaseMigrationDiscoveryLimits { max_migrations: 0, max_path_bytes: 1, max_total_path_bytes: 1 }
+                SupabaseMigrationDiscoveryLimits {
+                    max_migrations: 0,
+                    max_path_bytes: 1,
+                    max_total_path_bytes: 1
+                }
             ),
             Err(SupabaseMigrationDiscoveryError::InvalidLimits)
         ));
@@ -306,7 +368,10 @@ mod tests {
                     "supabase/migrations/20260829000100_one.sql",
                     "supabase/migrations/20260829000200_two.sql",
                 ],
-                SupabaseMigrationDiscoveryLimits { max_migrations: 1, ..SupabaseMigrationDiscoveryLimits::default() }
+                SupabaseMigrationDiscoveryLimits {
+                    max_migrations: 1,
+                    ..SupabaseMigrationDiscoveryLimits::default()
+                }
             ),
             Err(SupabaseMigrationDiscoveryError::TooManyMigrations { max: 1 })
         ));
@@ -314,7 +379,10 @@ mod tests {
         assert!(matches!(
             discover_migration_paths(
                 ["supabase/migrations/20260829000100_one.sql"],
-                SupabaseMigrationDiscoveryLimits { max_total_path_bytes: 10, ..SupabaseMigrationDiscoveryLimits::default() }
+                SupabaseMigrationDiscoveryLimits {
+                    max_total_path_bytes: 10,
+                    ..SupabaseMigrationDiscoveryLimits::default()
+                }
             ),
             Err(SupabaseMigrationDiscoveryError::TotalPathBytesExceeded { max: 10 })
         ));

@@ -100,7 +100,9 @@ pub enum EdgeAuthError {
 impl fmt::Display for EdgeAuthError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::InvalidLimits => formatter.write_str("Edge Function auth limits must be non-zero"),
+            Self::InvalidLimits => {
+                formatter.write_str("Edge Function auth limits must be non-zero")
+            }
             Self::EmptyFunctionName => formatter.write_str("Edge Function name must not be empty"),
             Self::InvalidFunctionPath => formatter.write_str(
                 "Edge Function auth source must be under supabase/functions/<function_name>/",
@@ -113,7 +115,10 @@ impl fmt::Display for EdgeAuthError {
                 formatter,
                 "Edge Function auth source size {bytes} exceeds cap {max}"
             ),
-            Self::Evidence(error) => write!(formatter, "cannot seal Edge Function auth evidence: {error}"),
+            Self::Evidence(error) => write!(
+                formatter,
+                "cannot seal Edge Function auth evidence: {error}"
+            ),
         }
     }
 }
@@ -345,8 +350,8 @@ fn disabled_without_replacement_evidence(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::config::{SUPABASE_CONFIG_PATH, SupabaseConfigLimits, parse_supabase_config};
+    use super::*;
 
     const CAPTURED_AT: &str = "2026-09-01T00:10:00Z";
     const CONFIG_DIGEST: &str = "sha256:r2-t022-config";
@@ -384,8 +389,14 @@ mod tests {
         let posture = config("[functions.webhook]\nverify_jwt = true\n");
         let result = assess(&posture, "Deno.serve(() => new Response('ok'));\n");
 
-        assert_eq!(result.platform_jwt_verification, PlatformJwtVerification::Enabled);
-        assert_eq!(result.supported_replacement_auth, SupportedReplacementAuth::Unknown);
+        assert_eq!(
+            result.platform_jwt_verification,
+            PlatformJwtVerification::Enabled
+        );
+        assert_eq!(
+            result.supported_replacement_auth,
+            SupportedReplacementAuth::Unknown
+        );
         assert_eq!(result.coverage.state, CoverageState::Covered);
         assert!(result.evidence.is_none());
     }
@@ -396,8 +407,14 @@ mod tests {
         let source = "const auth = req.headers.get(\"Authorization\");\nconst { data } = await supabase.auth.getUser(auth);\n";
         let result = assess(&posture, source);
 
-        assert_eq!(result.platform_jwt_verification, PlatformJwtVerification::Disabled);
-        assert_eq!(result.supported_replacement_auth, SupportedReplacementAuth::Proven);
+        assert_eq!(
+            result.platform_jwt_verification,
+            PlatformJwtVerification::Disabled
+        );
+        assert_eq!(
+            result.supported_replacement_auth,
+            SupportedReplacementAuth::Proven
+        );
         assert_eq!(result.coverage.state, CoverageState::Covered);
         assert!(result.evidence.is_none());
     }
@@ -407,12 +424,18 @@ mod tests {
         let posture = config("[functions.webhook]\nverify_jwt = false\n");
         let result = assess(&posture, "Deno.serve(() => new Response('ok'));\n");
 
-        assert_eq!(result.supported_replacement_auth, SupportedReplacementAuth::NotProven);
+        assert_eq!(
+            result.supported_replacement_auth,
+            SupportedReplacementAuth::NotProven
+        );
         let evidence = result.evidence.unwrap();
         assert_eq!(evidence.claim().epistemic_class, EpistemicClass::Inference);
         assert!(evidence.claim().security_interpretation.is_none());
         assert_eq!(
-            evidence.claim().attributes.get("hosted_authorization_state"),
+            evidence
+                .claim()
+                .attributes
+                .get("hosted_authorization_state"),
             Some(&Value::String("UNKNOWN".to_owned()))
         );
     }
@@ -421,14 +444,18 @@ mod tests {
     fn missing_or_ambiguous_verify_jwt_remains_partial_not_clean() {
         let missing = config("[functions.webhook]\n");
         let missing_result = assess(&missing, "Deno.serve(() => new Response('ok'));\n");
-        assert_eq!(missing_result.platform_jwt_verification, PlatformJwtVerification::Unknown);
+        assert_eq!(
+            missing_result.platform_jwt_verification,
+            PlatformJwtVerification::Unknown
+        );
         assert_eq!(missing_result.coverage.state, CoverageState::Partial);
 
-        let ambiguous = config(
-            "[functions.webhook]\nverify_jwt = false\nverify_jwt = true\n",
-        );
+        let ambiguous = config("[functions.webhook]\nverify_jwt = false\nverify_jwt = true\n");
         let ambiguous_result = assess(&ambiguous, "Deno.serve(() => new Response('ok'));\n");
-        assert_eq!(ambiguous_result.platform_jwt_verification, PlatformJwtVerification::Unknown);
+        assert_eq!(
+            ambiguous_result.platform_jwt_verification,
+            PlatformJwtVerification::Unknown
+        );
         assert_eq!(ambiguous_result.coverage.state, CoverageState::Partial);
     }
 
@@ -438,7 +465,10 @@ mod tests {
         let source = "// const auth = req.headers.get(\"Authorization\");\n// const user = await supabase.auth.getUser(auth);\nDeno.serve(() => new Response('ok'));\n";
         let result = assess(&posture, source);
 
-        assert_eq!(result.supported_replacement_auth, SupportedReplacementAuth::NotProven);
+        assert_eq!(
+            result.supported_replacement_auth,
+            SupportedReplacementAuth::NotProven
+        );
         assert!(result.evidence.is_some());
     }
 
@@ -465,7 +495,9 @@ mod tests {
                 "xx",
                 SOURCE_DIGEST,
                 CAPTURED_AT,
-                EdgeAuthLimits { max_source_bytes: 1 },
+                EdgeAuthLimits {
+                    max_source_bytes: 1
+                },
             ),
             Err(EdgeAuthError::SourceTooLarge { bytes: 2, max: 1 })
         ));
