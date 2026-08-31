@@ -960,6 +960,7 @@ fn normalized_identifier(input: &str, token: &SqlToken) -> Option<String> {
         _ => None,
     }
 }
+
 fn normalized_search_path_value(input: &str, token: &SqlToken) -> Option<String> {
     match token.kind {
         SqlTokenKind::Word | SqlTokenKind::QuotedIdentifier => normalized_identifier(input, token),
