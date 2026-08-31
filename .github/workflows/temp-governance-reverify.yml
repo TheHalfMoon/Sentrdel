@@ -1,8 +1,9 @@
 name: Temporary Governance Reverify
 
 on:
-  pull_request:
-    branches: [main]
+  push:
+    branches:
+      - ci/temp-governance-reverify-20260901
 
 permissions:
   contents: read
