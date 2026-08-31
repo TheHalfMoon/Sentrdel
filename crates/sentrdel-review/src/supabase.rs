@@ -12,6 +12,7 @@ pub mod key_authority;
 pub mod policy;
 pub mod posture;
 pub mod rls;
+pub mod source_context;
 pub mod sql;
 pub mod sql_model;
 pub mod state;
