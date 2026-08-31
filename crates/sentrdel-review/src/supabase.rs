@@ -7,6 +7,7 @@
 
 pub mod auth_api;
 pub mod config;
+pub mod edge_auth;
 pub mod function_authority;
 pub mod grants;
 pub mod key_authority;
@@ -331,10 +332,7 @@ mod tests {
 
         assert!(matches!(
             result,
-            Err(SupabaseMigrationDiscoveryError::AmbiguousOrderKey {
-                ref order_key,
-                ..
-            }) if order_key == "20260829000300"
+            Err(SupabaseMigrationDiscoveryError::AmbiguousOrderKey { ref order_key, .. }) if order_key == "20260829000300"
         ));
     }
 
@@ -344,7 +342,6 @@ mod tests {
             ["supabase/migrations/not-a-timestamp.sql"],
             SupabaseMigrationDiscoveryLimits::default(),
         );
-
         assert!(matches!(
             result,
             Err(SupabaseMigrationDiscoveryError::UnsupportedMigrationFilename { .. })
@@ -359,7 +356,7 @@ mod tests {
                 SupabaseMigrationDiscoveryLimits {
                     max_migrations: 0,
                     max_path_bytes: 1,
-                    max_total_path_bytes: 1,
+                    max_total_path_bytes: 1
                 }
             ),
             Err(SupabaseMigrationDiscoveryError::InvalidLimits)
