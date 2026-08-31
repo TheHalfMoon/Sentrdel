@@ -181,9 +181,7 @@ fn is_browser_file(file_name: &str) -> bool {
 
 fn is_server_file(file_name: &str) -> bool {
     let lower = file_name.to_ascii_lowercase();
-    lower.starts_with("server.")
-        || lower.starts_with("backend.")
-        || lower.contains(".server.")
+    lower.starts_with("server.") || lower.starts_with("backend.") || lower.contains(".server.")
 }
 
 fn leading_execution_directive(source: &str) -> Option<SourceExecutionContext> {
@@ -220,7 +218,10 @@ mod tests {
             "BROWSER_OR_CLIENT"
         );
         assert_eq!(SourceExecutionContext::Server.as_str(), "SERVER");
-        assert_eq!(SourceExecutionContext::EdgeFunction.as_str(), "EDGE_FUNCTION");
+        assert_eq!(
+            SourceExecutionContext::EdgeFunction.as_str(),
+            "EDGE_FUNCTION"
+        );
         assert_eq!(
             SourceExecutionContext::TestOrFixture.as_str(),
             "TEST_OR_FIXTURE"
@@ -278,11 +279,17 @@ mod tests {
     #[test]
     fn exact_leading_directives_are_bounded_semantic_signals() {
         assert_eq!(
-            classify("src/component.tsx", "'use client';\nexport const value = 1;"),
+            classify(
+                "src/component.tsx",
+                "'use client';\nexport const value = 1;"
+            ),
             SourceExecutionContext::BrowserOrClient
         );
         assert_eq!(
-            classify("src/action.ts", "\"use server\";\nexport async function run() {}"),
+            classify(
+                "src/action.ts",
+                "\"use server\";\nexport async function run() {}"
+            ),
             SourceExecutionContext::Server
         );
     }
@@ -308,11 +315,17 @@ mod tests {
     #[test]
     fn conflicting_repository_signals_degrade_to_unknown() {
         assert_eq!(
-            classify("src/client/supabase.ts", "'use server';\nexport const value = 1;"),
+            classify(
+                "src/client/supabase.ts",
+                "'use server';\nexport const value = 1;"
+            ),
             SourceExecutionContext::Unknown
         );
         assert_eq!(
-            classify("src/server/supabase.ts", "'use client';\nexport const value = 1;"),
+            classify(
+                "src/server/supabase.ts",
+                "'use client';\nexport const value = 1;"
+            ),
             SourceExecutionContext::Unknown
         );
         assert_eq!(
