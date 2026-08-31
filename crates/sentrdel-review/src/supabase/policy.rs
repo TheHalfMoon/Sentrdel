@@ -247,10 +247,9 @@ fn append_supported_changes(
         )?;
     }
 
-    if let (Some(old_provenance), Some(new_provenance)) = (
-        old.roles.provenance.as_ref(),
-        new.roles.provenance.as_ref(),
-    ) && role_scope_expanded(&old.roles.value, &new.roles.value)
+    if let (Some(old_provenance), Some(new_provenance)) =
+        (old.roles.provenance.as_ref(), new.roles.provenance.as_ref())
+        && role_scope_expanded(&old.roles.value, &new.roles.value)
     {
         let added_roles: Vec<String> = new
             .roles
@@ -747,7 +746,11 @@ mod tests {
             claim.attributes.get("command_scope"),
             Some(&Value::String("UNKNOWN".to_owned()))
         );
-        assert!(claim.observation.contains("without proving policy creation"));
+        assert!(
+            claim
+                .observation
+                .contains("without proving policy creation")
+        );
     }
 
     #[test]
@@ -1041,10 +1044,7 @@ mod tests {
             Some(&Value::String("ROLE_SCOPE_EXPANDED".to_owned()))
         );
         assert_eq!(
-            evidence[0]
-                .claim()
-                .attributes
-                .get("scope_expansion_basis"),
+            evidence[0].claim().attributes.get("scope_expansion_basis"),
             Some(&Value::String("PUBLIC".to_owned()))
         );
         assert_eq!(
