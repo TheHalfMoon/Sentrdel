@@ -7,8 +7,8 @@ use sentrdel_review::supabase::function_authority::{
 use sentrdel_review::supabase::grants::{ApiRoleGrantLimits, observe_api_role_grants};
 use sentrdel_review::supabase::policy::{PolicyPostureLimits, observe_policy_posture};
 use sentrdel_review::supabase::posture::{
-    ApiExposureSource, ApiSchemaExposureInput, ApiSchemaExposureSnapshot,
-    ConfigExposureProvenance, SUPABASE_CONFIG_PATH, observe_api_schema_exposure,
+    ApiExposureSource, ApiSchemaExposureInput, ApiSchemaExposureSnapshot, ConfigExposureProvenance,
+    SUPABASE_CONFIG_PATH, observe_api_schema_exposure,
 };
 use sentrdel_review::supabase::rls::{RlsPostureLimits, observe_api_relevant_rls};
 use sentrdel_review::supabase::sql::SqlScanLimits;
@@ -26,11 +26,8 @@ const CONFIG_DIGEST: &str = "sha256:r2-t016-config";
 
 fn migration(sql: &str) -> MigrationSqlInput {
     MigrationSqlInput {
-        path: NormalizedRepoPath::parse(
-            "supabase/migrations/20260831000100_t016.sql",
-            4096,
-        )
-        .unwrap(),
+        path: NormalizedRepoPath::parse("supabase/migrations/20260831000100_t016.sql", 4096)
+            .unwrap(),
         order_key: "20260831000100".to_owned(),
         content_digest: MIGRATION_DIGEST.to_owned(),
         sql: sql.to_owned(),
@@ -77,13 +74,8 @@ fn independent_controls_preserve_their_own_evidence_and_provenance() {
     );
     let exposure = exposure();
 
-    let rls = observe_api_relevant_rls(
-        &state,
-        &exposure,
-        CAPTURED_AT,
-        RlsPostureLimits::default(),
-    )
-    .unwrap();
+    let rls = observe_api_relevant_rls(&state, &exposure, CAPTURED_AT, RlsPostureLimits::default())
+        .unwrap();
     let grants = observe_api_role_grants(
         &state,
         &exposure,
@@ -91,8 +83,8 @@ fn independent_controls_preserve_their_own_evidence_and_provenance() {
         ApiRoleGrantLimits::default(),
     )
     .unwrap();
-    let policies = observe_policy_posture(&state, CAPTURED_AT, PolicyPostureLimits::default())
-        .unwrap();
+    let policies =
+        observe_policy_posture(&state, CAPTURED_AT, PolicyPostureLimits::default()).unwrap();
     let functions = observe_function_authority(
         &state,
         &exposure,
@@ -100,14 +92,14 @@ fn independent_controls_preserve_their_own_evidence_and_provenance() {
         FunctionAuthorityLimits::default(),
     )
     .unwrap();
-    let storage = observe_storage_authorization_posture(
-        &state,
-        CAPTURED_AT,
-        StoragePostureLimits::default(),
-    )
-    .unwrap();
+    let storage =
+        observe_storage_authorization_posture(&state, CAPTURED_AT, StoragePostureLimits::default())
+            .unwrap();
 
-    assert_eq!(categories(&rls), BTreeSet::from(["supabase_rls_posture".to_owned()]));
+    assert_eq!(
+        categories(&rls),
+        BTreeSet::from(["supabase_rls_posture".to_owned()])
+    );
     assert_eq!(
         categories(&grants),
         BTreeSet::from(["supabase_api_role_grant".to_owned()])
@@ -152,7 +144,11 @@ fn independent_controls_preserve_their_own_evidence_and_provenance() {
         rls.iter()
             .chain(grants.iter())
             .chain(functions.iter())
-            .any(|item| item.claim().input_digests.iter().any(|digest| digest == CONFIG_DIGEST))
+            .any(|item| item
+                .claim()
+                .input_digests
+                .iter()
+                .any(|digest| digest == CONFIG_DIGEST))
     );
 }
 
@@ -170,13 +166,8 @@ fn revoking_one_control_does_not_erase_independent_control_evidence() {
     );
     let exposure = exposure();
 
-    let rls = observe_api_relevant_rls(
-        &state,
-        &exposure,
-        CAPTURED_AT,
-        RlsPostureLimits::default(),
-    )
-    .unwrap();
+    let rls = observe_api_relevant_rls(&state, &exposure, CAPTURED_AT, RlsPostureLimits::default())
+        .unwrap();
     let grants = observe_api_role_grants(
         &state,
         &exposure,
@@ -184,8 +175,8 @@ fn revoking_one_control_does_not_erase_independent_control_evidence() {
         ApiRoleGrantLimits::default(),
     )
     .unwrap();
-    let policies = observe_policy_posture(&state, CAPTURED_AT, PolicyPostureLimits::default())
-        .unwrap();
+    let policies =
+        observe_policy_posture(&state, CAPTURED_AT, PolicyPostureLimits::default()).unwrap();
     let functions = observe_function_authority(
         &state,
         &exposure,
@@ -197,30 +188,33 @@ fn revoking_one_control_does_not_erase_independent_control_evidence() {
     assert_eq!(rls.len(), 1);
     assert!(grants.is_empty());
     assert_eq!(policies.len(), 1);
-    assert!(functions.iter().all(|item| {
-        item.claim().category != "supabase_function_execute_grant"
-    }));
-    assert!(functions.iter().any(|item| {
-        item.claim().category == "supabase_function_security_mode"
-    }));
-    assert!(functions.iter().any(|item| {
-        item.claim().category == "supabase_function_search_path"
-    }));
+    assert!(
+        functions
+            .iter()
+            .all(|item| { item.claim().category != "supabase_function_execute_grant" })
+    );
+    assert!(
+        functions
+            .iter()
+            .any(|item| { item.claim().category == "supabase_function_security_mode" })
+    );
+    assert!(
+        functions
+            .iter()
+            .any(|item| { item.claim().category == "supabase_function_search_path" })
+    );
 }
 
 #[test]
 fn only_existing_reconciler_authority_turns_one_evidence_category_into_findings() {
     let state = supported_state(
-        "create table public.accounts(id bigint); alter table public.accounts disable row level security;",
+        "create table public.accounts(id bigint); \
+         alter table public.accounts disable row level security; \
+         create policy accounts_read on public.accounts for select to authenticated using (true);",
     );
     let exposure = exposure();
-    let rls = observe_api_relevant_rls(
-        &state,
-        &exposure,
-        CAPTURED_AT,
-        RlsPostureLimits::default(),
-    )
-    .unwrap();
+    let rls = observe_api_relevant_rls(&state, &exposure, CAPTURED_AT, RlsPostureLimits::default())
+        .unwrap();
     assert_eq!(rls.len(), 1);
 
     let rule = ReconciliationRule::from_runtime(
@@ -239,21 +233,23 @@ fn only_existing_reconciler_authority_turns_one_evidence_category_into_findings(
 
     let findings = reconcile_evidence(&rls, &rule, &reconciler, CAPTURED_AT).unwrap();
     assert_eq!(findings.len(), 1);
-    assert_eq!(findings[0].draft().evidence_ids, vec![rls[0].evidence_id().to_owned()]);
+    assert_eq!(
+        findings[0].draft().evidence_ids,
+        vec![rls[0].evidence_id().to_owned()]
+    );
     assert_eq!(findings[0].draft().title, "Runtime-owned RLS posture rule");
     assert_eq!(findings[0].draft().severity, Severity::High);
 
-    let policies = observe_policy_posture(&state, CAPTURED_AT, PolicyPostureLimits::default())
-        .unwrap();
-    if let Some(policy) = policies.first() {
-        assert!(matches!(
-            reconcile_evidence(
-                &[rls[0].clone(), policy.clone()],
-                &rule,
-                &reconciler,
-                CAPTURED_AT,
-            ),
-            Err(ReconcileError::UnexpectedEvidenceCategory { .. })
-        ));
-    }
+    let policies =
+        observe_policy_posture(&state, CAPTURED_AT, PolicyPostureLimits::default()).unwrap();
+    assert_eq!(policies.len(), 1);
+    assert!(matches!(
+        reconcile_evidence(
+            &[rls[0].clone(), policies[0].clone()],
+            &rule,
+            &reconciler,
+            CAPTURED_AT,
+        ),
+        Err(ReconcileError::UnexpectedEvidenceCategory { .. })
+    ));
 }
