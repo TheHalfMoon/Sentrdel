@@ -888,30 +888,12 @@ mod tests {
         };
         let policy = state.policies.get(&identity).unwrap();
         assert_eq!(policy.command_scope.value, PolicyCommandScope::Select);
-        assert_eq!(
-            policy.roles.value,
-            BTreeSet::from(["authenticated".to_owned()])
-        );
+        assert_eq!(policy.roles.value, BTreeSet::from(["authenticated".to_owned()]));
         assert_eq!(policy.using_expression.value, ExpressionPresence::Present);
         assert_eq!(policy.check_expression.value, ExpressionPresence::Present);
-        assert_eq!(
-            policy
-                .command_scope
-                .provenance
-                .as_ref()
-                .unwrap()
-                .migration_order,
-            0
-        );
+        assert_eq!(policy.command_scope.provenance.as_ref().unwrap().migration_order, 0);
         assert_eq!(policy.roles.provenance.as_ref().unwrap().migration_order, 1);
-        assert!(
-            state
-                .relations
-                .get(&relation)
-                .unwrap()
-                .policy_ids
-                .contains(&identity)
-        );
+        assert!(state.relations.get(&relation).unwrap().policy_ids.contains(&identity));
 
         let dropped = reduce_repository_posture(
             &[
@@ -932,14 +914,7 @@ mod tests {
         )
         .unwrap();
         assert!(!dropped.policies.contains_key(&identity));
-        assert!(
-            !dropped
-                .relations
-                .get(&relation)
-                .unwrap()
-                .policy_ids
-                .contains(&identity)
-        );
+        assert!(!dropped.relations.get(&relation).unwrap().policy_ids.contains(&identity));
     }
 
     #[test]
@@ -955,37 +930,53 @@ mod tests {
         )
         .unwrap();
 
-        let relation_id = SupabaseObjectId {
-            schema: "public".to_owned(),
-            name: "accounts".to_owned(),
-            kind: SupabaseObjectKind::Table,
-        };
+        let relation_id = SupabaseObjectId { schema: "public".to_owned(), name: "accounts".to_owned(), kind: SupabaseObjectKind::Table };
         let relation = state.relations.get(&relation_id).unwrap();
         assert_eq!(relation.rls_state.value, RlsState::Enabled);
-        assert!(relation.grants.contains_key(&GrantKey {
-            role: "anon".to_owned(),
-            privilege: "SELECT".to_owned(),
-        }));
-        assert!(!relation.grants.contains_key(&GrantKey {
-            role: "anon".to_owned(),
-            privilege: "INSERT".to_owned(),
-        }));
+        assert!(relation.grants.contains_key(&GrantKey { role: "anon".to_owned(), privilege: "SELECT".to_owned() }));
+        assert!(!relation.grants.contains_key(&GrantKey { role: "anon".to_owned(), privilege: "INSERT".to_owned() }));
+
+        let function_id = SupabaseObjectId { schema: "private".to_owned(), name: "current_account_id".to_owned(), kind: SupabaseObjectKind::Function };
+        let function = state.functions.get(&function_id).unwrap();
+        assert_eq!(function.security_mode.value, FunctionSecurityState::Definer);
+        assert_eq!(function.search_path.value, FunctionSearchPathState::PinnedEmpty);
+        assert_eq!(function.execute_grants.keys().cloned().collect::<Vec<_>>(), vec!["authenticated".to_owned()]);
+    }
+
+    #[test]
+    fn reset_all_clears_previously_pinned_function_search_path() {
+        let state = reduce_repository_posture(
+            &[
+                migration(
+                    "supabase/migrations/20260829000100_function.sql",
+                    "20260829000100",
+                    "digest-create",
+                    "create function private.helper() returns void language sql security definer set search_path = pg_catalog, private as $$ select 1 $$;",
+                ),
+                migration(
+                    "supabase/migrations/20260829000200_reset.sql",
+                    "20260829000200",
+                    "digest-reset",
+                    "alter function private.helper() reset all;",
+                ),
+            ],
+            SqlScanLimits::default(),
+        )
+        .unwrap();
 
         let function_id = SupabaseObjectId {
             schema: "private".to_owned(),
-            name: "current_account_id".to_owned(),
+            name: "helper".to_owned(),
             kind: SupabaseObjectKind::Function,
         };
         let function = state.functions.get(&function_id).unwrap();
         assert_eq!(function.security_mode.value, FunctionSecurityState::Definer);
+        assert_eq!(function.search_path.value, FunctionSearchPathState::UnpinnedOrMutable);
         assert_eq!(
-            function.search_path.value,
-            FunctionSearchPathState::PinnedEmpty
+            function.search_path.provenance.as_ref().unwrap().content_digest,
+            "digest-reset"
         );
-        assert_eq!(
-            function.execute_grants.keys().cloned().collect::<Vec<_>>(),
-            vec!["authenticated".to_owned()]
-        );
+        assert_eq!(state.coverage_state, PostureCoverageState::Complete);
     }
 
     #[test]
@@ -1001,20 +992,9 @@ mod tests {
         )
         .unwrap();
 
-        let relation_id = SupabaseObjectId {
-            schema: "public".to_owned(),
-            name: "accounts".to_owned(),
-            kind: SupabaseObjectKind::Table,
-        };
-        assert_eq!(
-            state.relations.get(&relation_id).unwrap().rls_state.value,
-            RlsState::Unknown
-        );
-        let function_id = SupabaseObjectId {
-            schema: "private".to_owned(),
-            name: "helper".to_owned(),
-            kind: SupabaseObjectKind::Function,
-        };
+        let relation_id = SupabaseObjectId { schema: "public".to_owned(), name: "accounts".to_owned(), kind: SupabaseObjectKind::Table };
+        assert_eq!(state.relations.get(&relation_id).unwrap().rls_state.value, RlsState::Unknown);
+        let function_id = SupabaseObjectId { schema: "private".to_owned(), name: "helper".to_owned(), kind: SupabaseObjectKind::Function };
         let function = state.functions.get(&function_id).unwrap();
         assert_eq!(function.security_mode.value, FunctionSecurityState::Unknown);
         assert_eq!(function.search_path.value, FunctionSearchPathState::Unknown);
@@ -1032,7 +1012,6 @@ mod tests {
             SqlScanLimits::default(),
         )
         .unwrap();
-
         assert_eq!(state.coverage_state, PostureCoverageState::Partial);
         assert!(!state.coverage_gaps.is_empty());
         assert!(state.relations.is_empty());
@@ -1042,10 +1021,7 @@ mod tests {
 
     #[test]
     fn bounded_scan_rejection_is_partial_coverage_not_clean_posture() {
-        let limits = SqlScanLimits {
-            max_bytes: 16,
-            ..SqlScanLimits::default()
-        };
+        let limits = SqlScanLimits { max_bytes: 16, ..SqlScanLimits::default() };
         let state = reduce_repository_posture(
             &[migration(
                 "supabase/migrations/20260829000100_large.sql",
@@ -1056,13 +1032,9 @@ mod tests {
             limits,
         )
         .unwrap();
-
         assert_eq!(state.coverage_state, PostureCoverageState::Partial);
         assert_eq!(state.coverage_gaps.len(), 1);
-        assert_eq!(
-            state.coverage_gaps[0].kind,
-            PostureCoverageGapKind::BoundedScanRejection
-        );
+        assert_eq!(state.coverage_gaps[0].kind, PostureCoverageGapKind::BoundedScanRejection);
         assert!(state.relations.is_empty());
     }
 
@@ -1070,26 +1042,12 @@ mod tests {
     fn ambiguous_replay_order_fails_closed() {
         let result = reduce_repository_posture(
             &[
-                migration(
-                    "supabase/migrations/20260829000100_a.sql",
-                    "20260829000100",
-                    "digest-a",
-                    "select 1;",
-                ),
-                migration(
-                    "supabase/migrations/20260829000100_b.sql",
-                    "20260829000100",
-                    "digest-b",
-                    "select 2;",
-                ),
+                migration("supabase/migrations/20260829000100_a.sql", "20260829000100", "digest-a", "select 1;"),
+                migration("supabase/migrations/20260829000100_b.sql", "20260829000100", "digest-b", "select 2;"),
             ],
             SqlScanLimits::default(),
         );
-        assert!(matches!(
-            result,
-            Err(PostureReductionError::AmbiguousOrderKey { ref order_key, .. })
-                if order_key == "20260829000100"
-        ));
+        assert!(matches!(result, Err(PostureReductionError::AmbiguousOrderKey { ref order_key, .. }) if order_key == "20260829000100"));
     }
 
     #[test]
@@ -1105,10 +1063,7 @@ mod tests {
         )
         .unwrap();
         assert_eq!(state.coverage_state, PostureCoverageState::Partial);
-        assert_eq!(
-            state.coverage_gaps[0].kind,
-            PostureCoverageGapKind::AmbiguousObjectIdentity
-        );
+        assert_eq!(state.coverage_gaps[0].kind, PostureCoverageGapKind::AmbiguousObjectIdentity);
         assert!(state.relations.is_empty());
     }
 }
