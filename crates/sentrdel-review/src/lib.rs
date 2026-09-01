@@ -17,6 +17,8 @@ pub mod stack_detection;
 pub mod structural;
 pub mod structural_rules;
 pub mod supabase;
+#[path = "supabase/integration.rs"]
+pub mod supabase_integration;
 pub mod supabase_detection;
 pub mod view;
 
