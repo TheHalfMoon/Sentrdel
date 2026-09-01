@@ -328,9 +328,7 @@ fn analyze_fixture(case: FixtureCase) -> (CoverageState, Vec<Evidence>) {
 
 fn fixture_digest_from_files(files: &[(&str, &str)]) -> String {
     let mut canonical = files.to_vec();
-    canonical.sort_unstable_by(|left, right| {
-        left.0.cmp(right.0).then_with(|| left.1.cmp(right.1))
-    });
+    canonical.sort_unstable_by(|left, right| left.0.cmp(right.0).then_with(|| left.1.cmp(right.1)));
     content_id("r2-t027-fixture", &canonical).unwrap()
 }
 
