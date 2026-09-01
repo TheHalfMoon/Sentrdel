@@ -27,7 +27,7 @@ pub(crate) struct ContainedChild {
     inner: Box<dyn ChildWrapper>,
     pub(crate) stdout: Option<ChildStdout>,
     pub(crate) stderr: Option<ChildStderr>,
-    #[cfg(unix)]
+    #[cfg(target_os = "macos")]
     process_group_id: u32,
 }
 
@@ -39,8 +39,13 @@ impl ContainedChild {
     pub(crate) fn start_kill(&mut self) -> io::Result<()> {
         match self.inner.start_kill() {
             Ok(()) => Ok(()),
-            Err(error) if self.process_boundary_is_absent(&error) => Ok(()),
-            Err(error) => Err(error),
+            Err(error) => {
+                if self.process_boundary_is_absent_after_kill_failure(&error) {
+                    Ok(())
+                } else {
+                    Err(error)
+                }
+            }
         }
     }
 
@@ -58,10 +63,30 @@ impl ContainedChild {
         self.start_kill()
     }
 
-    fn process_boundary_is_absent(&self, error: &io::Error) -> bool {
+    fn process_boundary_is_absent_after_kill_failure(&mut self, error: &io::Error) -> bool {
         #[cfg(unix)]
         {
-            unix_process_boundary_is_absent(error, self.process_group_id)
+            if error.raw_os_error() == Some(Errno::ESRCH as i32) {
+                return true;
+            }
+
+            // On macOS a short-lived process-group leader may have exited but
+            // still be an unreaped zombie when killpg(SIGKILL) races an output
+            // cap. In that state killpg can report EPERM even though no runnable
+            // process remains. EPERM is never accepted by itself: first ask the
+            // process-group wrapper to reap any exited root/group children, then
+            // require a signal-0 probe to prove the exact group no longer exists.
+            // A running root, a failed reap, or any surviving group member keeps
+            // the original kill error fail-closed.
+            #[cfg(target_os = "macos")]
+            if error.raw_os_error() == Some(Errno::EPERM as i32) {
+                if !matches!(self.inner.try_wait(), Ok(Some(_))) {
+                    return false;
+                }
+                return macos_process_group_is_absent(self.process_group_id);
+            }
+
+            false
         }
         #[cfg(windows)]
         {
@@ -73,25 +98,6 @@ impl ContainedChild {
             false
         }
     }
-}
-
-#[cfg(unix)]
-fn unix_process_boundary_is_absent(error: &io::Error, _process_group_id: u32) -> bool {
-    if error.raw_os_error() == Some(Errno::ESRCH as i32) {
-        return true;
-    }
-
-    // macOS can report EPERM from killpg when the short-lived group leader has
-    // already exited during an output-cap/root-exit race. Never treat EPERM as
-    // quiescent by itself: a signal-0 probe must prove that the exact process
-    // group no longer exists. A live but unkillable group therefore remains a
-    // fail-closed containment error.
-    #[cfg(target_os = "macos")]
-    if error.raw_os_error() == Some(Errno::EPERM as i32) {
-        return macos_process_group_is_absent(_process_group_id);
-    }
-
-    false
 }
 
 #[cfg(target_os = "macos")]
@@ -149,7 +155,7 @@ pub(crate) fn spawn_contained_process(
         command.wrap(JobObject);
 
         let mut child = command.spawn()?;
-        #[cfg(unix)]
+        #[cfg(target_os = "macos")]
         let process_group_id = child.id();
         let stdout = child.stdout().take();
         let stderr = child.stderr().take();
@@ -157,7 +163,7 @@ pub(crate) fn spawn_contained_process(
             inner: child,
             stdout,
             stderr,
-            #[cfg(unix)]
+            #[cfg(target_os = "macos")]
             process_group_id,
         })
     }
@@ -168,13 +174,11 @@ mod tests {
     use super::*;
 
     #[test]
-    fn permission_denied_never_masks_a_live_process_group() {
+    fn signal_zero_probe_never_masks_a_live_process_group() {
         let process_group_id = nix::unistd::getpgrp();
         assert!(process_group_id.as_raw() > 0);
-        let permission_denied = io::Error::from_raw_os_error(Errno::EPERM as i32);
 
-        assert!(!unix_process_boundary_is_absent(
-            &permission_denied,
+        assert!(!macos_process_group_is_absent(
             process_group_id.as_raw() as u32
         ));
     }
