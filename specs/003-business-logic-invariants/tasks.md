@@ -1,7 +1,7 @@
 # Tasks: Business-Logic Substrate + Invariants
 
 **Input:** Constitution, roadmap, completed R1/R2 contracts, R3 `spec.md`, `clarification-closeout.md`, `research.md`, `plan.md`, `data-model.md`, `contracts/business-logic-contract.md`, `contracts/project-invariant-contract.md`, and `checklists/implementation-readiness.md`.  
-**Status:** PLANNING — no R3 product implementation task is authorized until R3-T001 is canonical on protected `main`.
+**Status:** IMPLEMENTATION_READY — R3-T001 planning/readiness evidence is proven; product implementation may begin only after this status-canonicalization change completes its own protected-main qualification and governance proof.
 
 ## Format
 
@@ -13,9 +13,9 @@
 
 ## Phase 0 — Canonical planning gate
 
-- [ ] **R3-T001** Canonicalize the complete R3 Spec Kit planning slice on protected `main`: exact-head applicable CI, clean independent review, zero unresolved conversations, guarded expected-head merge, post-merge required CI, live repository-governance proof, then separately canonicalize the final implementation-readiness gates and this task checkbox. **Blocks every product implementation task below.**
+- [x] **R3-T001** Canonicalize the complete R3 Spec Kit planning slice on protected `main`: exact-head applicable CI, clean independent review, zero unresolved conversations, guarded expected-head merge, post-merge required CI, live repository-governance proof, then separately canonicalize the final implementation-readiness gates and this task checkbox. **Blocks every product implementation task below until this status-canonicalization change is itself canonical and post-merge proven.**
 
-**Checkpoint:** R3 planning/readiness is canonical and roadmap status is `implementation-ready`. No product code or dependency adoption occurs before this checkpoint.
+**Checkpoint:** R3 planning/readiness evidence is complete and roadmap status may be `implementation-ready`. No product code or dependency adoption occurs until this status-canonicalization change itself completes exact-head qualification, guarded merge, post-merge CI and live governance proof.
 
 ---
 
