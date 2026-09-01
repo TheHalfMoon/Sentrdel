@@ -76,7 +76,7 @@
 
 ## Phase 6 — Evaluation, self-security, and release hardening
 
-- [ ] R2-T028 Run/promote the initial release-gating R2 rule set through SentrdelBench: active clean-PR FP threshold, zero known misses in declared fixture scope, deterministic replay, explicit coverage, authority assertions, and provider-specific evidence quality.
+- [x] R2-T028 Run/promote the initial release-gating R2 rule set through SentrdelBench: active clean-PR FP threshold, zero known misses in declared fixture scope, deterministic replay, explicit coverage, authority assertions, and provider-specific evidence quality.
 - [ ] R2-T029 Add R2 latency/resource benchmarks with machine metadata and caps; regression gates must not weaken existing R1 review targets without an explicit spec amendment.
 - [ ] R2-T030 Run dependency/source governance; if no dependency was added, prove the locked graph remains qualified; if one was added, require exact qualification/privileged-surface records before merge.
 - [ ] R2-T031 Run Linux/macOS/Windows supported-path qualification and adversarial no-network/no-execution/secret canaries; platform limitations remain explicit coverage.
