@@ -3,12 +3,11 @@
 **Parent qualification:** `PWQ-001`  
 **Scope:** T027 external-engine process lifecycle containment on macOS only  
 **Dependency identities:** unchanged — `process-wrap = 9.1.0`, `nix = 0.31.3`  
-**Behavioral candidate:** `55524c09029ac66d785b8d3a78cc59e1a9961e36`  
-**Status:** `QUALIFIED_FOR_T027_MACOS_POST_REAP_GROUP_ABSENCE_PROOF` subject to the canonicalization gate below
+**Status:** `CANDIDATE_PENDING_EXACT_HEAD_QUALIFICATION`
 
 ## Why this delta exists
 
-Issue #138 exposed a macOS race in the already-qualified T027 process-group boundary. A short-lived process-group leader can exit while Sentrdel is handling an output-cap event, leaving an unreaped process-group state where `process-wrap` 9.1.0 reports `EPERM` from `killpg(SIGKILL)`.
+Issue #138 exposed a macOS race in the already-qualified T027 process-group boundary. A short-lived process-group leader can exit while Sentrdel is handling an output-cap event, leaving process-group lifecycle state in which `process-wrap` 9.1.0 can report a group-kill error while the root/group teardown is still being reconciled.
 
 The original `PWQ-001` record allowed Sentrdel's direct `nix` use only for structured `ESRCH` identity. PR #250 additionally uses safe `nix` PID/signal wrappers on macOS to prove that the exact process group is absent after the existing `process-wrap` wrapper has reaped an exited root. This is a privileged-use-boundary change and therefore receives this explicit qualification delta instead of being treated as covered implicitly by the original record.
 
@@ -38,7 +37,7 @@ On `target_os = "macos"` only, first-party `sentrdel-engine` may use:
 
 - `nix::unistd::Pid` to represent the exact process-group ID captured from the spawned child;
 - `nix::sys::signal::kill` with signal `0` and a negative PID to probe that exact process group;
-- `nix::errno::Errno::ESRCH` as the only result proving that the process group no longer exists.
+- `nix::errno::Errno::ESRCH` as the only signal-zero result proving that the process group no longer exists.
 
 No signal is delivered by the signal-zero probe. No arbitrary PID or process group comes from repository data: the identifier is captured from the already-admitted child created by the T027 containment wrapper.
 
@@ -46,33 +45,43 @@ The delta grants no direct use of `nix` for filesystem access, networking, crede
 
 ## Fail-closed lifecycle rule
 
-macOS `EPERM` from the group kill is never accepted by itself.
+On macOS, neither an initial group-kill `ESRCH` nor an initial group-kill `EPERM` is accepted as quiescence by itself.
 
-The only admitted recovery path is:
+The only admitted recovery path for either error is:
 
-1. the original `process-wrap` kill reports `EPERM`;
+1. the original `process-wrap` group kill reports `ESRCH` or `EPERM`;
 2. the existing `process-wrap` child wrapper must return `Ok(Some(_))` from `try_wait()`, proving/reaping an exited root through its process-group wait path;
 3. Sentrdel probes the exact captured process-group ID with signal `0`;
-4. only `ESRCH` is accepted as an absent/drained process boundary;
+4. only `ESRCH` from that **post-reap signal-zero probe** is accepted as an absent/drained process boundary;
 5. a running root, failed reap, live process group, inaccessible process group, conversion failure, or any indeterminate result preserves the original kill failure.
+
+On Unix targets other than macOS, the previously qualified direct group-kill `ESRCH` handling remains unchanged.
 
 `sentrdel-engine` continues to enforce `#![forbid(unsafe_code)]`; all platform FFI/unsafe implementation remains inside the already-qualified dependency boundary.
 
-## Qualification evidence
+## Qualification evidence and candidate discipline
 
-The behavioral candidate `55524c09029ac66d785b8d3a78cc59e1a9961e36` passed the following exact-head GitHub Actions gates before this governance record was added:
+Earlier candidate heads are historical diagnostic evidence only. They do not qualify the final PR head:
 
-- `Cross-platform CI` run `33509059685`: success on Linux, macOS, and Windows;
-- macOS owning-seam qualification: `process_tree::tests::signal_zero_probe_never_masks_a_live_process_group` success;
-- macOS T027 lifecycle qualification: `runner::tests::runner_enforces_wall_clock_output_caps_and_kills_descendants` success;
-- Windows `sentrdel-review` clippy qualification with `-D warnings`: success;
-- `Bootstrap CI` run `33509059719`: success;
-- `Schema Lock Qualification` run `33509059690`: success;
-- `Self Security` run `33509059611`: success.
+- unsafe direct FFI was rejected by `#![forbid(unsafe_code)]`;
+- pre-reap signal-zero probing was rejected by macOS lifecycle qualification;
+- cross-platform cfg warnings were rejected by `clippy -D warnings`;
+- incomplete macOS live-group qualification coverage was found by independent review;
+- a later exact-head review found that accepting initial macOS group-kill `ESRCH` before reap/probe was inconsistent with this fail-closed lifecycle rule.
 
-Earlier candidate heads are not qualification evidence: unsafe code, pre-reap probing, cfg lint defects, and incomplete macOS qualification coverage were each rejected before this behavioral candidate.
+The corrected candidate must therefore receive a **fresh exact-current-head** qualification cycle after this document and the implementation agree. No historical CI or review result substitutes for the final gate.
 
-Because this document changes the PR head after the behavioral evidence above, PR #250 still requires a fresh exact-current-head CI cycle and a clean independent review before merge. No earlier review or CI result substitutes for those final gates.
+Required final-head evidence includes:
+
+- `Cross-platform CI` success on Linux, macOS, and Windows;
+- macOS `process_tree::tests::signal_zero_probe_never_masks_a_live_process_group` success;
+- macOS `runner::tests::runner_enforces_wall_clock_output_caps_and_kills_descendants` success;
+- Windows `sentrdel-review` clippy with `-D warnings` success;
+- `Bootstrap CI` success;
+- `Schema Lock Qualification` success;
+- `Self Security` success;
+- clean independent review of the exact current head;
+- zero unresolved review conversations.
 
 ## Authority and non-claims
 
