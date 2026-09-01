@@ -94,6 +94,7 @@ pub enum ModelError {
     },
     InvalidSourceRange,
     EmptyContentDigest,
+    EmptyProvenance,
     ContentDigestTooLarge {
         bytes: usize,
         max: usize,
@@ -155,6 +156,9 @@ impl fmt::Display for ModelError {
             Self::InvalidSourceRange => formatter.write_str("source byte range is invalid"),
             Self::EmptyContentDigest => {
                 formatter.write_str("source content digest must not be empty")
+            }
+            Self::EmptyProvenance => {
+                formatter.write_str("semantic record requires explicit source provenance")
             }
             Self::ContentDigestTooLarge { bytes, max } => write!(
                 formatter,
@@ -1643,6 +1647,10 @@ fn normalize_provenance(
     mut values: Vec<SourceLocation>,
     limits: BusinessLogicLimits,
 ) -> Result<Vec<SourceLocation>, ModelError> {
+    let limits = limits.validate()?;
+    if values.is_empty() {
+        return Err(ModelError::EmptyProvenance);
+    }
     validate_provenance_count(values.len(), limits)?;
     values.sort();
     values.dedup();
@@ -1890,6 +1898,40 @@ mod tests {
     }
 
     #[test]
+    fn semantic_record_construction_rejects_empty_provenance() {
+        let limits = BusinessLogicLimits::default();
+        assert!(matches!(
+            RouteObservation::new(
+                id("r3.route", "missing-provenance"),
+                FrameworkFamily::Express,
+                HttpMethod::Get,
+                "/accounts/:id",
+                None,
+                Vec::new(),
+                Vec::new(),
+                CoverageState::Partial,
+                limits,
+            ),
+            Err(ModelError::EmptyProvenance)
+        ));
+
+        assert!(matches!(
+            InvariantEvaluation::new(
+                id("r3.evaluation", "missing-provenance"),
+                id("r3.invariant", "tenant-binding"),
+                None,
+                InvariantEvaluationState::Unknown,
+                Vec::new(),
+                Vec::new(),
+                vec!["missing-link".to_owned()],
+                Vec::new(),
+                limits,
+            ),
+            Err(ModelError::EmptyProvenance)
+        ));
+    }
+
+    #[test]
     fn derivation_caps_are_enforced_at_construction() {
         let limits = BusinessLogicLimits {
             max_derivation_fan_in: 1,
@@ -1965,7 +2007,7 @@ mod tests {
             InvariantRequirement::RequiredRole {
                 required_roles: vec!["z".to_owned(), "admin".to_owned(), "z".to_owned()],
             },
-            Vec::new(),
+            vec![source("src/invariants.rs", 1)],
             limits,
         )
         .unwrap();
