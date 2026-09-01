@@ -9,7 +9,7 @@
 
 Issue #138 exposed a macOS race in the already-qualified T027 process-group boundary. A short-lived process-group leader can exit while Sentrdel is handling an output-cap event, leaving process-group lifecycle state in which `process-wrap` 9.1.0 can report a group-kill error while the root/group teardown is still being reconciled.
 
-The original `PWQ-001` record allowed Sentrdel's direct `nix` use only for structured `ESRCH` identity. PR #250 additionally uses safe `nix` PID/signal wrappers on macOS to prove that the exact process group is absent after the existing `process-wrap` wrapper has reaped an exited root. This is a privileged-use-boundary change and therefore receives this explicit qualification delta instead of being treated as covered implicitly by the original record.
+The original `PWQ-001` record allowed Sentrdel's direct `nix` use only for structured `ESRCH` identity. PR #250 additionally uses safe `nix` process/signal wrappers on macOS to prove that the exact process group is absent after the existing `process-wrap` wrapper has reaped an exited root, plus a test-only current-process-group lookup for the live-group fail-closed canary. This is a privileged-use-boundary change and therefore receives this explicit qualification delta instead of being treated as covered implicitly by the original record.
 
 ## Exact dependency and feature analysis
 
@@ -37,9 +37,12 @@ On `target_os = "macos"` only, first-party `sentrdel-engine` may use:
 
 - `nix::unistd::Pid` to represent the exact process-group ID captured from the spawned child;
 - `nix::sys::signal::kill` with signal `0` and a negative PID to probe that exact process group;
-- `nix::errno::Errno::ESRCH` as the only signal-zero result proving that the process group no longer exists.
+- `nix::errno::Errno::ESRCH` as the only signal-zero result proving that the process group no longer exists;
+- `nix::unistd::getpgrp()` **only under `cfg(test)`** to obtain the test process's current live process-group ID for `signal_zero_probe_never_masks_a_live_process_group`, proving the absence probe cannot classify a known-live group as drained.
 
-No signal is delivered by the signal-zero probe. No arbitrary PID or process group comes from repository data: the identifier is captured from the already-admitted child created by the T027 containment wrapper.
+The production containment path does not call `getpgrp()`. The test-only lookup accepts no repository-controlled identifier, grants no process-selection authority, and exists solely as the owning-seam live-group fail-closed canary.
+
+No signal is delivered by the signal-zero probe. In production, no arbitrary PID or process group comes from repository data: the identifier is captured from the already-admitted child created by the T027 containment wrapper. In the canary, the process-group identifier comes from the test runner's own current process group.
 
 The delta grants no direct use of `nix` for filesystem access, networking, credentials, executable selection, process spawning, policy decisions, repository traversal, target execution, or provider access.
 
@@ -67,7 +70,8 @@ Earlier candidate heads are historical diagnostic evidence only. They do not qua
 - pre-reap signal-zero probing was rejected by macOS lifecycle qualification;
 - cross-platform cfg warnings were rejected by `clippy -D warnings`;
 - incomplete macOS live-group qualification coverage was found by independent review;
-- a later exact-head review found that accepting initial macOS group-kill `ESRCH` before reap/probe was inconsistent with this fail-closed lifecycle rule.
+- a later exact-head review found that accepting initial macOS group-kill `ESRCH` before reap/probe was inconsistent with this fail-closed lifecycle rule;
+- an exact-head governance review then found that the test-only `getpgrp()` canary API was omitted from the admitted direct API record; this revision corrects that record without changing runtime behavior.
 
 The corrected candidate must therefore receive a **fresh exact-current-head** qualification cycle after this document and the implementation agree. No historical CI or review result substitutes for the final gate.
 
