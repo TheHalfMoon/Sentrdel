@@ -214,7 +214,12 @@ mod tests {
         assert!(registered.output.envelope.findings.is_empty());
         assert_eq!(registered.provider_evidence().len(), 1);
         assert_eq!(registered.output.envelope.coverage.len(), 1);
-        assert!(registered.output.human.contains("Supabase R2 provider coverage:"));
+        assert!(
+            registered
+                .output
+                .human
+                .contains("Supabase R2 provider coverage:")
+        );
         assert!(registered.output.human.contains("STATIC_POSTURE_DATABASE"));
     }
 
