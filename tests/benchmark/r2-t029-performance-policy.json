@@ -1,0 +1,34 @@
+{
+  "policy_version": "sentrdel-r2-performance/r2-t029-v1",
+  "measurement_mode": "WARM",
+  "sample_count": 32,
+  "workload": {
+    "name": "r2-unsafe-posture-state-reduction",
+    "fixture_root": "fixtures/repos/r2-supabase/negative/unsafe-posture",
+    "max_changed_loc": 2000
+  },
+  "latency_caps": {
+    "r2_warm_p95_ms": 5000,
+    "r1_warm_review_p95_ms": 5000,
+    "r1_broad_100k_loc_ms": 30000
+  },
+  "resource_caps": {
+    "max_sql_bytes": 4194304,
+    "max_sql_statements": 4096,
+    "max_sql_tokens": 262144,
+    "max_sql_nesting": 128,
+    "max_sql_diagnostics": 128,
+    "max_dollar_tag_bytes": 128
+  },
+  "machine_metadata_required": [
+    "os",
+    "architecture",
+    "runner"
+  ],
+  "external_engine_time_included": false,
+  "network_time_included": false,
+  "peak_memory": {
+    "state": "NOT_MEASURED",
+    "reason": "No portable allocator-neutral peak-memory instrument is part of the current trusted workspace; parser/state resource ceilings remain release-visible and fail closed."
+  }
+}
