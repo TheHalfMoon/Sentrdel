@@ -1,55 +1,22 @@
 //! Deterministic bounded ordering helpers for R3 semantic collections.
 //!
-//! Producers may observe equivalent facts in parser/traversal order. Before
-//! identities or persistent semantic output depend on those collections, R3
-//! normalizes them into stable order and removes duplicate semantic identities.
+//! These public helpers use the same normalization boundary enforced by the
+//! validated IR constructors. They do not provide an alternate unchecked path.
 
-use super::model::{BusinessLogicLimits, ModelError, StableSemanticId};
+use super::model::{self, BusinessLogicLimits, ModelError, StableSemanticId};
 
 pub fn normalize_semantic_ids(
-    mut values: Vec<StableSemanticId>,
+    values: Vec<StableSemanticId>,
     limits: BusinessLogicLimits,
 ) -> Result<Vec<StableSemanticId>, ModelError> {
-    let limits = limits.validate()?;
-    if values.len() > limits.max_related_ids {
-        return Err(ModelError::TooManyRelatedIds {
-            count: values.len(),
-            max: limits.max_related_ids,
-        });
-    }
-    values.sort();
-    values.dedup();
-    Ok(values)
+    model::normalize_semantic_ids(values, limits)
 }
 
 pub fn normalize_bounded_strings(
-    mut values: Vec<String>,
+    values: Vec<String>,
     limits: BusinessLogicLimits,
 ) -> Result<Vec<String>, ModelError> {
-    let limits = limits.validate()?;
-    if values.len() > limits.max_related_ids {
-        return Err(ModelError::TooManyRelatedIds {
-            count: values.len(),
-            max: limits.max_related_ids,
-        });
-    }
-
-    for (index, value) in values.iter().enumerate() {
-        if value.trim().is_empty() {
-            return Err(ModelError::EmptyIdentityPart { index });
-        }
-        if value.len() > limits.max_id_part_bytes {
-            return Err(ModelError::IdentityPartTooLarge {
-                index,
-                bytes: value.len(),
-                max: limits.max_id_part_bytes,
-            });
-        }
-    }
-
-    values.sort();
-    values.dedup();
-    Ok(values)
+    model::normalize_bounded_strings(values, "ordering_strings", limits)
 }
 
 #[cfg(test)]
@@ -92,7 +59,7 @@ mod tests {
         };
         assert!(matches!(
             normalize_bounded_strings(vec!["a".to_owned(), "b".to_owned()], too_many),
-            Err(ModelError::TooManyRelatedIds { .. })
+            Err(ModelError::TooManyCollectionItems { .. })
         ));
     }
 }
