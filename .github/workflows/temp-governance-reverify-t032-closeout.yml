@@ -1,0 +1,22 @@
+name: Temporary Governance Reverify T032 Closeout
+
+on:
+  push:
+    branches:
+      - ci/temp-governance-reverify-20260901-t032-closeout
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Verify live repository governance
+        env:
+          GITHUB_TOKEN: ${{ secrets.SENTRDEL_GOVERNANCE_ADMIN_TOKEN }}
+        run: python3 scripts/verify_repository_governance.py
+
+# Probe target main after R2-T032 closeout merge: 72a1c09909b7b1df7f146d2a7675bb06c44a97cc
