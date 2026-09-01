@@ -95,6 +95,7 @@ pub enum ModelError {
     InvalidSourceRange,
     EmptyContentDigest,
     EmptyProvenance,
+    EmptyRequiredCollection(&'static str),
     ContentDigestTooLarge {
         bytes: usize,
         max: usize,
@@ -159,6 +160,12 @@ impl fmt::Display for ModelError {
             }
             Self::EmptyProvenance => {
                 formatter.write_str("semantic record requires explicit source provenance")
+            }
+            Self::EmptyRequiredCollection(field) => {
+                write!(
+                    formatter,
+                    "required business-logic collection {field} must not be empty"
+                )
             }
             Self::ContentDigestTooLarge { bytes, max } => write!(
                 formatter,
@@ -1610,6 +1617,13 @@ fn validate_optional_text(
     Ok(())
 }
 
+fn require_non_empty_collection(field: &'static str, count: usize) -> Result<(), ModelError> {
+    if count == 0 {
+        return Err(ModelError::EmptyRequiredCollection(field));
+    }
+    Ok(())
+}
+
 fn enforce_collection_cap(field: &'static str, count: usize, max: usize) -> Result<(), ModelError> {
     if count > max {
         return Err(ModelError::TooManyCollectionItems { field, count, max });
@@ -1673,13 +1687,10 @@ fn normalize_invariant_requirement(
             })
         }
         InvariantRequirement::RequiredRole { required_roles } => {
-            Ok(InvariantRequirement::RequiredRole {
-                required_roles: normalize_bounded_strings(
-                    required_roles,
-                    "required_roles",
-                    limits,
-                )?,
-            })
+            let required_roles =
+                normalize_bounded_strings(required_roles, "required_roles", limits)?;
+            require_non_empty_collection("required_roles", required_roles.len())?;
+            Ok(InvariantRequirement::RequiredRole { required_roles })
         }
         InvariantRequirement::ProtectedProperties {
             protected_properties,
@@ -1692,12 +1703,12 @@ fn normalize_invariant_requirement(
             )?;
             mutation_operations.sort();
             mutation_operations.dedup();
+            let protected_properties =
+                normalize_bounded_strings(protected_properties, "protected_properties", limits)?;
+            require_non_empty_collection("protected_properties", protected_properties.len())?;
+            require_non_empty_collection("mutation_operations", mutation_operations.len())?;
             Ok(InvariantRequirement::ProtectedProperties {
-                protected_properties: normalize_bounded_strings(
-                    protected_properties,
-                    "protected_properties",
-                    limits,
-                )?,
+                protected_properties,
                 mutation_operations,
             })
         }
@@ -1712,12 +1723,14 @@ fn normalize_invariant_requirement(
             )?;
             required_guard_kinds.sort();
             required_guard_kinds.dedup();
+            let allowed_server_contexts = normalize_bounded_strings(
+                allowed_server_contexts,
+                "allowed_server_contexts",
+                limits,
+            )?;
+            require_non_empty_collection("required_guard_kinds", required_guard_kinds.len())?;
             Ok(InvariantRequirement::ElevatedClientContext {
-                allowed_server_contexts: normalize_bounded_strings(
-                    allowed_server_contexts,
-                    "allowed_server_contexts",
-                    limits,
-                )?,
+                allowed_server_contexts,
                 required_guard_kinds,
             })
         }
@@ -1985,6 +1998,71 @@ mod tests {
             path.provenance()[0].path(),
             &NormalizedRepoPath::parse("src/a.js", 4_096).unwrap()
         );
+    }
+
+    #[test]
+    fn invariant_definition_rejects_empty_required_sets() {
+        let limits = BusinessLogicLimits::default();
+        let scope = InvariantScope::new(None, Vec::new(), None, Vec::new(), Vec::new(), limits)
+            .expect("scope");
+        let provenance = vec![source("src/invariants.rs", 1)];
+
+        for (requirement, expected_field) in [
+            (
+                InvariantRequirement::RequiredRole {
+                    required_roles: Vec::new(),
+                },
+                "required_roles",
+            ),
+            (
+                InvariantRequirement::ProtectedProperties {
+                    protected_properties: Vec::new(),
+                    mutation_operations: vec![DataOperationKind::Update],
+                },
+                "protected_properties",
+            ),
+            (
+                InvariantRequirement::ProtectedProperties {
+                    protected_properties: vec!["is_admin".to_owned()],
+                    mutation_operations: Vec::new(),
+                },
+                "mutation_operations",
+            ),
+            (
+                InvariantRequirement::ElevatedClientContext {
+                    allowed_server_contexts: Vec::new(),
+                    required_guard_kinds: Vec::new(),
+                },
+                "required_guard_kinds",
+            ),
+        ] {
+            assert!(matches!(
+                InvariantDefinition::new(
+                    id("r3.invariant", expected_field),
+                    InvariantKind::RequiredRole,
+                    InvariantSource::ProjectDeclaration,
+                    scope.clone(),
+                    requirement,
+                    provenance.clone(),
+                    limits,
+                ),
+                Err(ModelError::EmptyRequiredCollection(field)) if field == expected_field
+            ));
+        }
+
+        InvariantDefinition::new(
+            id("r3.invariant", "elevated-optional-contexts"),
+            InvariantKind::ElevatedClientContext,
+            InvariantSource::ProjectDeclaration,
+            scope,
+            InvariantRequirement::ElevatedClientContext {
+                allowed_server_contexts: Vec::new(),
+                required_guard_kinds: vec![GuardKind::Authentication],
+            },
+            provenance,
+            limits,
+        )
+        .expect("optional allowed server contexts remain optional");
     }
 
     #[test]
