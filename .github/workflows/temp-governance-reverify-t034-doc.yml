@@ -1,0 +1,22 @@
+name: Temporary Governance Reverify T034 Document
+
+on:
+  push:
+    branches:
+      - ci/temp-governance-reverify-20260901-t034-doc
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Verify live repository governance
+        env:
+          GITHUB_TOKEN: ${{ secrets.SENTRDEL_GOVERNANCE_ADMIN_TOKEN }}
+        run: python3 scripts/verify_repository_governance.py
+
+# Probe target main after R2-T034 document merge: b2f818c38d6e9cb9d53f7bebc019772a221ad69f
