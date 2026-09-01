@@ -80,7 +80,7 @@
 - [x] R2-T029 Add R2 latency/resource benchmarks with machine metadata and caps; regression gates must not weaken existing R1 review targets without an explicit spec amendment.
 - [x] R2-T030 Run dependency/source governance; if no dependency was added, prove the locked graph remains qualified; if one was added, require exact qualification/privileged-surface records before merge.
 - [x] R2-T031 Run Linux/macOS/Windows supported-path qualification and adversarial no-network/no-execution/secret canaries; platform limitations remain explicit coverage.
-- [ ] R2-T032 Update README/threat model/architecture/provider coverage documentation to describe implemented R2 static posture and preserve non-claims for live posture and R3 business logic.
+- [x] R2-T032 Update README/threat model/architecture/provider coverage documentation to describe implemented R2 static posture and preserve non-claims for live posture and R3 business logic.
 - [ ] R2-T033 Run final R2 Spec Kit consistency analysis against Constitution, roadmap, R1 contracts, R2 spec/plan/contracts/tasks and record repairs in `analysis.md`.
 - [ ] R2-T034 Run R2 implementation closeout: exact workspace/tests/lints/benchmarks, secret canaries, no provider/target execution, coverage truth, dependency qualification, protected-main governance, and exact results in `implementation-closeout.md`.
 - [ ] R2-T035 Canonicalize R2 closeout and mark all R2 tasks complete only after exact-head applicable CI, clean review, expected-head merge, post-merge protected-main evidence, and confirmation that no task remains open.
