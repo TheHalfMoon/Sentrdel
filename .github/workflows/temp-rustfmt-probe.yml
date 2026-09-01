@@ -20,7 +20,7 @@ jobs:
           fetch-depth: 1
           path: candidate
       - name: Require expected candidate head
-        run: test "$(git -C candidate rev-parse HEAD)" = "79d0993513ee98f4277ff66ecfe13c92090e644b"
+        run: test "$(git -C candidate rev-parse HEAD)" = "4d899024ea43e10cdd6d3abc7791ac8f326e4ec8"
       - name: Install pinned Rust toolchain
         run: rustup toolchain install 1.98.0 --profile minimal --component rustfmt --component clippy
       - name: Format candidate
