@@ -9,6 +9,9 @@ use sentrdel_review::pack_registry::{PackOutputKind, SecurityPackRegistry, Valid
 
 const DEVELOPMENT_CORPUS: &[u8] =
     include_bytes!("../../../tests/benchmark/development-evaluation/t090-development-corpus.json");
+const HOLDOUT_ELIGIBILITY: &[u8] = include_bytes!(
+    "../../../tests/benchmark/development-evaluation/r3-phase1-holdout-eligibility.json"
+);
 const FIXTURE_MATRIX: &str = include_str!("../../../fixtures/repos/r3-business-logic/README.md");
 const SAFE_INVARIANT: &str = include_str!(
     "../../../fixtures/repos/r3-business-logic/project-invariants/safe-tightening/.sentrdel/invariants.toml"
@@ -74,6 +77,30 @@ fn phase1_development_corpus_freezes_r3_ground_truth_without_release_gating() {
         assert!(assertions.iter().any(|value| {
             value == "no-target-execution" || value == "r3-output-is-evidence-or-coverage-only"
         }));
+    }
+}
+
+#[test]
+fn phase1_holdout_metadata_is_explicitly_ineligible_before_release_gating() {
+    let corpus: serde_json::Value =
+        serde_json::from_slice(DEVELOPMENT_CORPUS).expect("valid development corpus");
+    let holdout: serde_json::Value =
+        serde_json::from_slice(HOLDOUT_ELIGIBILITY).expect("valid holdout eligibility metadata");
+
+    assert_eq!(holdout["corpus_revision"], corpus["corpus_revision"]);
+    assert_eq!(holdout["release_gating"], false);
+    assert_eq!(
+        holdout["protected_holdout_status"],
+        "NOT_ELIGIBLE_PRE_RELEASE_GATING"
+    );
+
+    let expected_case_ids = holdout["case_ids"].as_array().expect("holdout case ids");
+    let corpus_cases = corpus["cases"].as_array().expect("corpus cases");
+    for case_id in expected_case_ids {
+        assert!(
+            corpus_cases.iter().any(|case| case["case_id"] == *case_id),
+            "holdout metadata references unknown development case {case_id}"
+        );
     }
 }
 
