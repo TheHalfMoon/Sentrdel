@@ -56,9 +56,10 @@ impl ContainedChild {
     /// Terminate any remaining members of the admitted process boundary after
     /// the root process has already reported an exit status.
     ///
-    /// An absent Unix process group means the entire group has already drained.
-    /// Windows `NotFound` is likewise treated as quiescent. Every other failure
-    /// remains fail-closed so permission or containment errors are never hidden.
+    /// On non-macOS Unix, `ESRCH` means the process group has already drained.
+    /// On macOS, `ESRCH` and `EPERM` both require an exited-root reap followed
+    /// by an exact-group signal-zero absence proof. Windows `NotFound` is
+    /// likewise treated as quiescent. Every other failure remains fail-closed.
     pub(crate) fn terminate_remaining(&mut self) -> io::Result<()> {
         self.start_kill()
     }
@@ -66,27 +67,30 @@ impl ContainedChild {
     fn process_boundary_is_absent_after_kill_failure(&mut self, error: &io::Error) -> bool {
         #[cfg(unix)]
         {
-            if error.raw_os_error() == Some(Errno::ESRCH as i32) {
-                return true;
-            }
-
-            // On macOS a short-lived process-group leader may have exited but
-            // still be an unreaped zombie when killpg(SIGKILL) races an output
-            // cap. In that state killpg can report EPERM even though no runnable
-            // process remains. EPERM is never accepted by itself: first ask the
-            // process-group wrapper to reap any exited root/group children, then
-            // require a signal-0 probe to prove the exact group no longer exists.
-            // A running root, a failed reap, or any surviving group member keeps
-            // the original kill error fail-closed.
             #[cfg(target_os = "macos")]
-            if error.raw_os_error() == Some(Errno::EPERM as i32) {
-                if !matches!(self.inner.try_wait(), Ok(Some(_))) {
+            {
+                let raw_error = error.raw_os_error();
+                let needs_post_reap_proof = raw_error == Some(Errno::ESRCH as i32)
+                    || raw_error == Some(Errno::EPERM as i32);
+                if !needs_post_reap_proof {
                     return false;
                 }
-                return macos_process_group_is_absent(self.process_group_id);
+
+                // macOS process-group kill errors can race an exited but not-yet-
+                // reaped group leader. Neither ESRCH nor EPERM is accepted by
+                // itself: first require the process-group wrapper to reap/report
+                // the exited root, then require a signal-zero probe to prove the
+                // exact spawn-time process group no longer exists. A running root,
+                // failed reap, surviving group member, inaccessible group, or any
+                // indeterminate probe preserves the original kill failure.
+                matches!(self.inner.try_wait(), Ok(Some(_)))
+                    && macos_process_group_is_absent(self.process_group_id)
             }
 
-            false
+            #[cfg(not(target_os = "macos"))]
+            {
+                error.raw_os_error() == Some(Errno::ESRCH as i32)
+            }
         }
         #[cfg(windows)]
         {
