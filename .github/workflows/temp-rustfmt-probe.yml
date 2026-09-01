@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 jobs:
-  format-probe:
+  diagnose:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout exact candidate
@@ -20,28 +20,30 @@ jobs:
           fetch-depth: 1
           path: candidate
       - name: Require expected candidate head
-        run: test "$(git -C candidate rev-parse HEAD)" = "b1991b65ea9de2e81a914799458c3299fa2d965f"
+        run: test "$(git -C candidate rev-parse HEAD)" = "679ab7ae6fe95530b00a87914754639e827ce2d1"
       - name: Install pinned Rust toolchain
         run: rustup toolchain install 1.98.0 --profile minimal --component rustfmt --component clippy
-      - name: Format candidate
-        working-directory: candidate
-        run: cargo +1.98.0 fmt --all
-      - name: Upload formatted T028 source
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: r2-t028-formatted-source
-          path: candidate/crates/sentrdel-review/tests/r2_t028_release_benchmark.rs
-          if-no-files-found: error
-          retention-days: 1
       - name: Require formatted candidate
         working-directory: candidate
         run: cargo +1.98.0 fmt --all --check
-      - name: Check formatted candidate
+      - name: Check candidate
         working-directory: candidate
         run: cargo +1.98.0 check --workspace --all-targets --locked
-      - name: Test formatted candidate
+      - name: Capture failing test output
         working-directory: candidate
-        run: cargo +1.98.0 test --workspace --locked
-      - name: Clippy formatted candidate
-        working-directory: candidate
-        run: cargo +1.98.0 clippy --workspace --all-targets --locked -- -D warnings
+        shell: bash
+        run: |
+          set +e
+          cargo +1.98.0 test --workspace --locked -- --nocapture 2>&1 | tee ../r2-t028-test-output.txt
+          code=${PIPESTATUS[0]}
+          printf '%s\n' "$code" > ../r2-t028-test-exit.txt
+          exit 0
+      - name: Upload T028 test diagnostics
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: r2-t028-test-diagnostics
+          path: |
+            r2-t028-test-output.txt
+            r2-t028-test-exit.txt
+          if-no-files-found: error
+          retention-days: 1
