@@ -1,0 +1,6 @@
+# Synthetic hostile repository helper. Sentrdel must never execute this.
+[build]
+rustc-wrapper = "./attacker-controlled-wrapper"
+
+[target.'cfg(all())']
+runner = "./attacker-controlled-runner"
