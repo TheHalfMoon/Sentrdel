@@ -25,6 +25,8 @@ pub(crate) struct ContainedChild {
     inner: Box<dyn ChildWrapper>,
     pub(crate) stdout: Option<ChildStdout>,
     pub(crate) stderr: Option<ChildStderr>,
+    #[cfg(unix)]
+    process_group_id: u32,
 }
 
 impl ContainedChild {
@@ -35,7 +37,7 @@ impl ContainedChild {
     pub(crate) fn start_kill(&mut self) -> io::Result<()> {
         match self.inner.start_kill() {
             Ok(()) => Ok(()),
-            Err(error) if process_boundary_is_absent(&error) => Ok(()),
+            Err(error) if self.process_boundary_is_absent(&error) => Ok(()),
             Err(error) => Err(error),
         }
     }
@@ -53,21 +55,55 @@ impl ContainedChild {
     pub(crate) fn terminate_remaining(&mut self) -> io::Result<()> {
         self.start_kill()
     }
+
+    fn process_boundary_is_absent(&self, error: &io::Error) -> bool {
+        #[cfg(unix)]
+        {
+            return unix_process_boundary_is_absent(error, self.process_group_id);
+        }
+        #[cfg(windows)]
+        {
+            return error.kind() == io::ErrorKind::NotFound;
+        }
+        #[cfg(not(any(unix, windows)))]
+        {
+            let _ = error;
+            false
+        }
+    }
 }
 
 #[cfg(unix)]
-fn process_boundary_is_absent(error: &io::Error) -> bool {
-    error.raw_os_error() == Some(Errno::ESRCH as i32)
-}
+fn unix_process_boundary_is_absent(error: &io::Error, process_group_id: u32) -> bool {
+    if error.raw_os_error() == Some(Errno::ESRCH as i32) {
+        return true;
+    }
 
-#[cfg(windows)]
-fn process_boundary_is_absent(error: &io::Error) -> bool {
-    error.kind() == io::ErrorKind::NotFound
-}
+    // macOS can report EPERM from killpg when the short-lived group leader has
+    // already exited during an output-cap/root-exit race. Never treat EPERM as
+    // quiescent by itself: a signal-0 probe must prove that the exact process
+    // group no longer exists. A live but unkillable group therefore remains a
+    // fail-closed containment error.
+    #[cfg(target_os = "macos")]
+    if error.raw_os_error() == Some(Errno::EPERM as i32) {
+        return macos_process_group_is_absent(process_group_id);
+    }
 
-#[cfg(not(any(unix, windows)))]
-fn process_boundary_is_absent(_error: &io::Error) -> bool {
     false
+}
+
+#[cfg(target_os = "macos")]
+fn macos_process_group_is_absent(process_group_id: u32) -> bool {
+    let Ok(process_group_id) = i32::try_from(process_group_id) else {
+        return false;
+    };
+
+    // SAFETY: `kill` with signal 0 sends no signal. The negative PID probes the
+    // process group created for this exact child. ESRCH is the only result that
+    // proves the boundary has drained; success and every other errno are live or
+    // indeterminate and therefore remain fail-closed.
+    let result = unsafe { nix::libc::kill(-process_group_id, 0) };
+    result == -1 && Errno::last() == Errno::ESRCH
 }
 
 pub(crate) fn spawn_contained_process(
@@ -106,12 +142,34 @@ pub(crate) fn spawn_contained_process(
         command.wrap(JobObject);
 
         let mut child = command.spawn()?;
+        #[cfg(unix)]
+        let process_group_id = child.id();
         let stdout = child.stdout().take();
         let stderr = child.stderr().take();
         Ok(ContainedChild {
             inner: child,
             stdout,
             stderr,
+            #[cfg(unix)]
+            process_group_id,
         })
+    }
+}
+
+#[cfg(all(test, target_os = "macos"))]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn permission_denied_never_masks_a_live_process_group() {
+        // SAFETY: getpgrp only reads the caller's process-group identifier.
+        let process_group_id = unsafe { nix::libc::getpgrp() };
+        assert!(process_group_id > 0);
+        let permission_denied = io::Error::from_raw_os_error(Errno::EPERM as i32);
+
+        assert!(!unix_process_boundary_is_absent(
+            &permission_denied,
+            process_group_id as u32
+        ));
     }
 }
