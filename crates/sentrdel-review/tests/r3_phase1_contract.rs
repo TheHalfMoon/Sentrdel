@@ -88,6 +88,7 @@ fn fixture_matrix_covers_safe_unsafe_unknown_and_hostile_authority_cases() {
         "supabase-edge/unsafe-elevated",
         "supabase-data/safe-properties",
         "supabase-data/unsafe-properties",
+        "adversarial/malformed-source",
         "adversarial/dynamic-unsupported",
         "adversarial/unsupported-framework",
         "adversarial/hostile-repository",
