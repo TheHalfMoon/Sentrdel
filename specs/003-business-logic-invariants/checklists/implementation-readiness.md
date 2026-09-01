@@ -77,7 +77,9 @@
 
 ## Remaining canonical gates
 
-- [ ] Initial R3 planning PR is exact-head qualified, independently review-clean, merged with expected-head protection, and post-merge governance is proven on protected `main`.
+- [x] Initial R3 planning PR is exact-head qualified, independently review-clean, merged with expected-head protection, and post-merge governance is proven on protected `main`.
 - [ ] R3-T001 planning-gate closeout is separately exact-head qualified, independently review-clean, expected-head merged, and post-merge governance is proven; the task ledger and roadmap then mark R3 implementation-ready.
+
+Evidence for the completed first gate is recorded in `../planning-gate-evidence.md`.
 
 Until both remaining gates are satisfied, **R3-T002 and every product implementation task are blocked**.
