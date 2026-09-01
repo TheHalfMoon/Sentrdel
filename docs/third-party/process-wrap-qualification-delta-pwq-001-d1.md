@@ -33,18 +33,19 @@ Relevant upstream identities remain those frozen by `PWQ-001`:
 
 ## Admitted direct API surface
 
-On `target_os = "macos"` only, first-party `sentrdel-engine` may use:
+On `target_os = "macos"` only, first-party `sentrdel-engine` may directly use the following `nix` API surface, and no broader surface is implied:
 
-- `nix::unistd::Pid` to represent the exact process-group ID captured from the spawned child;
-- `nix::sys::signal::kill` with signal `0` and a negative PID to probe that exact process group;
-- `nix::errno::Errno::ESRCH` as the only signal-zero result proving that the process group no longer exists;
+- `nix::errno::Errno::{ESRCH, EPERM}` only for structured OS-error identity: initial group-kill `ESRCH`/`EPERM` select the fail-closed post-reap proof path, while only signal-zero-probe `ESRCH` proves absence;
+- `nix::unistd::Pid`, including `Pid::from_raw(...)` to encode the exact negative process-group identifier captured from the spawned child and `Pid::as_raw()` in the test canary;
+- `nix::sys::signal::kill` only with signal zero and the exact negative captured process-group PID to probe group existence without delivering a signal;
+- `nix::sys::signal::Signal` only as the type parameter for `None::<Signal>` passed to `kill` to express signal zero; naming this type grants no additional signal-delivery or process-selection authority;
 - `nix::unistd::getpgrp()` **only under `cfg(test)`** to obtain the test process's current live process-group ID for `signal_zero_probe_never_masks_a_live_process_group`, proving the absence probe cannot classify a known-live group as drained.
 
 The production containment path does not call `getpgrp()`. The test-only lookup accepts no repository-controlled identifier, grants no process-selection authority, and exists solely as the owning-seam live-group fail-closed canary.
 
 No signal is delivered by the signal-zero probe. In production, no arbitrary PID or process group comes from repository data: the identifier is captured from the already-admitted child created by the T027 containment wrapper. In the canary, the process-group identifier comes from the test runner's own current process group.
 
-The delta grants no direct use of `nix` for filesystem access, networking, credentials, executable selection, process spawning, policy decisions, repository traversal, target execution, or provider access.
+The delta grants no direct use of `nix` for filesystem access, networking, credentials, executable selection, process spawning, non-zero signal delivery, arbitrary process/group selection, policy decisions, repository traversal, target execution, or provider access.
 
 ## Fail-closed lifecycle rule
 
@@ -71,7 +72,8 @@ Earlier candidate heads are historical diagnostic evidence only. They do not qua
 - cross-platform cfg warnings were rejected by `clippy -D warnings`;
 - incomplete macOS live-group qualification coverage was found by independent review;
 - a later exact-head review found that accepting initial macOS group-kill `ESRCH` before reap/probe was inconsistent with this fail-closed lifecycle rule;
-- an exact-head governance review then found that the test-only `getpgrp()` canary API was omitted from the admitted direct API record; this revision corrects that record without changing runtime behavior.
+- an exact-head governance review then found that the test-only `getpgrp()` canary API was omitted from the admitted direct API record;
+- the next exact-head review found that the directly named `nix::sys::signal::Signal` type was also omitted. This revision closes that class by enumerating the complete direct `nix` symbol/method surface used by the implementation and test canary.
 
 The corrected candidate must therefore receive a **fresh exact-current-head** qualification cycle after this document and the implementation agree. No historical CI or review result substitutes for the final gate.
 
