@@ -1,7 +1,7 @@
 # Tasks: Supabase P0 Static/Posture Pack
 
 **Input:** Constitution, R1 canonical contracts, R2 `spec.md`, `clarification-closeout.md`, `research.md`, `plan.md`, `data-model.md`, `contracts/static-posture-contract.md`, `checklists/implementation-readiness.md`.  
-**Status:** IMPLEMENTATION_READY — R2 planning is canonical; proceed in task order.
+**Status:** COMPLETE — all R2 tasks are canonical on protected `main`; no R2 task remains open.
 
 ## Format
 
@@ -83,7 +83,7 @@
 - [x] R2-T032 Update README/threat model/architecture/provider coverage documentation to describe implemented R2 static posture and preserve non-claims for live posture and R3 business logic.
 - [x] R2-T033 Run final R2 Spec Kit consistency analysis against Constitution, roadmap, R1 contracts, R2 spec/plan/contracts/tasks and record repairs in `analysis.md`.
 - [x] R2-T034 Run R2 implementation closeout: exact workspace/tests/lints/benchmarks, secret canaries, no provider/target execution, coverage truth, dependency qualification, protected-main governance, and exact results in `implementation-closeout.md`.
-- [ ] R2-T035 Canonicalize R2 closeout and mark all R2 tasks complete only after exact-head applicable CI, clean review, expected-head merge, post-merge protected-main evidence, and confirmation that no task remains open.
+- [x] R2-T035 Canonicalize R2 closeout and mark all R2 tasks complete only after exact-head applicable CI, clean review, expected-head merge, post-merge protected-main evidence, and confirmation that no task remains open.
 
 ---
 
