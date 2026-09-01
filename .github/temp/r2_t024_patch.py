@@ -51,6 +51,16 @@ replace(
     '        "provider supabase / STATIC_POSTURE: Unsupported (R1_POSTURE_NOT_IMPLEMENTED)",',
 )
 replace(
+    "crates/sentrdel-cli/tests/t065_init_output.rs",
+    '''        record["capability"] == "provider.supabase.STATIC_POSTURE"
+            && record["state"] == "PARTIAL"
+            && record["provider_dimension"] == "STATIC_POSTURE"''',
+    '''        record["capability"] == "provider.supabase.STATIC_POSTURE"
+            && record["state"] == "UNSUPPORTED"
+            && record["provider_dimension"] == "STATIC_POSTURE"
+            && record["reason_code"] == "R1_POSTURE_NOT_IMPLEMENTED"''',
+)
+replace(
     "crates/sentrdel-cli/tests/t066_init_adversarial.rs",
     "fn supabase_detection_reports_partial_coverage_without_provider_security_verdict() {",
     "fn supabase_detection_without_registered_r2_pack_reports_unsupported_without_verdict() {",
