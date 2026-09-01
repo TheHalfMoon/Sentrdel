@@ -19,7 +19,10 @@ serde.workspace = true
 serde_json.workspace = true
 
 [target.'cfg(unix)'.dependencies]
-nix = { version = "=0.31.3", default-features = false }
+# T027 process-boundary qualification only: safe PID/signal wrappers are used to
+# distinguish a drained macOS process group from a live EPERM failure without
+# introducing crate-local unsafe code. Exact package/version remains PWQ-001.
+nix = { version = "=0.31.3", default-features = false, features = ["process", "signal"] }
 
 [[test]]
 name = "t029_adversarial"
