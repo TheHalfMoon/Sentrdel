@@ -89,7 +89,7 @@ fn human_init_output_leads_with_inventory_and_makes_gaps_visible() {
         "Frameworks: nextjs",
         "Security packs: nextjs-r1",
         "framework nextjs / STATIC_POSTURE: Unavailable (PACK_REGISTERED_NOT_RUN)",
-        "provider supabase / STATIC_POSTURE: Partial (SUPABASE_STATIC_POSTURE_NOT_IMPLEMENTED)",
+        "provider supabase / STATIC_POSTURE: Unsupported (R1_POSTURE_NOT_IMPLEMENTED)",
         "Warning:",
     ] {
         assert!(output.human.contains(expected), "missing {expected:?}");
@@ -128,8 +128,9 @@ fn json_init_output_preserves_frozen_envelope_and_explicit_pack_dimensions() {
     }));
     assert!(coverage.iter().any(|record| {
         record["capability"] == "provider.supabase.STATIC_POSTURE"
-            && record["state"] == "PARTIAL"
+            && record["state"] == "UNSUPPORTED"
             && record["provider_dimension"] == "STATIC_POSTURE"
+            && record["reason_code"] == "R1_POSTURE_NOT_IMPLEMENTED"
     }));
     assert!(coverage.iter().all(|record| {
         record["state"] != serde_json::to_value(CoverageState::Covered).unwrap()
