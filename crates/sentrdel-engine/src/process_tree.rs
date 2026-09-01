@@ -61,11 +61,11 @@ impl ContainedChild {
     fn process_boundary_is_absent(&self, error: &io::Error) -> bool {
         #[cfg(unix)]
         {
-            return unix_process_boundary_is_absent(error, self.process_group_id);
+            unix_process_boundary_is_absent(error, self.process_group_id)
         }
         #[cfg(windows)]
         {
-            return error.kind() == io::ErrorKind::NotFound;
+            error.kind() == io::ErrorKind::NotFound
         }
         #[cfg(not(any(unix, windows)))]
         {
@@ -76,7 +76,7 @@ impl ContainedChild {
 }
 
 #[cfg(unix)]
-fn unix_process_boundary_is_absent(error: &io::Error, process_group_id: u32) -> bool {
+fn unix_process_boundary_is_absent(error: &io::Error, _process_group_id: u32) -> bool {
     if error.raw_os_error() == Some(Errno::ESRCH as i32) {
         return true;
     }
@@ -88,7 +88,7 @@ fn unix_process_boundary_is_absent(error: &io::Error, process_group_id: u32) -> 
     // fail-closed containment error.
     #[cfg(target_os = "macos")]
     if error.raw_os_error() == Some(Errno::EPERM as i32) {
-        return macos_process_group_is_absent(process_group_id);
+        return macos_process_group_is_absent(_process_group_id);
     }
 
     false
