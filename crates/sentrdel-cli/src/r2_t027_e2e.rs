@@ -14,7 +14,8 @@ use sentrdel_review::{
     project_detection::DetectionLimits,
     reconcile::{ReconciliationRule, reconcile_evidence},
     supabase::{
-        SupabaseMigrationDiscoveryError, SupabaseMigrationDiscoveryLimits, discover_migration_paths,
+        SupabaseMigrationDiscoveryError, SupabaseMigrationDiscoveryLimits,
+        discover_migration_paths,
         key_authority::{KeyAuthorityLocation, observe_key_literal},
         key_boundary::observe_elevated_key_client_boundary,
         source_context::{
@@ -187,7 +188,8 @@ fn source_key_boundary_evidence(path: &str, source: &str) -> Vec<Evidence> {
 }
 
 fn analyze_fixture(case: FixtureCase) -> (CoverageState, Vec<Evidence>) {
-    let forward = detect_supabase(case.paths().iter().copied(), DetectionLimits::default()).unwrap();
+    let forward =
+        detect_supabase(case.paths().iter().copied(), DetectionLimits::default()).unwrap();
     let reversed = detect_supabase(
         case.paths().iter().rev().copied(),
         DetectionLimits::default(),
@@ -291,7 +293,10 @@ fn provider(case: FixtureCase) -> SupabaseR2ProviderOutput {
         state,
         reason_code: is_gap
             .then(|| format!("R2_T027_{}", case.slug().replace('-', "_").to_uppercase())),
-        details: Some("R2-T027 coverage derived from bounded production analyzers over fixture bytes".to_owned()),
+        details: Some(
+            "R2-T027 coverage derived from bounded production analyzers over fixture bytes"
+                .to_owned(),
+        ),
         input_digests: vec![fixture_digest(case)],
         observed_at: CAPTURED_AT.to_owned(),
     };
@@ -367,16 +372,12 @@ fn r2_fixture_repositories_have_deterministic_review_and_init_outputs() {
             case.slug()
         );
 
-        let first_review = register_supabase_r2_review(
-            &baseline_review(case, &first_provider),
-            &first_provider,
-        )
-        .unwrap();
-        let second_review = register_supabase_r2_review(
-            &baseline_review(case, &second_provider),
-            &second_provider,
-        )
-        .unwrap();
+        let first_review =
+            register_supabase_r2_review(&baseline_review(case, &first_provider), &first_provider)
+                .unwrap();
+        let second_review =
+            register_supabase_r2_review(&baseline_review(case, &second_provider), &second_provider)
+                .unwrap();
         assert_eq!(
             first_review.output.render_json().unwrap(),
             second_review.output.render_json().unwrap(),
@@ -391,7 +392,8 @@ fn r2_fixture_repositories_have_deterministic_review_and_init_outputs() {
         );
 
         let first_init = register_supabase_r2_init(&baseline_init(case), &first_provider).unwrap();
-        let second_init = register_supabase_r2_init(&baseline_init(case), &second_provider).unwrap();
+        let second_init =
+            register_supabase_r2_init(&baseline_init(case), &second_provider).unwrap();
         assert_eq!(
             first_init.output,
             second_init.output,
@@ -456,7 +458,9 @@ fn r2_e2e_ground_truth_is_derived_from_fixture_bytes_and_production_analyzers() 
     assert!(unsupported.evidence().is_empty());
     assert_eq!(hostile.coverage()[0].state, CoverageState::Covered);
     assert!(hostile.evidence().is_empty());
-    assert!(!format!("{vulnerable:?}").contains("SENTRDEL_CANARY_BROWSER_ELEVATED_NOT_A_CREDENTIAL"));
+    assert!(
+        !format!("{vulnerable:?}").contains("SENTRDEL_CANARY_BROWSER_ELEVATED_NOT_A_CREDENTIAL")
+    );
 
     const { assert!(!TARGET_BUILD_EXECUTION_ALLOWED) };
 }
