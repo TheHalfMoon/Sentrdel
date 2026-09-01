@@ -71,16 +71,40 @@ impl BusinessLogicLimits {
 pub enum ModelError {
     InvalidLimits,
     EmptyIdentityParts,
-    EmptyIdentityPart { index: usize },
-    IdentityPartTooLarge { index: usize, bytes: usize, max: usize },
-    IdentityTooLarge { bytes: usize, max: usize },
+    EmptyIdentityPart {
+        index: usize,
+    },
+    IdentityPartTooLarge {
+        index: usize,
+        bytes: usize,
+        max: usize,
+    },
+    IdentityTooLarge {
+        bytes: usize,
+        max: usize,
+    },
     InvalidSourceRange,
     EmptyContentDigest,
-    TooManyProvenance { count: usize, max: usize },
-    TooManyRelatedIds { count: usize, max: usize },
-    TooManyPathLinks { count: usize, max: usize },
-    DerivationFanInExceeded { count: usize, max: usize },
-    DerivationDepthExceeded { depth: usize, max: usize },
+    TooManyProvenance {
+        count: usize,
+        max: usize,
+    },
+    TooManyRelatedIds {
+        count: usize,
+        max: usize,
+    },
+    TooManyPathLinks {
+        count: usize,
+        max: usize,
+    },
+    DerivationFanInExceeded {
+        count: usize,
+        max: usize,
+    },
+    DerivationDepthExceeded {
+        depth: usize,
+        max: usize,
+    },
     Canonical(CanonicalError),
 }
 
@@ -88,9 +112,14 @@ impl fmt::Display for ModelError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::InvalidLimits => formatter.write_str("business-logic limits must be non-zero"),
-            Self::EmptyIdentityParts => formatter.write_str("semantic identity requires at least one part"),
+            Self::EmptyIdentityParts => {
+                formatter.write_str("semantic identity requires at least one part")
+            }
             Self::EmptyIdentityPart { index } => {
-                write!(formatter, "semantic identity part {index} must not be empty")
+                write!(
+                    formatter,
+                    "semantic identity part {index} must not be empty"
+                )
             }
             Self::IdentityPartTooLarge { index, bytes, max } => write!(
                 formatter,
@@ -101,11 +130,12 @@ impl fmt::Display for ModelError {
                 "semantic identity total size {bytes} exceeds cap {max}"
             ),
             Self::InvalidSourceRange => formatter.write_str("source byte range is invalid"),
-            Self::EmptyContentDigest => formatter.write_str("source content digest must not be empty"),
-            Self::TooManyProvenance { count, max } => write!(
-                formatter,
-                "provenance count {count} exceeds cap {max}"
-            ),
+            Self::EmptyContentDigest => {
+                formatter.write_str("source content digest must not be empty")
+            }
+            Self::TooManyProvenance { count, max } => {
+                write!(formatter, "provenance count {count} exceeds cap {max}")
+            }
             Self::TooManyRelatedIds { count, max } => write!(
                 formatter,
                 "related semantic id count {count} exceeds cap {max}"
@@ -121,7 +151,9 @@ impl fmt::Display for ModelError {
                 formatter,
                 "value derivation depth {depth} exceeds cap {max}"
             ),
-            Self::Canonical(source) => write!(formatter, "stable semantic identity failed: {source}"),
+            Self::Canonical(source) => {
+                write!(formatter, "stable semantic identity failed: {source}")
+            }
         }
     }
 }
@@ -678,7 +710,8 @@ mod tests {
         let first = StableSemanticId::from_parts("r3.route", &["GET", "/a"], limits).unwrap();
         let replay = StableSemanticId::from_parts("r3.route", &["GET", "/a"], limits).unwrap();
         let reordered = StableSemanticId::from_parts("r3.route", &["/a", "GET"], limits).unwrap();
-        let other_domain = StableSemanticId::from_parts("r3.actor", &["GET", "/a"], limits).unwrap();
+        let other_domain =
+            StableSemanticId::from_parts("r3.actor", &["GET", "/a"], limits).unwrap();
         assert_eq!(first, replay);
         assert_ne!(first, reordered);
         assert_ne!(first, other_domain);
@@ -696,9 +729,14 @@ mod tests {
             StableSemanticId::from_parts("r3.route", &["toolong"], limits),
             Err(ModelError::IdentityPartTooLarge { .. })
         ));
-        assert!(BusinessLogicLimits { max_path_links: 0, ..BusinessLogicLimits::default() }
+        assert!(
+            BusinessLogicLimits {
+                max_path_links: 0,
+                ..BusinessLogicLimits::default()
+            }
             .validate()
-            .is_err());
+            .is_err()
+        );
     }
 
     #[test]

@@ -128,7 +128,9 @@ impl fmt::Display for ProjectInvariantContractError {
                 formatter,
                 "project invariant key count {count} exceeds cap {max}"
             ),
-            Self::DuplicateKey(key) => write!(formatter, "project invariant key is duplicated: {key}"),
+            Self::DuplicateKey(key) => {
+                write!(formatter, "project invariant key is duplicated: {key}")
+            }
             Self::ForbiddenAuthorityKey(key) => write!(
                 formatter,
                 "project invariant authority-bearing key is forbidden: {key}"
@@ -192,7 +194,9 @@ pub fn validate_project_invariant_keys(
 
     for key in keys {
         if !seen.insert(*key) {
-            return Err(ProjectInvariantContractError::DuplicateKey((*key).to_owned()));
+            return Err(ProjectInvariantContractError::DuplicateKey(
+                (*key).to_owned(),
+            ));
         }
         if forbidden.contains(key) {
             return Err(ProjectInvariantContractError::ForbiddenAuthorityKey(
@@ -233,7 +237,13 @@ mod tests {
         let limits = ProjectInvariantLimits::default();
         validate_project_invariant_id("accounts-tenant-binding", limits).unwrap();
         validate_project_invariant_id("admin_delete_2", limits).unwrap();
-        for invalid in ["", "Sentrdel", "sentrdel.builtin", "../../escape", "tenant binding"] {
+        for invalid in [
+            "",
+            "Sentrdel",
+            "sentrdel.builtin",
+            "../../escape",
+            "tenant binding",
+        ] {
             assert!(validate_project_invariant_id(invalid, limits).is_err());
         }
     }

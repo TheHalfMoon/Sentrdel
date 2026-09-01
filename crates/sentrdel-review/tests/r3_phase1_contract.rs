@@ -27,7 +27,10 @@ const BUILTIN_IMPERSONATION: &str = include_str!(
 fn r3_pack_registers_with_evidence_coverage_only_authority() {
     let mut registry = SecurityPackRegistry::new();
     let registered = business_logic::register_r3_pack(&mut registry).expect("register R3 pack");
-    assert_eq!(registered.pack_id(), business_logic::R3_BUSINESS_LOGIC_PACK_ID);
+    assert_eq!(
+        registered.pack_id(),
+        business_logic::R3_BUSINESS_LOGIC_PACK_ID
+    );
     assert_eq!(
         ValidatedPackManifest::output_kinds(),
         [PackOutputKind::Evidence, PackOutputKind::Coverage]
@@ -40,7 +43,8 @@ fn r3_pack_registers_with_evidence_coverage_only_authority() {
 
 #[test]
 fn phase1_development_corpus_freezes_r3_ground_truth_without_release_gating() {
-    let value: serde_json::Value = serde_json::from_slice(DEVELOPMENT_CORPUS).expect("valid corpus");
+    let value: serde_json::Value =
+        serde_json::from_slice(DEVELOPMENT_CORPUS).expect("valid corpus");
     assert_eq!(value["corpus_class"], "DEVELOPMENT_EVALUATION");
     assert_eq!(value["release_gating"], false);
 
@@ -68,8 +72,7 @@ fn phase1_development_corpus_freezes_r3_ground_truth_without_release_gating() {
             .as_array()
             .expect("authority assertions");
         assert!(assertions.iter().any(|value| {
-            value == "no-target-execution"
-                || value == "r3-output-is-evidence-or-coverage-only"
+            value == "no-target-execution" || value == "r3-output-is-evidence-or-coverage-only"
         }));
     }
 }
@@ -89,7 +92,10 @@ fn fixture_matrix_covers_safe_unsafe_unknown_and_hostile_authority_cases() {
         "adversarial/unsupported-framework",
         "adversarial/hostile-repository",
     ] {
-        assert!(FIXTURE_MATRIX.contains(required), "missing fixture matrix entry {required}");
+        assert!(
+            FIXTURE_MATRIX.contains(required),
+            "missing fixture matrix entry {required}"
+        );
     }
     assert!(FIXTURE_MATRIX.contains("SENTRDEL_CANARY"));
     assert!(FIXTURE_MATRIX.contains("never grant authority"));
@@ -101,7 +107,15 @@ fn project_invariant_fixtures_encode_tightening_and_adversarial_contracts() {
     validate_project_invariant_id("accounts-tenant-binding", ProjectInvariantLimits::default())
         .expect("safe id");
     validate_project_invariant_keys(
-        &["id", "type", "resource", "route", "methods", "tenant_field", "actor"],
+        &[
+            "id",
+            "type",
+            "resource",
+            "route",
+            "methods",
+            "tenant_field",
+            "actor",
+        ],
         ProjectInvariantLimits::default(),
     )
     .expect("safe keys");

@@ -98,10 +98,15 @@ mod tests {
 
     #[test]
     fn detailed_provider_coverage_does_not_widen_r1_manifest_vocabulary() {
-        assert_eq!(COVERAGE_CROSS_LAYER_BUSINESS_LOGIC, "CROSS_LAYER_BUSINESS_LOGIC");
-        assert!(!manifest()
-            .coverage_dimensions
-            .contains(&COVERAGE_CROSS_LAYER_BUSINESS_LOGIC.to_owned()));
+        assert_eq!(
+            COVERAGE_CROSS_LAYER_BUSINESS_LOGIC,
+            "CROSS_LAYER_BUSINESS_LOGIC"
+        );
+        assert!(
+            !manifest()
+                .coverage_dimensions
+                .contains(&COVERAGE_CROSS_LAYER_BUSINESS_LOGIC.to_owned())
+        );
         assert_eq!(R3_BUSINESS_LOGIC_COVERAGE_AREAS.len(), 10);
     }
 
