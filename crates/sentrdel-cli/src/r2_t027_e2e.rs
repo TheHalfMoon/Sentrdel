@@ -326,8 +326,16 @@ fn analyze_fixture(case: FixtureCase) -> (CoverageState, Vec<Evidence>) {
     }
 }
 
+fn fixture_digest_from_files(files: &[(&str, &str)]) -> String {
+    let mut canonical = files.to_vec();
+    canonical.sort_unstable_by(|left, right| {
+        left.0.cmp(right.0).then_with(|| left.1.cmp(right.1))
+    });
+    content_id("r2-t027-fixture", &canonical).unwrap()
+}
+
 fn fixture_digest(case: FixtureCase) -> String {
-    content_id("r2-t027-fixture", &case.files()).unwrap()
+    fixture_digest_from_files(case.files())
 }
 
 fn provider(case: FixtureCase) -> SupabaseR2ProviderOutput {
@@ -419,6 +427,15 @@ fn r2_fixture_repositories_have_deterministic_review_and_init_outputs() {
             first_provider,
             second_provider,
             "provider replay drift for {}",
+            case.slug()
+        );
+
+        let mut reversed_files = case.files().to_vec();
+        reversed_files.reverse();
+        assert_eq!(
+            fixture_digest(case),
+            fixture_digest_from_files(&reversed_files),
+            "fixture digest traversal-order drift for {}",
             case.slug()
         );
 
