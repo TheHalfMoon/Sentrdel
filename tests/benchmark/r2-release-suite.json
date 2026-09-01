@@ -1,0 +1,52 @@
+{
+  "suite_version": "sentrdelbench-r2-release/r2-t028-v1",
+  "corpus_class": "DEVELOPMENT_EVALUATION",
+  "candidate_identity": "r2-t028-current-tree",
+  "release_gating": true,
+  "clean_pr_false_positive_gate": {
+    "max_false_positive_clean_prs": 1,
+    "per_clean_prs": 5,
+    "sample_state": "INITIAL_SINGLE_FIXTURE_STRICT_ZERO"
+  },
+  "known_ground_truth": {
+    "required_signal_groups": [
+      "RLS",
+      "GRANTS",
+      "SECURITY_DEFINER_SEARCH_PATH",
+      "KEY_AUTHORITY_CONTEXT",
+      "STORAGE",
+      "EDGE_FUNCTION_AUTH"
+    ],
+    "max_known_misses": 0
+  },
+  "coverage": {
+    "required_static_dimensions": [
+      "STATIC_POSTURE_DATABASE",
+      "STATIC_POSTURE_STORAGE",
+      "STATIC_POSTURE_EDGE_FUNCTIONS",
+      "STATIC_POSTURE_KEY_BOUNDARY"
+    ],
+    "required_explicit_gaps": [
+      "LIVE_POSTURE",
+      "BUSINESS_LOGIC",
+      "RUNTIME"
+    ]
+  },
+  "authority_assertions": [
+    "provider-output-is-evidence-or-coverage-only",
+    "only-reconciler-creates-findings",
+    "fixture-content-has-no-instruction-authority",
+    "no-live-supabase-access",
+    "no-target-execution",
+    "no-secret-plaintext-persistence"
+  ],
+  "inputs": {
+    "safe_fixture": "fixtures/repos/r2-supabase/positive/safe-posture",
+    "vulnerable_fixture": "fixtures/repos/r2-supabase/negative/unsafe-posture",
+    "development_corpus": "tests/benchmark/development-evaluation/t090-development-corpus.json"
+  },
+  "performance": {
+    "state": "NOT_MEASURED",
+    "owner_task": "R2-T029"
+  }
+}
