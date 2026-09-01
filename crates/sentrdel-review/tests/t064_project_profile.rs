@@ -87,7 +87,7 @@ fn project_profile_and_coverage_are_deterministic_and_honest() {
     assert_eq!(snapshot.profile.mcp_configurations, vec!["cursor-mcp"]);
     assert_eq!(
         snapshot.profile.security_packs,
-        vec![SUPABASE_R2_PACK_ID.to_owned(), "nextjs-r1".to_owned()]
+        vec!["nextjs-r1".to_owned(), SUPABASE_R2_PACK_ID.to_owned()]
     );
 
     let supabase_provider = snapshot
@@ -131,11 +131,7 @@ fn project_profile_and_coverage_are_deterministic_and_honest() {
     ] {
         let gap = snapshot
             .coverage
-            .get(
-                ProjectCoverageSubjectKind::Provider,
-                "supabase",
-                dimension,
-            )
+            .get(ProjectCoverageSubjectKind::Provider, "supabase", dimension)
             .unwrap();
         assert_eq!(gap.state, CoverageState::Unsupported);
         assert_eq!(
@@ -166,11 +162,7 @@ fn supabase_without_registered_native_pack_is_not_reported_as_implemented() {
         .unwrap()
         .detect(std::iter::empty::<&str>(), DetectionLimits::default())
         .unwrap();
-    let supabase = detect_supabase(
-        ["supabase/config.toml"],
-        DetectionLimits::default(),
-    )
-    .unwrap();
+    let supabase = detect_supabase(["supabase/config.toml"], DetectionLimits::default()).unwrap();
     let packs = SecurityPackRegistry::new();
 
     let snapshot = build_project_profile_snapshot(
