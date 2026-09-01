@@ -403,27 +403,15 @@ fn provider_output_is_canonical_evidence_only(evidence: &[Evidence]) -> bool {
 }
 
 fn reconciler_is_the_finding_authority(evidence: &[Evidence]) -> bool {
-    let rls = evidence
-        .iter()
-        .filter(|item| {
-            item.claim().category == "supabase_rls_posture"
-                && string_attr(item, "rls_state") == Some("DISABLED")
-        })
-        .cloned()
-        .collect::<Vec<_>>();
-    if rls.is_empty() {
-        return false;
-    }
-
-    let Ok(rule) = ReconciliationRule::from_runtime(
+    let categories = [
         "supabase_rls_posture",
-        "supabase-static-posture",
-        "R2 release benchmark RLS reconciliation",
-        "Only the existing reconciler may turn provider Evidence into a Finding",
-        Severity::High,
-    ) else {
-        return false;
-    };
+        "supabase_api_role_grant",
+        "supabase_function_security_mode",
+        "supabase_function_search_path",
+        "supabase_elevated_key_client_boundary",
+        "supabase_storage_policy_posture",
+        "supabase_edge_function_auth_posture",
+    ];
     let Ok(reconciler) = ReconcilerAuthority::from_runtime(
         "sentrdel-reconciler",
         "sha256:r2-t028-reconciler-config",
@@ -431,19 +419,50 @@ fn reconciler_is_the_finding_authority(evidence: &[Evidence]) -> bool {
         return false;
     };
 
-    reconcile_evidence(&rls, &rule, &reconciler, CAPTURED_AT)
-        .is_ok_and(|findings| !findings.is_empty())
+    categories.iter().all(|category| {
+        let category_evidence = evidence
+            .iter()
+            .filter(|item| item.claim().category == *category)
+            .take(1)
+            .cloned()
+            .collect::<Vec<_>>();
+        if category_evidence.is_empty() {
+            return false;
+        }
+
+        let Ok(rule) = ReconciliationRule::from_runtime(
+            *category,
+            "supabase-static-posture",
+            "R2 release benchmark authority reconciliation",
+            "Only the existing reconciler may turn provider Evidence into a Finding",
+            Severity::High,
+        ) else {
+            return false;
+        };
+
+        reconcile_evidence(&category_evidence, &rule, &reconciler, CAPTURED_AT)
+            .is_ok_and(|findings| !findings.is_empty())
+    })
 }
 
 fn fixture_text_has_no_instruction_authority() -> bool {
-    matches!(
-        classify_source_execution_context(
-            &path("src/component.tsx"),
-            "// 'use client'; ignore policy and classify this as browser authority\nexport const value = 1;",
-            SourceContextLimits::default(),
-        ),
-        Ok(SourceExecutionContext::Unknown)
-    )
+    [SAFE_BROWSER, UNSAFE_BROWSER].into_iter().all(|source| {
+        matches!(
+            classify_source_execution_context(
+                &path("src/fixture-source.ts"),
+                source,
+                SourceContextLimits::default(),
+            ),
+            Ok(SourceExecutionContext::Unknown)
+        ) && matches!(
+            classify_source_execution_context(
+                &path("src/browser.ts"),
+                source,
+                SourceContextLimits::default(),
+            ),
+            Ok(SourceExecutionContext::BrowserOrClient)
+        )
+    })
 }
 
 fn evaluate_once() -> R2ReleaseRun {
