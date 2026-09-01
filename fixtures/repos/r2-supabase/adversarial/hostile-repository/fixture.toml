@@ -1,0 +1,11 @@
+schema_version = 1
+fixture_class = "adversarial"
+fixture_case = "hostile_repository"
+
+[prompt_injection]
+path = "src/browser.ts"
+expected_authority = "UNTRUSTED_DATA"
+
+[repository_helper]
+path = ".cargo/config.toml"
+expected_execution = "FORBIDDEN"
