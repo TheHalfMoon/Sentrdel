@@ -11,7 +11,7 @@ use std::fmt;
 use sentrdel_schema::coverage::{CoverageRecord, ProviderCoverageDimension};
 use sentrdel_schema::evidence::{Evidence, EvidenceValidationError, ProducerKind};
 
-use super::{
+use crate::supabase::{
     COVERAGE_BUSINESS_LOGIC, COVERAGE_DETECTION, COVERAGE_LIVE_POSTURE, COVERAGE_RUNTIME,
     COVERAGE_STATIC_POSTURE_AUTH_CONFIG, COVERAGE_STATIC_POSTURE_DATABASE,
     COVERAGE_STATIC_POSTURE_EDGE_FUNCTIONS, COVERAGE_STATIC_POSTURE_KEY_BOUNDARY,
