@@ -14,6 +14,8 @@ mod explain_t070_contract;
 mod guard_git_hooks;
 #[allow(dead_code)]
 mod provider_registration;
+#[cfg(test)]
+mod r2_t027_e2e;
 #[allow(dead_code)]
 mod review_reasoning;
 
