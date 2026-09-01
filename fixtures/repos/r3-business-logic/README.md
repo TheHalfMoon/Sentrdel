@@ -12,6 +12,7 @@ These repositories are synthetic, offline ground-truth inputs for R3. Repository
 | unsafe | `supabase-edge/unsafe-elevated` | Request-controlled operation uses an elevated synthetic service-role client without a supported application guard. |
 | safe | `supabase-data/safe-properties` | Mutation explicitly allowlists non-protected request properties. |
 | unsafe | `supabase-data/unsafe-properties` | Broad request-controlled mutation object reaches a supported update operation. |
+| adversarial | `adversarial/malformed-source` | Syntactically malformed source must fail parsing visibly and cannot be treated as a clean authorization path. |
 | adversarial | `adversarial/dynamic-unsupported` | Dynamic route/query/property construction must degrade coverage rather than invent semantics. |
 | adversarial | `adversarial/unsupported-framework` | Unsupported framework syntax remains visible as unsupported framework coverage. |
 | adversarial | `adversarial/hostile-repository` | Instruction-shaped text and a synthetic `SENTRDEL_CANARY` value remain inert data and never grant authority. |
