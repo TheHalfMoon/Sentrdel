@@ -1,4 +1,4 @@
-name: Temporary R2-T027 Format Probe
+name: Temporary R2-T028 Format Probe
 
 on:
   push:
@@ -16,11 +16,11 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           persist-credentials: false
-          ref: test/002-r2-t027-e2e-fixtures
+          ref: test/002-r2-t028-release-gate
           fetch-depth: 1
           path: candidate
       - name: Require expected candidate head
-        run: test "$(git -C candidate rev-parse HEAD)" = "6749634be56b554a621569b9fe3f2c1a2c6e3245"
+        run: test "$(git -C candidate rev-parse HEAD)" = "b1991b65ea9de2e81a914799458c3299fa2d965f"
       - name: Install pinned Rust toolchain
         run: rustup toolchain install 1.98.0 --profile minimal --component rustfmt --component clippy
       - name: Format candidate
@@ -33,10 +33,10 @@ jobs:
           cargo +1.98.0 check --workspace --all-targets --locked
           cargo +1.98.0 test --workspace --locked
           cargo +1.98.0 clippy --workspace --all-targets --locked -- -D warnings
-      - name: Upload formatted T027 source
+      - name: Upload formatted T028 source
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: r2-t027-formatted-source
-          path: candidate/crates/sentrdel-cli/src/r2_t027_e2e.rs
+          name: r2-t028-formatted-source
+          path: candidate/crates/sentrdel-review/tests/r2_t028_release_benchmark.rs
           if-no-files-found: error
           retention-days: 1
