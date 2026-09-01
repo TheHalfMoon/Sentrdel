@@ -17,9 +17,9 @@ pub mod stack_detection;
 pub mod structural;
 pub mod structural_rules;
 pub mod supabase;
+pub mod supabase_detection;
 #[path = "supabase/integration.rs"]
 pub mod supabase_integration;
-pub mod supabase_detection;
 pub mod view;
 
 pub const TARGET_BUILD_EXECUTION_ALLOWED: bool = false;
