@@ -3,7 +3,7 @@
 **Parent qualification:** `PWQ-001`  
 **Scope:** T027 external-engine process lifecycle containment on macOS only  
 **Dependency identities:** unchanged — `process-wrap = 9.1.0`, `nix = 0.31.3`  
-**Status:** `CANDIDATE_PENDING_EXACT_HEAD_QUALIFICATION`
+**Status:** `CANDIDATE_PENDING_EXACT_HEAD_QUALIFICATION_AND_CANONICALIZATION`
 
 ## Why this delta exists
 
@@ -31,9 +31,9 @@ Relevant upstream identities remain those frozen by `PWQ-001`:
 
 `Cargo.lock` is unchanged by this delta.
 
-## Admitted direct API surface
+## Admitted candidate direct API surface
 
-On `target_os = "macos"` only, first-party `sentrdel-engine` may directly use the following `nix` API surface, and no broader surface is implied:
+On `target_os = "macos"` only, the PR candidate directly uses the following `nix` API surface, and no broader surface is implied:
 
 - `nix::errno::Errno::{ESRCH, EPERM}` only for structured OS-error identity: initial group-kill `ESRCH`/`EPERM` select the fail-closed post-reap proof path, while only signal-zero-probe `ESRCH` proves absence;
 - `nix::unistd::Pid`, including `Pid::from_raw(...)` to encode the exact negative process-group identifier captured from the spawned child and `Pid::as_raw()` in the test canary;
@@ -63,6 +63,17 @@ On Unix targets other than macOS, the previously qualified direct group-kill `ES
 
 `sentrdel-engine` continues to enforce `#![forbid(unsafe_code)]`; all platform FFI/unsafe implementation remains inside the already-qualified dependency boundary.
 
+## Deterministic recovery qualification
+
+The macOS owning seam includes deterministic unit coverage for the recovery classifier itself, not only a live process-group canary:
+
+- `process_tree::tests::kill_error_recovery_requires_reap_then_absence_proof` exercises both initial `ESRCH` and `EPERM`, proves the absence probe is not invoked when reap fails, proves successful classification requires reap before the absence proof, and proves a reaped root with a non-absent/live group remains rejected;
+- `process_tree::tests::signal_zero_result_accepts_only_esrch_as_absence` proves that only signal-zero `Err(ESRCH)` means absent, while success, `EPERM`, and other errors remain fail-closed;
+- `process_tree::tests::signal_zero_probe_never_masks_a_live_process_group` retains the real macOS known-live process-group canary;
+- `runner::tests::runner_enforces_wall_clock_output_caps_and_kills_descendants` retains the owning runner lifecycle proof.
+
+The deterministic helpers exist only to make the production ordering and classification rules directly testable. They do not add a new process-control capability or authority surface.
+
 ## Qualification evidence and candidate discipline
 
 Earlier candidate heads are historical diagnostic evidence only. They do not qualify the final PR head:
@@ -73,13 +84,16 @@ Earlier candidate heads are historical diagnostic evidence only. They do not qua
 - incomplete macOS live-group qualification coverage was found by independent review;
 - a later exact-head review found that accepting initial macOS group-kill `ESRCH` before reap/probe was inconsistent with this fail-closed lifecycle rule;
 - an exact-head governance review then found that the test-only `getpgrp()` canary API was omitted from the admitted direct API record;
-- the next exact-head review found that the directly named `nix::sys::signal::Signal` type was also omitted. This revision closes that class by enumerating the complete direct `nix` symbol/method surface used by the implementation and test canary.
+- the next exact-head review found that the directly named `nix::sys::signal::Signal` type was also omitted;
+- the subsequent live review found two additional qualification defects: the recovery branch lacked deterministic post-reap ordering/classification tests, and the source ledger described PWQ-001-D1 as already qualified before canonicalization. This revision adds the deterministic tests and keeps PWQ-001-D1 explicitly candidate-only until protected-main canonicalization and post-merge governance verification.
 
 The corrected candidate must therefore receive a **fresh exact-current-head** qualification cycle after this document and the implementation agree. No historical CI or review result substitutes for the final gate.
 
 Required final-head evidence includes:
 
 - `Cross-platform CI` success on Linux, macOS, and Windows;
+- macOS `process_tree::tests::kill_error_recovery_requires_reap_then_absence_proof` success;
+- macOS `process_tree::tests::signal_zero_result_accepts_only_esrch_as_absence` success;
 - macOS `process_tree::tests::signal_zero_probe_never_masks_a_live_process_group` success;
 - macOS `runner::tests::runner_enforces_wall_clock_output_caps_and_kills_descendants` success;
 - Windows `sentrdel-review` clippy with `-D warnings` success;
@@ -106,13 +120,21 @@ The original `PWQ-001` authority ceilings remain binding.
 
 ## Canonicalization gate
 
-This delta has no canonical authority merely because it exists on a feature branch. It becomes part of `PWQ-001` only if PR #250 reaches protected `main` after all of the following are true on the exact final head:
+This delta has no canonical authority merely because it exists on a feature branch or because an exact-head CI/review cycle succeeds. It becomes part of canonical `PWQ-001` only after PR #250 reaches protected `main` and the resulting canonical `main` passes post-merge repository-governance verification.
 
-- every applicable required and project qualification check is successful;
-- independent review is clean;
+Pre-merge requirements:
+
+- every applicable required and project qualification check is successful on the exact final head;
+- independent review is clean on that exact head;
 - all review conversations are resolved;
 - mergeability is clean;
-- merge uses guarded expected-head semantics;
-- post-merge repository-governance verification passes against the resulting canonical `main`.
+- merge uses guarded expected-head semantics.
+
+Post-merge requirements:
+
+- the resulting canonical `main` SHA is captured;
+- live branch protection remains enforced with the canonical required checks;
+- the bounded repository-governance verifier passes against that exact canonical `main`;
+- a follow-up canonicalization change records the final PR head, merge SHA, workflow evidence, governance-verifier evidence, and changes this delta/ledger from candidate to canonical qualification.
 
 Any later `process-wrap`/`nix` version change, resolved feature-closure expansion, additional direct privileged API use, or broader platform claim requires another qualification delta.

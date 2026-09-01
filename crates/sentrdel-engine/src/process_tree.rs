@@ -70,11 +70,7 @@ impl ContainedChild {
             #[cfg(target_os = "macos")]
             {
                 let raw_error = error.raw_os_error();
-                let needs_post_reap_proof = raw_error == Some(Errno::ESRCH as i32)
-                    || raw_error == Some(Errno::EPERM as i32);
-                if !needs_post_reap_proof {
-                    return false;
-                }
+                let process_group_id = self.process_group_id;
 
                 // macOS process-group kill errors can race an exited but not-yet-
                 // reaped group leader. Neither ESRCH nor EPERM is accepted by
@@ -83,8 +79,11 @@ impl ContainedChild {
                 // exact spawn-time process group no longer exists. A running root,
                 // failed reap, surviving group member, inaccessible group, or any
                 // indeterminate probe preserves the original kill failure.
-                matches!(self.inner.try_wait(), Ok(Some(_)))
-                    && macos_process_group_is_absent(self.process_group_id)
+                macos_kill_failure_has_post_reap_absence_proof(
+                    raw_error,
+                    || matches!(self.inner.try_wait(), Ok(Some(_))),
+                    || macos_process_group_is_absent(process_group_id),
+                )
             }
 
             #[cfg(not(target_os = "macos"))]
@@ -105,6 +104,27 @@ impl ContainedChild {
 }
 
 #[cfg(target_os = "macos")]
+fn macos_kill_failure_has_post_reap_absence_proof<Reap, Probe>(
+    raw_error: Option<i32>,
+    reap_exited_root: Reap,
+    prove_process_group_absent: Probe,
+) -> bool
+where
+    Reap: FnOnce() -> bool,
+    Probe: FnOnce() -> bool,
+{
+    let admitted_kill_failure = raw_error == Some(Errno::ESRCH as i32)
+        || raw_error == Some(Errno::EPERM as i32);
+
+    admitted_kill_failure && reap_exited_root() && prove_process_group_absent()
+}
+
+#[cfg(target_os = "macos")]
+fn macos_signal_zero_result_proves_absence(result: Result<(), Errno>) -> bool {
+    matches!(result, Err(Errno::ESRCH))
+}
+
+#[cfg(target_os = "macos")]
 fn macos_process_group_is_absent(process_group_id: u32) -> bool {
     let Ok(process_group_id) = i32::try_from(process_group_id) else {
         return false;
@@ -114,13 +134,10 @@ fn macos_process_group_is_absent(process_group_id: u32) -> bool {
     // process group created for this child. ESRCH is the only result that proves
     // the boundary has drained; success and every other errno are live or
     // indeterminate and therefore remain fail-closed.
-    matches!(
-        kill(
-            Pid::from_raw(-process_group_id),
-            None::<nix::sys::signal::Signal>,
-        ),
-        Err(Errno::ESRCH)
-    )
+    macos_signal_zero_result_proves_absence(kill(
+        Pid::from_raw(-process_group_id),
+        None::<nix::sys::signal::Signal>,
+    ))
 }
 
 pub(crate) fn spawn_contained_process(
@@ -176,6 +193,63 @@ pub(crate) fn spawn_contained_process(
 #[cfg(all(test, target_os = "macos"))]
 mod tests {
     use super::*;
+    use std::cell::Cell;
+
+    #[test]
+    fn kill_error_recovery_requires_reap_then_absence_proof() {
+        for error in [Errno::ESRCH, Errno::EPERM] {
+            let probe_called = Cell::new(false);
+            assert!(!macos_kill_failure_has_post_reap_absence_proof(
+                Some(error as i32),
+                || false,
+                || {
+                    probe_called.set(true);
+                    true
+                },
+            ));
+            assert!(!probe_called.get());
+
+            let order = Cell::new(0_u8);
+            assert!(macos_kill_failure_has_post_reap_absence_proof(
+                Some(error as i32),
+                || {
+                    assert_eq!(order.get(), 0);
+                    order.set(1);
+                    true
+                },
+                || {
+                    assert_eq!(order.get(), 1);
+                    order.set(2);
+                    true
+                },
+            ));
+            assert_eq!(order.get(), 2);
+
+            let order = Cell::new(0_u8);
+            assert!(!macos_kill_failure_has_post_reap_absence_proof(
+                Some(error as i32),
+                || {
+                    assert_eq!(order.get(), 0);
+                    order.set(1);
+                    true
+                },
+                || {
+                    assert_eq!(order.get(), 1);
+                    order.set(2);
+                    false
+                },
+            ));
+            assert_eq!(order.get(), 2);
+        }
+    }
+
+    #[test]
+    fn signal_zero_result_accepts_only_esrch_as_absence() {
+        assert!(macos_signal_zero_result_proves_absence(Err(Errno::ESRCH)));
+        assert!(!macos_signal_zero_result_proves_absence(Ok(())));
+        assert!(!macos_signal_zero_result_proves_absence(Err(Errno::EPERM)));
+        assert!(!macos_signal_zero_result_proves_absence(Err(Errno::EINVAL)));
+    }
 
     #[test]
     fn signal_zero_probe_never_masks_a_live_process_group() {
