@@ -35,7 +35,7 @@ files_or_artifacts:
   - tests/test_analyze.py @ 7bff432cf7212da6f329588ce4d81a7cdca81d34
   - ARCHITECTURE.md @ 080f46f2235bfa3dee34a2488fdcc5b8caaefe54
   - pyproject.toml @ 15ea9dd57c500f219ec916ad0b99b9e07fa0a6ea
-  - LICENSE @ d645695673349e3947e8e5ae42332d0e93f1007
+  - LICENSE @ d645695673349e3947e8e5ae42332d0ac3164cd7
   - LICENSE-MIT @ b1d9746fb5c6c39fd502e2ebe432a12ad9a097f3
   - NOTICE @ 791bf88bb1e50572902dbbe9228153ea29846adf
 permission_basis: FOUNDER_ATTESTATION_2026-08-24 + public Apache-2.0 license grant
