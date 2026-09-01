@@ -96,6 +96,10 @@ pub enum ModelError {
     EmptyContentDigest,
     EmptyProvenance,
     EmptyRequiredCollection(&'static str),
+    InvariantRequirementKindMismatch {
+        kind: InvariantKind,
+        requirement_kind: InvariantKind,
+    },
     ContentDigestTooLarge {
         bytes: usize,
         max: usize,
@@ -167,6 +171,13 @@ impl fmt::Display for ModelError {
                     "required business-logic collection {field} must not be empty"
                 )
             }
+            Self::InvariantRequirementKindMismatch {
+                kind,
+                requirement_kind,
+            } => write!(
+                formatter,
+                "invariant kind {kind:?} cannot use requirement kind {requirement_kind:?}"
+            ),
             Self::ContentDigestTooLarge { bytes, max } => write!(
                 formatter,
                 "source content digest size {bytes} exceeds cap {max}"
@@ -1384,6 +1395,7 @@ impl InvariantDefinition {
         limits: BusinessLogicLimits,
     ) -> Result<Self, ModelError> {
         let limits = limits.validate()?;
+        validate_invariant_requirement_kind(kind, &requirements)?;
         Ok(Self {
             invariant_id,
             kind,
@@ -1669,6 +1681,29 @@ fn normalize_provenance(
     values.sort();
     values.dedup();
     Ok(values)
+}
+
+fn invariant_requirement_kind(requirement: &InvariantRequirement) -> InvariantKind {
+    match requirement {
+        InvariantRequirement::TenantBinding { .. } => InvariantKind::TenantBinding,
+        InvariantRequirement::RequiredRole { .. } => InvariantKind::RequiredRole,
+        InvariantRequirement::ProtectedProperties { .. } => InvariantKind::ProtectedProperties,
+        InvariantRequirement::ElevatedClientContext { .. } => InvariantKind::ElevatedClientContext,
+    }
+}
+
+fn validate_invariant_requirement_kind(
+    kind: InvariantKind,
+    requirement: &InvariantRequirement,
+) -> Result<(), ModelError> {
+    let requirement_kind = invariant_requirement_kind(requirement);
+    if kind != requirement_kind {
+        return Err(ModelError::InvariantRequirementKindMismatch {
+            kind,
+            requirement_kind,
+        });
+    }
+    Ok(())
 }
 
 fn normalize_invariant_requirement(
@@ -2007,14 +2042,16 @@ mod tests {
             .expect("scope");
         let provenance = vec![source("src/invariants.rs", 1)];
 
-        for (requirement, expected_field) in [
+        for (kind, requirement, expected_field) in [
             (
+                InvariantKind::RequiredRole,
                 InvariantRequirement::RequiredRole {
                     required_roles: Vec::new(),
                 },
                 "required_roles",
             ),
             (
+                InvariantKind::ProtectedProperties,
                 InvariantRequirement::ProtectedProperties {
                     protected_properties: Vec::new(),
                     mutation_operations: vec![DataOperationKind::Update],
@@ -2022,6 +2059,7 @@ mod tests {
                 "protected_properties",
             ),
             (
+                InvariantKind::ProtectedProperties,
                 InvariantRequirement::ProtectedProperties {
                     protected_properties: vec!["is_admin".to_owned()],
                     mutation_operations: Vec::new(),
@@ -2029,6 +2067,7 @@ mod tests {
                 "mutation_operations",
             ),
             (
+                InvariantKind::ElevatedClientContext,
                 InvariantRequirement::ElevatedClientContext {
                     allowed_server_contexts: Vec::new(),
                     required_guard_kinds: Vec::new(),
@@ -2039,7 +2078,7 @@ mod tests {
             assert!(matches!(
                 InvariantDefinition::new(
                     id("r3.invariant", expected_field),
-                    InvariantKind::RequiredRole,
+                    kind,
                     InvariantSource::ProjectDeclaration,
                     scope.clone(),
                     requirement,
@@ -2063,6 +2102,64 @@ mod tests {
             limits,
         )
         .expect("optional allowed server contexts remain optional");
+    }
+
+    #[test]
+    fn invariant_definition_rejects_every_kind_requirement_mismatch() {
+        let limits = BusinessLogicLimits::default();
+        let scope = InvariantScope::new(None, Vec::new(), None, Vec::new(), Vec::new(), limits)
+            .expect("scope");
+        let provenance = vec![source("src/invariants.rs", 1)];
+        let kinds = [
+            InvariantKind::TenantBinding,
+            InvariantKind::RequiredRole,
+            InvariantKind::ProtectedProperties,
+            InvariantKind::ElevatedClientContext,
+        ];
+
+        for kind in kinds {
+            for requirement_kind in kinds {
+                if kind == requirement_kind {
+                    continue;
+                }
+                let requirement = match requirement_kind {
+                    InvariantKind::TenantBinding => InvariantRequirement::TenantBinding {
+                        resource_tenant_field: "tenant_id".to_owned(),
+                        required_actor_identity: ActorIdentityKind::AuthenticatedUser,
+                    },
+                    InvariantKind::RequiredRole => InvariantRequirement::RequiredRole {
+                        required_roles: vec!["admin".to_owned()],
+                    },
+                    InvariantKind::ProtectedProperties => {
+                        InvariantRequirement::ProtectedProperties {
+                            protected_properties: vec!["is_admin".to_owned()],
+                            mutation_operations: vec![DataOperationKind::Update],
+                        }
+                    }
+                    InvariantKind::ElevatedClientContext => {
+                        InvariantRequirement::ElevatedClientContext {
+                            allowed_server_contexts: Vec::new(),
+                            required_guard_kinds: vec![GuardKind::Authentication],
+                        }
+                    }
+                };
+                assert!(matches!(
+                    InvariantDefinition::new(
+                        id("r3.invariant", "mismatch"),
+                        kind,
+                        InvariantSource::ProjectDeclaration,
+                        scope.clone(),
+                        requirement,
+                        provenance.clone(),
+                        limits,
+                    ),
+                    Err(ModelError::InvariantRequirementKindMismatch {
+                        kind: actual_kind,
+                        requirement_kind: actual_requirement_kind,
+                    }) if actual_kind == kind && actual_requirement_kind == requirement_kind
+                ));
+            }
+        }
     }
 
     #[test]
