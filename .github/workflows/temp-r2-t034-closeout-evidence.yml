@@ -1,0 +1,54 @@
+name: Temporary R2 T034 Closeout Evidence
+
+on:
+  push:
+    branches:
+      - impl/002-r2-t034-closeout
+
+permissions:
+  contents: read
+
+jobs:
+  closeout:
+    name: R2 T034 closeout evidence
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout without persisted credentials
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.98.0 --profile minimal --component rustfmt --component clippy
+
+      - name: Verify pinned toolchain
+        run: |
+          rustc +1.98.0 --version
+          cargo +1.98.0 --version
+
+      - name: Format workspace
+        run: cargo +1.98.0 fmt --all -- --check
+
+      - name: Check workspace
+        run: cargo +1.98.0 check --workspace --all-targets --locked
+
+      - name: Test workspace
+        run: cargo +1.98.0 test --workspace --locked -- --nocapture
+
+      - name: Clippy workspace
+        run: cargo +1.98.0 clippy --workspace --all-targets --locked -- -D warnings
+
+      - name: Run R2 release benchmark
+        run: cargo +1.98.0 test -p sentrdel-review --test r2_t028_release_benchmark --locked -- --nocapture
+
+      - name: Run R2 latency and resource benchmark
+        run: cargo +1.98.0 test -p sentrdel-review --test r2_t029_latency_resource_benchmark --locked -- --nocapture
+
+      - name: Run R2 secret no-network no-execution canaries
+        run: cargo +1.98.0 test -p sentrdel-review --test r2_phase4_adversarial --locked -- --nocapture
+
+      - name: Verify live repository governance
+        env:
+          GITHUB_TOKEN: ${{ secrets.SENTRDEL_GOVERNANCE_ADMIN_TOKEN }}
+        run: python3 scripts/verify_repository_governance.py
