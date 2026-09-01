@@ -6,29 +6,34 @@ on:
       - ci/temp-governance-reverify-20260901
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   rustfmt-probe:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout candidate
+      - name: Checkout exact candidate
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
-          persist-credentials: false
+          persist-credentials: true
           ref: feat/002-r2-t024-r1-handoff
+          fetch-depth: 1
+      - name: Require expected candidate head
+        run: test "$(git rev-parse HEAD)" = "8ed81333072c8f7f31d51bd8e2d73645b6946881"
       - name: Install pinned Rust toolchain
         run: rustup toolchain install 1.98.0 --profile minimal --component rustfmt
-      - name: Format candidate
+      - name: Apply pinned formatting
         run: cargo +1.98.0 fmt --all
-      - name: Upload formatted candidate files
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: r2-t024-rustfmt
-          path: |
-            crates/sentrdel-review/src/supabase.rs
-            crates/sentrdel-review/src/supabase_detection.rs
-            crates/sentrdel-review/src/profile.rs
-            crates/sentrdel-review/tests/t064_project_profile.rs
-          if-no-files-found: error
-          retention-days: 1
+      - name: Commit formatting only
+        run: |
+          set -euo pipefail
+          git config user.name "Sentrdel Governance Bot"
+          git config user.email "actions@users.noreply.github.com"
+          if git diff --quiet; then
+            echo "Candidate already formatted"
+            exit 0
+          fi
+          git diff --check
+          git add crates/sentrdel-review/src/supabase.rs crates/sentrdel-review/src/supabase_detection.rs crates/sentrdel-review/src/profile.rs crates/sentrdel-review/tests/t064_project_profile.rs
+          git commit -m "style(r2): apply pinned rustfmt to T024"
+          git push origin HEAD:refs/heads/feat/002-r2-t024-r1-handoff
