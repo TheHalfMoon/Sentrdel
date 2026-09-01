@@ -1,0 +1,22 @@
+name: Temporary Governance Reverify T034 Checkbox
+
+on:
+  push:
+    branches:
+      - ci/temp-governance-reverify-20260901-t034-checkbox
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Verify live repository governance
+        env:
+          GITHUB_TOKEN: ${{ secrets.SENTRDEL_GOVERNANCE_ADMIN_TOKEN }}
+        run: python3 scripts/verify_repository_governance.py
+
+# Probe target main after R2-T034 checkbox merge: 201529307dd2c2e85f938d3fdda5c9abef4e4df8
