@@ -7,7 +7,6 @@
 
 pub mod guard_mcp;
 pub mod init;
-pub mod provider_registration;
 pub mod reasoning;
 pub mod review;
 
@@ -359,21 +358,17 @@ fn validate_identifier(field: &'static str, value: &str) -> Result<(), CliContra
     Ok(())
 }
 
-fn is_canonical_relative_path(value: &str) -> bool {
-    !value.is_empty()
-        && !value.starts_with('/')
-        && !value.starts_with('\\')
-        && !value.contains('\\')
-        && !value.split('/').any(|segment| {
-            segment.is_empty()
-                || segment == "."
-                || segment == ".."
-                || segment.chars().any(char::is_control)
-        })
-        && !value
-            .as_bytes()
-            .get(1)
-            .is_some_and(|byte| *byte == b':' && value.as_bytes()[0].is_ascii_alphabetic())
+fn is_canonical_relative_path(path: &str) -> bool {
+    !path.is_empty()
+        && path.len() <= MAX_CLI_ID_BYTES
+        && !path.starts_with('/')
+        && !path.starts_with('\\')
+        && !path.contains('\\')
+        && !path.chars().any(char::is_control)
+        && path.as_bytes().get(1) != Some(&b':')
+        && !path
+            .split('/')
+            .any(|component| component.is_empty() || component == "." || component == "..")
 }
 
 fn reject_duplicate_finding_ids(findings: &[CliFindingRef]) -> Result<(), CliContractError> {
@@ -398,25 +393,29 @@ fn reject_duplicate_coverage_ids(coverage: &[CoverageRecord]) -> Result<(), CliC
     Ok(())
 }
 
-fn normalize_store_refs(store_refs: Option<Vec<String>>) -> Result<Option<Vec<String>>, CliContractError> {
-    let Some(mut refs) = store_refs else {
+fn normalize_store_refs(
+    store_refs: Option<Vec<String>>,
+) -> Result<Option<Vec<String>>, CliContractError> {
+    let Some(mut values) = store_refs else {
         return Ok(None);
     };
-    for value in &refs {
-        validate_identifier("store ref", value)?;
+    for value in &values {
+        validate_identifier("store reference", value)?;
     }
-    refs.sort();
-    refs.dedup();
-    if refs.is_empty() {
+    values.sort();
+    values.dedup();
+    if values.is_empty() {
         Ok(None)
     } else {
-        Ok(Some(refs))
+        Ok(Some(values))
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use sentrdel_schema::coverage::CoverageState;
+    use serde_json::Value;
 
     fn coverage(id: &str) -> CoverageRecord {
         CoverageRecord {
@@ -426,7 +425,7 @@ mod tests {
             scope: ".".to_owned(),
             producer: None,
             provider_dimension: None,
-            state: sentrdel_schema::coverage::CoverageState::Covered,
+            state: CoverageState::Covered,
             reason_code: None,
             details: None,
             input_digests: Vec::new(),
@@ -434,21 +433,47 @@ mod tests {
         }
     }
 
+    fn envelope(
+        findings: Vec<CliFindingRef>,
+        coverage: Vec<CoverageRecord>,
+        diagnostics: Vec<CliDiagnostic>,
+        store_refs: Option<Vec<String>>,
+    ) -> CliEnvelope {
+        CliEnvelope::new(
+            CliCommand::Review,
+            CliRepository::new("sha256:repo", ".").expect("repo"),
+            CliDecision::Allow,
+            findings,
+            coverage,
+            diagnostics,
+            CliTiming {
+                duration_ms: 12,
+                observed_at: Some("2026-08-28T00:00:00Z".to_owned()),
+            },
+            store_refs,
+        )
+        .expect("envelope")
+    }
+
     #[test]
-    fn exit_codes_are_frozen() {
+    fn r1_exit_codes_are_numerically_frozen() {
         assert_eq!(CliExitCode::Success.as_u8(), 0);
         assert_eq!(CliExitCode::Blocking.as_u8(), 1);
         assert_eq!(CliExitCode::Usage.as_u8(), 2);
         assert_eq!(CliExitCode::Incomplete.as_u8(), 3);
         assert_eq!(CliExitCode::Internal.as_u8(), 4);
+    }
+
+    #[test]
+    fn every_machine_decision_maps_to_the_binding_exit_semantics() {
         assert_eq!(CliDecision::Allow.exit_code(), CliExitCode::Success);
         assert_eq!(CliDecision::Deny.exit_code(), CliExitCode::Blocking);
+        assert_eq!(CliDecision::UsageError.exit_code(), CliExitCode::Usage);
         assert_eq!(CliDecision::Ask.exit_code(), CliExitCode::Incomplete);
         assert_eq!(
             CliDecision::Undecidable.exit_code(),
             CliExitCode::Incomplete
         );
-        assert_eq!(CliDecision::UsageError.exit_code(), CliExitCode::Usage);
         assert_eq!(
             CliDecision::InternalFailure.exit_code(),
             CliExitCode::Internal
@@ -456,54 +481,172 @@ mod tests {
     }
 
     #[test]
-    fn json_envelope_is_deterministic_and_one_line() {
-        let envelope = CliEnvelope::new(
-            CliCommand::Review,
-            CliRepository::new("repo:fixture", ".").unwrap(),
-            CliDecision::Allow,
-            Vec::new(),
-            vec![coverage("coverage:b"), coverage("coverage:a")],
-            vec![
-                CliDiagnostic::new("Z_LAST", CliDiagnosticLevel::Info, "last").unwrap(),
-                CliDiagnostic::new("A_FIRST", CliDiagnosticLevel::Warning, "first").unwrap(),
-            ],
-            CliTiming {
-                duration_ms: 12,
-                observed_at: None,
-            },
-            Some(vec!["store:z".to_owned(), "store:a".to_owned()]),
-        )
-        .unwrap();
-
-        let serialized = envelope.to_json_line().unwrap();
-        assert_eq!(serialized.matches('\n').count(), 1);
-        let value: serde_json::Value = serde_json::from_str(serialized.trim_end()).unwrap();
-        assert_eq!(value["coverage"][0]["coverage_id"], "coverage:a");
-        assert_eq!(value["diagnostics"][0]["code"], "A_FIRST");
-        assert_eq!(value["store_refs"][0], "store:a");
+    fn canonical_policy_verdicts_map_without_losing_ask() {
+        assert_eq!(CliDecision::from(Verdict::Allow), CliDecision::Allow);
+        assert_eq!(CliDecision::from(Verdict::Ask), CliDecision::Ask);
+        assert_eq!(CliDecision::from(Verdict::Deny), CliDecision::Deny);
+        assert_eq!(
+            CliDecision::from(Verdict::Undecidable),
+            CliDecision::Undecidable
+        );
     }
 
     #[test]
-    fn duplicate_ids_are_rejected() {
-        let error = CliEnvelope::new(
+    fn command_identifiers_are_stable() {
+        let cases = [
+            (CliCommand::Init, "\"init\""),
+            (CliCommand::Review, "\"review\""),
+            (CliCommand::Explain, "\"explain\""),
+            (CliCommand::GuardMcp, "\"guard mcp\""),
+            (
+                CliCommand::GuardInstallGitHooks,
+                "\"guard install-git-hooks\"",
+            ),
+        ];
+        for (command, expected) in cases {
+            assert_eq!(
+                serde_json::to_string(&command).expect("serialize"),
+                expected
+            );
+        }
+    }
+
+    #[test]
+    fn json_envelope_has_binding_top_level_shape_and_optional_store_refs() {
+        let json = envelope(Vec::new(), Vec::new(), Vec::new(), None)
+            .to_json_line()
+            .expect("json");
+        assert!(json.ends_with('\n'));
+
+        let value: Value = serde_json::from_str(json.trim_end()).expect("parse");
+        let object = value.as_object().expect("object");
+        assert_eq!(
+            object.keys().cloned().collect::<Vec<_>>(),
+            vec![
+                "command",
+                "coverage",
+                "decision",
+                "diagnostics",
+                "findings",
+                "repository",
+                "schema_version",
+                "timing",
+            ]
+        );
+        assert!(!object.contains_key("store_refs"));
+        assert_eq!(object["schema_version"], SCHEMA_V1);
+        assert_eq!(object["decision"], "ALLOW");
+    }
+
+    #[test]
+    fn input_order_and_direct_record_construction_do_not_change_machine_json() {
+        let finding_a = CliFindingRef {
+            finding_id: "finding:a".to_owned(),
+            evidence_ids: vec![
+                "evidence:2".to_owned(),
+                "evidence:1".to_owned(),
+                "evidence:1".to_owned(),
+            ],
+        };
+        let finding_b =
+            CliFindingRef::new("finding:b", vec!["evidence:3".to_owned()]).expect("finding");
+        let diagnostic_a = CliDiagnostic::new("A", CliDiagnosticLevel::Warning, "first diagnostic")
+            .expect("diagnostic");
+        let diagnostic_b = CliDiagnostic::new("B", CliDiagnosticLevel::Info, "second diagnostic")
+            .expect("diagnostic");
+
+        let forward = envelope(
+            vec![finding_b.clone(), finding_a.clone()],
+            vec![coverage("coverage:b"), coverage("coverage:a")],
+            vec![diagnostic_b.clone(), diagnostic_a.clone()],
+            Some(vec![
+                "store:b".to_owned(),
+                "store:a".to_owned(),
+                "store:a".to_owned(),
+            ]),
+        );
+        let reverse = envelope(
+            vec![finding_a, finding_b],
+            vec![coverage("coverage:a"), coverage("coverage:b")],
+            vec![diagnostic_a, diagnostic_b],
+            Some(vec!["store:a".to_owned(), "store:b".to_owned()]),
+        );
+
+        assert_eq!(
+            forward.to_json_line().expect("forward"),
+            reverse.to_json_line().expect("reverse")
+        );
+        assert_eq!(
+            forward.findings[0].evidence_ids,
+            vec!["evidence:1", "evidence:2"]
+        );
+    }
+
+    #[test]
+    fn envelope_rejects_duplicate_canonical_references() {
+        let finding = CliFindingRef::new("finding:a", Vec::<String>::new()).expect("finding");
+        let duplicate_findings = CliEnvelope::new(
             CliCommand::Review,
-            CliRepository::new("repo:fixture", ".").unwrap(),
+            CliRepository::new("sha256:repo", ".").expect("repo"),
+            CliDecision::Allow,
+            vec![finding.clone(), finding],
+            Vec::new(),
+            Vec::new(),
+            CliTiming::default(),
+            None,
+        );
+        assert!(matches!(
+            duplicate_findings,
+            Err(CliContractError::DuplicateFindingId(_))
+        ));
+
+        let duplicate_coverage = CliEnvelope::new(
+            CliCommand::Review,
+            CliRepository::new("sha256:repo", ".").expect("repo"),
             CliDecision::Allow,
             Vec::new(),
             vec![coverage("coverage:a"), coverage("coverage:a")],
             Vec::new(),
             CliTiming::default(),
             None,
-        )
-        .unwrap_err();
-        assert!(matches!(error, CliContractError::DuplicateCoverageId(_)));
+        );
+        assert!(matches!(
+            duplicate_coverage,
+            Err(CliContractError::DuplicateCoverageId(_))
+        ));
     }
 
     #[test]
-    fn repository_root_rejects_escape_and_windows_absolute_paths() {
-        for invalid in ["../repo", "repo/../escape", "C:/repo", "/repo", "repo\\path"] {
-            assert!(CliRepository::new("repo:fixture", invalid).is_err());
+    fn absolute_or_noncanonical_repository_roots_are_rejected() {
+        for root in [
+            "/home/user/repo",
+            "C:/repo",
+            "../repo",
+            "repo/../other",
+            "repo\\src",
+            "repo\nother",
+        ] {
+            assert!(matches!(
+                CliRepository::new("sha256:repo", root),
+                Err(CliContractError::InvalidRepositoryRoot(_))
+            ));
         }
-        assert!(CliRepository::new("repo:fixture", "apps/web").is_ok());
+        assert!(CliRepository::new("sha256:repo", ".").is_ok());
+        assert!(CliRepository::new("sha256:repo", "packages/api").is_ok());
+    }
+
+    #[test]
+    fn untrusted_identifiers_diagnostics_and_timing_are_bounded() {
+        assert!(CliFindingRef::new("   ", Vec::<String>::new()).is_err());
+        assert!(CliFindingRef::new("finding:a", vec!["bad\nid".to_owned()]).is_err());
+        assert!(CliDiagnostic::new("D001", CliDiagnosticLevel::Error, "bad\nmessage").is_err());
+        assert!(
+            CliTiming {
+                duration_ms: 0,
+                observed_at: Some("bad\ntime".to_owned()),
+            }
+            .validate()
+            .is_err()
+        );
     }
 }
