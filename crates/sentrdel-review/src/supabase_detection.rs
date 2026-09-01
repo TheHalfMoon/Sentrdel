@@ -59,7 +59,7 @@ pub struct SupabaseStaticPostureCoverage {
 pub struct SupabaseDetection {
     pub detected: bool,
     pub signals: Vec<SupabaseSignal>,
-    /// Present only when Supabase is detected. This is a control-plane handoff
+    /// Present only when Supabase is detected. This is the control-plane handoff
     /// to the compiled-in R2 pack, not security Evidence or a verdict.
     pub static_posture: Option<SupabaseStaticPostureCoverage>,
 }
