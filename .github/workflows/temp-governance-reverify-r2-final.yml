@@ -1,0 +1,22 @@
+name: Temporary Governance Reverify R2 Final
+
+on:
+  push:
+    branches:
+      - ci/temp-governance-reverify-20260901-r2-final
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Verify live repository governance
+        env:
+          GITHUB_TOKEN: ${{ secrets.SENTRDEL_GOVERNANCE_ADMIN_TOKEN }}
+        run: python3 scripts/verify_repository_governance.py
+
+# Probe target main after final R2 closeout merge: 81ce86472754b9a9cc04630f198d0022f26193ac
