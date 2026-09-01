@@ -17,12 +17,13 @@ use crate::config_detection::CiMcpConfigDetection;
 use crate::pack_registry::{PackCoverageDimension, SecurityPackRegistry};
 use crate::project_detection::LanguageEcosystemDetection;
 use crate::stack_detection::{DetectedStack, StackDetectionResult};
+use crate::supabase::{SUPABASE_R2_PACK_ID, manifest as supabase_r2_manifest};
 use crate::supabase_detection::SupabaseDetection;
 
 const PATH_SIGNAL_CONFIDENCE: &str = "PATH_SIGNAL";
 const PACK_REGISTERED_NOT_RUN: &str = "PACK_REGISTERED_NOT_RUN";
 const R1_POSTURE_NOT_IMPLEMENTED: &str = "R1_POSTURE_NOT_IMPLEMENTED";
-const SUPABASE_STATIC_POSTURE_NOT_IMPLEMENTED: &str = "SUPABASE_STATIC_POSTURE_NOT_IMPLEMENTED";
+const SUPABASE_R2_DIMENSION_NOT_IMPLEMENTED: &str = "SUPABASE_R2_DIMENSION_NOT_IMPLEMENTED";
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum ProjectCoverageSubjectKind {
@@ -146,14 +147,19 @@ pub fn build_project_profile_snapshot(
         .collect();
 
     if supabase.detected {
+        let pack_status = if native_supabase_r2_pack_registered(packs) {
+            PackStatus::Available
+        } else {
+            PackStatus::NotInstalled
+        };
         providers
             .entry("supabase".to_owned())
-            .and_modify(|provider| provider.pack_status = PackStatus::NotImplemented)
+            .and_modify(|provider| provider.pack_status = pack_status.clone())
             .or_insert_with(|| DetectedProvider {
                 provider_id: "supabase".to_owned(),
                 evidence_ids: Vec::new(),
                 detection_confidence: PATH_SIGNAL_CONFIDENCE.to_owned(),
-                pack_status: PackStatus::NotImplemented,
+                pack_status,
             });
     }
 
@@ -200,6 +206,12 @@ pub fn build_project_profile_snapshot(
     Ok(ProjectProfileSnapshot { profile, coverage })
 }
 
+fn native_supabase_r2_pack_registered(packs: &SecurityPackRegistry) -> bool {
+    packs
+        .get(SUPABASE_R2_PACK_ID)
+        .is_some_and(|pack| pack.manifest() == &supabase_r2_manifest())
+}
+
 fn build_project_coverage_matrix(
     profile: &ProjectProfile,
     stacks: &StackDetectionResult,
@@ -217,6 +229,7 @@ fn build_project_coverage_matrix(
                 by_subject
             });
 
+    let supabase_r2_registered = native_supabase_r2_pack_registered(packs);
     let mut entries = Vec::new();
     for provider in &profile.detected_providers {
         push_subject_dimensions(
@@ -225,6 +238,7 @@ fn build_project_coverage_matrix(
             &provider.provider_id,
             pack_dimensions.get(provider.provider_id.as_str()),
             supabase.detected && provider.provider_id == "supabase",
+            supabase_r2_registered,
         );
     }
     for framework in &profile.detected_frameworks {
@@ -233,6 +247,7 @@ fn build_project_coverage_matrix(
             ProjectCoverageSubjectKind::Framework,
             &framework.framework_id,
             pack_dimensions.get(framework.framework_id.as_str()),
+            false,
             false,
         );
     }
@@ -266,6 +281,7 @@ fn push_subject_dimensions(
     subject_id: &str,
     declared_dimensions: Option<&BTreeSet<PackCoverageDimension>>,
     is_supabase: bool,
+    supabase_r2_registered: bool,
 ) {
     for dimension in [
         PackCoverageDimension::Detection,
@@ -276,10 +292,20 @@ fn push_subject_dimensions(
     ] {
         let (state, reason_code) = match dimension {
             PackCoverageDimension::Detection => (CoverageState::Covered, None),
-            PackCoverageDimension::StaticPosture if is_supabase => (
-                CoverageState::Partial,
-                Some(SUPABASE_STATIC_POSTURE_NOT_IMPLEMENTED.to_owned()),
+            PackCoverageDimension::StaticPosture if is_supabase && supabase_r2_registered => (
+                CoverageState::Unavailable,
+                Some(PACK_REGISTERED_NOT_RUN.to_owned()),
             ),
+            PackCoverageDimension::LivePosture
+            | PackCoverageDimension::BusinessLogic
+            | PackCoverageDimension::Runtime
+                if is_supabase && supabase_r2_registered =>
+            {
+                (
+                    CoverageState::Unsupported,
+                    Some(SUPABASE_R2_DIMENSION_NOT_IMPLEMENTED.to_owned()),
+                )
+            }
             _ if declared_dimensions.is_some_and(|declared| declared.contains(&dimension)) => (
                 CoverageState::Unavailable,
                 Some(PACK_REGISTERED_NOT_RUN.to_owned()),

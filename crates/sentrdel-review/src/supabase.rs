@@ -1,9 +1,10 @@
 //! Supabase R2 provider contract and bounded migration discovery.
 //!
 //! This module defines the versioned Sentrdel-owned provider manifest,
-//! provider coverage capability names, and deterministic repository-path-only
-//! migration ordering. It grants no Finding or policy authority and never
-//! executes migration SQL or provider tooling.
+//! provider coverage capability names, deterministic repository-path-only
+//! migration ordering, and the native R2 pack registration handoff. It grants
+//! no Finding or policy authority and never executes migration SQL or provider
+//! tooling.
 
 pub mod auth_api;
 pub mod config;
@@ -27,6 +28,7 @@ use std::collections::BTreeMap;
 use std::error::Error;
 use std::fmt;
 
+use crate::pack_registry::{PackRegistryError, SecurityPackRegistry, ValidatedPackManifest};
 use crate::view::{DEFAULT_MAX_REPO_PATH_BYTES, NormalizedRepoPath, RepoViewError};
 
 pub const SUPABASE_R2_PACK_ID: &str = "sentrdel.supabase.static-posture";
@@ -43,6 +45,8 @@ pub const COVERAGE_LIVE_POSTURE: &str = "LIVE_POSTURE";
 pub const COVERAGE_BUSINESS_LOGIC: &str = "BUSINESS_LOGIC";
 pub const COVERAGE_RUNTIME: &str = "RUNTIME";
 
+/// Provider-specific R2 CoverageRecord capabilities. These remain finer-grained
+/// than the R1 SecurityPackManifest coverage categories.
 pub const SUPABASE_R2_COVERAGE_DIMENSIONS: &[&str] = &[
     COVERAGE_DETECTION,
     COVERAGE_STATIC_POSTURE_DATABASE,
@@ -54,6 +58,12 @@ pub const SUPABASE_R2_COVERAGE_DIMENSIONS: &[&str] = &[
     COVERAGE_BUSINESS_LOGIC,
     COVERAGE_RUNTIME,
 ];
+
+/// The manifest must use only the frozen R1 registry categories. Detailed R2
+/// provider coverage is emitted through canonical CoverageRecords, not by
+/// widening the SecurityPackManifest schema.
+pub const SUPABASE_R2_MANIFEST_COVERAGE_DIMENSIONS: &[&str] =
+    &[COVERAGE_DETECTION, "STATIC_POSTURE"];
 
 pub const SUPABASE_MIGRATION_DIRECTORY: &str = "supabase/migrations/";
 pub const SUPABASE_MIGRATION_ORDER_KEY_BYTES: usize = 14;
@@ -251,16 +261,26 @@ pub fn manifest() -> SecurityPackManifest {
         evidence_capabilities: vec!["static-posture-evidence".to_owned()],
         required_engines: Vec::new(),
         required_features: Vec::new(),
-        coverage_dimensions: SUPABASE_R2_COVERAGE_DIMENSIONS
+        coverage_dimensions: SUPABASE_R2_MANIFEST_COVERAGE_DIMENSIONS
             .iter()
             .map(|value| (*value).to_owned())
             .collect(),
     }
 }
 
+/// Register the compiled-in R2 provider pack through the existing R1 registry
+/// boundary. Registration grants only the registry's Evidence/Coverage output
+/// kinds; it does not execute provider analysis.
+pub fn register_r2_pack(
+    registry: &mut SecurityPackRegistry,
+) -> Result<&ValidatedPackManifest, PackRegistryError> {
+    registry.register(manifest())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::pack_registry::{PackCoverageDimension, PackOutputKind};
 
     #[test]
     fn manifest_is_versioned_provider_owned_and_dependency_free() {
@@ -276,13 +296,32 @@ mod tests {
     }
 
     #[test]
-    fn manifest_exposes_exact_r2_coverage_dimensions() {
+    fn manifest_uses_r1_categories_while_r2_keeps_detailed_coverage_constants() {
         let value = manifest();
-        let expected: Vec<String> = SUPABASE_R2_COVERAGE_DIMENSIONS
+        let expected_manifest: Vec<String> = SUPABASE_R2_MANIFEST_COVERAGE_DIMENSIONS
             .iter()
             .map(|dimension| (*dimension).to_owned())
             .collect();
-        assert_eq!(value.coverage_dimensions, expected);
+        assert_eq!(value.coverage_dimensions, expected_manifest);
+        assert_eq!(SUPABASE_R2_COVERAGE_DIMENSIONS.len(), 9);
+        assert!(SUPABASE_R2_COVERAGE_DIMENSIONS.contains(&COVERAGE_STATIC_POSTURE_DATABASE));
+        assert!(SUPABASE_R2_COVERAGE_DIMENSIONS.contains(&COVERAGE_STATIC_POSTURE_EDGE_FUNCTIONS));
+    }
+
+    #[test]
+    fn native_r2_pack_registers_without_widening_output_authority() {
+        let mut registry = SecurityPackRegistry::new();
+        let registered = register_r2_pack(&mut registry).unwrap();
+        assert_eq!(registered.pack_id(), SUPABASE_R2_PACK_ID);
+        assert!(
+            registered
+                .coverage_dimensions()
+                .contains(&PackCoverageDimension::StaticPosture)
+        );
+        assert_eq!(
+            ValidatedPackManifest::output_kinds(),
+            [PackOutputKind::Evidence, PackOutputKind::Coverage]
+        );
     }
 
     #[test]
