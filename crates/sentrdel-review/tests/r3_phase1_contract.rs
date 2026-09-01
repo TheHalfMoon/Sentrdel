@@ -26,6 +26,25 @@ const BUILTIN_IMPERSONATION: &str = include_str!(
     "../../../fixtures/repos/r3-business-logic/project-invariants/builtin-impersonation/.sentrdel/invariants.toml"
 );
 
+const R3_FIXTURE_CATEGORIES: &[&str] = &[
+    "express/safe-tenant",
+    "express/unsafe-tenant",
+    "next-app/safe-role",
+    "next-pages/unknown-dynamic-guard",
+    "supabase-edge/safe-owner",
+    "supabase-edge/unsafe-elevated",
+    "supabase-data/safe-properties",
+    "supabase-data/unsafe-properties",
+    "adversarial/malformed-source",
+    "adversarial/dynamic-unsupported",
+    "adversarial/unsupported-framework",
+    "adversarial/hostile-repository",
+    "project-invariants/safe-tightening",
+    "project-invariants/forbidden-suppression",
+    "project-invariants/forbidden-authority",
+    "project-invariants/builtin-impersonation",
+];
+
 #[test]
 fn r3_pack_registers_with_evidence_coverage_only_authority() {
     let mut registry = SecurityPackRegistry::new();
@@ -45,43 +64,51 @@ fn r3_pack_registers_with_evidence_coverage_only_authority() {
 }
 
 #[test]
-fn phase1_development_corpus_freezes_r3_ground_truth_without_release_gating() {
+fn phase1_development_corpus_binds_every_declared_fixture_to_ground_truth() {
     let value: serde_json::Value =
         serde_json::from_slice(DEVELOPMENT_CORPUS).expect("valid corpus");
     assert_eq!(value["corpus_class"], "DEVELOPMENT_EVALUATION");
     assert_eq!(value["release_gating"], false);
 
     let cases = value["cases"].as_array().expect("cases array");
-    for expected in [
-        "r3-express-safe-tenant-ground-truth",
-        "r3-next-safe-role-ground-truth",
-        "r3-edge-unsafe-elevated-ground-truth",
-        "r3-adversarial-unknown-ground-truth",
-    ] {
-        assert!(
-            cases.iter().any(|case| case["case_id"] == expected),
-            "missing R3 ground-truth case {expected}"
-        );
-    }
+    let r3_cases = cases
+        .iter()
+        .filter(|case| {
+            case["case_id"]
+                .as_str()
+                .is_some_and(|id| id.starts_with("r3-"))
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(r3_cases.len(), R3_FIXTURE_CATEGORIES.len());
 
-    for case in cases.iter().filter(|case| {
-        case["case_id"]
-            .as_str()
-            .is_some_and(|id| id.starts_with("r3-"))
-    }) {
+    for category in R3_FIXTURE_CATEGORIES {
+        assert!(FIXTURE_MATRIX.contains(category), "missing fixture matrix entry {category}");
+        let expected_root = format!("fixtures/repos/r3-business-logic/{category}");
+        let case = r3_cases
+            .iter()
+            .find(|case| case["fixture_root"] == expected_root)
+            .unwrap_or_else(|| panic!("fixture category {category} is not bound to a development case"));
         assert_eq!(case["expected_findings"], serde_json::json!([]));
         assert_eq!(case["emitted_findings"], serde_json::json!([]));
+        assert!(case["expected_coverage"].is_array());
+        assert!(case["expected_coverage_gaps"].is_array());
         let assertions = case["authority_assertions"]
             .as_array()
             .expect("authority assertions");
-        assert!(assertions.iter().any(|value| {
-            value == "no-target-execution" || value == "r3-output-is-evidence-or-coverage-only"
+        assert!(assertions.iter().any(|entry| {
+            entry == "no-target-execution"
+                || entry == "no-network-or-target-execution"
+                || entry == "r3-output-is-evidence-or-coverage-only"
+                || entry == "no-provider-access"
         }));
     }
+
+    assert!(FIXTURE_MATRIX.contains("SENTRDEL_CANARY"));
+    assert!(FIXTURE_MATRIX.contains("never grant authority"));
 }
 
 #[test]
-fn phase1_holdout_metadata_is_explicitly_ineligible_before_release_gating() {
+fn phase1_holdout_metadata_tracks_the_complete_r3_case_set_but_is_not_eligible() {
     let corpus: serde_json::Value =
         serde_json::from_slice(DEVELOPMENT_CORPUS).expect("valid development corpus");
     let holdout: serde_json::Value =
@@ -94,39 +121,22 @@ fn phase1_holdout_metadata_is_explicitly_ineligible_before_release_gating() {
         "NOT_ELIGIBLE_PRE_RELEASE_GATING"
     );
 
-    let expected_case_ids = holdout["case_ids"].as_array().expect("holdout case ids");
-    let corpus_cases = corpus["cases"].as_array().expect("corpus cases");
-    for case_id in expected_case_ids {
-        assert!(
-            corpus_cases.iter().any(|case| case["case_id"] == *case_id),
-            "holdout metadata references unknown development case {case_id}"
-        );
-    }
-}
+    let holdout_ids = holdout["case_ids"]
+        .as_array()
+        .expect("holdout case ids")
+        .iter()
+        .map(|value| value.as_str().expect("case id"))
+        .collect::<std::collections::BTreeSet<_>>();
+    let corpus_ids = corpus["cases"]
+        .as_array()
+        .expect("corpus cases")
+        .iter()
+        .filter_map(|case| case["case_id"].as_str())
+        .filter(|id| id.starts_with("r3-"))
+        .collect::<std::collections::BTreeSet<_>>();
 
-#[test]
-fn fixture_matrix_covers_safe_unsafe_unknown_and_hostile_authority_cases() {
-    for required in [
-        "express/safe-tenant",
-        "express/unsafe-tenant",
-        "next-app/safe-role",
-        "next-pages/unknown-dynamic-guard",
-        "supabase-edge/safe-owner",
-        "supabase-edge/unsafe-elevated",
-        "supabase-data/safe-properties",
-        "supabase-data/unsafe-properties",
-        "adversarial/malformed-source",
-        "adversarial/dynamic-unsupported",
-        "adversarial/unsupported-framework",
-        "adversarial/hostile-repository",
-    ] {
-        assert!(
-            FIXTURE_MATRIX.contains(required),
-            "missing fixture matrix entry {required}"
-        );
-    }
-    assert!(FIXTURE_MATRIX.contains("SENTRDEL_CANARY"));
-    assert!(FIXTURE_MATRIX.contains("never grant authority"));
+    assert_eq!(holdout_ids, corpus_ids);
+    assert_eq!(holdout_ids.len(), R3_FIXTURE_CATEGORIES.len());
 }
 
 #[test]
