@@ -50,8 +50,16 @@ jobs:
       - name: Test R2 static authority canaries
         run: cargo +1.98.0 test -p sentrdel-review --test r2_phase4_adversarial --locked
 
+      - name: Qualify T027 macOS process-tree lifecycle containment
+        if: matrix.platform == 'macos'
+        run: cargo +1.98.0 test -p sentrdel-engine --lib runner::tests::runner_enforces_wall_clock_output_caps_and_kills_descendants --locked -- --exact --nocapture
+
       - name: Clippy supported CLI and guard paths
         run: cargo +1.98.0 clippy -p sentrdel-cli -p sentrdel-guard --all-targets --locked -- -D warnings
+
+      - name: Qualify Windows review lint
+        if: matrix.platform == 'windows'
+        run: cargo +1.98.0 clippy -p sentrdel-review --all-targets --locked -- -D warnings
 
       - name: Guard seam qualification
         run: cargo +1.98.0 test -p sentrdel-guard --locked
@@ -60,6 +68,8 @@ jobs:
 # supported CLI/guard test and lint paths on Linux, macOS, and Windows.
 # R2-T031 additionally runs the bounded R2 Phase 4 secret-persistence,
 # no-provider-network, and no-target-execution canaries on all three platforms.
-# This does not claim identical operating-system interception, external-engine
-# process containment, hosted-provider behavior, or live-posture semantics.
-# Those remain separately qualified by their owning seams and coverage records.
+# Issue #138 adds an owning-seam macOS T027 process-tree lifecycle regression and
+# Windows sentrdel-review lint qualification. The macOS check proves only the
+# tested POSIX process-group lifecycle containment boundary; it does not claim a
+# hostile-code sandbox, network isolation, identical OS interception, hosted-
+# provider behavior, or live-posture semantics.
