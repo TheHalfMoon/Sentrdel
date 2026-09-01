@@ -183,18 +183,19 @@ fn source_tokens(source: &str) -> Vec<(&str, usize)> {
 
 fn key_boundary_evidence(source: &str) -> Vec<Evidence> {
     let source_path = path("src/browser.ts");
-    let context = classify_source_execution_context(
-        &source_path,
-        source,
-        SourceContextLimits::default(),
-    )
-    .unwrap();
+    let context =
+        classify_source_execution_context(&source_path, source, SourceContextLimits::default())
+            .unwrap();
     let source_digest = digest("r2-t028-browser-source", source);
     let mut evidence = Vec::new();
     for (raw, byte_offset) in source_tokens(source) {
         let location = KeyAuthorityLocation {
             path: source_path.clone(),
-            line: source[..byte_offset].bytes().filter(|byte| *byte == b'\n').count() as u64 + 1,
+            line: source[..byte_offset]
+                .bytes()
+                .filter(|byte| *byte == b'\n')
+                .count() as u64
+                + 1,
             start_column: 1,
             end_column: raw.len() as u64 + 1,
         };
@@ -370,7 +371,10 @@ fn evaluate_once() -> R2ReleaseRun {
     assert_eq!(development["release_gating"], Value::Bool(false));
     assert!(suite.release_gating);
     assert_eq!(suite.corpus_class, "DEVELOPMENT_EVALUATION");
-    assert_eq!(suite.inputs.safe_fixture, "fixtures/repos/r2-supabase/positive/safe-posture");
+    assert_eq!(
+        suite.inputs.safe_fixture,
+        "fixtures/repos/r2-supabase/positive/safe-posture"
+    );
     assert_eq!(
         suite.inputs.vulnerable_fixture,
         "fixtures/repos/r2-supabase/negative/unsafe-posture"
@@ -447,9 +451,18 @@ fn evaluate_once() -> R2ReleaseRun {
         ("provider-output-is-evidence-or-coverage-only", true),
         ("only-reconciler-creates-findings", true),
         ("fixture-content-has-no-instruction-authority", true),
-        ("no-live-supabase-access", !EDGE_AUTH_PROVIDER_NETWORK_ALLOWED && !AUTH_API_PROVIDER_NETWORK_ALLOWED),
-        ("no-target-execution", !TARGET_BUILD_EXECUTION_ALLOWED && !EDGE_AUTH_TARGET_EXECUTION_ALLOWED),
-        ("no-secret-plaintext-persistence", !persisted_debug.contains(SECRET_CANARY)),
+        (
+            "no-live-supabase-access",
+            !EDGE_AUTH_PROVIDER_NETWORK_ALLOWED && !AUTH_API_PROVIDER_NETWORK_ALLOWED,
+        ),
+        (
+            "no-target-execution",
+            !TARGET_BUILD_EXECUTION_ALLOWED && !EDGE_AUTH_TARGET_EXECUTION_ALLOWED,
+        ),
+        (
+            "no-secret-plaintext-persistence",
+            !persisted_debug.contains(SECRET_CANARY),
+        ),
     ]);
     let authority_assertions_passed = suite
         .authority_assertions
@@ -457,7 +470,10 @@ fn evaluate_once() -> R2ReleaseRun {
         .filter(|id| authority_results.get(id.as_str()).copied() == Some(true))
         .cloned()
         .collect::<Vec<_>>();
-    assert_eq!(authority_assertions_passed.len(), suite.authority_assertions.len());
+    assert_eq!(
+        authority_assertions_passed.len(),
+        suite.authority_assertions.len()
+    );
 
     assert_eq!(suite.performance.state, "NOT_MEASURED");
     assert_eq!(suite.performance.owner_task, "R2-T029");
