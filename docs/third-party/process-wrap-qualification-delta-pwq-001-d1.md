@@ -3,7 +3,7 @@
 **Parent qualification:** `PWQ-001`  
 **Scope:** T027 external-engine process lifecycle containment on macOS only  
 **Dependency identities:** unchanged — `process-wrap = 9.1.0`, `nix = 0.31.3`  
-**Status:** `CANDIDATE_PENDING_EXACT_HEAD_QUALIFICATION_AND_CANONICALIZATION`
+**Status:** `CANONICAL_QUALIFIED`
 
 ## Why this delta exists
 
@@ -31,9 +31,9 @@ Relevant upstream identities remain those frozen by `PWQ-001`:
 
 `Cargo.lock` is unchanged by this delta.
 
-## Admitted candidate direct API surface
+## Admitted canonical direct API surface
 
-On `target_os = "macos"` only, the PR candidate directly uses the following `nix` API surface, and no broader surface is implied:
+On `target_os = "macos"` only, Sentrdel directly uses the following `nix` API surface, and no broader surface is implied:
 
 - `nix::errno::Errno::{ESRCH, EPERM}` only for structured OS-error identity: initial group-kill `ESRCH`/`EPERM` select the fail-closed post-reap proof path, while only signal-zero-probe `ESRCH` proves absence;
 - `nix::unistd::Pid`, including `Pid::from_raw(...)` to encode the exact negative process-group identifier captured from the spawned child and `Pid::as_raw()` in the test canary;
@@ -85,11 +85,11 @@ Earlier candidate heads are historical diagnostic evidence only. They do not qua
 - a later exact-head review found that accepting initial macOS group-kill `ESRCH` before reap/probe was inconsistent with this fail-closed lifecycle rule;
 - an exact-head governance review then found that the test-only `getpgrp()` canary API was omitted from the admitted direct API record;
 - the next exact-head review found that the directly named `nix::sys::signal::Signal` type was also omitted;
-- the subsequent live review found two additional qualification defects: the recovery branch lacked deterministic post-reap ordering/classification tests, and the source ledger described PWQ-001-D1 as already qualified before canonicalization. This revision adds the deterministic tests and keeps PWQ-001-D1 explicitly candidate-only until protected-main canonicalization and post-merge governance verification.
+- the subsequent live review found two additional qualification defects: the recovery branch lacked deterministic post-reap ordering/classification tests, and the source ledger described PWQ-001-D1 as already qualified before canonicalization. The final candidate added the deterministic tests and kept PWQ-001-D1 candidate-only until protected-main canonicalization and post-merge governance verification.
 
-The corrected candidate must therefore receive a **fresh exact-current-head** qualification cycle after this document and the implementation agree. No historical CI or review result substitutes for the final gate.
+The final candidate then received a fresh exact-current-head qualification cycle. Historical CI or review did not substitute for that gate.
 
-Required final-head evidence includes:
+Required final-head evidence was satisfied by:
 
 - `Cross-platform CI` success on Linux, macOS, and Windows;
 - macOS `process_tree::tests::kill_error_recovery_requires_reap_then_absence_proof` success;
@@ -100,8 +100,56 @@ Required final-head evidence includes:
 - `Bootstrap CI` success;
 - `Schema Lock Qualification` success;
 - `Self Security` success;
-- clean independent review of the exact current head;
+- clean independent exact-head review;
 - zero unresolved review conversations.
+
+## Canonical closeout evidence
+
+PWQ-001-D1 is canonical only because every pre-merge and post-merge gate completed on the recorded identities below.
+
+### Guarded merge identity
+
+- PR: `#250`
+- final PR head: `317a4ec2083ad751bce344e19838efcc6ac5c1de`
+- canonical base before merge: `81ce86472754b9a9cc04630f198d0022f26193ac`
+- merge method: merge commit with guarded `expected_head_sha`
+- canonical merge/main SHA: `b61b0e532a68ce5b56c7c4e27c41ac43484b6ae7`
+
+### Exact-head pre-merge evidence
+
+All listed runs targeted final PR head `317a4ec2083ad751bce344e19838efcc6ac5c1de`:
+
+- `Self Security` run `33521211369`: `success`;
+- `Cross-platform CI` run `33521211225`: `success`;
+- `Schema Lock Qualification` run `33521211307`: `success`;
+- `Bootstrap CI` run `33521211218`: `success`;
+- Cubic independent exact-head review: completed successfully with no issues across the five changed files;
+- review conversations: zero unresolved at merge;
+- GitHub mergeability: clean against unchanged canonical base.
+
+### Canonical post-merge evidence
+
+All listed runs targeted canonical `main` SHA `b61b0e532a68ce5b56c7c4e27c41ac43484b6ae7`:
+
+- `Self Security` run `33523055645`: `success`;
+- `Cross-platform CI` run `33523054818`: `success`, including macOS T027 lifecycle qualification and Windows review lint;
+- `Bootstrap CI` run `33523054824`: `success`;
+- `Schema Lock Qualification` run `33523054834`: `success`.
+
+### Live repository-governance verification
+
+A bounded non-gate probe, based exactly on canonical main `b61b0e532a68ce5b56c7c4e27c41ac43484b6ae7`, used only the masked repository secret `SENTRDEL_GOVERNANCE_ADMIN_TOKEN`, unset the built-in `GITHUB_TOKEN`, used checkout with `persist-credentials: false`, and ran `scripts/verify_repository_governance.py`.
+
+- workflow run: `33523152820`;
+- job: `99907174845`;
+- result: `success`;
+- verifier output: `repository-governance: PASS`;
+- verified branch: `main`;
+- verified head: `b61b0e532a68ce5b56c7c4e27c41ac43484b6ae7`;
+- verified required checks: `Dependency security`, `Resolve and test schema substrate`, `Rust 1.98 bootstrap`;
+- active repository rulesets reported by the verifier: `0`.
+
+The temporary workflow was removed from its non-canonical probe branch in commit `938f1684042ee676d4183a2c7754e4adac8e95be`. It never modified canonical `main`, never persisted the credential, and never used the credential for mutation.
 
 ## Authority and non-claims
 
@@ -118,23 +166,8 @@ This delta proves only the tested T027 POSIX process-group lifecycle seam on mac
 
 The original `PWQ-001` authority ceilings remain binding.
 
-## Canonicalization gate
+## Canonicalization result
 
-This delta has no canonical authority merely because it exists on a feature branch or because an exact-head CI/review cycle succeeds. It becomes part of canonical `PWQ-001` only after PR #250 reaches protected `main` and the resulting canonical `main` passes post-merge repository-governance verification.
-
-Pre-merge requirements:
-
-- every applicable required and project qualification check is successful on the exact final head;
-- independent review is clean on that exact head;
-- all review conversations are resolved;
-- mergeability is clean;
-- merge uses guarded expected-head semantics.
-
-Post-merge requirements:
-
-- the resulting canonical `main` SHA is captured;
-- live branch protection remains enforced with the canonical required checks;
-- the bounded repository-governance verifier passes against that exact canonical `main`;
-- a follow-up canonicalization change records the final PR head, merge SHA, workflow evidence, governance-verifier evidence, and changes this delta/ledger from candidate to canonical qualification.
+The canonicalization gate is satisfied for the exact identities recorded above. PWQ-001-D1 is part of canonical `PWQ-001` for the bounded macOS T027 process-group lifecycle seam described in this document.
 
 Any later `process-wrap`/`nix` version change, resolved feature-closure expansion, additional direct privileged API use, or broader platform claim requires another qualification delta.
