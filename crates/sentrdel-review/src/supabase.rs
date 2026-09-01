@@ -309,12 +309,8 @@ mod tests {
             .collect();
         assert_eq!(value.coverage_dimensions, expected_manifest);
         assert_eq!(SUPABASE_R2_COVERAGE_DIMENSIONS.len(), 9);
-        assert!(
-            SUPABASE_R2_COVERAGE_DIMENSIONS.contains(&COVERAGE_STATIC_POSTURE_DATABASE)
-        );
-        assert!(
-            SUPABASE_R2_COVERAGE_DIMENSIONS.contains(&COVERAGE_STATIC_POSTURE_EDGE_FUNCTIONS)
-        );
+        assert!(SUPABASE_R2_COVERAGE_DIMENSIONS.contains(&COVERAGE_STATIC_POSTURE_DATABASE));
+        assert!(SUPABASE_R2_COVERAGE_DIMENSIONS.contains(&COVERAGE_STATIC_POSTURE_EDGE_FUNCTIONS));
     }
 
     #[test]
