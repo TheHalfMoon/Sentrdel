@@ -75,11 +75,11 @@
 - [x] Project invariant configuration is sequenced after built-in substrate and its authority contract.
 - [x] Final closeout can reuse exact-head CI, independent review, expected-head merge and protected-main governance proof.
 
-## Remaining canonical gates
+## Canonical gates
 
 - [x] Initial R3 planning PR is exact-head qualified, independently review-clean, merged with expected-head protection, and post-merge governance is proven on protected `main`.
-- [ ] R3-T001 planning-gate closeout is separately exact-head qualified, independently review-clean, expected-head merged, and post-merge governance is proven; the task ledger and roadmap then mark R3 implementation-ready.
+- [x] R3-T001 planning-gate closeout is separately exact-head qualified, independently review-clean, expected-head merged, and post-merge governance is proven; the task ledger and roadmap may now mark R3 implementation-ready.
 
-Evidence for the completed first gate is recorded in `../planning-gate-evidence.md`.
+Evidence for the initial planning gate is recorded in `../planning-gate-evidence.md`. Evidence for the separately proven R3-T001 closeout is recorded in `../planning-closeout-evidence.md`.
 
-Until both remaining gates are satisfied, **R3-T002 and every product implementation task are blocked**.
+All planning/readiness evidence that must precede this status transition is complete. The status-canonicalization candidate that marks these records complete must still pass its own exact-head CI, clean independent review, zero unresolved conversations, guarded expected-head merge, post-merge required/Cross-platform CI and live repository-governance proof before R3-T002 begins.
