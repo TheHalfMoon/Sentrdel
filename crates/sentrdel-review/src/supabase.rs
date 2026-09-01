@@ -62,13 +62,8 @@ pub const SUPABASE_R2_COVERAGE_DIMENSIONS: &[&str] = &[
 /// The manifest must use only the frozen R1 registry categories. Detailed R2
 /// provider coverage is emitted through canonical CoverageRecords, not by
 /// widening the SecurityPackManifest schema.
-pub const SUPABASE_R2_MANIFEST_COVERAGE_DIMENSIONS: &[&str] = &[
-    COVERAGE_DETECTION,
-    "STATIC_POSTURE",
-    COVERAGE_LIVE_POSTURE,
-    COVERAGE_BUSINESS_LOGIC,
-    COVERAGE_RUNTIME,
-];
+pub const SUPABASE_R2_MANIFEST_COVERAGE_DIMENSIONS: &[&str] =
+    &[COVERAGE_DETECTION, "STATIC_POSTURE"];
 
 pub const SUPABASE_MIGRATION_DIRECTORY: &str = "supabase/migrations/";
 pub const SUPABASE_MIGRATION_ORDER_KEY_BYTES: usize = 14;
