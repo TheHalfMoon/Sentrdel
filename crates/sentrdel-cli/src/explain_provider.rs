@@ -100,11 +100,9 @@ mod tests {
     };
 
     fn finding(category: &str) -> Finding {
-        let reconciler = ReconcilerAuthority::from_runtime(
-            "sentrdel-reconciler",
-            "sha256:r2-t026-config",
-        )
-        .unwrap();
+        let reconciler =
+            ReconcilerAuthority::from_runtime("sentrdel-reconciler", "sha256:r2-t026-config")
+                .unwrap();
         Finding::new_reconciled(
             ReconciledFindingDraft {
                 schema_version: SCHEMA_V1.to_owned(),
@@ -177,7 +175,9 @@ mod tests {
 
         let output = output(
             "supabase_rls_posture",
-            vec![coverage(Some(ProviderCoverageDimension::CredentialedLivePosture))],
+            vec![coverage(Some(
+                ProviderCoverageDimension::CredentialedLivePosture,
+            ))],
         );
         assert!(SupabaseExplainContext::from_output(&output).is_none());
     }
