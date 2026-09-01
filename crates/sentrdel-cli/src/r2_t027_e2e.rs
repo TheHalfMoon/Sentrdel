@@ -125,9 +125,26 @@ fn normalized_path(value: &str) -> NormalizedRepoPath {
 }
 
 fn first_supabase_key_literal(source: &str) -> Option<(&str, usize)> {
-    source
-        .split_indices(|character: char| !(character.is_ascii_alphanumeric() || character == '_'))
-        .find_map(|(offset, token)| token.starts_with("sb_").then_some((token, offset)))
+    let mut token_start = None;
+    for (offset, character) in source.char_indices() {
+        let is_token = character.is_ascii_alphanumeric() || character == '_';
+        match (token_start, is_token) {
+            (None, true) => token_start = Some(offset),
+            (Some(start), false) => {
+                let token = &source[start..offset];
+                if token.starts_with("sb_") {
+                    return Some((token, start));
+                }
+                token_start = None;
+            }
+            _ => {}
+        }
+    }
+
+    token_start.and_then(|start| {
+        let token = &source[start..];
+        token.starts_with("sb_").then_some((token, start))
+    })
 }
 
 fn source_key_boundary_evidence(path: &str, source: &str) -> Vec<Evidence> {
