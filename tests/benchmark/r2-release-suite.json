@@ -5,7 +5,8 @@
   "release_gating": true,
   "clean_pr_false_positive_gate": {
     "max_false_positive_clean_prs": 1,
-    "per_clean_prs": 5
+    "per_clean_prs": 5,
+    "sample_state": "INITIAL_SINGLE_FIXTURE_STRICT_ZERO"
   },
   "known_ground_truth": {
     "required_signal_groups": [
