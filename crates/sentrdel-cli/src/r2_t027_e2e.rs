@@ -129,7 +129,12 @@ fn provider(case: FixtureCase) -> SupabaseR2ProviderOutput {
         producer: Some("sentrdel.supabase.e2e-fixture".to_owned()),
         provider_dimension: Some(ProviderCoverageDimension::StaticPosture),
         state,
-        reason_code: is_gap.then(|| format!("R2_T027_{}", case.slug().replace('-', "_").to_uppercase())),
+        reason_code: is_gap.then(|| {
+            format!(
+                "R2_T027_{}",
+                case.slug().replace('-', "_").to_uppercase()
+            )
+        }),
         details: Some("synthetic repository-derived E2E fixture coverage".to_owned()),
         input_digests: vec![format!("sha256:r2-t027:{}", case.slug())],
         observed_at: CAPTURED_AT.to_owned(),
@@ -208,7 +213,11 @@ fn baseline_init(case: FixtureCase) -> InitOutput {
 #[test]
 fn r2_fixture_repositories_have_deterministic_review_and_init_outputs() {
     for case in FixtureCase::ALL {
-        let forward = detect_supabase(case.paths(), DetectionLimits::default()).unwrap();
+        let forward = detect_supabase(
+            case.paths().iter().copied(),
+            DetectionLimits::default(),
+        )
+        .unwrap();
         let reversed = detect_supabase(
             case.paths().iter().rev().copied(),
             DetectionLimits::default(),
@@ -218,8 +227,10 @@ fn r2_fixture_repositories_have_deterministic_review_and_init_outputs() {
         assert!(forward.detected, "fixture must detect Supabase: {}", case.slug());
         assert!(!forward.has_security_verdict());
 
-        let first_review = register_supabase_r2_review(&baseline_review(case), &provider(case)).unwrap();
-        let second_review = register_supabase_r2_review(&baseline_review(case), &provider(case)).unwrap();
+        let first_review =
+            register_supabase_r2_review(&baseline_review(case), &provider(case)).unwrap();
+        let second_review =
+            register_supabase_r2_review(&baseline_review(case), &provider(case)).unwrap();
         assert_eq!(
             first_review.output.render_json().unwrap(),
             second_review.output.render_json().unwrap(),
@@ -235,7 +246,12 @@ fn r2_fixture_repositories_have_deterministic_review_and_init_outputs() {
 
         let first_init = register_supabase_r2_init(&baseline_init(case), &provider(case)).unwrap();
         let second_init = register_supabase_r2_init(&baseline_init(case), &provider(case)).unwrap();
-        assert_eq!(first_init.output, second_init.output, "init drift for {}", case.slug());
+        assert_eq!(
+            first_init.output,
+            second_init.output,
+            "init drift for {}",
+            case.slug()
+        );
         assert!(first_init.provider_evidence().is_empty());
 
         if case.has_canonical_finding() {
@@ -253,7 +269,9 @@ fn r2_fixture_repositories_have_deterministic_review_and_init_outputs() {
             let second = render_explain_human_with_supabase_context(&explain);
             assert_eq!(first, second);
             assert!(first.contains("repository-derived Supabase R2 static Evidence/Coverage"));
-            assert!(first.contains("does not execute or prove credentialed live Supabase posture"));
+            assert!(
+                first.contains("does not execute or prove credentialed live Supabase posture")
+            );
         } else {
             assert!(baseline_review(case).findings().is_empty());
         }
@@ -272,7 +290,10 @@ fn r2_e2e_ground_truth_distinguishes_safe_vulnerable_unknown_unsupported_and_hos
     assert!(HOSTILE_HELPER.contains("runner"));
 
     assert_eq!(FixtureCase::Safe.coverage_state(), CoverageState::Covered);
-    assert_eq!(FixtureCase::Vulnerable.coverage_state(), CoverageState::Covered);
+    assert_eq!(
+        FixtureCase::Vulnerable.coverage_state(),
+        CoverageState::Covered
+    );
     assert_eq!(
         FixtureCase::ContradictoryUnknown.coverage_state(),
         CoverageState::Partial
