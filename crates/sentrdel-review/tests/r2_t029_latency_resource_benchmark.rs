@@ -14,7 +14,8 @@ use sentrdel_schema::canonical::content_id;
 use serde::Deserialize;
 use serde_json::json;
 
-const POLICY_BYTES: &[u8] = include_bytes!("../../../tests/benchmark/r2-t029-performance-policy.json");
+const POLICY_BYTES: &[u8] =
+    include_bytes!("../../../tests/benchmark/r2-t029-performance-policy.json");
 const UNSAFE_BASELINE_SQL: &str = include_str!(
     "../../../fixtures/repos/r2-supabase/negative/unsafe-posture/supabase/migrations/20260829000100_baseline.sql"
 );
@@ -143,8 +144,14 @@ fn r2_t029_warm_state_reduction_has_qualified_metadata_and_preserves_r1_latency_
     );
     assert!(policy.sample_count >= 20);
     assert!(fixture_changed_loc() <= policy.workload.max_changed_loc);
-    assert_eq!(policy.latency_caps.r1_warm_review_p95_ms, R1_WARM_REVIEW_P95_CAP_MS);
-    assert_eq!(policy.latency_caps.r1_broad_100k_loc_ms, R1_BROAD_100K_LOC_CAP_MS);
+    assert_eq!(
+        policy.latency_caps.r1_warm_review_p95_ms,
+        R1_WARM_REVIEW_P95_CAP_MS
+    );
+    assert_eq!(
+        policy.latency_caps.r1_broad_100k_loc_ms,
+        R1_BROAD_100K_LOC_CAP_MS
+    );
     assert!(policy.latency_caps.r2_warm_p95_ms <= R1_WARM_REVIEW_P95_CAP_MS);
     assert!(!policy.external_engine_time_included);
     assert!(!policy.network_time_included);
@@ -156,7 +163,10 @@ fn r2_t029_warm_state_reduction_has_qualified_metadata_and_preserves_r1_latency_
     let metadata = machine_metadata();
     for key in &policy.machine_metadata_required {
         assert!(
-            metadata.get(key).and_then(serde_json::Value::as_str).is_some_and(|value| !value.is_empty()),
+            metadata
+                .get(key)
+                .and_then(serde_json::Value::as_str)
+                .is_some_and(|value| !value.is_empty()),
             "required machine metadata field {key} must be present"
         );
     }
@@ -248,10 +258,16 @@ fn r2_t029_declared_resource_caps_match_the_frozen_r2_defaults() {
     let policy = policy();
     let defaults = SqlScanLimits::default();
     assert_eq!(policy.resource_caps.max_sql_bytes, defaults.max_bytes);
-    assert_eq!(policy.resource_caps.max_sql_statements, defaults.max_statements);
+    assert_eq!(
+        policy.resource_caps.max_sql_statements,
+        defaults.max_statements
+    );
     assert_eq!(policy.resource_caps.max_sql_tokens, defaults.max_tokens);
     assert_eq!(policy.resource_caps.max_sql_nesting, defaults.max_nesting);
-    assert_eq!(policy.resource_caps.max_sql_diagnostics, defaults.max_diagnostics);
+    assert_eq!(
+        policy.resource_caps.max_sql_diagnostics,
+        defaults.max_diagnostics
+    );
     assert_eq!(
         policy.resource_caps.max_dollar_tag_bytes,
         defaults.max_dollar_tag_bytes
