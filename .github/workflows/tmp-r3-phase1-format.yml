@@ -1,0 +1,40 @@
+name: Temporary R3 Phase1 Format
+
+on:
+  push:
+    branches:
+      - feat/r3-phase1-contracts-ground-truth
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: feat/r3-phase1-contracts-ground-truth
+          fetch-depth: 0
+
+      - name: Install exact Rust formatter
+        run: rustup toolchain install 1.98.0 --profile minimal --component rustfmt
+
+      - name: Apply rustfmt only
+        run: cargo +1.98.0 fmt --all
+
+      - name: Commit formatter output if needed
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then
+            echo "No formatter changes required."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- '*.rs'
+          git commit -m "style(r3): apply Rust 1.98 formatter"
+          git push origin HEAD:feat/r3-phase1-contracts-ground-truth
