@@ -25,7 +25,7 @@ If guidance conflicts, the higher authority wins.
 
 ## Change discipline
 
-- Work task-by-task from `specs/001-v0-1-evidence-guard-foundation/tasks.md`.
+- Work task-by-task from the active Spec Kit `tasks.md`, following its declared dependencies and checkpoints.
 - Add tests with security boundary changes.
 - Keep dependencies minimal. Every dependency needs a justification; `build.rs`, proc macros, native code, downloaded artifacts, or network/credential behavior require elevated review.
 - Do not weaken lint/test/security gates to make a change pass.
