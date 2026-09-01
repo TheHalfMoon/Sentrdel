@@ -157,11 +157,11 @@ mod tests {
 
     #[test]
     fn supabase_static_finding_renders_provenance_object_layer_and_non_live_limit() {
-        let output = output(
+        let explain_output = output(
             "supabase_rls_posture",
             vec![coverage(Some(ProviderCoverageDimension::StaticPosture))],
         );
-        let rendered = render_explain_human_with_supabase_context(&output);
+        let rendered = render_explain_human_with_supabase_context(&explain_output);
         assert!(rendered.contains("repository-derived Supabase R2 static Evidence/Coverage"));
         assert!(rendered.contains("supabase/migrations/20260901010101_policy.sql"));
         assert!(rendered.contains("control layer: DATABASE"));
@@ -170,24 +170,24 @@ mod tests {
 
     #[test]
     fn provider_context_requires_matching_static_supabase_coverage() {
-        let output = output("supabase_rls_posture", Vec::new());
-        assert!(SupabaseExplainContext::from_output(&output).is_none());
+        let no_coverage_output = output("supabase_rls_posture", Vec::new());
+        assert!(SupabaseExplainContext::from_output(&no_coverage_output).is_none());
 
-        let output = output(
+        let live_only_output = output(
             "supabase_rls_posture",
             vec![coverage(Some(
                 ProviderCoverageDimension::CredentialedLivePosture,
             ))],
         );
-        assert!(SupabaseExplainContext::from_output(&output).is_none());
+        assert!(SupabaseExplainContext::from_output(&live_only_output).is_none());
     }
 
     #[test]
     fn non_supabase_findings_do_not_gain_provider_context() {
-        let output = output(
+        let explain_output = output(
             "dependency_vulnerability",
             vec![coverage(Some(ProviderCoverageDimension::StaticPosture))],
         );
-        assert!(SupabaseExplainContext::from_output(&output).is_none());
+        assert!(SupabaseExplainContext::from_output(&explain_output).is_none());
     }
 }
