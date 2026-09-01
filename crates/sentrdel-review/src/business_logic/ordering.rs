@@ -75,7 +75,11 @@ mod tests {
         let limits = BusinessLogicLimits::default();
         assert_eq!(
             normalize_bounded_strings(
-                vec!["role:z".to_owned(), "role:a".to_owned(), "role:z".to_owned()],
+                vec![
+                    "role:z".to_owned(),
+                    "role:a".to_owned(),
+                    "role:z".to_owned(),
+                ],
                 limits,
             )
             .unwrap(),
