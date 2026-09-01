@@ -117,7 +117,7 @@ fn macos_process_group_is_absent(process_group_id: u32) -> bool {
     matches!(
         kill(
             Pid::from_raw(-process_group_id),
-            None::<nix::sys::signal::Signal>
+            None::<nix::sys::signal::Signal>,
         ),
         Err(Errno::ESRCH)
     )
