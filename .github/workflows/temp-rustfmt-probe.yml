@@ -1,4 +1,4 @@
-name: Temporary R2-T024 Repair Probe
+name: Temporary R2-T027 Format Probe
 
 on:
   push:
@@ -9,49 +9,34 @@ permissions:
   contents: read
 
 jobs:
-  repair-probe:
+  format-probe:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout exact candidate
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           persist-credentials: false
-          ref: feat/002-r2-t024-r1-handoff
+          ref: test/002-r2-t027-e2e-fixtures
           fetch-depth: 1
           path: candidate
-      - name: Checkout temporary tooling
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
-        with:
-          persist-credentials: false
-          ref: ci/temp-governance-reverify-20260901
-          fetch-depth: 1
-          path: tooling
       - name: Require expected candidate head
-        run: test "$(git -C candidate rev-parse HEAD)" = "799f74d5236a25d30044c37f8cc5bced84511e05"
-      - name: Apply bounded review repairs
-        working-directory: candidate
-        run: python3 ../tooling/.github/temp/r2_t024_patch.py
+        run: test "$(git -C candidate rev-parse HEAD)" = "c2096b79cbb2246798dc70c7177c524406028b5b"
       - name: Install pinned Rust toolchain
         run: rustup toolchain install 1.98.0 --profile minimal --component rustfmt --component clippy
-      - name: Format repaired candidate
+      - name: Format candidate
         working-directory: candidate
         run: cargo +1.98.0 fmt --all
-      - name: Qualify repaired candidate
+      - name: Qualify formatted candidate
         working-directory: candidate
         run: |
           cargo +1.98.0 fmt --all --check
           cargo +1.98.0 check --workspace --all-targets --locked
           cargo +1.98.0 test --workspace --locked
           cargo +1.98.0 clippy --workspace --all-targets --locked -- -D warnings
-      - name: Upload repaired files
+      - name: Upload formatted T027 source
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: r2-t024-repaired-files
-          path: |
-            candidate/crates/sentrdel-review/src/profile.rs
-            candidate/crates/sentrdel-review/src/supabase.rs
-            candidate/crates/sentrdel-review/tests/t064_project_profile.rs
-            candidate/crates/sentrdel-cli/tests/t065_init_output.rs
-            candidate/crates/sentrdel-cli/tests/t066_init_adversarial.rs
+          name: r2-t027-formatted-source
+          path: candidate/crates/sentrdel-cli/src/r2_t027_e2e.rs
           if-no-files-found: error
           retention-days: 1
