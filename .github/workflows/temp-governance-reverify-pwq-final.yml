@@ -1,0 +1,26 @@
+name: Temporary Governance Reverify — PWQ Final
+
+on:
+  push:
+    branches:
+      - ci/temp-governance-reverify-20260901-pwq-final
+
+permissions:
+  contents: read
+
+jobs:
+  verify-live-governance:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout without persisted credentials
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Verify live repository governance
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.SENTRDEL_GOVERNANCE_ADMIN_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "${GITHUB_TOKEN:-}"
+          python3 scripts/verify_repository_governance.py
