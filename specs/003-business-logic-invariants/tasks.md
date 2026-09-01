@@ -21,11 +21,11 @@
 
 ## Phase 1 — Contracts, ground truth, and evaluation metadata
 
-- [ ] **R3-T002** Add the versioned R3 business-logic Security Pack/coverage manifest using existing R1 pack and canonical `CROSS_LAYER_BUSINESS_LOGIC`/`BUSINESS_LOGIC` coverage contracts; outputs remain Evidence + Coverage only with no Finding/policy override capability.
-- [ ] **R3-T003** [P] Create synthetic fixture repository matrix under a dedicated R3 fixture namespace covering safe/unsafe/unknown Express, Next.js, Supabase Edge and Supabase data-operation paths for tenant binding, privileged role checks, protected-property mutation, elevated-client boundaries, malformed/dynamic source, unsupported framework behavior and secret/no-execution canaries.
-- [ ] **R3-T004** [P] Extend SentrdelBench corpus metadata for the frozen R3 supported scope, expected direct/cross-layer Evidence groups, clean cases, explicit coverage gaps, authority assertions and protected-holdout eligibility before release-gating detector breadth.
-- [ ] **R3-T005** Freeze and implement the bounded internal cross-layer IR from `data-model.md`: stable route/actor/guard/value/data/client/link/path/invariant identities, provenance, UNKNOWN semantics, deterministic ordering and resource caps; no public schema widening unless separately justified.
-- [ ] **R3-T006** Freeze the tightening-only built-in/project invariant evaluator contract and validation fixtures proving repository declarations cannot suppress Evidence, waive Findings, lower severity, widen authority, impersonate built-in/kernel invariants or execute content.
+- [x] **R3-T002** Add the versioned R3 business-logic Security Pack/coverage manifest using existing R1 pack and canonical `CROSS_LAYER_BUSINESS_LOGIC`/`BUSINESS_LOGIC` coverage contracts; outputs remain Evidence + Coverage only with no Finding/policy override capability.
+- [x] **R3-T003** [P] Create synthetic fixture repository matrix under a dedicated R3 fixture namespace covering safe/unsafe/unknown Express, Next.js, Supabase Edge and Supabase data-operation paths for tenant binding, privileged role checks, protected-property mutation, elevated-client boundaries, malformed/dynamic source, unsupported framework behavior and secret/no-execution canaries.
+- [x] **R3-T004** [P] Extend SentrdelBench corpus metadata for the frozen R3 supported scope, expected direct/cross-layer Evidence groups, clean cases, explicit coverage gaps, authority assertions and protected-holdout eligibility before release-gating detector breadth.
+- [x] **R3-T005** Freeze and implement the bounded internal cross-layer IR from `data-model.md`: stable route/actor/guard/value/data/client/link/path/invariant identities, provenance, UNKNOWN semantics, deterministic ordering and resource caps; no public schema widening unless separately justified.
+- [x] **R3-T006** Freeze the tightening-only built-in/project invariant evaluator contract and validation fixtures proving repository declarations cannot suppress Evidence, waive Findings, lower severity, widen authority, impersonate built-in/kernel invariants or execute content.
 
 **Checkpoint:** ground truth, cross-layer identities and authority ceilings are canonical before framework detector breadth.
 
