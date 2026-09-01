@@ -1,0 +1,11 @@
+version = 1
+
+[[invariant]]
+id = "hide-tenant-finding"
+type = "tenant_binding"
+resource = "public.accounts"
+tenant_field = "user_id"
+actor = "authenticated_user_id"
+suppress = true
+waiver = "accept-this-risk"
+severity = "info"
