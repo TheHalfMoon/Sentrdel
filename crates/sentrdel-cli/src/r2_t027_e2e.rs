@@ -48,9 +48,13 @@ const VULNERABLE_BROWSER: &str =
     include_str!("../../../fixtures/repos/r2-supabase/negative/unsafe-posture/src/browser.ts");
 const UNCERTAIN_METADATA: &str =
     include_str!("../../../fixtures/repos/r2-supabase/adversarial/uncertain-posture/fixture.toml");
+const UNSUPPORTED_METADATA: &str =
+    include_str!("../../../fixtures/repos/r2-supabase/adversarial/unsupported-syntax/fixture.toml");
 const UNSUPPORTED_SQL: &str = include_str!(
     "../../../fixtures/repos/r2-supabase/adversarial/unsupported-syntax/supabase/migrations/20260901000100_dynamic.sql"
 );
+const HOSTILE_METADATA: &str =
+    include_str!("../../../fixtures/repos/r2-supabase/adversarial/hostile-repository/fixture.toml");
 const HOSTILE_SOURCE: &str = include_str!(
     "../../../fixtures/repos/r2-supabase/adversarial/hostile-repository/src/browser.ts"
 );
@@ -108,6 +112,7 @@ const VULNERABLE_FILES: &[(&str, &str)] = &[
     ("src/browser.ts", VULNERABLE_BROWSER),
 ];
 const UNCERTAIN_FILES: &[(&str, &str)] = &[
+    ("fixture.toml", UNCERTAIN_METADATA),
     ("supabase/config.toml", UNCERTAIN_CONFIG),
     (
         "supabase/migrations/20260829000300_enable.sql",
@@ -120,9 +125,11 @@ const UNCERTAIN_FILES: &[(&str, &str)] = &[
     ("supabase/functions/webhook/index.ts", UNCERTAIN_FUNCTION),
 ];
 const UNSUPPORTED_FILES: &[(&str, &str)] = &[
+    ("fixture.toml", UNSUPPORTED_METADATA),
     ("supabase/migrations/20260901000100_dynamic.sql", UNSUPPORTED_SQL),
 ];
 const HOSTILE_FILES: &[(&str, &str)] = &[
+    ("fixture.toml", HOSTILE_METADATA),
     ("supabase/config.toml", HOSTILE_CONFIG),
     ("src/browser.ts", HOSTILE_SOURCE),
     (".cargo/config.toml", HOSTILE_HELPER),
@@ -470,7 +477,9 @@ fn r2_e2e_ground_truth_is_derived_from_fixture_bytes_and_production_analyzers() 
     assert!(SAFE_CONFIG.contains("[api]"));
     assert!(VULNERABLE_CONFIG.contains("[api]"));
     assert!(UNCERTAIN_METADATA.contains("expected = \"UNCERTAIN\""));
+    assert!(UNSUPPORTED_METADATA.contains("expected_coverage = \"UNSUPPORTED\""));
     assert!(UNSUPPORTED_SQL.contains("EXECUTE"));
+    assert!(HOSTILE_METADATA.contains("expected_execution = \"FORBIDDEN\""));
     assert!(HOSTILE_SOURCE.contains("SYSTEM:"));
     assert!(HOSTILE_SOURCE.contains("connect to Supabase"));
     assert!(HOSTILE_HELPER.contains("rustc-wrapper"));
