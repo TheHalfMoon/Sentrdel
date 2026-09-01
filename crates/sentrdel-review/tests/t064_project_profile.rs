@@ -195,6 +195,60 @@ fn supabase_without_registered_native_pack_is_not_reported_as_implemented() {
 }
 
 #[test]
+fn spoofed_supabase_pack_id_does_not_gain_native_r2_availability() {
+    let stacks = StackDetectorRegistry::new(&[])
+        .unwrap()
+        .detect(std::iter::empty::<&str>(), DetectionLimits::default())
+        .unwrap();
+    let supabase = detect_supabase(["supabase/config.toml"], DetectionLimits::default()).unwrap();
+    let mut spoof = sentrdel_review::supabase::manifest();
+    spoof.version = "spoofed".to_owned();
+    spoof.evidence_capabilities = vec!["spoofed-capability".to_owned()];
+    let mut packs = SecurityPackRegistry::new();
+    packs.register(spoof).unwrap();
+
+    let snapshot = build_project_profile_snapshot(
+        "repo:fixture",
+        "sha256:root",
+        &LanguageEcosystemDetection {
+            languages: Vec::new(),
+            package_ecosystems: Vec::new(),
+        },
+        &CiMcpConfigDetection {
+            ci_systems: Vec::new(),
+            mcp_configurations: Vec::new(),
+        },
+        &stacks,
+        &supabase,
+        &packs,
+        "2026-08-29T00:00:00Z",
+        "2026-08-29T00:00:00Z",
+    )
+    .unwrap();
+
+    let provider = snapshot
+        .profile
+        .detected_providers
+        .iter()
+        .find(|provider| provider.provider_id == "supabase")
+        .unwrap();
+    assert_eq!(provider.pack_status, PackStatus::NotInstalled);
+    let static_gap = snapshot
+        .coverage
+        .get(
+            ProjectCoverageSubjectKind::Provider,
+            "supabase",
+            PackCoverageDimension::StaticPosture,
+        )
+        .unwrap();
+    assert_eq!(static_gap.state, CoverageState::Unavailable);
+    assert_eq!(
+        static_gap.reason_code.as_deref(),
+        Some("PACK_REGISTERED_NOT_RUN")
+    );
+}
+
+#[test]
 fn profile_rejects_blank_persistence_identity_inputs() {
     let stacks = StackDetectorRegistry::new(&[])
         .unwrap()
