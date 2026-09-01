@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 jobs:
-  diagnose:
+  format:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout exact candidate
@@ -20,40 +20,28 @@ jobs:
           fetch-depth: 1
           path: candidate
       - name: Require expected candidate head
-        run: test "$(git -C candidate rev-parse HEAD)" = "679ab7ae6fe95530b00a87914754639e827ce2d1"
+        run: test "$(git -C candidate rev-parse HEAD)" = "3b0e044d9c856d6d8bbed46919347b18b07bf2f1"
       - name: Install pinned Rust toolchain
         run: rustup toolchain install 1.98.0 --profile minimal --component rustfmt --component clippy
+      - name: Format candidate
+        working-directory: candidate
+        run: cargo +1.98.0 fmt --all
+      - name: Upload formatted benchmark
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: r2-t028-formatted-benchmark
+          path: candidate/crates/sentrdel-review/tests/r2_t028_release_benchmark.rs
+          if-no-files-found: error
+          retention-days: 1
       - name: Require formatted candidate
         working-directory: candidate
         run: cargo +1.98.0 fmt --all --check
-      - name: Inject ephemeral benchmark diagnostics
+      - name: Check candidate
         working-directory: candidate
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          path = Path('crates/sentrdel-review/tests/r2_t028_release_benchmark.rs')
-          text = path.read_text()
-          needle = '    let misses = required.difference(&detected).count() as u64;\n'
-          replacement = needle + '    eprintln!("T028_REQUIRED={required:?}");\n    eprintln!("T028_DETECTED={detected:?}");\n    eprintln!("T028_SAFE_SIGNALS={safe_signals:?}");\n    eprintln!("T028_VULNERABLE_EVIDENCE={vulnerable_evidence:#?}");\n'
-          if needle not in text:
-              raise SystemExit('diagnostic insertion point missing')
-          path.write_text(text.replace(needle, replacement, 1))
-          PY
-      - name: Capture targeted benchmark diagnostics
+        run: cargo +1.98.0 check --workspace --all-targets --locked
+      - name: Test candidate
         working-directory: candidate
-        shell: bash
-        run: |
-          set +e
-          cargo +1.98.0 test -p sentrdel-review --test r2_t028_release_benchmark -- --nocapture 2>&1 | tee ../r2-t028-signal-output.txt
-          code=${PIPESTATUS[0]}
-          printf '%s\n' "$code" > ../r2-t028-signal-exit.txt
-          exit 0
-      - name: Upload T028 signal diagnostics
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: r2-t028-signal-diagnostics
-          path: |
-            r2-t028-signal-output.txt
-            r2-t028-signal-exit.txt
-          if-no-files-found: error
-          retention-days: 1
+        run: cargo +1.98.0 test --workspace --locked
+      - name: Clippy candidate
+        working-directory: candidate
+        run: cargo +1.98.0 clippy --workspace --all-targets --locked -- -D warnings
