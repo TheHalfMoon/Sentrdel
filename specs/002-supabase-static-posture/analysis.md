@@ -1,105 +1,113 @@
 # Spec Kit Consistency Analysis: R2 Supabase Static Posture
 
-**Date:** 2026-08-29  
-**Scope:** Planning artifacts only.  
-**Status:** PLANNING_CONSISTENT_PENDING_CANONICALIZATION
+**Date:** 2026-09-01  
+**Scope:** Final R2 consistency analysis after implementation through R2-T032.  
+**Status:** CONSISTENT_WITH_ONE_REPAIRED_LOWER_AUTHORITY_DRIFT
 
-## Inputs reviewed
+## Canonical basis
 
-- `.specify/memory/constitution.md`
-- `AGENTS.md`
-- `docs/security/dependency-policy.md`
-- `specs/000-sentrdel-roadmap/roadmap.md`
-- `specs/000-sentrdel-roadmap/improvement-plan-2026-08-26.md`
-- R1 canonical Supabase detector and Security Pack/Evidence/Coverage contracts
-- R2 `spec.md`
-- R2 `clarification-closeout.md`
-- R2 `research.md`
-- R2 `plan.md`
-- R2 `data-model.md`
+- canonical `main` at analysis start: `72a1c09909b7b1df7f146d2a7675bb06c44a97cc`
+- `.specify/memory/constitution.md` version `1.0.1`
+- active roadmap R2 slice in `specs/000-sentrdel-roadmap/roadmap.md`
+- R1 canonical Evidence/Coverage/reconciler authority contracts
+- R2 `spec.md`, `clarification-closeout.md`, `research.md`, `plan.md`, `data-model.md`
 - R2 `contracts/static-posture-contract.md`
-- R2 `checklists/implementation-readiness.md`
-- R2 `tasks.md`
-- R2 `quickstart.md`
+- R2 implementation-readiness checklist and `tasks.md`
+- implemented R2 source, tests, fixtures, benchmarks, self-security and documentation through `R2-T032`
+- repository governance policy `docs/security/repository-governance-policy.json`
 
-## Result
+## Final result
 
-No internal contradiction authorizes product implementation before the planning gate. R2-T001 and the final readiness checklist item deliberately keep implementation blocked until this planning slice is exact-head qualified, merged to protected `main`, and proven canonical.
+R2 remains aligned with the Constitution, roadmap, R1 authority model, and its own specification/plan/contracts. No implemented R2 behavior expands into LIVE_POSTURE, provider-admin credential use, target execution, SQL execution, autonomous exploitation, or R3 BUSINESS_LOGIC authority.
+
+One lower-authority documentation drift was found and repaired as part of this task: `AGENTS.md` still instructed agents to work specifically from the Spec 001 task list. That wording conflicted with the active Spec 002 authority chain. It is changed to require work from the active Spec Kit `tasks.md` while preserving declared dependencies and checkpoints.
+
+No product implementation repair is required by this analysis.
 
 ## Authority alignment
 
 ### Rust trusted core
 
-PASS. Security-relevant parser/state/Evidence logic remains Rust-owned. No provider SDK, SQL runtime, or external target tool is introduced by the plan.
+PASS. Security-critical R2 parsing, state reduction, Evidence production, coverage, provider orchestration, redaction integration, and developer-facing integration remain Rust-owned. R2 introduces no provider SDK or target execution runtime into the trusted path.
 
 ### Evidence Before Verdict
 
-PASS. R2 providers emit Evidence/Coverage only. Canonical Finding authority remains with the R1 reconciler. Direct observation and security interpretation are separated.
+PASS. R2 producers emit canonical Evidence/Coverage and preserve the R1 reconciler as the sole Finding authority. Direct observations remain distinct from security interpretation.
 
 ### Local-first / vendor-neutral
 
-PASS. Base R2 requires no Supabase account, provider credential, database connection, or network service.
+PASS. R2 static posture requires no Supabase account, provider credential, hosted project access, database connection, or network service.
 
-### Honest posture
+### Honest and monotonic posture
 
-PASS. Repository-derived STATIC_POSTURE is explicitly not LIVE_POSTURE. UNKNOWN and unsupported syntax remain visible.
+PASS. STATIC_POSTURE remains distinct from LIVE_POSTURE, BUSINESS_LOGIC, and RUNTIME. Unsupported or ambiguous repository state reduces coverage instead of becoming a clean verdict.
 
 ### Safe verification
 
-PASS. R2 does not execute SQL, migrations, Edge Functions, or live verification.
+PASS. R2 does not execute SQL, migrations, Edge Functions, target package managers, provider tooling, or live verification.
 
-### Sentrdel self-security
+### Self-security
 
-PASS. Target bytes are bounded; no target build/provider tooling runs; secret persistence invariants and dependency governance remain binding.
+PASS. Bounded hostile inputs, no-network/no-target-execution canaries, secret redaction, dependency/source governance, and cross-platform qualification are represented by completed R2 tasks and remain binding.
 
 ### Spec Kit governance
 
-PASS with one intentional pending gate: planning must first become canonical. Product implementation is explicitly blocked until then.
+PASS after repair. The active Spec 002 task chain is canonical and `AGENTS.md` no longer hardcodes Spec 001 as the task authority.
 
-## Cross-artifact consistency checks
+## Cross-artifact consistency matrix
 
-| Topic | Spec | Plan/Data model | Contract | Tasks | Result |
+| Topic | Constitution/Roadmap | R2 Spec/Plan | Contract/Data Model | Implemented/Tasks | Result |
 |---|---|---|---|---|---|
-| Offline static only | yes | yes | yes | yes | CONSISTENT |
-| No target/provider execution | yes | yes | yes | yes | CONSISTENT |
-| RLS/grants/policies distinct | yes | yes | yes | yes | CONSISTENT |
-| SECURITY DEFINER contextual | yes | yes | yes | yes | CONSISTENT |
+| Offline static posture only | yes | yes | yes | yes | CONSISTENT |
+| No provider/target execution | yes | yes | yes | yes | CONSISTENT |
+| Reconciler-only Finding authority | yes | yes | yes | yes | CONSISTENT |
+| RLS/grants/policies remain distinct | yes | yes | yes | yes | CONSISTENT |
+| SECURITY DEFINER remains contextual | yes | yes | yes | yes | CONSISTENT |
 | Modern + legacy key authority | yes | yes | yes | yes | CONSISTENT |
-| Secret redaction | yes | yes | yes | yes | CONSISTENT |
-| Edge JWT replacement auth | yes | yes | yes | yes | CONSISTENT |
-| Unsupported syntax -> coverage | yes | yes | yes | yes | CONSISTENT |
-| Live posture deferred | yes | yes | yes | yes | CONSISTENT |
-| R3 business logic deferred | yes | yes | yes | yes | CONSISTENT |
-| Benchmark before rule promotion | yes | yes | yes | yes | CONSISTENT |
-| No dependency pre-authorized | yes | yes | implicit forbidden capability | yes | CONSISTENT |
+| Secret redaction before persistence | yes | yes | yes | yes | CONSISTENT |
+| Edge auth replacement patterns bounded | yes | yes | yes | yes | CONSISTENT |
+| Unsupported syntax lowers coverage | yes | yes | yes | yes | CONSISTENT |
+| LIVE_POSTURE deferred | yes | yes | yes | yes | CONSISTENT |
+| R3 BUSINESS_LOGIC deferred | yes | yes | yes | yes | CONSISTENT |
+| Benchmark qualification before promotion | yes | yes | yes | yes | CONSISTENT |
+| Dependency/source governance preserved | yes | yes | yes | yes | CONSISTENT |
+| Cross-platform limitations remain explicit | yes | yes | yes | yes | CONSISTENT |
 
-## Gaps intentionally left for implementation tasks
+## Repair ledger
 
-These are task work, not planning defects:
+### R2-T033-R1 — stale task-authority reference in `AGENTS.md`
 
-1. Exact SQL supported-subset grammar and token limits will be frozen in R2-T006/R2-T007 tests and code within the contract ceiling.
-2. Exact repository-visible exposed-schema inputs will be implemented conservatively in R2-T010; hosted dashboard exposure remains unknown without evidence.
-3. Exact browser/client context patterns will be bounded in R2-T019 and benchmarked before gating.
-4. Exact Edge Function replacement-auth patterns will be a small reviewed allowlist in R2-T022, not open-ended semantic reasoning.
-5. Exact latency/resource thresholds for R2-specific workload sizes will be recorded in R2-T029 while preserving existing R1 release ceilings unless separately amended.
+**Finding:** `AGENTS.md` said `Work task-by-task from specs/001-v0-1-evidence-guard-foundation/tasks.md` while Spec 002 is the active implementation authority.
 
-## Scope-creep checks
+**Risk:** A literal executor could incorrectly select completed R1 tasks or treat the active R2 task list as lower priority.
 
-The following proposals would violate the current R2 slice and require a later/new spec:
+**Authority:** Constitution Principle X and the `AGENTS.md` authority order require the active Spec Kit artifacts to control implementation.
 
-- using `SENTRDEL_*`, Supabase, database, service-role, or secret credentials to inspect a live project;
-- running `supabase db lint`, local Postgres, containers, migration runners, or target package commands as base analysis;
-- claiming production state from repository migration state;
-- implementing tenant/business-logic invariants across application routes and database policies;
-- automatic migration/fix application;
-- treating model output as provider FACT/VERIFIED authority.
+**Repair:** Replace the hard-coded Spec 001 path with `Work task-by-task from the active Spec Kit tasks.md, following its declared dependencies and checkpoints.`
 
-## Task-order check
+**Scope:** Documentation/governance only; no product behavior, dependency, CI gate, provider access, target execution, or Finding authority change.
 
-`R2-T001` is a hard prerequisite for every product-code task. Fixture/evaluation contracts precede parser/rule breadth. The bounded SQL/migration substrate precedes both database posture and config/key/Edge integration. Integration precedes final evaluation/closeout. This ordering matches the Constitution, R1 quality strategy, and roadmap.
+**Status:** REPAIRED_IN_R2_T033_PR
 
-## Final planning verdict
+## Deferred non-claims
 
-**PLANNING_CONSISTENT_PENDING_CANONICALIZATION**
+The following remain intentionally outside R2 and are not consistency defects:
 
-The R2 planning artifacts are internally consistent and implementation-ready in substance, but implementation is not authorized until the planning PR is exact-head qualified and canonicalized, followed by the readiness gate closeout required by R2-T001.
+- credentialed/live Supabase project posture;
+- hosted dashboard state verification;
+- SQL or migration execution;
+- provider-admin mutation;
+- runtime exploitability proof;
+- automatic remediation;
+- cross-layer tenant/business-logic invariants assigned to R3;
+- universal pre-execution interception where no enforceable seam exists.
+
+## Governance proof at analysis start
+
+After the `R2-T032` canonical closeout merge, `main` was `72a1c09909b7b1df7f146d2a7675bb06c44a97cc`, remained protected with the three canonical required checks, and repository-owned fail-closed governance verification run `33500157700` reported `repository-governance: PASS` against that exact `main` head.
+
+## Final R2-T033 verdict
+
+**CONSISTENT_WITH_ONE_REPAIRED_LOWER_AUTHORITY_DRIFT**
+
+R2 is internally consistent through `R2-T032`. The only final consistency defect found was the stale Spec 001 task reference in `AGENTS.md`, repaired within this task. No change to R2 product semantics is required. `R2-T034` may proceed only after this R2-T033 change is exact-head qualified, merged through protected `main`, and post-merge governance is reproven.
