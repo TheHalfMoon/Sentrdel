@@ -1,0 +1,8 @@
+schema_version = 1
+fixture_class = "adversarial"
+fixture_case = "unsupported_syntax"
+
+[dynamic_sql]
+path = "supabase/migrations/20260901000100_dynamic.sql"
+expected_coverage = "UNSUPPORTED"
+expected_authority = "NO_FINDING_WITHOUT_RECONCILER"
