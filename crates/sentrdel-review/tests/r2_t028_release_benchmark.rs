@@ -325,6 +325,9 @@ fn string_array_contains(item: &Evidence, key: &str, expected: &str) -> bool {
 
 fn release_signal_groups(evidence: &[Evidence]) -> BTreeSet<String> {
     let mut groups = BTreeSet::new();
+    let mut security_definer_functions = BTreeSet::new();
+    let mut functions_without_pinned_safe_search_path = BTreeSet::new();
+
     for item in evidence {
         match item.claim().category.as_str() {
             "supabase_rls_posture" if string_attr(item, "rls_state") == Some("DISABLED") => {
@@ -339,10 +342,22 @@ fn release_signal_groups(evidence: &[Evidence]) -> BTreeSet<String> {
             {
                 groups.insert("GRANTS".to_owned());
             }
-            "supabase_function_search_path"
-                if string_attr(item, "search_path_posture") == Some("UNPINNED_OR_MUTABLE") =>
+            "supabase_function_security_mode"
+                if string_attr(item, "security_mode") == Some("DEFINER") =>
             {
-                groups.insert("SECURITY_DEFINER_SEARCH_PATH".to_owned());
+                if let Some(function) = string_attr(item, "function") {
+                    security_definer_functions.insert(function.to_owned());
+                }
+            }
+            "supabase_function_search_path"
+                if matches!(
+                    string_attr(item, "search_path_posture"),
+                    Some("UNPINNED_OR_MUTABLE" | "UNKNOWN")
+                ) =>
+            {
+                if let Some(function) = string_attr(item, "function") {
+                    functions_without_pinned_safe_search_path.insert(function.to_owned());
+                }
             }
             "supabase_elevated_key_client_boundary" => {
                 groups.insert("KEY_AUTHORITY_CONTEXT".to_owned());
@@ -353,7 +368,7 @@ fn release_signal_groups(evidence: &[Evidence]) -> BTreeSet<String> {
             {
                 groups.insert("STORAGE".to_owned());
             }
-            "supabase_edge_function_auth"
+            "supabase_edge_function_auth_posture"
                 if string_attr(item, "platform_jwt_verification") == Some("DISABLED")
                     && string_attr(item, "supported_replacement_auth") != Some("PROVEN") =>
             {
@@ -362,6 +377,14 @@ fn release_signal_groups(evidence: &[Evidence]) -> BTreeSet<String> {
             _ => {}
         }
     }
+
+    if security_definer_functions
+        .iter()
+        .any(|function| functions_without_pinned_safe_search_path.contains(function))
+    {
+        groups.insert("SECURITY_DEFINER_SEARCH_PATH".to_owned());
+    }
+
     groups
 }
 
