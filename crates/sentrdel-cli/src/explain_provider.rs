@@ -4,8 +4,9 @@
 //! Finding and matching static provider Coverage. It never creates or mutates a
 //! Finding and never performs provider, network, SQL, or target execution.
 
-use sentrdel_cli::explain::ExplainOutput;
 use sentrdel_schema::coverage::ProviderCoverageDimension;
+
+use crate::explain::ExplainOutput;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SupabaseExplainContext {
@@ -95,23 +96,36 @@ mod tests {
     use sentrdel_schema::SCHEMA_V1;
     use sentrdel_schema::coverage::{CoverageRecord, CoverageState};
     use sentrdel_schema::finding::{
-        EpistemicState, FindingDraft, ReconcilerAuthority, Severity, WorkflowState,
+        EpistemicState, Finding, ReconciledFindingDraft, ReconcilerAuthority, Severity,
     };
 
-    fn finding(category: &str) -> sentrdel_schema::finding::Finding {
-        ReconcilerAuthority::new()
-            .seal(FindingDraft {
+    fn finding(category: &str) -> Finding {
+        let reconciler = ReconcilerAuthority::from_runtime(
+            "sentrdel-reconciler",
+            "sha256:r2-t026-config",
+        )
+        .unwrap();
+        Finding::new_reconciled(
+            ReconciledFindingDraft {
+                schema_version: SCHEMA_V1.to_owned(),
+                fingerprint: format!("r2-t026:{category}"),
                 title: "Supabase static posture finding".to_owned(),
+                impact_statement: "Repository-derived posture exposes risky authority.".to_owned(),
                 category: category.to_owned(),
                 severity: Severity::High,
-                epistemic_state: EpistemicState::Observed,
+                epistemic_state: EpistemicState::Corroborated,
                 evidence_ids: vec!["evidence:r2".to_owned()],
                 contradiction_ids: Vec::new(),
-                impact_statement: "Repository-derived posture exposes risky authority.".to_owned(),
-                remediation: None,
                 primary_location: Some("supabase/migrations/20260901010101_policy.sql".to_owned()),
-            })
-            .unwrap()
+                affected_subjects: vec!["relation:public.notes".to_owned()],
+                first_seen_commit: None,
+                last_seen_commit: None,
+                remediation: None,
+                updated_at: "2026-09-01T01:00:00Z".to_owned(),
+            },
+            &reconciler,
+        )
+        .unwrap()
     }
 
     fn coverage(dimension: Option<ProviderCoverageDimension>) -> CoverageRecord {
@@ -135,8 +149,7 @@ mod tests {
             1,
             finding(category),
             CliRepository::new("repo:r2", ".").unwrap(),
-            sentrdel_cli::explain::ImpactComponents::new("anon", "select", "public.notes")
-                .unwrap(),
+            crate::explain::ImpactComponents::new("anon", "select", "public.notes").unwrap(),
             coverage,
             CliTiming::default(),
             None,
