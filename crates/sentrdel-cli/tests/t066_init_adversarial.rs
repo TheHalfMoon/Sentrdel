@@ -211,9 +211,11 @@ fn supabase_detection_without_registered_r2_pack_reports_unsupported_without_ver
         supabase_static.reason_code.as_deref(),
         Some("R1_POSTURE_NOT_IMPLEMENTED")
     );
-    assert!(output.human.contains(
-        "provider supabase / STATIC_POSTURE: Unsupported (R1_POSTURE_NOT_IMPLEMENTED)"
-    ));
+    assert!(
+        output.human.contains(
+            "provider supabase / STATIC_POSTURE: Unsupported (R1_POSTURE_NOT_IMPLEMENTED)"
+        )
+    );
     for unsupported_claim in [
         "Supabase is secure",
         "Supabase is safe",
