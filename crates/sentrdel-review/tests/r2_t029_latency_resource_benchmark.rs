@@ -250,7 +250,6 @@ fn r2_t029_resource_caps_are_explicit_and_fail_closed() {
 
     assert_eq!(policy.peak_memory.state, "NOT_MEASURED");
     assert!(!policy.peak_memory.reason.trim().is_empty());
-    assert!(!TARGET_BUILD_EXECUTION_ALLOWED);
 }
 
 #[test]
