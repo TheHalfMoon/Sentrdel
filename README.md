@@ -2,7 +2,7 @@
 
 **Open-source security evidence and control plane for software development.**
 
-Sentrdel is a Rust-first, local-first, vendor-neutral security layer for AI-assisted and ordinary software development. R1 focuses on trustworthy evidence, diff review, explicit coverage, monotonic guardrails, bounded stdio MCP enforcement, project profiling, explanation, and optional lower-authority model reasoning.
+Sentrdel is a Rust-first, local-first, vendor-neutral security layer for AI-assisted and ordinary software development. R1 provides the trustworthy evidence, diff review, explicit coverage, monotonic guardrail, stdio MCP, profiling, explanation, and lower-authority reasoning substrate. R2 adds the first provider-specific pack: bounded offline Supabase static posture.
 
 ## North Star
 
@@ -34,7 +34,17 @@ The current R1 implementation includes:
 - SentrdelBench evaluation contracts/harnesses for deterministic replay, precision/known-ground-truth misses, clean-PR false positives, coverage/provenance completeness, latency/resource behavior, guard false blocks, and authority-boundary cases;
 - self-security and release gates covering the exact Rust toolchain, committed lockfile/source policy, privileged dependency declarations, `cargo-audit`, `cargo-deny`, malicious-package defense-in-depth policy, and Linux/macOS/Windows CI.
 
-See `docs/architecture/r1-evidence-control-plane.md` and `docs/security/threat-model.md` for the implemented authority and trust boundaries.
+See `docs/architecture/r1-evidence-control-plane.md` and `docs/security/threat-model.md` for the implemented R1 authority and trust boundaries.
+
+## R2 implemented Supabase static posture
+
+R2 extends the R1 pack/evidence substrate with a Rust-owned, offline, deterministic Supabase static posture pack. Its declared supported subset includes repository-visible migration/SQL posture for RLS, policies, grants/revokes, `SECURITY DEFINER`/`search_path`, Storage authorization policy SQL, bounded `supabase/config.toml` Auth/API/Edge Function settings, Supabase key authority classes and source-context boundaries, and supported Edge Function authorization posture.
+
+R2 producers emit canonical Evidence and Coverage only; the existing R1 reconciler remains the only canonical Finding creation path. Unsupported, malformed, ambiguous, dynamic, oversized, missing, or hosted-only state remains explicit coverage rather than becoming a clean result by absence.
+
+R2 does **not** connect to Supabase, use provider-admin credentials, run the Supabase CLI, execute SQL/migrations/Edge Functions, or claim hosted/runtime state. `LIVE_POSTURE`, `BUSINESS_LOGIC`, and `RUNTIME` remain unimplemented/not-executed dimensions. Cross-layer tenant/business-logic reasoning remains R3 work.
+
+See `docs/architecture/r2-supabase-static-posture.md` for the implemented architecture, coverage matrix, qualification boundaries, and explicit non-claims.
 
 ## Security invariants
 
@@ -48,13 +58,15 @@ See `docs/architecture/r1-evidence-control-plane.md` and `docs/security/threat-m
 - Enforcement is labeled `ENFORCED`, `PARTIAL`, or `ADVISORY` according to the seam Sentrdel actually controls.
 - A local ASEL hash chain demonstrates internal consistency relative to the checked state/head; it is not described as independently tamper-proof or non-repudiable.
 
-## Explicit R1 non-claims
+## Explicit non-claims
 
-The following are **not implemented R1 capabilities** and remain roadmap/later-spec work:
+The following are **not implemented capabilities** unless a later specification explicitly authorizes them:
 
-- deep Supabase security posture or other broad provider/cloud/payment/database packs beyond current detection/contract foundations;
+- live/credentialed Supabase posture, hosted database/dashboard interrogation, or runtime Supabase verification;
+- R3 cross-layer tenant/business-logic invariants;
+- broad provider/cloud/payment/database packs beyond the implemented bounded R2 Supabase static posture scope;
 - remote/Streamable HTTP MCP enforcement;
-- a general verification sandbox, autonomous exploit generation, production pentesting, or ordinary R1 `VERIFIED` producer;
+- a general verification sandbox, autonomous exploit generation, production pentesting, or ordinary R1/R2 `VERIFIED` producer;
 - general-purpose Security Memory;
 - autonomous Research/Learning that mutates trusted production rules or self-promotes candidates;
 - universal CPG/compiler semantics;
@@ -69,4 +81,4 @@ Planning and implementation are governed by Spec Kit artifacts in `.specify/` an
 
 Sentrdel's own dependency graph is part of the trusted computing base. Dependency admission, privileged build/proc-macro/native surfaces, advisory checks, source policy, and release gates are documented under `docs/security/` and `docs/third-party/`.
 
-R1 remains local-useful without a cloud account, model provider, or external scanner. Optional integrations may improve coverage without acquiring independent judgment authority.
+R1/R2 remain local-useful without a cloud account, model provider, or external scanner. Optional integrations may improve coverage without acquiring independent judgment authority.
