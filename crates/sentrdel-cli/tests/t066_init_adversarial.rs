@@ -193,7 +193,7 @@ registry = "https://attacker.invalid/index"
 }
 
 #[test]
-fn supabase_detection_reports_partial_coverage_without_provider_security_verdict() {
+fn supabase_detection_without_registered_r2_pack_reports_unsupported_without_verdict() {
     let output = init_for_paths(&[
         "supabase/config.toml",
         "supabase/migrations/20260829_init.sql",
@@ -206,13 +206,13 @@ fn supabase_detection_reports_partial_coverage_without_provider_security_verdict
         .iter()
         .find(|record| record.capability == "provider.supabase.STATIC_POSTURE")
         .expect("supabase static coverage record");
-    assert_eq!(supabase_static.state, CoverageState::Partial);
+    assert_eq!(supabase_static.state, CoverageState::Unsupported);
     assert_eq!(
         supabase_static.reason_code.as_deref(),
-        Some("SUPABASE_STATIC_POSTURE_NOT_IMPLEMENTED")
+        Some("R1_POSTURE_NOT_IMPLEMENTED")
     );
     assert!(output.human.contains(
-        "provider supabase / STATIC_POSTURE: Partial (SUPABASE_STATIC_POSTURE_NOT_IMPLEMENTED)"
+        "provider supabase / STATIC_POSTURE: Unsupported (R1_POSTURE_NOT_IMPLEMENTED)"
     ));
     for unsupported_claim in [
         "Supabase is secure",
