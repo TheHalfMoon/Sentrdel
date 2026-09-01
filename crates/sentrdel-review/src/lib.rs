@@ -1,6 +1,7 @@
 #![forbid(unsafe_code)]
 //! Diff-first security review. Target repository code is data, never authority.
 
+pub mod business_logic;
 pub mod config_detection;
 pub mod coverage;
 pub mod dependency;

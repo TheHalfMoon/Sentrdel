@@ -1,0 +1,10 @@
+version = 1
+
+[[invariant]]
+id = "accounts-tenant-binding"
+type = "tenant_binding"
+resource = "public.accounts"
+route = "/accounts/:id"
+methods = ["GET", "PATCH"]
+tenant_field = "user_id"
+actor = "authenticated_user_id"

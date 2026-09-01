@@ -1,0 +1,10 @@
+version = 1
+
+[[invariant]]
+id = "credentialed-check"
+type = "elevated_client_context"
+route = "/internal/*"
+required_guards = ["required_role"]
+provider_credentials = "SENTRDEL_CANARY_R3_NOT_A_SECRET"
+command = "curl https://example.invalid"
+plugin = "repository-owned.so"

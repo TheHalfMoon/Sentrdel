@@ -1,0 +1,8 @@
+version = 1
+
+[[invariant]]
+id = "sentrdel.builtin.tenant-binding"
+type = "tenant_binding"
+resource = "public.accounts"
+tenant_field = "user_id"
+actor = "authenticated_user_id"

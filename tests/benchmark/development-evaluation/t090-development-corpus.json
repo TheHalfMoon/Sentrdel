@@ -1,6 +1,6 @@
 {
-  "corpus_revision": "t090-development-corpus-r2-supabase-v1",
-  "expected_outputs_revision": "t090-development-expected-r2-supabase-v1",
+  "corpus_revision": "t090-development-corpus-r3-phase1-v2",
+  "expected_outputs_revision": "t090-development-expected-r3-phase1-v2",
   "corpus_class": "DEVELOPMENT_EVALUATION",
   "baseline_identity": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
   "candidate_identity": "sha256:4444444444444444444444444444444444444444444444444444444444444444",
@@ -182,6 +182,348 @@
         "secret-canary-must-be-redacted-before-persistence",
         "no-network-or-target-execution"
       ]
+    },
+    {
+      "case_id": "r3-express-safe-tenant-ground-truth",
+      "fixture_root": "fixtures/repos/r3-business-logic/express/safe-tenant",
+      "clean_case": true,
+      "supported_scope": ["EXPRESS_ROUTE", "ACTOR_IDENTITY", "TENANT_BINDING", "SUPABASE_DATA_OPERATION"],
+      "expected_evidence_groups": ["r3.route", "r3.actor", "r3.guard", "r3.data", "r3.invariant.tenant_binding"],
+      "known_evidence_ids": [],
+      "expected_findings": [],
+      "emitted_findings": [],
+      "expected_provenance": ["fixture-root", "source-path", "route-span", "data-operation-span"],
+      "expected_coverage": ["BUSINESS_LOGIC", "CROSS_LAYER_BUSINESS_LOGIC"],
+      "observed_coverage": [],
+      "expected_coverage_gaps": [
+        {"dimension": "BUSINESS_LOGIC", "reason": "GROUND_TRUTH_ONLY_NOT_IMPLEMENTED"}
+      ],
+      "authority_assertions": [
+        "r3-output-is-evidence-or-coverage-only",
+        "safe-static-case-does-not-prove-production-security",
+        "no-target-execution",
+        "no-provider-credentials"
+      ]
+    },
+    {
+      "case_id": "r3-express-unsafe-tenant-ground-truth",
+      "fixture_root": "fixtures/repos/r3-business-logic/express/unsafe-tenant",
+      "clean_case": false,
+      "supported_scope": ["EXPRESS_ROUTE", "REQUEST_CONTROLLED_RESOURCE", "TENANT_BINDING", "SUPABASE_DATA_OPERATION"],
+      "expected_evidence_groups": ["r3.route", "r3.value", "r3.data", "r3.invariant.tenant_binding"],
+      "known_evidence_ids": [],
+      "expected_findings": [],
+      "emitted_findings": [],
+      "expected_provenance": ["fixture-root", "source-path", "route-span", "data-operation-span"],
+      "expected_coverage": ["BUSINESS_LOGIC", "CROSS_LAYER_BUSINESS_LOGIC"],
+      "observed_coverage": [],
+      "expected_coverage_gaps": [
+        {"dimension": "BUSINESS_LOGIC", "reason": "GROUND_TRUTH_ONLY_NOT_IMPLEMENTED"}
+      ],
+      "authority_assertions": [
+        "unsafe-ground-truth-does-not-create-finding-directly",
+        "r3-output-is-evidence-or-coverage-only",
+        "no-target-execution"
+      ]
+    },
+    {
+      "case_id": "r3-next-safe-role-ground-truth",
+      "fixture_root": "fixtures/repos/r3-business-logic/next-app/safe-role",
+      "clean_case": true,
+      "supported_scope": ["NEXT_APP_ROUTE", "AUTHENTICATED_ROLE", "REQUIRED_ROLE", "DESTRUCTIVE_DATA_OPERATION"],
+      "expected_evidence_groups": ["r3.route", "r3.actor", "r3.guard", "r3.data", "r3.invariant.required_role"],
+      "known_evidence_ids": [],
+      "expected_findings": [],
+      "emitted_findings": [],
+      "expected_provenance": ["fixture-root", "source-path", "route-span", "guard-span", "data-operation-span"],
+      "expected_coverage": ["BUSINESS_LOGIC", "CROSS_LAYER_BUSINESS_LOGIC"],
+      "observed_coverage": [],
+      "expected_coverage_gaps": [
+        {"dimension": "BUSINESS_LOGIC", "reason": "GROUND_TRUTH_ONLY_NOT_IMPLEMENTED"}
+      ],
+      "authority_assertions": [
+        "lexical-role-name-is-not-enough-without-supported-guard-link",
+        "r3-output-is-evidence-or-coverage-only",
+        "no-target-execution"
+      ]
+    },
+    {
+      "case_id": "r3-next-pages-unknown-guard-ground-truth",
+      "fixture_root": "fixtures/repos/r3-business-logic/next-pages/unknown-dynamic-guard",
+      "clean_case": false,
+      "supported_scope": ["NEXT_PAGES_API_ROUTE", "DYNAMIC_GUARD_SELECTION", "UNKNOWN_DOMINANCE"],
+      "expected_evidence_groups": ["r3.route", "r3.coverage.guard"],
+      "known_evidence_ids": [],
+      "expected_findings": [],
+      "emitted_findings": [],
+      "expected_provenance": ["fixture-root", "source-path", "route-span"],
+      "expected_coverage": ["BUSINESS_LOGIC", "CROSS_LAYER_BUSINESS_LOGIC"],
+      "observed_coverage": [],
+      "expected_coverage_gaps": [
+        {"dimension": "GUARDS", "reason": "UNSUPPORTED_DYNAMIC_GUARD_SELECTION"},
+        {"dimension": "CROSS_LAYER_BUSINESS_LOGIC", "reason": "UNKNOWN_GUARD_DOMINANCE"}
+      ],
+      "authority_assertions": [
+        "unknown-guard-never-satisfies-authorization-invariant",
+        "r3-output-is-evidence-or-coverage-only",
+        "no-target-execution"
+      ]
+    },
+    {
+      "case_id": "r3-edge-safe-owner-ground-truth",
+      "fixture_root": "fixtures/repos/r3-business-logic/supabase-edge/safe-owner",
+      "clean_case": true,
+      "supported_scope": ["SUPABASE_EDGE", "AUTHENTICATED_USER", "OWNER_FILTER", "SUPABASE_DATA_OPERATION"],
+      "expected_evidence_groups": ["r3.route", "r3.actor", "r3.guard", "r3.data", "r3.invariant.tenant_binding"],
+      "known_evidence_ids": [],
+      "expected_findings": [],
+      "emitted_findings": [],
+      "expected_provenance": ["fixture-root", "source-path", "guard-span", "data-operation-span"],
+      "expected_coverage": ["BUSINESS_LOGIC", "CROSS_LAYER_BUSINESS_LOGIC"],
+      "observed_coverage": [],
+      "expected_coverage_gaps": [
+        {"dimension": "BUSINESS_LOGIC", "reason": "GROUND_TRUTH_ONLY_NOT_IMPLEMENTED"}
+      ],
+      "authority_assertions": [
+        "safe-static-case-does-not-prove-hosted-rls-or-production-security",
+        "r3-output-is-evidence-or-coverage-only",
+        "no-provider-access"
+      ]
+    },
+    {
+      "case_id": "r3-edge-unsafe-elevated-ground-truth",
+      "fixture_root": "fixtures/repos/r3-business-logic/supabase-edge/unsafe-elevated",
+      "clean_case": false,
+      "supported_scope": ["SUPABASE_EDGE", "REQUEST_CONTROLLED_INPUT", "ELEVATED_CLIENT", "DELETE_OPERATION"],
+      "expected_evidence_groups": ["r3.route", "r3.value", "r3.client_authority", "r3.data", "r3.invariant.elevated_client_context"],
+      "known_evidence_ids": [],
+      "expected_findings": [],
+      "emitted_findings": [],
+      "expected_provenance": ["fixture-root", "source-path", "client-authority-span", "data-operation-span"],
+      "expected_coverage": ["BUSINESS_LOGIC", "CROSS_LAYER_BUSINESS_LOGIC"],
+      "observed_coverage": [],
+      "expected_coverage_gaps": [
+        {"dimension": "BUSINESS_LOGIC", "reason": "GROUND_TRUTH_ONLY_NOT_IMPLEMENTED"}
+      ],
+      "authority_assertions": [
+        "synthetic-secret-canary-is-not-persisted-as-plaintext",
+        "elevated-authority-alone-is-not-a-finding",
+        "r3-output-is-evidence-or-coverage-only",
+        "no-provider-access"
+      ]
+    },
+    {
+      "case_id": "r3-data-safe-properties-ground-truth",
+      "fixture_root": "fixtures/repos/r3-business-logic/supabase-data/safe-properties",
+      "clean_case": true,
+      "supported_scope": ["SUPABASE_UPDATE", "EXPLICIT_PROPERTY_ALLOWLIST", "REQUEST_CONTROLLED_INPUT"],
+      "expected_evidence_groups": ["r3.value", "r3.data", "r3.invariant.protected_properties"],
+      "known_evidence_ids": [],
+      "expected_findings": [],
+      "emitted_findings": [],
+      "expected_provenance": ["fixture-root", "source-path", "data-operation-span"],
+      "expected_coverage": ["BUSINESS_LOGIC"],
+      "observed_coverage": [],
+      "expected_coverage_gaps": [
+        {"dimension": "BUSINESS_LOGIC", "reason": "GROUND_TRUTH_ONLY_NOT_IMPLEMENTED"}
+      ],
+      "authority_assertions": [
+        "explicit-allowlist-ground-truth-does-not-prove-runtime-input-shape",
+        "r3-output-is-evidence-or-coverage-only",
+        "no-target-execution"
+      ]
+    },
+    {
+      "case_id": "r3-data-unsafe-properties-ground-truth",
+      "fixture_root": "fixtures/repos/r3-business-logic/supabase-data/unsafe-properties",
+      "clean_case": false,
+      "supported_scope": ["SUPABASE_UPDATE", "BROAD_REQUEST_OBJECT", "PROTECTED_PROPERTY_MUTATION"],
+      "expected_evidence_groups": ["r3.value", "r3.data", "r3.invariant.protected_properties"],
+      "known_evidence_ids": [],
+      "expected_findings": [],
+      "emitted_findings": [],
+      "expected_provenance": ["fixture-root", "source-path", "data-operation-span"],
+      "expected_coverage": ["BUSINESS_LOGIC"],
+      "observed_coverage": [],
+      "expected_coverage_gaps": [
+        {"dimension": "BUSINESS_LOGIC", "reason": "GROUND_TRUTH_ONLY_NOT_IMPLEMENTED"}
+      ],
+      "authority_assertions": [
+        "broad-request-object-ground-truth-does-not-create-finding-directly",
+        "r3-output-is-evidence-or-coverage-only",
+        "no-target-execution"
+      ]
+    },
+    {
+      "case_id": "r3-adversarial-malformed-source-ground-truth",
+      "fixture_root": "fixtures/repos/r3-business-logic/adversarial/malformed-source",
+      "clean_case": false,
+      "supported_scope": ["MALFORMED_JAVASCRIPT"],
+      "expected_evidence_groups": [],
+      "known_evidence_ids": [],
+      "expected_findings": [],
+      "emitted_findings": [],
+      "expected_provenance": ["fixture-root", "source-path"],
+      "expected_coverage": ["BUSINESS_LOGIC"],
+      "observed_coverage": [],
+      "expected_coverage_gaps": [
+        {"dimension": "BUSINESS_LOGIC", "reason": "MALFORMED_SYNTAX"}
+      ],
+      "authority_assertions": [
+        "malformed-source-never-becomes-clean",
+        "r3-output-is-evidence-or-coverage-only",
+        "no-target-execution"
+      ]
+    },
+    {
+      "case_id": "r3-adversarial-unknown-ground-truth",
+      "fixture_root": "fixtures/repos/r3-business-logic/adversarial/dynamic-unsupported",
+      "clean_case": false,
+      "supported_scope": ["DYNAMIC_ROUTE", "DYNAMIC_RESOURCE", "DYNAMIC_FILTER_FIELD"],
+      "expected_evidence_groups": [],
+      "known_evidence_ids": [],
+      "expected_findings": [],
+      "emitted_findings": [],
+      "expected_provenance": ["fixture-root", "source-path"],
+      "expected_coverage": ["BUSINESS_LOGIC", "CROSS_LAYER_BUSINESS_LOGIC"],
+      "observed_coverage": [],
+      "expected_coverage_gaps": [
+        {"dimension": "BUSINESS_LOGIC", "reason": "UNSUPPORTED_DYNAMIC_SEMANTICS"},
+        {"dimension": "CROSS_LAYER_BUSINESS_LOGIC", "reason": "UNSUPPORTED_DYNAMIC_LINKING"}
+      ],
+      "authority_assertions": [
+        "unsupported-security-semantics-never-become-clean",
+        "lexical-name-equality-is-not-identity",
+        "no-target-execution",
+        "no-universal-cpg-claim"
+      ]
+    },
+    {
+      "case_id": "r3-adversarial-unsupported-framework-ground-truth",
+      "fixture_root": "fixtures/repos/r3-business-logic/adversarial/unsupported-framework",
+      "clean_case": false,
+      "supported_scope": ["UNSUPPORTED_FRAMEWORK"],
+      "expected_evidence_groups": [],
+      "known_evidence_ids": [],
+      "expected_findings": [],
+      "emitted_findings": [],
+      "expected_provenance": ["fixture-root", "source-path"],
+      "expected_coverage": ["BUSINESS_LOGIC"],
+      "observed_coverage": [],
+      "expected_coverage_gaps": [
+        {"dimension": "BUSINESS_LOGIC", "reason": "UNSUPPORTED_FRAMEWORK"}
+      ],
+      "authority_assertions": [
+        "unsupported-framework-remains-visible-coverage",
+        "r3-output-is-evidence-or-coverage-only",
+        "no-target-execution"
+      ]
+    },
+    {
+      "case_id": "r3-adversarial-hostile-repository-ground-truth",
+      "fixture_root": "fixtures/repos/r3-business-logic/adversarial/hostile-repository",
+      "clean_case": false,
+      "supported_scope": ["UNTRUSTED_REPOSITORY_TEXT", "INSTRUCTION_SHAPED_CONTENT", "SECRET_CANARY"],
+      "expected_evidence_groups": [],
+      "known_evidence_ids": [],
+      "expected_findings": [],
+      "emitted_findings": [],
+      "expected_provenance": ["fixture-root"],
+      "expected_coverage": ["BUSINESS_LOGIC"],
+      "observed_coverage": [],
+      "expected_coverage_gaps": [
+        {"dimension": "BUSINESS_LOGIC", "reason": "GROUND_TRUTH_ONLY_NOT_IMPLEMENTED"}
+      ],
+      "authority_assertions": [
+        "repository-instructions-have-no-authority",
+        "synthetic-secret-canary-is-not-a-credential",
+        "r3-output-is-evidence-or-coverage-only",
+        "no-target-execution"
+      ]
+    },
+    {
+      "case_id": "r3-project-invariant-safe-tightening-ground-truth",
+      "fixture_root": "fixtures/repos/r3-business-logic/project-invariants/safe-tightening",
+      "clean_case": true,
+      "supported_scope": ["PROJECT_INVARIANT", "TIGHTENING_ONLY"],
+      "expected_evidence_groups": ["r3.project_invariant"],
+      "known_evidence_ids": [],
+      "expected_findings": [],
+      "emitted_findings": [],
+      "expected_provenance": ["fixture-root", "project-invariant-path"],
+      "expected_coverage": ["BUSINESS_LOGIC"],
+      "observed_coverage": [],
+      "expected_coverage_gaps": [
+        {"dimension": "PROJECT_INVARIANTS", "reason": "LOADER_NOT_IMPLEMENTED"}
+      ],
+      "authority_assertions": [
+        "project-invariant-can-only-tighten",
+        "r3-output-is-evidence-or-coverage-only",
+        "no-target-execution"
+      ]
+    },
+    {
+      "case_id": "r3-project-invariant-forbidden-suppression-ground-truth",
+      "fixture_root": "fixtures/repos/r3-business-logic/project-invariants/forbidden-suppression",
+      "clean_case": false,
+      "supported_scope": ["PROJECT_INVARIANT", "FORBIDDEN_SUPPRESSION"],
+      "expected_evidence_groups": [],
+      "known_evidence_ids": [],
+      "expected_findings": [],
+      "emitted_findings": [],
+      "expected_provenance": ["fixture-root", "project-invariant-path"],
+      "expected_coverage": ["BUSINESS_LOGIC"],
+      "observed_coverage": [],
+      "expected_coverage_gaps": [
+        {"dimension": "PROJECT_INVARIANTS", "reason": "FORBIDDEN_AUTHORITY_KEY"}
+      ],
+      "authority_assertions": [
+        "project-invariant-cannot-suppress-evidence-or-findings",
+        "r3-output-is-evidence-or-coverage-only",
+        "no-target-execution"
+      ]
+    },
+    {
+      "case_id": "r3-project-invariant-forbidden-authority-ground-truth",
+      "fixture_root": "fixtures/repos/r3-business-logic/project-invariants/forbidden-authority",
+      "clean_case": false,
+      "supported_scope": ["PROJECT_INVARIANT", "FORBIDDEN_CREDENTIAL_OR_COMMAND_AUTHORITY"],
+      "expected_evidence_groups": [],
+      "known_evidence_ids": [],
+      "expected_findings": [],
+      "emitted_findings": [],
+      "expected_provenance": ["fixture-root", "project-invariant-path"],
+      "expected_coverage": ["BUSINESS_LOGIC"],
+      "observed_coverage": [],
+      "expected_coverage_gaps": [
+        {"dimension": "PROJECT_INVARIANTS", "reason": "FORBIDDEN_AUTHORITY_KEY"}
+      ],
+      "authority_assertions": [
+        "project-invariant-cannot-grant-credentials-or-command-authority",
+        "r3-output-is-evidence-or-coverage-only",
+        "no-target-execution"
+      ]
+    },
+    {
+      "case_id": "r3-project-invariant-builtin-impersonation-ground-truth",
+      "fixture_root": "fixtures/repos/r3-business-logic/project-invariants/builtin-impersonation",
+      "clean_case": false,
+      "supported_scope": ["PROJECT_INVARIANT", "BUILTIN_NAMESPACE_SEPARATION"],
+      "expected_evidence_groups": [],
+      "known_evidence_ids": [],
+      "expected_findings": [],
+      "emitted_findings": [],
+      "expected_provenance": ["fixture-root", "project-invariant-path"],
+      "expected_coverage": ["BUSINESS_LOGIC"],
+      "observed_coverage": [],
+      "expected_coverage_gaps": [
+        {"dimension": "PROJECT_INVARIANTS", "reason": "INVALID_OR_RESERVED_IDENTIFIER"}
+      ],
+      "authority_assertions": [
+        "project-invariant-cannot-impersonate-built-in-or-kernel-invariant",
+        "r3-output-is-evidence-or-coverage-only",
+        "no-target-execution"
+      ]
     }
   ],
   "authority_assertions": [
@@ -189,7 +531,12 @@
     {"assertion_id": "r2-provider-has-no-direct-finding-authority", "passed": true},
     {"assertion_id": "r2-fixtures-require-no-live-provider-access", "passed": true},
     {"assertion_id": "r2-fixture-content-is-untrusted-data", "passed": true},
-    {"assertion_id": "r2-release-gating-not-yet-promoted", "passed": true}
+    {"assertion_id": "r2-release-gating-not-yet-promoted", "passed": true},
+    {"assertion_id": "r3-phase1-ground-truth-is-not-release-gating", "passed": true},
+    {"assertion_id": "r3-project-invariants-are-tightening-only", "passed": true},
+    {"assertion_id": "r3-pack-has-no-direct-finding-authority", "passed": true},
+    {"assertion_id": "r3-fixtures-require-no-target-or-provider-execution", "passed": true},
+    {"assertion_id": "r3-all-declared-fixture-categories-are-bound-to-development-ground-truth", "passed": true}
   ],
   "performance": null
 }
