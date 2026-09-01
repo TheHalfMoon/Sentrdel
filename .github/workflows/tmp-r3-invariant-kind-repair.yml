@@ -1,0 +1,90 @@
+name: Temporary R3 Invariant Kind Repair
+
+on:
+  push:
+    branches:
+      - feat/r3-phase1-contracts-ground-truth
+
+permissions:
+  contents: write
+
+jobs:
+  repair-test-and-remove-self:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: feat/r3-phase1-contracts-ground-truth
+          fetch-depth: 0
+
+      - name: Install exact Rust toolchain
+        run: rustup toolchain install 1.98.0 --profile minimal --component rustfmt --component clippy
+
+      - name: Enforce invariant kind and requirement agreement
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('crates/sentrdel-review/src/business_logic/model.rs')
+          text = path.read_text()
+
+          replacements = [
+              (
+                  "    EmptyRequiredCollection(&'static str),\n    ContentDigestTooLarge {",
+                  "    EmptyRequiredCollection(&'static str),\n    InvariantRequirementKindMismatch {\n        kind: InvariantKind,\n        requirement_kind: InvariantKind,\n    },\n    ContentDigestTooLarge {",
+              ),
+              (
+                  '            Self::EmptyRequiredCollection(field) => {\n                write!(\n                    formatter,\n                    "required business-logic collection {field} must not be empty"\n                )\n            }\n            Self::ContentDigestTooLarge { bytes, max } => write!(',
+                  '            Self::EmptyRequiredCollection(field) => {\n                write!(\n                    formatter,\n                    "required business-logic collection {field} must not be empty"\n                )\n            }\n            Self::InvariantRequirementKindMismatch {\n                kind,\n                requirement_kind,\n            } => write!(\n                formatter,\n                "invariant kind {kind:?} cannot use requirement kind {requirement_kind:?}"\n            ),\n            Self::ContentDigestTooLarge { bytes, max } => write!(',
+              ),
+              (
+                  '        let limits = limits.validate()?;\n        Ok(Self {\n            invariant_id,\n            kind,\n            source,\n            scope,\n            requirements: normalize_invariant_requirement(requirements, limits)?,\n            provenance: normalize_provenance(provenance, limits)?,\n        })\n    }\n\n    #[must_use]\n    pub fn invariant_id(&self) -> &StableSemanticId {',
+                  '        let limits = limits.validate()?;\n        validate_invariant_requirement_kind(kind, &requirements)?;\n        Ok(Self {\n            invariant_id,\n            kind,\n            source,\n            scope,\n            requirements: normalize_invariant_requirement(requirements, limits)?,\n            provenance: normalize_provenance(provenance, limits)?,\n        })\n    }\n\n    #[must_use]\n    pub fn invariant_id(&self) -> &StableSemanticId {',
+              ),
+              (
+                  'fn normalize_invariant_requirement(\n    requirement: InvariantRequirement,\n    limits: BusinessLogicLimits,\n) -> Result<InvariantRequirement, ModelError> {',
+                  'fn invariant_requirement_kind(requirement: &InvariantRequirement) -> InvariantKind {\n    match requirement {\n        InvariantRequirement::TenantBinding { .. } => InvariantKind::TenantBinding,\n        InvariantRequirement::RequiredRole { .. } => InvariantKind::RequiredRole,\n        InvariantRequirement::ProtectedProperties { .. } => InvariantKind::ProtectedProperties,\n        InvariantRequirement::ElevatedClientContext { .. } => InvariantKind::ElevatedClientContext,\n    }\n}\n\nfn validate_invariant_requirement_kind(\n    kind: InvariantKind,\n    requirement: &InvariantRequirement,\n) -> Result<(), ModelError> {\n    let requirement_kind = invariant_requirement_kind(requirement);\n    if kind != requirement_kind {\n        return Err(ModelError::InvariantRequirementKindMismatch {\n            kind,\n            requirement_kind,\n        });\n    }\n    Ok(())\n}\n\nfn normalize_invariant_requirement(\n    requirement: InvariantRequirement,\n    limits: BusinessLogicLimits,\n) -> Result<InvariantRequirement, ModelError> {',
+              ),
+              (
+                  '        for (requirement, expected_field) in [\n            (\n                InvariantRequirement::RequiredRole {\n                    required_roles: Vec::new(),\n                },\n                "required_roles",\n            ),\n            (\n                InvariantRequirement::ProtectedProperties {\n                    protected_properties: Vec::new(),\n                    mutation_operations: vec![DataOperationKind::Update],\n                },\n                "protected_properties",\n            ),\n            (\n                InvariantRequirement::ProtectedProperties {\n                    protected_properties: vec!["is_admin".to_owned()],\n                    mutation_operations: Vec::new(),\n                },\n                "mutation_operations",\n            ),\n            (\n                InvariantRequirement::ElevatedClientContext {\n                    allowed_server_contexts: Vec::new(),\n                    required_guard_kinds: Vec::new(),\n                },\n                "required_guard_kinds",\n            ),\n        ] {\n            assert!(matches!(\n                InvariantDefinition::new(\n                    id("r3.invariant", expected_field),\n                    InvariantKind::RequiredRole,',
+                  '        for (kind, requirement, expected_field) in [\n            (\n                InvariantKind::RequiredRole,\n                InvariantRequirement::RequiredRole {\n                    required_roles: Vec::new(),\n                },\n                "required_roles",\n            ),\n            (\n                InvariantKind::ProtectedProperties,\n                InvariantRequirement::ProtectedProperties {\n                    protected_properties: Vec::new(),\n                    mutation_operations: vec![DataOperationKind::Update],\n                },\n                "protected_properties",\n            ),\n            (\n                InvariantKind::ProtectedProperties,\n                InvariantRequirement::ProtectedProperties {\n                    protected_properties: vec!["is_admin".to_owned()],\n                    mutation_operations: Vec::new(),\n                },\n                "mutation_operations",\n            ),\n            (\n                InvariantKind::ElevatedClientContext,\n                InvariantRequirement::ElevatedClientContext {\n                    allowed_server_contexts: Vec::new(),\n                    required_guard_kinds: Vec::new(),\n                },\n                "required_guard_kinds",\n            ),\n        ] {\n            assert!(matches!(\n                InvariantDefinition::new(\n                    id("r3.invariant", expected_field),\n                    kind,',
+              ),
+          ]
+
+          for old, new in replacements:
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'expected exactly one replacement target, found {count}: {old[:120]!r}')
+              text = text.replace(old, new, 1)
+
+          marker = '''    #[test]\n    fn invariant_definition_normalizes_nested_requirement_sets() {'''
+          regression = '''    #[test]\n    fn invariant_definition_rejects_every_kind_requirement_mismatch() {\n        let limits = BusinessLogicLimits::default();\n        let scope = InvariantScope::new(None, Vec::new(), None, Vec::new(), Vec::new(), limits)\n            .expect("scope");\n        let provenance = vec![source("src/invariants.rs", 1)];\n        let kinds = [\n            InvariantKind::TenantBinding,\n            InvariantKind::RequiredRole,\n            InvariantKind::ProtectedProperties,\n            InvariantKind::ElevatedClientContext,\n        ];\n\n        for kind in kinds {\n            for requirement_kind in kinds {\n                if kind == requirement_kind {\n                    continue;\n                }\n                let requirement = match requirement_kind {\n                    InvariantKind::TenantBinding => InvariantRequirement::TenantBinding {\n                        resource_tenant_field: "tenant_id".to_owned(),\n                        required_actor_identity: ActorIdentityKind::AuthenticatedTenant,\n                    },\n                    InvariantKind::RequiredRole => InvariantRequirement::RequiredRole {\n                        required_roles: vec!["admin".to_owned()],\n                    },\n                    InvariantKind::ProtectedProperties => InvariantRequirement::ProtectedProperties {\n                        protected_properties: vec!["is_admin".to_owned()],\n                        mutation_operations: vec![DataOperationKind::Update],\n                    },\n                    InvariantKind::ElevatedClientContext => InvariantRequirement::ElevatedClientContext {\n                        allowed_server_contexts: Vec::new(),\n                        required_guard_kinds: vec![GuardKind::Authentication],\n                    },\n                };\n                assert!(matches!(\n                    InvariantDefinition::new(\n                        id("r3.invariant", "mismatch"),\n                        kind,\n                        InvariantSource::ProjectDeclaration,\n                        scope.clone(),\n                        requirement,\n                        provenance.clone(),\n                        limits,\n                    ),\n                    Err(ModelError::InvariantRequirementKindMismatch {\n                        kind: actual_kind,\n                        requirement_kind: actual_requirement_kind,\n                    }) if actual_kind == kind && actual_requirement_kind == requirement_kind\n                ));\n            }\n        }\n    }\n\n'''
+          if text.count(marker) != 1:
+              raise SystemExit('could not locate invariant mismatch regression insertion point')
+          text = text.replace(marker, regression + marker, 1)
+          path.write_text(text)
+          PY
+          cargo +1.98.0 fmt --all
+
+      - name: Run bounded qualification
+        run: |
+          cargo +1.98.0 test -p sentrdel-review --lib business_logic::model::tests --locked
+          cargo +1.98.0 test -p sentrdel-review --test r3_phase1_contract --locked
+          cargo +1.98.0 check -p sentrdel-review --all-targets --locked
+          cargo +1.98.0 clippy -p sentrdel-review --all-targets --locked -- -D warnings
+
+      - name: Commit repair and remove temporary workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/tmp-r3-invariant-kind-repair.yml
+          git add crates/sentrdel-review/src/business_logic/model.rs
+          git diff --cached --quiet && { echo "Expected repair produced no diff."; exit 1; }
+          git commit -m "fix(r3): bind invariant kinds to requirement types"
+          git push origin HEAD:feat/r3-phase1-contracts-ground-truth
