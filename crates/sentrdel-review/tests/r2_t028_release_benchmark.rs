@@ -482,9 +482,15 @@ fn evaluate_once() -> R2ReleaseRun {
         suite.clean_pr_false_positive_gate.sample_state,
         "INITIAL_SINGLE_FIXTURE_STRICT_ZERO"
     );
-    assert_eq!(suite.clean_pr_false_positive_gate.max_false_positive_clean_prs, 1);
+    assert_eq!(
+        suite
+            .clean_pr_false_positive_gate
+            .max_false_positive_clean_prs,
+        1
+    );
     assert_eq!(suite.clean_pr_false_positive_gate.per_clean_prs, 5);
-    let fp_gate_passed = if clean_cases_evaluated < suite.clean_pr_false_positive_gate.per_clean_prs {
+    let fp_gate_passed = if clean_cases_evaluated < suite.clean_pr_false_positive_gate.per_clean_prs
+    {
         clean_cases_with_false_positive == 0
     } else {
         clean_cases_with_false_positive
