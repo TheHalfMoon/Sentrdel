@@ -1,14 +1,26 @@
 {
   "schema": "sentrdelbench-r3-holdout-eligibility/v1",
-  "corpus_revision": "t090-development-corpus-r3-phase1-v1",
+  "corpus_revision": "t090-development-corpus-r3-phase1-v2",
   "release_gating": false,
   "protected_holdout_status": "NOT_ELIGIBLE_PRE_RELEASE_GATING",
   "reason": "R3 Phase 1 freezes ground truth and authority contracts only; no detector family is eligible for protected-holdout or release-gating promotion until later benchmark qualification.",
   "case_ids": [
     "r3-express-safe-tenant-ground-truth",
+    "r3-express-unsafe-tenant-ground-truth",
     "r3-next-safe-role-ground-truth",
+    "r3-next-pages-unknown-guard-ground-truth",
+    "r3-edge-safe-owner-ground-truth",
     "r3-edge-unsafe-elevated-ground-truth",
-    "r3-adversarial-unknown-ground-truth"
+    "r3-data-safe-properties-ground-truth",
+    "r3-data-unsafe-properties-ground-truth",
+    "r3-adversarial-malformed-source-ground-truth",
+    "r3-adversarial-unknown-ground-truth",
+    "r3-adversarial-unsupported-framework-ground-truth",
+    "r3-adversarial-hostile-repository-ground-truth",
+    "r3-project-invariant-safe-tightening-ground-truth",
+    "r3-project-invariant-forbidden-suppression-ground-truth",
+    "r3-project-invariant-forbidden-authority-ground-truth",
+    "r3-project-invariant-builtin-impersonation-ground-truth"
   ],
   "promotion_requires": [
     "implemented-supported-detector-scope",
