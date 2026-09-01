@@ -10,29 +10,23 @@ use sentrdel_cli::{
     review::ReviewOutput,
 };
 use sentrdel_review::{
-    TARGET_BUILD_EXECUTION_ALLOWED,
-    project_detection::DetectionLimits,
-    supabase_detection::detect_supabase,
-    supabase_integration::SupabaseR2ProviderOutput,
+    TARGET_BUILD_EXECUTION_ALLOWED, project_detection::DetectionLimits,
+    supabase_detection::detect_supabase, supabase_integration::SupabaseR2ProviderOutput,
 };
 use sentrdel_schema::{
     SCHEMA_V1,
     coverage::{CoverageRecord, CoverageState, ProviderCoverageDimension},
-    finding::{
-        EpistemicState, Finding, ReconciledFindingDraft, ReconcilerAuthority, Severity,
-    },
+    finding::{EpistemicState, Finding, ReconciledFindingDraft, ReconcilerAuthority, Severity},
 };
 
 const CAPTURED_AT: &str = "2026-09-01T01:45:00Z";
-const SAFE_CONFIG: &str = include_str!(
-    "../../../fixtures/repos/r2-supabase/positive/safe-posture/supabase/config.toml"
-);
+const SAFE_CONFIG: &str =
+    include_str!("../../../fixtures/repos/r2-supabase/positive/safe-posture/supabase/config.toml");
 const VULNERABLE_CONFIG: &str = include_str!(
     "../../../fixtures/repos/r2-supabase/negative/unsafe-posture/supabase/config.toml"
 );
-const UNCERTAIN_METADATA: &str = include_str!(
-    "../../../fixtures/repos/r2-supabase/adversarial/uncertain-posture/fixture.toml"
-);
+const UNCERTAIN_METADATA: &str =
+    include_str!("../../../fixtures/repos/r2-supabase/adversarial/uncertain-posture/fixture.toml");
 const UNSUPPORTED_SQL: &str = include_str!(
     "../../../fixtures/repos/r2-supabase/adversarial/unsupported-syntax/supabase/migrations/20260901000100_dynamic.sql"
 );
@@ -90,9 +84,7 @@ impl FixtureCase {
                 "supabase/migrations/20260829000300_disable.sql",
                 "supabase/functions/webhook/index.ts",
             ],
-            Self::UnsupportedSyntax => {
-                &["supabase/migrations/20260901000100_dynamic.sql"]
-            }
+            Self::UnsupportedSyntax => &["supabase/migrations/20260901000100_dynamic.sql"],
             Self::HostileRepository => &[
                 "supabase/config.toml",
                 "src/browser.ts",
@@ -129,12 +121,8 @@ fn provider(case: FixtureCase) -> SupabaseR2ProviderOutput {
         producer: Some("sentrdel.supabase.e2e-fixture".to_owned()),
         provider_dimension: Some(ProviderCoverageDimension::StaticPosture),
         state,
-        reason_code: is_gap.then(|| {
-            format!(
-                "R2_T027_{}",
-                case.slug().replace('-', "_").to_uppercase()
-            )
-        }),
+        reason_code: is_gap
+            .then(|| format!("R2_T027_{}", case.slug().replace('-', "_").to_uppercase())),
         details: Some("synthetic repository-derived E2E fixture coverage".to_owned()),
         input_digests: vec![format!("sha256:r2-t027:{}", case.slug())],
         observed_at: CAPTURED_AT.to_owned(),
@@ -213,18 +201,24 @@ fn baseline_init(case: FixtureCase) -> InitOutput {
 #[test]
 fn r2_fixture_repositories_have_deterministic_review_and_init_outputs() {
     for case in FixtureCase::ALL {
-        let forward = detect_supabase(
-            case.paths().iter().copied(),
-            DetectionLimits::default(),
-        )
-        .unwrap();
+        let forward =
+            detect_supabase(case.paths().iter().copied(), DetectionLimits::default()).unwrap();
         let reversed = detect_supabase(
             case.paths().iter().rev().copied(),
             DetectionLimits::default(),
         )
         .unwrap();
-        assert_eq!(forward, reversed, "detection replay drift for {}", case.slug());
-        assert!(forward.detected, "fixture must detect Supabase: {}", case.slug());
+        assert_eq!(
+            forward,
+            reversed,
+            "detection replay drift for {}",
+            case.slug()
+        );
+        assert!(
+            forward.detected,
+            "fixture must detect Supabase: {}",
+            case.slug()
+        );
         assert!(!forward.has_security_verdict());
 
         let first_review =
@@ -269,9 +263,7 @@ fn r2_fixture_repositories_have_deterministic_review_and_init_outputs() {
             let second = render_explain_human_with_supabase_context(&explain);
             assert_eq!(first, second);
             assert!(first.contains("repository-derived Supabase R2 static Evidence/Coverage"));
-            assert!(
-                first.contains("does not execute or prove credentialed live Supabase posture")
-            );
+            assert!(first.contains("does not execute or prove credentialed live Supabase posture"));
         } else {
             assert!(baseline_review(case).findings().is_empty());
         }
