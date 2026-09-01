@@ -230,7 +230,10 @@ mod tests {
     #[test]
     fn provider_output_has_no_finding_or_policy_authority() {
         let output = SupabaseR2ProviderOutput::new(vec![evidence()], vec![coverage()]).unwrap();
-        assert_eq!(output.evidence()[0].producer().kind, ProducerKind::NativeRule);
+        assert_eq!(
+            output.evidence()[0].producer().kind,
+            ProducerKind::NativeRule
+        );
         assert!(output.evidence()[0].verify_identity().unwrap());
     }
 
