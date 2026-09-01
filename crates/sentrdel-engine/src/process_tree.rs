@@ -113,8 +113,8 @@ where
     Reap: FnOnce() -> bool,
     Probe: FnOnce() -> bool,
 {
-    let admitted_kill_failure = raw_error == Some(Errno::ESRCH as i32)
-        || raw_error == Some(Errno::EPERM as i32);
+    let admitted_kill_failure =
+        raw_error == Some(Errno::ESRCH as i32) || raw_error == Some(Errno::EPERM as i32);
 
     // Short-circuit order is security-sensitive: the absence probe must never
     // run until the admitted kill error is identified and the exited root reaps.
