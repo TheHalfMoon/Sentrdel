@@ -68,7 +68,7 @@
 ## Phase 5 — R1 integration and developer output
 
 - [x] R2-T024 Replace R1 Supabase `NOT_IMPLEMENTED` static posture handoff with the R2 pack orchestration while preserving compatible detection behavior and explicit LIVE_POSTURE/BUSINESS_LOGIC/RUNTIME gaps.
-- [ ] R2-T025 Register R2 provider Evidence/Coverage in `sentrdel review` and `sentrdel init` without adding a provider-specific Finding bypass.
+- [x] R2-T025 Register R2 provider Evidence/Coverage in `sentrdel review` and `sentrdel init` without adding a provider-specific Finding bypass.
 - [ ] R2-T026 Extend `sentrdel explain` provider context so R2 Findings show static provenance, affected Supabase object/control layer, and explicit non-live limitation.
 - [ ] R2-T027 Add E2E fixture repositories proving review/init/explain deterministic behavior across safe, vulnerable, contradictory/unknown, unsupported syntax, and hostile repository cases.
 
