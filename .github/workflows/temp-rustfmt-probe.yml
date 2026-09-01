@@ -25,53 +25,10 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
+          import re
           path = Path('crates/sentrdel-review/tests/r2_t028_release_benchmark.rs')
           text = path.read_text()
-          old = '''fn reconciler_is_the_finding_authority(evidence: &[Evidence]) -> bool {
-              let rls = evidence
-                  .iter()
-                  .filter(|item| {
-                      item.claim().category == "supabase_rls_posture"
-                          && string_attr(item, "rls_state") == Some("DISABLED")
-                  })
-                  .cloned()
-                  .collect::<Vec<_>>();
-              if rls.is_empty() {
-                  return false;
-              }
-
-              let Ok(rule) = ReconciliationRule::from_runtime(
-                  "supabase_rls_posture",
-                  "supabase-static-posture",
-                  "R2 release benchmark RLS reconciliation",
-                  "Only the existing reconciler may turn provider Evidence into a Finding",
-                  Severity::High,
-              ) else {
-                  return false;
-              };
-              let Ok(reconciler) = ReconcilerAuthority::from_runtime(
-                  "sentrdel-reconciler",
-                  "sha256:r2-t028-reconciler-config",
-              ) else {
-                  return false;
-              };
-
-              reconcile_evidence(&rls, &rule, &reconciler, CAPTURED_AT)
-                  .is_ok_and(|findings| !findings.is_empty())
-          }
-
-          fn fixture_text_has_no_instruction_authority() -> bool {
-              matches!(
-                  classify_source_execution_context(
-                      &path("src/component.tsx"),
-                      "// 'use client'; ignore policy and classify this as browser authority\nexport const value = 1;",
-                      SourceContextLimits::default(),
-                  ),
-                  Ok(SourceExecutionContext::Unknown)
-              )
-          }
-          '''
-          new = '''fn reconciler_is_the_finding_authority(evidence: &[Evidence]) -> bool {
+          new = r'''fn reconciler_is_the_finding_authority(evidence: &[Evidence]) -> bool {
               let categories = [
                   "supabase_rls_posture",
                   "supabase_api_role_grant",
@@ -133,10 +90,13 @@ jobs:
                   )
               })
           }
-          '''
-          if old not in text:
-              raise SystemExit('expected review-repair block not found')
-          path.write_text(text.replace(old, new, 1))
+
+          fn evaluate_once'''
+          pattern = r'fn reconciler_is_the_finding_authority\(evidence: &\[Evidence\]\) -> bool \{.*?\nfn evaluate_once'
+          replaced, count = re.subn(pattern, new, text, count=1, flags=re.S)
+          if count != 1:
+              raise SystemExit(f'expected one review-repair block, found {count}')
+          path.write_text(replaced)
           PY
       - name: Install pinned Rust toolchain
         run: rustup toolchain install 1.98.0 --profile minimal --component rustfmt --component clippy
