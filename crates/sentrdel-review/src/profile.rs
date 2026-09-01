@@ -17,7 +17,7 @@ use crate::config_detection::CiMcpConfigDetection;
 use crate::pack_registry::{PackCoverageDimension, SecurityPackRegistry};
 use crate::project_detection::LanguageEcosystemDetection;
 use crate::stack_detection::{DetectedStack, StackDetectionResult};
-use crate::supabase::SUPABASE_R2_PACK_ID;
+use crate::supabase::{SUPABASE_R2_PACK_ID, manifest as supabase_r2_manifest};
 use crate::supabase_detection::SupabaseDetection;
 
 const PATH_SIGNAL_CONFIDENCE: &str = "PATH_SIGNAL";
@@ -147,7 +147,7 @@ pub fn build_project_profile_snapshot(
         .collect();
 
     if supabase.detected {
-        let pack_status = if packs.get(SUPABASE_R2_PACK_ID).is_some() {
+        let pack_status = if native_supabase_r2_pack_registered(packs) {
             PackStatus::Available
         } else {
             PackStatus::NotInstalled
@@ -206,6 +206,12 @@ pub fn build_project_profile_snapshot(
     Ok(ProjectProfileSnapshot { profile, coverage })
 }
 
+fn native_supabase_r2_pack_registered(packs: &SecurityPackRegistry) -> bool {
+    packs
+        .get(SUPABASE_R2_PACK_ID)
+        .is_some_and(|pack| pack.manifest() == &supabase_r2_manifest())
+}
+
 fn build_project_coverage_matrix(
     profile: &ProjectProfile,
     stacks: &StackDetectionResult,
@@ -223,7 +229,7 @@ fn build_project_coverage_matrix(
                 by_subject
             });
 
-    let supabase_r2_registered = packs.get(SUPABASE_R2_PACK_ID).is_some();
+    let supabase_r2_registered = native_supabase_r2_pack_registered(packs);
     let mut entries = Vec::new();
     for provider in &profile.detected_providers {
         push_subject_dimensions(
