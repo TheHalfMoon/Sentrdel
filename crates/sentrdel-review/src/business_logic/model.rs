@@ -145,13 +145,17 @@ impl fmt::Display for ModelError {
                 formatter,
                 "semantic identity total size {bytes} exceeds cap {max}"
             ),
-            Self::EmptyField(field) => write!(formatter, "business-logic field {field} must not be empty"),
+            Self::EmptyField(field) => {
+                write!(formatter, "business-logic field {field} must not be empty")
+            }
             Self::FieldTooLarge { field, bytes, max } => write!(
                 formatter,
                 "business-logic field {field} size {bytes} exceeds cap {max}"
             ),
             Self::InvalidSourceRange => formatter.write_str("source byte range is invalid"),
-            Self::EmptyContentDigest => formatter.write_str("source content digest must not be empty"),
+            Self::EmptyContentDigest => {
+                formatter.write_str("source content digest must not be empty")
+            }
             Self::ContentDigestTooLarge { bytes, max } => write!(
                 formatter,
                 "source content digest size {bytes} exceeds cap {max}"
@@ -351,7 +355,11 @@ impl RouteObservation {
         let limits = limits.validate()?;
         let route_pattern = route_pattern.into();
         validate_bounded_text(&route_pattern, "route_pattern", limits)?;
-        validate_optional_text(handler_semantic_key.as_deref(), "handler_semantic_key", limits)?;
+        validate_optional_text(
+            handler_semantic_key.as_deref(),
+            "handler_semantic_key",
+            limits,
+        )?;
         Ok(Self {
             route_id,
             framework,
@@ -365,21 +373,37 @@ impl RouteObservation {
     }
 
     #[must_use]
-    pub fn route_id(&self) -> &StableSemanticId { &self.route_id }
+    pub fn route_id(&self) -> &StableSemanticId {
+        &self.route_id
+    }
     #[must_use]
-    pub const fn framework(&self) -> FrameworkFamily { self.framework }
+    pub const fn framework(&self) -> FrameworkFamily {
+        self.framework
+    }
     #[must_use]
-    pub const fn method(&self) -> HttpMethod { self.method }
+    pub const fn method(&self) -> HttpMethod {
+        self.method
+    }
     #[must_use]
-    pub fn route_pattern(&self) -> &str { &self.route_pattern }
+    pub fn route_pattern(&self) -> &str {
+        &self.route_pattern
+    }
     #[must_use]
-    pub fn handler_semantic_key(&self) -> Option<&str> { self.handler_semantic_key.as_deref() }
+    pub fn handler_semantic_key(&self) -> Option<&str> {
+        self.handler_semantic_key.as_deref()
+    }
     #[must_use]
-    pub fn callback_chain(&self) -> &[StableSemanticId] { &self.callback_chain }
+    pub fn callback_chain(&self) -> &[StableSemanticId] {
+        &self.callback_chain
+    }
     #[must_use]
-    pub fn provenance(&self) -> &[SourceLocation] { &self.provenance }
+    pub fn provenance(&self) -> &[SourceLocation] {
+        &self.provenance
+    }
     #[must_use]
-    pub const fn coverage_state(&self) -> CoverageState { self.coverage_state }
+    pub fn coverage_state(&self) -> &CoverageState {
+        &self.coverage_state
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -446,17 +470,29 @@ impl ActorContext {
     }
 
     #[must_use]
-    pub fn actor_id(&self) -> &StableSemanticId { &self.actor_id }
+    pub fn actor_id(&self) -> &StableSemanticId {
+        &self.actor_id
+    }
     #[must_use]
-    pub const fn identity_kind(&self) -> ActorIdentityKind { self.identity_kind }
+    pub const fn identity_kind(&self) -> ActorIdentityKind {
+        self.identity_kind
+    }
     #[must_use]
-    pub const fn source_kind(&self) -> ActorSourceKind { self.source_kind }
+    pub const fn source_kind(&self) -> ActorSourceKind {
+        self.source_kind
+    }
     #[must_use]
-    pub fn semantic_key(&self) -> &str { &self.semantic_key }
+    pub fn semantic_key(&self) -> &str {
+        &self.semantic_key
+    }
     #[must_use]
-    pub const fn trust_basis(&self) -> TrustBasis { self.trust_basis }
+    pub const fn trust_basis(&self) -> TrustBasis {
+        self.trust_basis
+    }
     #[must_use]
-    pub fn provenance(&self) -> &[SourceLocation] { &self.provenance }
+    pub fn provenance(&self) -> &[SourceLocation] {
+        &self.provenance
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -521,7 +557,11 @@ impl GuardObservation {
             guard_kind,
             subject_actor,
             resource,
-            required_values: normalize_bounded_strings(required_values, "guard_required_values", limits)?,
+            required_values: normalize_bounded_strings(
+                required_values,
+                "guard_required_values",
+                limits,
+            )?,
             comparison_shape,
             dominance_scope,
             provenance: normalize_provenance(provenance, limits)?,
@@ -529,21 +569,37 @@ impl GuardObservation {
     }
 
     #[must_use]
-    pub fn guard_id(&self) -> &StableSemanticId { &self.guard_id }
+    pub fn guard_id(&self) -> &StableSemanticId {
+        &self.guard_id
+    }
     #[must_use]
-    pub const fn guard_kind(&self) -> GuardKind { self.guard_kind }
+    pub const fn guard_kind(&self) -> GuardKind {
+        self.guard_kind
+    }
     #[must_use]
-    pub fn subject_actor(&self) -> Option<&StableSemanticId> { self.subject_actor.as_ref() }
+    pub fn subject_actor(&self) -> Option<&StableSemanticId> {
+        self.subject_actor.as_ref()
+    }
     #[must_use]
-    pub fn resource(&self) -> Option<&ResourceRef> { self.resource.as_ref() }
+    pub fn resource(&self) -> Option<&ResourceRef> {
+        self.resource.as_ref()
+    }
     #[must_use]
-    pub fn required_values(&self) -> &[String] { &self.required_values }
+    pub fn required_values(&self) -> &[String] {
+        &self.required_values
+    }
     #[must_use]
-    pub const fn comparison_shape(&self) -> ComparisonShape { self.comparison_shape }
+    pub const fn comparison_shape(&self) -> ComparisonShape {
+        self.comparison_shape
+    }
     #[must_use]
-    pub const fn dominance_scope(&self) -> DominanceScope { self.dominance_scope }
+    pub const fn dominance_scope(&self) -> DominanceScope {
+        self.dominance_scope
+    }
     #[must_use]
-    pub fn provenance(&self) -> &[SourceLocation] { &self.provenance }
+    pub fn provenance(&self) -> &[SourceLocation] {
+        &self.provenance
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -614,19 +670,33 @@ impl ValueOrigin {
     }
 
     #[must_use]
-    pub fn value_id(&self) -> &StableSemanticId { &self.value_id }
+    pub fn value_id(&self) -> &StableSemanticId {
+        &self.value_id
+    }
     #[must_use]
-    pub const fn origin_kind(&self) -> ValueOriginKind { self.origin_kind }
+    pub const fn origin_kind(&self) -> ValueOriginKind {
+        self.origin_kind
+    }
     #[must_use]
-    pub fn semantic_key(&self) -> &str { &self.semantic_key }
+    pub fn semantic_key(&self) -> &str {
+        &self.semantic_key
+    }
     #[must_use]
-    pub fn source_actor(&self) -> Option<&StableSemanticId> { self.source_actor.as_ref() }
+    pub fn source_actor(&self) -> Option<&StableSemanticId> {
+        self.source_actor.as_ref()
+    }
     #[must_use]
-    pub fn derivation_inputs(&self) -> &[StableSemanticId] { &self.derivation_inputs }
+    pub fn derivation_inputs(&self) -> &[StableSemanticId] {
+        &self.derivation_inputs
+    }
     #[must_use]
-    pub const fn derivation_depth(&self) -> usize { self.derivation_depth }
+    pub const fn derivation_depth(&self) -> usize {
+        self.derivation_depth
+    }
     #[must_use]
-    pub fn provenance(&self) -> &[SourceLocation] { &self.provenance }
+    pub fn provenance(&self) -> &[SourceLocation] {
+        &self.provenance
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -663,21 +733,35 @@ impl ProviderClientAuthority {
             client_id,
             provider,
             authority_class,
-            source_evidence_ids: normalize_bounded_strings(source_evidence_ids, "source_evidence_ids", limits)?,
+            source_evidence_ids: normalize_bounded_strings(
+                source_evidence_ids,
+                "source_evidence_ids",
+                limits,
+            )?,
             provenance: normalize_provenance(provenance, limits)?,
         })
     }
 
     #[must_use]
-    pub fn client_id(&self) -> &StableSemanticId { &self.client_id }
+    pub fn client_id(&self) -> &StableSemanticId {
+        &self.client_id
+    }
     #[must_use]
-    pub fn provider(&self) -> &str { &self.provider }
+    pub fn provider(&self) -> &str {
+        &self.provider
+    }
     #[must_use]
-    pub const fn authority_class(&self) -> ProviderAuthorityClass { self.authority_class }
+    pub const fn authority_class(&self) -> ProviderAuthorityClass {
+        self.authority_class
+    }
     #[must_use]
-    pub fn source_evidence_ids(&self) -> &[String] { &self.source_evidence_ids }
+    pub fn source_evidence_ids(&self) -> &[String] {
+        &self.source_evidence_ids
+    }
     #[must_use]
-    pub fn provenance(&self) -> &[SourceLocation] { &self.provenance }
+    pub fn provenance(&self) -> &[SourceLocation] {
+        &self.provenance
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -714,19 +798,35 @@ impl ResourceRef {
         validate_optional_text(namespace.as_deref(), "resource_namespace", limits)?;
         validate_bounded_text(&resource_name, "resource_name", limits)?;
         validate_optional_text(r2_subject.as_deref(), "r2_subject", limits)?;
-        Ok(Self { provider, namespace, resource_name, resource_kind, r2_subject })
+        Ok(Self {
+            provider,
+            namespace,
+            resource_name,
+            resource_kind,
+            r2_subject,
+        })
     }
 
     #[must_use]
-    pub fn provider(&self) -> Option<&str> { self.provider.as_deref() }
+    pub fn provider(&self) -> Option<&str> {
+        self.provider.as_deref()
+    }
     #[must_use]
-    pub fn namespace(&self) -> Option<&str> { self.namespace.as_deref() }
+    pub fn namespace(&self) -> Option<&str> {
+        self.namespace.as_deref()
+    }
     #[must_use]
-    pub fn resource_name(&self) -> &str { &self.resource_name }
+    pub fn resource_name(&self) -> &str {
+        &self.resource_name
+    }
     #[must_use]
-    pub const fn resource_kind(&self) -> ResourceKind { self.resource_kind }
+    pub const fn resource_kind(&self) -> ResourceKind {
+        self.resource_kind
+    }
     #[must_use]
-    pub fn r2_subject(&self) -> Option<&str> { self.r2_subject.as_deref() }
+    pub fn r2_subject(&self) -> Option<&str> {
+        self.r2_subject.as_deref()
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -767,17 +867,30 @@ impl FilterPredicate {
         let limits = limits.validate()?;
         let field_semantic_key = field_semantic_key.into();
         validate_bounded_text(&field_semantic_key, "filter_field_semantic_key", limits)?;
-        Ok(Self { field_semantic_key, operator, value_origin, provenance })
+        Ok(Self {
+            field_semantic_key,
+            operator,
+            value_origin,
+            provenance,
+        })
     }
 
     #[must_use]
-    pub fn field_semantic_key(&self) -> &str { &self.field_semantic_key }
+    pub fn field_semantic_key(&self) -> &str {
+        &self.field_semantic_key
+    }
     #[must_use]
-    pub const fn operator(&self) -> FilterOperator { self.operator }
+    pub const fn operator(&self) -> FilterOperator {
+        self.operator
+    }
     #[must_use]
-    pub fn value_origin(&self) -> &StableSemanticId { &self.value_origin }
+    pub fn value_origin(&self) -> &StableSemanticId {
+        &self.value_origin
+    }
     #[must_use]
-    pub fn provenance(&self) -> &SourceLocation { &self.provenance }
+    pub fn provenance(&self) -> &SourceLocation {
+        &self.provenance
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -819,17 +932,30 @@ impl FieldSet {
         }
         value_origins.sort();
         value_origins.dedup();
-        Ok(Self { mode, fields, value_origins, provenance })
+        Ok(Self {
+            mode,
+            fields,
+            value_origins,
+            provenance,
+        })
     }
 
     #[must_use]
-    pub const fn mode(&self) -> FieldSetMode { self.mode }
+    pub const fn mode(&self) -> FieldSetMode {
+        self.mode
+    }
     #[must_use]
-    pub fn fields(&self) -> &[String] { &self.fields }
+    pub fn fields(&self) -> &[String] {
+        &self.fields
+    }
     #[must_use]
-    pub fn value_origins(&self) -> &[(String, StableSemanticId)] { &self.value_origins }
+    pub fn value_origins(&self) -> &[(String, StableSemanticId)] {
+        &self.value_origins
+    }
     #[must_use]
-    pub fn provenance(&self) -> &SourceLocation { &self.provenance }
+    pub fn provenance(&self) -> &SourceLocation {
+        &self.provenance
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -890,27 +1016,49 @@ impl DataOperation {
     }
 
     #[must_use]
-    pub fn operation_id(&self) -> &StableSemanticId { &self.operation_id }
+    pub fn operation_id(&self) -> &StableSemanticId {
+        &self.operation_id
+    }
     #[must_use]
-    pub const fn operation_kind(&self) -> DataOperationKind { self.operation_kind }
+    pub const fn operation_kind(&self) -> DataOperationKind {
+        self.operation_kind
+    }
     #[must_use]
-    pub fn resource(&self) -> &ResourceRef { &self.resource }
+    pub fn resource(&self) -> &ResourceRef {
+        &self.resource
+    }
     #[must_use]
-    pub fn provider_client(&self) -> Option<&StableSemanticId> { self.provider_client.as_ref() }
+    pub fn provider_client(&self) -> Option<&StableSemanticId> {
+        self.provider_client.as_ref()
+    }
     #[must_use]
-    pub fn filters(&self) -> &[FilterPredicate] { &self.filters }
+    pub fn filters(&self) -> &[FilterPredicate] {
+        &self.filters
+    }
     #[must_use]
-    pub fn read_fields(&self) -> Option<&FieldSet> { self.read_fields.as_ref() }
+    pub fn read_fields(&self) -> Option<&FieldSet> {
+        self.read_fields.as_ref()
+    }
     #[must_use]
-    pub fn mutation_fields(&self) -> Option<&FieldSet> { self.mutation_fields.as_ref() }
+    pub fn mutation_fields(&self) -> Option<&FieldSet> {
+        self.mutation_fields.as_ref()
+    }
     #[must_use]
-    pub fn rpc_name(&self) -> Option<&str> { self.rpc_name.as_deref() }
+    pub fn rpc_name(&self) -> Option<&str> {
+        self.rpc_name.as_deref()
+    }
     #[must_use]
-    pub fn handler_symbol(&self) -> Option<&StableSemanticId> { self.handler_symbol.as_ref() }
+    pub fn handler_symbol(&self) -> Option<&StableSemanticId> {
+        self.handler_symbol.as_ref()
+    }
     #[must_use]
-    pub fn provenance(&self) -> &[SourceLocation] { &self.provenance }
+    pub fn provenance(&self) -> &[SourceLocation] {
+        &self.provenance
+    }
     #[must_use]
-    pub const fn coverage_state(&self) -> CoverageState { self.coverage_state }
+    pub fn coverage_state(&self) -> &CoverageState {
+        &self.coverage_state
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -968,19 +1116,33 @@ impl CrossLayerLink {
     }
 
     #[must_use]
-    pub fn link_id(&self) -> &StableSemanticId { &self.link_id }
+    pub fn link_id(&self) -> &StableSemanticId {
+        &self.link_id
+    }
     #[must_use]
-    pub fn source_semantic_id(&self) -> &StableSemanticId { &self.source_semantic_id }
+    pub fn source_semantic_id(&self) -> &StableSemanticId {
+        &self.source_semantic_id
+    }
     #[must_use]
-    pub fn target_semantic_id(&self) -> &StableSemanticId { &self.target_semantic_id }
+    pub fn target_semantic_id(&self) -> &StableSemanticId {
+        &self.target_semantic_id
+    }
     #[must_use]
-    pub fn relation(&self) -> &str { &self.relation }
+    pub fn relation(&self) -> &str {
+        &self.relation
+    }
     #[must_use]
-    pub const fn basis(&self) -> LinkBasis { self.basis }
+    pub const fn basis(&self) -> LinkBasis {
+        self.basis
+    }
     #[must_use]
-    pub const fn confidence_basis(&self) -> ConfidenceBasis { self.confidence_basis }
+    pub const fn confidence_basis(&self) -> ConfidenceBasis {
+        self.confidence_basis
+    }
     #[must_use]
-    pub fn provenance(&self) -> &[SourceLocation] { &self.provenance }
+    pub fn provenance(&self) -> &[SourceLocation] {
+        &self.provenance
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -1044,25 +1206,45 @@ impl CrossLayerPath {
     }
 
     #[must_use]
-    pub fn path_id(&self) -> &StableSemanticId { &self.path_id }
+    pub fn path_id(&self) -> &StableSemanticId {
+        &self.path_id
+    }
     #[must_use]
-    pub fn route_id(&self) -> &StableSemanticId { &self.route_id }
+    pub fn route_id(&self) -> &StableSemanticId {
+        &self.route_id
+    }
     #[must_use]
-    pub fn actor_ids(&self) -> &[StableSemanticId] { &self.actor_ids }
+    pub fn actor_ids(&self) -> &[StableSemanticId] {
+        &self.actor_ids
+    }
     #[must_use]
-    pub fn guard_ids(&self) -> &[StableSemanticId] { &self.guard_ids }
+    pub fn guard_ids(&self) -> &[StableSemanticId] {
+        &self.guard_ids
+    }
     #[must_use]
-    pub fn data_operation_id(&self) -> &StableSemanticId { &self.data_operation_id }
+    pub fn data_operation_id(&self) -> &StableSemanticId {
+        &self.data_operation_id
+    }
     #[must_use]
-    pub fn provider_client_id(&self) -> Option<&StableSemanticId> { self.provider_client_id.as_ref() }
+    pub fn provider_client_id(&self) -> Option<&StableSemanticId> {
+        self.provider_client_id.as_ref()
+    }
     #[must_use]
-    pub fn links(&self) -> &[CrossLayerLink] { &self.links }
+    pub fn links(&self) -> &[CrossLayerLink] {
+        &self.links
+    }
     #[must_use]
-    pub fn r2_evidence_ids(&self) -> &[String] { &self.r2_evidence_ids }
+    pub fn r2_evidence_ids(&self) -> &[String] {
+        &self.r2_evidence_ids
+    }
     #[must_use]
-    pub const fn path_state(&self) -> PathState { self.path_state }
+    pub const fn path_state(&self) -> PathState {
+        self.path_state
+    }
     #[must_use]
-    pub fn provenance(&self) -> &[SourceLocation] { &self.provenance }
+    pub fn provenance(&self) -> &[SourceLocation] {
+        &self.provenance
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -1099,28 +1281,56 @@ impl InvariantScope {
     ) -> Result<Self, ModelError> {
         let limits = limits.validate()?;
         validate_optional_text(route_pattern.as_deref(), "invariant_route_pattern", limits)?;
-        enforce_collection_cap("invariant_http_methods", http_methods.len(), limits.max_related_ids)?;
-        enforce_collection_cap("invariant_operation_kinds", operation_kinds.len(), limits.max_related_ids)?;
-        enforce_collection_cap("invariant_target_paths", target_paths.len(), limits.max_related_ids)?;
+        enforce_collection_cap(
+            "invariant_http_methods",
+            http_methods.len(),
+            limits.max_related_ids,
+        )?;
+        enforce_collection_cap(
+            "invariant_operation_kinds",
+            operation_kinds.len(),
+            limits.max_related_ids,
+        )?;
+        enforce_collection_cap(
+            "invariant_target_paths",
+            target_paths.len(),
+            limits.max_related_ids,
+        )?;
         http_methods.sort();
         http_methods.dedup();
         operation_kinds.sort();
         operation_kinds.dedup();
         target_paths.sort();
         target_paths.dedup();
-        Ok(Self { route_pattern, http_methods, resource, operation_kinds, target_paths })
+        Ok(Self {
+            route_pattern,
+            http_methods,
+            resource,
+            operation_kinds,
+            target_paths,
+        })
     }
 
     #[must_use]
-    pub fn route_pattern(&self) -> Option<&str> { self.route_pattern.as_deref() }
+    pub fn route_pattern(&self) -> Option<&str> {
+        self.route_pattern.as_deref()
+    }
     #[must_use]
-    pub fn http_methods(&self) -> &[HttpMethod] { &self.http_methods }
+    pub fn http_methods(&self) -> &[HttpMethod] {
+        &self.http_methods
+    }
     #[must_use]
-    pub fn resource(&self) -> Option<&ResourceRef> { self.resource.as_ref() }
+    pub fn resource(&self) -> Option<&ResourceRef> {
+        self.resource.as_ref()
+    }
     #[must_use]
-    pub fn operation_kinds(&self) -> &[DataOperationKind] { &self.operation_kinds }
+    pub fn operation_kinds(&self) -> &[DataOperationKind] {
+        &self.operation_kinds
+    }
     #[must_use]
-    pub fn target_paths(&self) -> &[NormalizedRepoPath] { &self.target_paths }
+    pub fn target_paths(&self) -> &[NormalizedRepoPath] {
+        &self.target_paths
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -1174,17 +1384,29 @@ impl InvariantDefinition {
     }
 
     #[must_use]
-    pub fn invariant_id(&self) -> &StableSemanticId { &self.invariant_id }
+    pub fn invariant_id(&self) -> &StableSemanticId {
+        &self.invariant_id
+    }
     #[must_use]
-    pub const fn kind(&self) -> InvariantKind { self.kind }
+    pub const fn kind(&self) -> InvariantKind {
+        self.kind
+    }
     #[must_use]
-    pub const fn source(&self) -> InvariantSource { self.source }
+    pub const fn source(&self) -> InvariantSource {
+        self.source
+    }
     #[must_use]
-    pub fn scope(&self) -> &InvariantScope { &self.scope }
+    pub fn scope(&self) -> &InvariantScope {
+        &self.scope
+    }
     #[must_use]
-    pub fn requirements(&self) -> &InvariantRequirement { &self.requirements }
+    pub fn requirements(&self) -> &InvariantRequirement {
+        &self.requirements
+    }
     #[must_use]
-    pub fn provenance(&self) -> &[SourceLocation] { &self.provenance }
+    pub fn provenance(&self) -> &[SourceLocation] {
+        &self.provenance
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -1227,28 +1449,51 @@ impl InvariantEvaluation {
             path_id,
             state,
             supporting_observation_ids: normalize_semantic_ids(supporting_observation_ids, limits)?,
-            contradicting_observation_ids: normalize_semantic_ids(contradicting_observation_ids, limits)?,
-            coverage_reasons: normalize_bounded_strings(coverage_reasons, "coverage_reasons", limits)?,
+            contradicting_observation_ids: normalize_semantic_ids(
+                contradicting_observation_ids,
+                limits,
+            )?,
+            coverage_reasons: normalize_bounded_strings(
+                coverage_reasons,
+                "coverage_reasons",
+                limits,
+            )?,
             provenance: normalize_provenance(provenance, limits)?,
         })
     }
 
     #[must_use]
-    pub fn evaluation_id(&self) -> &StableSemanticId { &self.evaluation_id }
+    pub fn evaluation_id(&self) -> &StableSemanticId {
+        &self.evaluation_id
+    }
     #[must_use]
-    pub fn invariant_id(&self) -> &StableSemanticId { &self.invariant_id }
+    pub fn invariant_id(&self) -> &StableSemanticId {
+        &self.invariant_id
+    }
     #[must_use]
-    pub fn path_id(&self) -> Option<&StableSemanticId> { self.path_id.as_ref() }
+    pub fn path_id(&self) -> Option<&StableSemanticId> {
+        self.path_id.as_ref()
+    }
     #[must_use]
-    pub const fn state(&self) -> InvariantEvaluationState { self.state }
+    pub const fn state(&self) -> InvariantEvaluationState {
+        self.state
+    }
     #[must_use]
-    pub fn supporting_observation_ids(&self) -> &[StableSemanticId] { &self.supporting_observation_ids }
+    pub fn supporting_observation_ids(&self) -> &[StableSemanticId] {
+        &self.supporting_observation_ids
+    }
     #[must_use]
-    pub fn contradicting_observation_ids(&self) -> &[StableSemanticId] { &self.contradicting_observation_ids }
+    pub fn contradicting_observation_ids(&self) -> &[StableSemanticId] {
+        &self.contradicting_observation_ids
+    }
     #[must_use]
-    pub fn coverage_reasons(&self) -> &[String] { &self.coverage_reasons }
+    pub fn coverage_reasons(&self) -> &[String] {
+        &self.coverage_reasons
+    }
     #[must_use]
-    pub fn provenance(&self) -> &[SourceLocation] { &self.provenance }
+    pub fn provenance(&self) -> &[SourceLocation] {
+        &self.provenance
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -1297,23 +1542,39 @@ impl BusinessLogicCoverage {
             state,
             reason_code,
             scope,
-            input_digests: normalize_bounded_strings(input_digests, "coverage_input_digests", limits)?,
+            input_digests: normalize_bounded_strings(
+                input_digests,
+                "coverage_input_digests",
+                limits,
+            )?,
             producer,
         })
     }
 
     #[must_use]
-    pub const fn area(&self) -> BusinessLogicCoverageArea { self.area }
+    pub const fn area(&self) -> BusinessLogicCoverageArea {
+        self.area
+    }
     #[must_use]
-    pub const fn state(&self) -> CoverageState { self.state }
+    pub fn state(&self) -> &CoverageState {
+        &self.state
+    }
     #[must_use]
-    pub fn reason_code(&self) -> &str { &self.reason_code }
+    pub fn reason_code(&self) -> &str {
+        &self.reason_code
+    }
     #[must_use]
-    pub fn scope(&self) -> &str { &self.scope }
+    pub fn scope(&self) -> &str {
+        &self.scope
+    }
     #[must_use]
-    pub fn input_digests(&self) -> &[String] { &self.input_digests }
+    pub fn input_digests(&self) -> &[String] {
+        &self.input_digests
+    }
     #[must_use]
-    pub fn producer(&self) -> &str { &self.producer }
+    pub fn producer(&self) -> &str {
+        &self.producer
+    }
 }
 
 fn validate_bounded_text(
@@ -1345,11 +1606,7 @@ fn validate_optional_text(
     Ok(())
 }
 
-fn enforce_collection_cap(
-    field: &'static str,
-    count: usize,
-    max: usize,
-) -> Result<(), ModelError> {
+fn enforce_collection_cap(field: &'static str, count: usize, max: usize) -> Result<(), ModelError> {
     if count > max {
         return Err(ModelError::TooManyCollectionItems { field, count, max });
     }
@@ -1407,11 +1664,15 @@ fn normalize_invariant_requirement(
                 required_actor_identity,
             })
         }
-        InvariantRequirement::RequiredRole { required_roles } => Ok(
-            InvariantRequirement::RequiredRole {
-                required_roles: normalize_bounded_strings(required_roles, "required_roles", limits)?,
-            },
-        ),
+        InvariantRequirement::RequiredRole { required_roles } => {
+            Ok(InvariantRequirement::RequiredRole {
+                required_roles: normalize_bounded_strings(
+                    required_roles,
+                    "required_roles",
+                    limits,
+                )?,
+            })
+        }
         InvariantRequirement::ProtectedProperties {
             protected_properties,
             mut mutation_operations,
@@ -1544,7 +1805,8 @@ mod tests {
         let first = StableSemanticId::from_parts("r3.route", &["GET", "/a"], limits).unwrap();
         let replay = StableSemanticId::from_parts("r3.route", &["GET", "/a"], limits).unwrap();
         let reordered = StableSemanticId::from_parts("r3.route", &["/a", "GET"], limits).unwrap();
-        let other_domain = StableSemanticId::from_parts("r3.actor", &["GET", "/a"], limits).unwrap();
+        let other_domain =
+            StableSemanticId::from_parts("r3.actor", &["GET", "/a"], limits).unwrap();
         assert_eq!(first, replay);
         assert_ne!(first, reordered);
         assert_ne!(first, other_domain);
@@ -1574,7 +1836,10 @@ mod tests {
 
     #[test]
     fn unknown_is_explicit_and_never_aliases_satisfied() {
-        assert_ne!(InvariantEvaluationState::Unknown, InvariantEvaluationState::Satisfied);
+        assert_ne!(
+            InvariantEvaluationState::Unknown,
+            InvariantEvaluationState::Satisfied
+        );
         assert_eq!(PathState::Ambiguous, PathState::Ambiguous);
         assert_eq!(DominanceScope::Unknown, DominanceScope::Unknown);
     }
@@ -1591,7 +1856,11 @@ mod tests {
             "/accounts/:id",
             Some("handler".to_owned()),
             vec![b.clone(), a.clone(), b],
-            vec![source("src/b.js", 2), source("src/a.js", 1), source("src/b.js", 2)],
+            vec![
+                source("src/b.js", 2),
+                source("src/a.js", 1),
+                source("src/b.js", 2),
+            ],
             CoverageState::Covered,
             limits,
         )
@@ -1600,7 +1869,10 @@ mod tests {
         assert_eq!(route.provenance().len(), 2);
         assert!(route.provenance()[0].path() < route.provenance()[1].path());
 
-        let tight = BusinessLogicLimits { max_related_ids: 1, ..limits };
+        let tight = BusinessLogicLimits {
+            max_related_ids: 1,
+            ..limits
+        };
         assert!(matches!(
             RouteObservation::new(
                 id("r3.route", "too-many"),
@@ -1619,7 +1891,11 @@ mod tests {
 
     #[test]
     fn derivation_caps_are_enforced_at_construction() {
-        let limits = BusinessLogicLimits { max_derivation_fan_in: 1, max_derivation_depth: 1, ..BusinessLogicLimits::default() };
+        let limits = BusinessLogicLimits {
+            max_derivation_fan_in: 1,
+            max_derivation_depth: 1,
+            ..BusinessLogicLimits::default()
+        };
         assert!(matches!(
             ValueOrigin::new(
                 id("r3.value", "derived"),
@@ -1648,15 +1924,25 @@ mod tests {
             id("r3.data", "d"),
             None,
             Vec::new(),
-            vec!["evidence:z".to_owned(), "evidence:a".to_owned(), "evidence:z".to_owned()],
+            vec![
+                "evidence:z".to_owned(),
+                "evidence:a".to_owned(),
+                "evidence:z".to_owned(),
+            ],
             PathState::Partial,
             vec![source("src/z.js", 5), source("src/a.js", 1)],
             limits,
         )
         .unwrap();
         assert_eq!(path.actor_ids(), &[actor_a, id("r3.actor", "b")]);
-        assert_eq!(path.r2_evidence_ids(), &["evidence:a".to_owned(), "evidence:z".to_owned()]);
-        assert_eq!(path.provenance()[0].path(), &NormalizedRepoPath::parse("src/a.js", 4_096).unwrap());
+        assert_eq!(
+            path.r2_evidence_ids(),
+            &["evidence:a".to_owned(), "evidence:z".to_owned()]
+        );
+        assert_eq!(
+            path.provenance()[0].path(),
+            &NormalizedRepoPath::parse("src/a.js", 4_096).unwrap()
+        );
     }
 
     #[test]

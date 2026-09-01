@@ -82,12 +82,17 @@ fn phase1_development_corpus_binds_every_declared_fixture_to_ground_truth() {
     assert_eq!(r3_cases.len(), R3_FIXTURE_CATEGORIES.len());
 
     for category in R3_FIXTURE_CATEGORIES {
-        assert!(FIXTURE_MATRIX.contains(category), "missing fixture matrix entry {category}");
+        assert!(
+            FIXTURE_MATRIX.contains(category),
+            "missing fixture matrix entry {category}"
+        );
         let expected_root = format!("fixtures/repos/r3-business-logic/{category}");
         let case = r3_cases
             .iter()
             .find(|case| case["fixture_root"] == expected_root)
-            .unwrap_or_else(|| panic!("fixture category {category} is not bound to a development case"));
+            .unwrap_or_else(|| {
+                panic!("fixture category {category} is not bound to a development case")
+            });
         assert_eq!(case["expected_findings"], serde_json::json!([]));
         assert_eq!(case["emitted_findings"], serde_json::json!([]));
         assert!(case["expected_coverage"].is_array());
