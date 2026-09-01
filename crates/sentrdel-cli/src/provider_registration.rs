@@ -5,12 +5,11 @@
 //! reconciliation paths, while provider Coverage is added to command output.
 //! This module never constructs a Finding or changes a review decision.
 
+use sentrdel_cli::init::InitOutput;
+use sentrdel_cli::review::{ReviewOutput, ReviewOutputError};
+use sentrdel_cli::{CliContractError, CliEnvelope};
 use sentrdel_review::supabase_integration::SupabaseR2ProviderOutput;
 use sentrdel_schema::evidence::Evidence;
-
-use crate::init::InitOutput;
-use crate::review::{ReviewOutput, ReviewOutputError};
-use crate::{CliContractError, CliEnvelope};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct RegisteredSupabaseReviewOutput {
@@ -115,6 +114,9 @@ const fn coverage_state_name(state: &sentrdel_schema::coverage::CoverageState) -
 #[cfg(test)]
 mod tests {
     use super::*;
+    use sentrdel_cli::init::InitOutput;
+    use sentrdel_cli::review::ReviewOutput;
+    use sentrdel_cli::{CliCommand, CliDecision, CliEnvelope, CliRepository, CliTiming};
     use sentrdel_review::supabase::COVERAGE_STATIC_POSTURE_DATABASE;
     use sentrdel_review::supabase_integration::SupabaseR2ProviderOutput;
     use sentrdel_schema::SCHEMA_V1;
@@ -123,10 +125,6 @@ mod tests {
         EpistemicClass, EvidenceAuthority, EvidenceClaim, ProducerKind,
     };
     use std::collections::BTreeMap;
-
-    use crate::init::InitOutput;
-    use crate::review::ReviewOutput;
-    use crate::{CliCommand, CliDecision, CliEnvelope, CliRepository, CliTiming};
 
     fn provider() -> SupabaseR2ProviderOutput {
         let evidence = EvidenceAuthority::from_runtime(
