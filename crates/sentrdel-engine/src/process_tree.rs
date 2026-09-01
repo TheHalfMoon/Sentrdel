@@ -14,6 +14,8 @@ use std::{
 
 #[cfg(unix)]
 use nix::errno::Errno;
+#[cfg(target_os = "macos")]
+use nix::{sys::signal::kill, unistd::Pid};
 #[cfg(windows)]
 use process_wrap::std::JobObject;
 #[cfg(unix)]
@@ -98,12 +100,17 @@ fn macos_process_group_is_absent(process_group_id: u32) -> bool {
         return false;
     };
 
-    // SAFETY: `kill` with signal 0 sends no signal. The negative PID probes the
-    // process group created for this exact child. ESRCH is the only result that
-    // proves the boundary has drained; success and every other errno are live or
+    // `kill` with signal 0 sends no signal. A negative PID probes the exact
+    // process group created for this child. ESRCH is the only result that proves
+    // the boundary has drained; success and every other errno are live or
     // indeterminate and therefore remain fail-closed.
-    let result = unsafe { nix::libc::kill(-process_group_id, 0) };
-    result == -1 && Errno::last() == Errno::ESRCH
+    matches!(
+        kill(
+            Pid::from_raw(-process_group_id),
+            None::<nix::sys::signal::Signal>
+        ),
+        Err(Errno::ESRCH)
+    )
 }
 
 pub(crate) fn spawn_contained_process(
@@ -162,14 +169,13 @@ mod tests {
 
     #[test]
     fn permission_denied_never_masks_a_live_process_group() {
-        // SAFETY: getpgrp only reads the caller's process-group identifier.
-        let process_group_id = unsafe { nix::libc::getpgrp() };
-        assert!(process_group_id > 0);
+        let process_group_id = nix::unistd::getpgrp();
+        assert!(process_group_id.as_raw() > 0);
         let permission_denied = io::Error::from_raw_os_error(Errno::EPERM as i32);
 
         assert!(!unix_process_boundary_is_absent(
             &permission_denied,
-            process_group_id as u32
+            process_group_id.as_raw() as u32
         ));
     }
 }
