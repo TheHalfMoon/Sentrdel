@@ -94,7 +94,10 @@ const HOSTILE_CONFIG: &str = include_str!(
 
 const SAFE_FILES: &[(&str, &str)] = &[
     ("supabase/config.toml", SAFE_CONFIG),
-    ("supabase/migrations/20260829000100_baseline.sql", SAFE_MIGRATION),
+    (
+        "supabase/migrations/20260829000100_baseline.sql",
+        SAFE_MIGRATION,
+    ),
     ("supabase/functions/webhook/index.ts", SAFE_FUNCTION),
     ("src/browser.ts", SAFE_BROWSER),
 ];
@@ -126,7 +129,10 @@ const UNCERTAIN_FILES: &[(&str, &str)] = &[
 ];
 const UNSUPPORTED_FILES: &[(&str, &str)] = &[
     ("fixture.toml", UNSUPPORTED_METADATA),
-    ("supabase/migrations/20260901000100_dynamic.sql", UNSUPPORTED_SQL),
+    (
+        "supabase/migrations/20260901000100_dynamic.sql",
+        UNSUPPORTED_SQL,
+    ),
 ];
 const HOSTILE_FILES: &[(&str, &str)] = &[
     ("fixture.toml", HOSTILE_METADATA),
@@ -249,8 +255,11 @@ fn source_key_boundary_evidence(path: &str, source: &str) -> Vec<Evidence> {
 }
 
 fn analyze_fixture(case: FixtureCase) -> (CoverageState, Vec<Evidence>) {
-    let forward =
-        detect_supabase(case.files().iter().map(|(path, _)| *path), DetectionLimits::default()).unwrap();
+    let forward = detect_supabase(
+        case.files().iter().map(|(path, _)| *path),
+        DetectionLimits::default(),
+    )
+    .unwrap();
     let reversed = detect_supabase(
         case.files().iter().rev().map(|(path, _)| *path),
         DetectionLimits::default(),
