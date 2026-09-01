@@ -16,7 +16,7 @@ use sentrdel_review::{
     supabase::{
         SupabaseMigrationDiscoveryError, SupabaseMigrationDiscoveryLimits,
         discover_migration_paths,
-        key_authority::{KeyAuthorityLocation, observe_key_literal},
+        key_authority::{KeyAuthorityLocation, observe_key_literal, observe_key_reference},
         key_boundary::observe_elevated_key_client_boundary,
         source_context::{
             SourceContextLimits, SourceExecutionContext, classify_source_execution_context,
@@ -57,6 +57,76 @@ const HOSTILE_SOURCE: &str = include_str!(
 const HOSTILE_HELPER: &str = include_str!(
     "../../../fixtures/repos/r2-supabase/adversarial/hostile-repository/.cargo/config.toml"
 );
+const SAFE_MIGRATION: &str = include_str!(
+    "../../../fixtures/repos/r2-supabase/positive/safe-posture/supabase/migrations/20260829000100_baseline.sql"
+);
+const SAFE_FUNCTION: &str = include_str!(
+    "../../../fixtures/repos/r2-supabase/positive/safe-posture/supabase/functions/webhook/index.ts"
+);
+const VULNERABLE_BASELINE: &str = include_str!(
+    "../../../fixtures/repos/r2-supabase/negative/unsafe-posture/supabase/migrations/20260829000100_baseline.sql"
+);
+const VULNERABLE_WIDEN: &str = include_str!(
+    "../../../fixtures/repos/r2-supabase/negative/unsafe-posture/supabase/migrations/20260829000200_widen.sql"
+);
+const VULNERABLE_FUNCTION: &str = include_str!(
+    "../../../fixtures/repos/r2-supabase/negative/unsafe-posture/supabase/functions/webhook/index.ts"
+);
+const UNCERTAIN_CONFIG: &str = include_str!(
+    "../../../fixtures/repos/r2-supabase/adversarial/uncertain-posture/supabase/config.toml"
+);
+const UNCERTAIN_ENABLE: &str = include_str!(
+    "../../../fixtures/repos/r2-supabase/adversarial/uncertain-posture/supabase/migrations/20260829000300_enable.sql"
+);
+const UNCERTAIN_DISABLE: &str = include_str!(
+    "../../../fixtures/repos/r2-supabase/adversarial/uncertain-posture/supabase/migrations/20260829000300_disable.sql"
+);
+const UNCERTAIN_FUNCTION: &str = include_str!(
+    "../../../fixtures/repos/r2-supabase/adversarial/uncertain-posture/supabase/functions/webhook/index.ts"
+);
+const HOSTILE_CONFIG: &str = include_str!(
+    "../../../fixtures/repos/r2-supabase/adversarial/hostile-repository/supabase/config.toml"
+);
+
+const SAFE_FILES: &[(&str, &str)] = &[
+    ("supabase/config.toml", SAFE_CONFIG),
+    ("supabase/migrations/20260829000100_baseline.sql", SAFE_MIGRATION),
+    ("supabase/functions/webhook/index.ts", SAFE_FUNCTION),
+    ("src/browser.ts", SAFE_BROWSER),
+];
+const VULNERABLE_FILES: &[(&str, &str)] = &[
+    ("supabase/config.toml", VULNERABLE_CONFIG),
+    (
+        "supabase/migrations/20260829000100_baseline.sql",
+        VULNERABLE_BASELINE,
+    ),
+    (
+        "supabase/migrations/20260829000200_widen.sql",
+        VULNERABLE_WIDEN,
+    ),
+    ("supabase/functions/webhook/index.ts", VULNERABLE_FUNCTION),
+    ("src/browser.ts", VULNERABLE_BROWSER),
+];
+const UNCERTAIN_FILES: &[(&str, &str)] = &[
+    ("supabase/config.toml", UNCERTAIN_CONFIG),
+    (
+        "supabase/migrations/20260829000300_enable.sql",
+        UNCERTAIN_ENABLE,
+    ),
+    (
+        "supabase/migrations/20260829000300_disable.sql",
+        UNCERTAIN_DISABLE,
+    ),
+    ("supabase/functions/webhook/index.ts", UNCERTAIN_FUNCTION),
+];
+const UNSUPPORTED_FILES: &[(&str, &str)] = &[
+    ("supabase/migrations/20260901000100_dynamic.sql", UNSUPPORTED_SQL),
+];
+const HOSTILE_FILES: &[(&str, &str)] = &[
+    ("supabase/config.toml", HOSTILE_CONFIG),
+    ("src/browser.ts", HOSTILE_SOURCE),
+    (".cargo/config.toml", HOSTILE_HELPER),
+];
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum FixtureCase {
@@ -86,33 +156,13 @@ impl FixtureCase {
         }
     }
 
-    const fn paths(self) -> &'static [&'static str] {
+    const fn files(self) -> &'static [(&'static str, &'static str)] {
         match self {
-            Self::Safe => &[
-                "supabase/config.toml",
-                "supabase/migrations/20260829000100_baseline.sql",
-                "supabase/functions/webhook/index.ts",
-                "src/browser.ts",
-            ],
-            Self::Vulnerable => &[
-                "supabase/config.toml",
-                "supabase/migrations/20260829000100_baseline.sql",
-                "supabase/migrations/20260829000200_widen.sql",
-                "supabase/functions/webhook/index.ts",
-                "src/browser.ts",
-            ],
-            Self::ContradictoryUnknown => &[
-                "supabase/config.toml",
-                "supabase/migrations/20260829000300_enable.sql",
-                "supabase/migrations/20260829000300_disable.sql",
-                "supabase/functions/webhook/index.ts",
-            ],
-            Self::UnsupportedSyntax => &["supabase/migrations/20260901000100_dynamic.sql"],
-            Self::HostileRepository => &[
-                "supabase/config.toml",
-                "src/browser.ts",
-                ".cargo/config.toml",
-            ],
+            Self::Safe => SAFE_FILES,
+            Self::Vulnerable => VULNERABLE_FILES,
+            Self::ContradictoryUnknown => UNCERTAIN_FILES,
+            Self::UnsupportedSyntax => UNSUPPORTED_FILES,
+            Self::HostileRepository => HOSTILE_FILES,
         }
     }
 }
@@ -125,27 +175,24 @@ fn normalized_path(value: &str) -> NormalizedRepoPath {
     NormalizedRepoPath::parse(value, DEFAULT_MAX_REPO_PATH_BYTES).unwrap()
 }
 
-fn first_supabase_key_literal(source: &str) -> Option<(&str, usize)> {
+fn source_tokens(source: &str) -> Vec<(&str, usize)> {
+    let mut tokens = Vec::new();
     let mut token_start = None;
     for (offset, character) in source.char_indices() {
         let is_token = character.is_ascii_alphanumeric() || character == '_';
         match (token_start, is_token) {
             (None, true) => token_start = Some(offset),
             (Some(start), false) => {
-                let token = &source[start..offset];
-                if token.starts_with("sb_") {
-                    return Some((token, start));
-                }
+                tokens.push((&source[start..offset], start));
                 token_start = None;
             }
             _ => {}
         }
     }
-
-    token_start.and_then(|start| {
-        let token = &source[start..];
-        token.starts_with("sb_").then_some((token, start))
-    })
+    if let Some(start) = token_start {
+        tokens.push((&source[start..], start));
+    }
+    tokens
 }
 
 fn source_key_boundary_evidence(path: &str, source: &str) -> Vec<Evidence> {
@@ -155,43 +202,50 @@ fn source_key_boundary_evidence(path: &str, source: &str) -> Vec<Evidence> {
         SourceContextLimits::default(),
     )
     .unwrap();
-    let Some((raw, byte_offset)) = first_supabase_key_literal(source) else {
-        return Vec::new();
-    };
+    let digest = content_id("r2-t027-source", &source).unwrap();
+    let mut evidence = Vec::new();
 
-    let line = source[..byte_offset]
-        .bytes()
-        .filter(|byte| *byte == b'\n')
-        .count() as u64
-        + 1;
-    let line_start = source[..byte_offset]
-        .rfind('\n')
-        .map_or(0, |offset| offset + 1);
-    let start_column = (byte_offset - line_start) as u64 + 1;
-    let observation = observe_key_literal(
-        raw,
-        KeyAuthorityLocation {
+    for (raw, byte_offset) in source_tokens(source) {
+        let line = source[..byte_offset]
+            .bytes()
+            .filter(|byte| *byte == b'\n')
+            .count() as u64
+            + 1;
+        let line_start = source[..byte_offset]
+            .rfind('\n')
+            .map_or(0, |offset| offset + 1);
+        let start_column = (byte_offset - line_start) as u64 + 1;
+        let location = KeyAuthorityLocation {
             path: normalized_path(path),
             line,
             start_column,
             end_column: start_column + raw.len() as u64,
-        },
-    )
-    .unwrap()
-    .expect("fixture key token must classify");
-    let digest = content_id("r2-t027-source", &source).unwrap();
+        };
 
-    observe_elevated_key_client_boundary(&observation, context, &digest, CAPTURED_AT)
-        .unwrap()
-        .into_iter()
-        .collect()
+        let observations = [
+            observe_key_literal(raw, location.clone()).unwrap(),
+            observe_key_reference(raw, location).unwrap(),
+        ];
+        for observation in observations.into_iter().flatten() {
+            if let Some(item) =
+                observe_elevated_key_client_boundary(&observation, context, &digest, CAPTURED_AT)
+                    .unwrap()
+            {
+                evidence.push(item);
+            }
+        }
+    }
+
+    evidence.sort_by(|left, right| left.evidence_id().cmp(right.evidence_id()));
+    evidence.dedup_by(|left, right| left.evidence_id() == right.evidence_id());
+    evidence
 }
 
 fn analyze_fixture(case: FixtureCase) -> (CoverageState, Vec<Evidence>) {
     let forward =
-        detect_supabase(case.paths().iter().copied(), DetectionLimits::default()).unwrap();
+        detect_supabase(case.files().iter().map(|(path, _)| *path), DetectionLimits::default()).unwrap();
     let reversed = detect_supabase(
-        case.paths().iter().rev().copied(),
+        case.files().iter().rev().map(|(path, _)| *path),
         DetectionLimits::default(),
     )
     .unwrap();
@@ -225,7 +279,7 @@ fn analyze_fixture(case: FixtureCase) -> (CoverageState, Vec<Evidence>) {
         }
         FixtureCase::ContradictoryUnknown => {
             let result = discover_migration_paths(
-                case.paths().iter().copied(),
+                case.files().iter().map(|(path, _)| *path),
                 SupabaseMigrationDiscoveryLimits::default(),
             );
             assert!(matches!(
@@ -251,33 +305,13 @@ fn analyze_fixture(case: FixtureCase) -> (CoverageState, Vec<Evidence>) {
             assert_eq!(context, SourceExecutionContext::BrowserOrClient);
             let evidence = source_key_boundary_evidence("src/browser.ts", HOSTILE_SOURCE);
             assert!(evidence.is_empty());
-            (CoverageState::Covered, evidence)
+            (CoverageState::Partial, evidence)
         }
     }
 }
 
 fn fixture_digest(case: FixtureCase) -> String {
-    match case {
-        FixtureCase::Safe => content_id(
-            "r2-t027-fixture",
-            &(case.paths(), SAFE_CONFIG, SAFE_BROWSER),
-        ),
-        FixtureCase::Vulnerable => content_id(
-            "r2-t027-fixture",
-            &(case.paths(), VULNERABLE_CONFIG, VULNERABLE_BROWSER),
-        ),
-        FixtureCase::ContradictoryUnknown => {
-            content_id("r2-t027-fixture", &(case.paths(), UNCERTAIN_METADATA))
-        }
-        FixtureCase::UnsupportedSyntax => {
-            content_id("r2-t027-fixture", &(case.paths(), UNSUPPORTED_SQL))
-        }
-        FixtureCase::HostileRepository => content_id(
-            "r2-t027-fixture",
-            &(case.paths(), HOSTILE_SOURCE, HOSTILE_HELPER),
-        ),
-    }
-    .unwrap()
+    content_id("r2-t027-fixture", &case.files()).unwrap()
 }
 
 fn provider(case: FixtureCase) -> SupabaseR2ProviderOutput {
@@ -456,7 +490,7 @@ fn r2_e2e_ground_truth_is_derived_from_fixture_bytes_and_production_analyzers() 
     assert!(contradictory.evidence().is_empty());
     assert_eq!(unsupported.coverage()[0].state, CoverageState::Unsupported);
     assert!(unsupported.evidence().is_empty());
-    assert_eq!(hostile.coverage()[0].state, CoverageState::Covered);
+    assert_eq!(hostile.coverage()[0].state, CoverageState::Partial);
     assert!(hostile.evidence().is_empty());
     assert!(
         !format!("{vulnerable:?}").contains("SENTRDEL_CANARY_BROWSER_ELEVATED_NOT_A_CREDENTIAL")
