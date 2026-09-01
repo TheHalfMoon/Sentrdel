@@ -1,4 +1,5 @@
 use sentrdel_review::project_detection::DetectionLimits;
+use sentrdel_review::supabase::SUPABASE_R2_PACK_ID;
 use sentrdel_review::supabase_detection::{SupabaseStaticPostureStatus, detect_supabase};
 use sentrdel_schema::coverage::CoverageState;
 
@@ -18,8 +19,9 @@ fn positive_and_negative_fixture_layouts_preserve_detection_only_semantics() {
     let posture = positive
         .static_posture
         .expect("detected provider posture marker");
-    assert_eq!(posture.status, SupabaseStaticPostureStatus::NotImplemented);
-    assert_eq!(posture.coverage_state, CoverageState::Partial);
+    assert_eq!(posture.status, SupabaseStaticPostureStatus::Available);
+    assert_eq!(posture.coverage_state, CoverageState::Unavailable);
+    assert_eq!(posture.pack_id, SUPABASE_R2_PACK_ID);
     assert!(
         posture
             .roadmap
