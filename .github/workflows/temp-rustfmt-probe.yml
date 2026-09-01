@@ -1,4 +1,4 @@
-name: Temporary R2-T028 Review Repair Diagnostic
+name: Temporary R2-T028 Review Repair
 
 on:
   push:
@@ -6,16 +6,15 @@ on:
       - ci/temp-governance-reverify-20260901
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  diagnose:
+  repair:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout exact candidate
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
-          persist-credentials: false
           ref: test/002-r2-t028-release-gate
           fetch-depth: 1
           path: candidate
@@ -58,7 +57,7 @@ jobs:
                   }
 
                   let Ok(rule) = ReconciliationRule::from_runtime(
-                      category,
+                      *category,
                       "supabase-static-posture",
                       "R2 release benchmark authority reconciliation",
                       "Only the existing reconciler may turn provider Evidence into a Finding",
@@ -104,21 +103,25 @@ jobs:
       - name: Format candidate
         working-directory: candidate
         run: cargo +1.98.0 fmt --all
-      - name: Capture check diagnostics
+      - name: Require formatted candidate
         working-directory: candidate
-        shell: bash
+        run: cargo +1.98.0 fmt --all --check
+      - name: Check candidate
+        working-directory: candidate
+        run: cargo +1.98.0 check --workspace --all-targets --locked
+      - name: Test candidate
+        working-directory: candidate
+        run: cargo +1.98.0 test --workspace --locked
+      - name: Clippy candidate
+        working-directory: candidate
+        run: cargo +1.98.0 clippy --workspace --all-targets --locked -- -D warnings
+      - name: Commit qualified repair
+        working-directory: candidate
         run: |
-          set +e
-          cargo +1.98.0 check --workspace --all-targets --locked 2>&1 | tee ../r2-t028-review-check.txt
-          code=${PIPESTATUS[0]}
-          printf '%s\n' "$code" > ../r2-t028-review-check-exit.txt
-          exit 0
-      - name: Upload diagnostics
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: r2-t028-review-check-diagnostics
-          path: |
-            r2-t028-review-check.txt
-            r2-t028-review-check-exit.txt
-          if-no-files-found: error
-          retention-days: 1
+          set -euo pipefail
+          git config user.name "Abdulaziz M. Shehri"
+          git config user.email "alshehriofficial@gmail.com"
+          git add crates/sentrdel-review/tests/r2_t028_release_benchmark.rs
+          git diff --cached --quiet && { echo "no qualified repair diff"; exit 1; }
+          git commit -m "test(r2): prove release authority across gated evidence"
+          git push origin HEAD:test/002-r2-t028-release-gate
