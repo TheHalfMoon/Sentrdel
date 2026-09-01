@@ -1,0 +1,51 @@
+name: Issue 138 Post-Merge Governance Probe
+
+on:
+  push:
+    branches:
+      - probe/138-postmerge-governance-b61b0e5
+
+permissions:
+  contents: read
+
+jobs:
+  governance-verification-probe:
+    name: Issue 138 post-merge governance verification (non-gate)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout without persisted credentials
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+
+      - name: Detect bounded governance credential
+        id: credential
+        shell: bash
+        env:
+          DEDICATED_TOKEN: ${{ secrets.SENTRDEL_GOVERNANCE_ADMIN_TOKEN }}
+        run: |
+          if [[ -n "${DEDICATED_TOKEN}" ]]; then
+            echo "::add-mask::${DEDICATED_TOKEN}"
+            echo "available=true" >> "${GITHUB_OUTPUT}"
+            echo "Issue 138 governance verifier credential: dedicated"
+          else
+            echo "available=false" >> "${GITHUB_OUTPUT}"
+            echo "Issue 138 governance verifier credential: BLOCKED_NO_BOUNDED_ADMIN_TOKEN"
+          fi
+
+      - name: Verify canonical main protection
+        if: steps.credential.outputs.available == 'true'
+        shell: bash
+        env:
+          DEDICATED_TOKEN: ${{ secrets.SENTRDEL_GOVERNANCE_ADMIN_TOKEN }}
+        run: |
+          unset GITHUB_TOKEN
+          export GH_TOKEN="${DEDICATED_TOKEN}"
+          python3 scripts/verify_repository_governance.py
+
+      - name: Fail closed when bounded credential is unavailable
+        if: steps.credential.outputs.available != 'true'
+        run: |
+          echo "Issue 138 post-merge governance verification: BLOCKED_NO_BOUNDED_ADMIN_TOKEN"
+          exit 1
