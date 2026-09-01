@@ -6,6 +6,8 @@ pub mod bootstrap;
 // else in the workspace.
 #[allow(dead_code)]
 mod explain;
+#[allow(dead_code)]
+mod explain_provider;
 #[cfg(test)]
 mod explain_t070_contract;
 #[allow(dead_code)]
