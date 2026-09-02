@@ -190,6 +190,26 @@ fn supabase_edge_deno_serve_is_bounded_and_method_partial() {
 }
 
 #[test]
+fn supabase_non_entry_file_is_an_explicit_unsupported_route_file_gap() {
+    let result = extract_routes(
+        RouteAdapter::SupabaseEdge,
+        StructuralLanguage::TypeScript,
+        &path("supabase/functions/private-doc/helper.ts"),
+        SUPABASE_EDGE_SAFE.as_bytes(),
+        BusinessLogicLimits::default(),
+    )
+    .expect("reject non-entry Supabase Edge source file");
+
+    assert!(result.routes().is_empty());
+    assert!(
+        result
+            .gaps()
+            .iter()
+            .any(|gap| gap.reason() == RouteCoverageGapReason::UnsupportedRouteFile)
+    );
+}
+
+#[test]
 fn malformed_source_fails_closed_through_fixed_grammar_boundary() {
     let error = extract_routes(
         RouteAdapter::Express,

@@ -794,12 +794,12 @@ fn next_pages_route_pattern(path: &str) -> Option<String> {
 
 fn supabase_function_name(path: &str) -> Option<&str> {
     let parts: Vec<&str> = path.split('/').collect();
-    for window in parts.windows(3) {
-        if window[0] == "supabase" && window[1] == "functions" && !window[2].is_empty() {
-            return Some(window[2]);
+    match parts.as_slice() {
+        ["supabase", "functions", function_name, "index.ts"] if !function_name.is_empty() => {
+            Some(*function_name)
         }
+        _ => None,
     }
-    None
 }
 
 fn callback_key(source: &str, start: usize, end: usize) -> Option<String> {
