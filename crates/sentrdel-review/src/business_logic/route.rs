@@ -358,19 +358,19 @@ fn extract_express(
             continue;
         }
         let mut cursor = skip_mask_ws(mask, receiver_end);
-        if mask.get(cursor) == Some(&b'[') {
-            if let Some(close) = find_balanced(mask, cursor, b'[', b']') {
-                let after = skip_mask_ws(mask, close + 1);
-                if mask.get(after) == Some(&b'(') {
-                    let end = find_call_close(bytes, after).unwrap_or(after);
-                    builder.gap(
-                        RouteCoverageGapReason::DynamicRegistration,
-                        receiver_start,
-                        end.saturating_add(1),
-                    )?;
-                    index = end.saturating_add(1);
-                    continue;
-                }
+        if mask.get(cursor) == Some(&b'[')
+            && let Some(close) = find_balanced(mask, cursor, b'[', b']')
+        {
+            let after = skip_mask_ws(mask, close + 1);
+            if mask.get(after) == Some(&b'(') {
+                let end = find_call_close(bytes, after).unwrap_or(after);
+                builder.gap(
+                    RouteCoverageGapReason::DynamicRegistration,
+                    receiver_start,
+                    end.saturating_add(1),
+                )?;
+                index = end.saturating_add(1);
+                continue;
             }
         }
         if mask.get(cursor) != Some(&b'.') {
