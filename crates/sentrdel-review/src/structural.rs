@@ -23,6 +23,7 @@ pub const MAX_STRUCTURAL_DOCUMENT_BYTES: usize = DEFAULT_MAX_FILE_BYTES as usize
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum StructuralLanguage {
     JavaScript,
+    TypeScript,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -178,6 +179,31 @@ impl LanguageExt for JavaScriptLanguage {
     }
 }
 
+#[derive(Clone)]
+struct TypeScriptLanguage;
+
+impl Language for TypeScriptLanguage {
+    fn kind_to_id(&self, kind: &str) -> u16 {
+        self.get_ts_language().id_for_node_kind(kind, true)
+    }
+
+    fn field_to_id(&self, field: &str) -> Option<u16> {
+        self.get_ts_language()
+            .field_id_for_name(field)
+            .map(|id| id.get())
+    }
+
+    fn build_pattern(&self, builder: &PatternBuilder<'_>) -> Result<Pattern, PatternError> {
+        builder.build(|source| StrDoc::try_new(source, self.clone()))
+    }
+}
+
+impl LanguageExt for TypeScriptLanguage {
+    fn get_ts_language(&self) -> TSLanguage {
+        tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into()
+    }
+}
+
 struct CompiledRule {
     source: StructuralRule,
     pattern: Pattern,
@@ -229,6 +255,15 @@ impl StructuralRegistry {
         path: &NormalizedRepoPath,
         source: &[u8],
     ) -> Result<Vec<StructuralMatch>, StructuralError> {
+        self.scan_language(StructuralLanguage::JavaScript, path, source)
+    }
+
+    pub fn scan_language(
+        &self,
+        language: StructuralLanguage,
+        path: &NormalizedRepoPath,
+        source: &[u8],
+    ) -> Result<Vec<StructuralMatch>, StructuralError> {
         if source.len() > MAX_STRUCTURAL_DOCUMENT_BYTES {
             return Err(StructuralError::DocumentTooLarge {
                 bytes: source.len(),
@@ -237,7 +272,27 @@ impl StructuralRegistry {
         }
         let source = std::str::from_utf8(source).map_err(|_| StructuralError::NonUtf8Source)?;
 
-        let document = AstGrep::<StrDoc<JavaScriptLanguage>>::try_new(source, JavaScriptLanguage)
+        match language {
+            StructuralLanguage::JavaScript => {
+                self.scan_document(path, source, language, JavaScriptLanguage)
+            }
+            StructuralLanguage::TypeScript => {
+                self.scan_document(path, source, language, TypeScriptLanguage)
+            }
+        }
+    }
+
+    fn scan_document<L>(
+        &self,
+        path: &NormalizedRepoPath,
+        source: &str,
+        language: StructuralLanguage,
+        parser_language: L,
+    ) -> Result<Vec<StructuralMatch>, StructuralError>
+    where
+        L: Language + LanguageExt + Clone,
+    {
+        let document = AstGrep::<StrDoc<L>>::try_new(source, parser_language)
             .map_err(StructuralError::ParseFailed)?;
         let root = document.root();
         if root.dfs().any(|node| node.is_error() || node.is_missing()) {
@@ -246,7 +301,7 @@ impl StructuralRegistry {
 
         let mut matches = Vec::new();
         for rule in &self.rules {
-            if rule.source.language != StructuralLanguage::JavaScript {
+            if rule.source.language != language {
                 continue;
             }
             matches.extend(
@@ -272,6 +327,7 @@ impl StructuralRegistry {
 fn compile_pattern(rule: StructuralRule) -> Result<Pattern, StructuralError> {
     match rule.language {
         StructuralLanguage::JavaScript => Pattern::try_new(rule.pattern, JavaScriptLanguage),
+        StructuralLanguage::TypeScript => Pattern::try_new(rule.pattern, TypeScriptLanguage),
     }
     .map_err(|source| StructuralError::InvalidPattern {
         rule_id: rule.id,
