@@ -145,6 +145,35 @@ fn request_json_binding_is_request_controlled_body_context() {
 }
 
 #[test]
+fn dynamic_request_body_alias_access_fails_visible_as_unknown() {
+    let source = br#"export async function POST(request, selector) {
+  const body = await request.json();
+  return body[selector];
+}
+"#;
+    let result = extract_actor_contexts(
+        RouteAdapter::NextApp,
+        StructuralLanguage::JavaScript,
+        &path("app/api/items/route.js"),
+        source,
+        BusinessLogicLimits::default(),
+    )
+    .expect("extract dynamic request body gap");
+
+    assert!(
+        result
+            .gaps()
+            .iter()
+            .any(|gap| gap.reason() == ActorCoverageGapReason::DynamicRequestAccess)
+    );
+    assert!(result.actors().iter().any(|actor| {
+        actor.identity_kind() == ActorIdentityKind::Unknown
+            && actor.source_kind() == ActorSourceKind::Unknown
+            && actor.trust_basis() == TrustBasis::Unknown
+    }));
+}
+
+#[test]
 fn literal_binding_is_recorded_without_promoting_lexical_identity() {
     let source = b"const actorKey = 'admin';\nexport function handler(req) { return req.params.id ?? actorKey; }\n";
     let result = extract_actor_contexts(
@@ -222,6 +251,42 @@ fn destructured_auth_result_is_explicitly_unsupported_not_runtime_verified() {
         actor.identity_kind() == ActorIdentityKind::Unknown
             && actor.source_kind() == ActorSourceKind::Unknown
     }));
+}
+
+#[test]
+fn unsupported_auth_shape_recognition_is_scoped_to_active_adapter() {
+    let express_source =
+        b"export async function handler() { const { value } = await auth(); return value; }\n";
+    let express = extract_actor_contexts(
+        RouteAdapter::Express,
+        StructuralLanguage::JavaScript,
+        &path("src/unrelated-auth.js"),
+        express_source,
+        BusinessLogicLimits::default(),
+    )
+    .expect("ignore unrelated Express auth call");
+    assert!(
+        express
+            .gaps()
+            .iter()
+            .all(|gap| gap.reason() != ActorCoverageGapReason::UnsupportedAuthShape)
+    );
+
+    let next_app_source = b"export async function GET() { const { data } = await supabase.auth.getUser(); return data; }\n";
+    let next_app = extract_actor_contexts(
+        RouteAdapter::NextApp,
+        StructuralLanguage::JavaScript,
+        &path("app/api/unrelated/route.js"),
+        next_app_source,
+        BusinessLogicLimits::default(),
+    )
+    .expect("ignore unrelated Next App Supabase auth call");
+    assert!(
+        next_app
+            .gaps()
+            .iter()
+            .all(|gap| gap.reason() != ActorCoverageGapReason::UnsupportedAuthShape)
+    );
 }
 
 #[test]
