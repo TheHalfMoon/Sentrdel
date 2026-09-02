@@ -15,6 +15,7 @@ The repository does **not** currently contain source-specific private permission
 | microsoft/regorus | `f98865fc980b9919d201e20969d9b28685ee72bc` (`regorus-v0.11.0`; crates.io `regorus 0.11.0`) | NATIVE_DEP | upstream package declares `MIT AND Apache-2.0 AND BSD-3-Clause` | `QUALIFIED_FOR_BOUNDED_IN_PROCESS_POLICY_ONLY` via RQ-001 | exact pin/checksum; defaults disabled; only `std` + `arc`; no HTTP/net/time/YAML/OPA-runtime/RVM policy authority; Regorus `build.rs`, transitive proc-macro/build surfaces, and `msvc_spectre_libs` native-link behavior recorded; Rust kernel remains authoritative |
 | watchexec/process-wrap | `3d856eebd02799d025237134db51d05bbc4f1434` (`v9.1.0`; crates.io `process-wrap 9.1.0`) | NATIVE_DEP | upstream package declares `Apache-2.0 OR MIT` | `QUALIFIED_FOR_T027_UNIX_PROCESS_LIFECYCLE_CONTAINMENT` via PWQ-001 + canonical PWQ-001-D1 | exact pins/checksums; defaults disabled; `std` + `process-group` + `job-object`; `nix 0.31.3` privileged syscall/build surface recorded; canonical PWQ-001-D1 qualifies the bounded macOS direct safe `nix` surface and deterministic post-reap lifecycle proof without widening sandbox/network/provider authority |
 | petgraph/petgraph | `162903562ce5b00cdba390a0d9c1bb80f1c75bf5` (`petgraph@v0.8.3`; crates.io `petgraph 0.8.3`) | NATIVE_DEP | upstream package declares `MIT OR Apache-2.0` | `QUALIFIED_FOR_T033_BOUNDED_IN_MEMORY_GRAPH_PROJECTION` via PGQ-001 | exact pin/checksum; defaults disabled; `std` only; stable identity/provenance/confidence/verdict authority remains Sentrdel-owned; no new build/proc-macro/native/download/network surface in selected closure |
+| tree-sitter/tree-sitter-typescript | `f975a621f4e7f532fe322e13c4f79495e0a7b2e7` (`v0.23.2`; crates.io `tree-sitter-typescript 0.23.2`) | NATIVE_DEP | upstream package declares `MIT` | `QUALIFIED_FOR_BOUNDED_R3_TYPESCRIPT_GRAMMAR` via TSQ-001 | exact pin/checksum; defaults disabled; build.rs compiles committed TypeScript/TSX generated C parser/scanner sources through the already-qualified `cc` closure; no grammar generation, target execution, network, credentials, repository rules, policy, Finding, provider, or runtime authority |
 | vitali87/code-graph-rag | UNPINNED — exact qualification required before import | FOUNDER_ATTESTED_DONOR | repository-level MIT observed; file-level record still required | QUALIFICATION_PENDING / selective port or adapter | permission basis currently `FOUNDER_ATTESTATION_2026-08-24`; source-specific proof not stored; resource/data-flow/static-runtime merge is high-value; Python/Memgraph is not the Sentrdel trusted base runtime |
 | deepseek-ai/deepseek-harness | UNPINNED — exact qualification required before import | FOUNDER_ATTESTED_DONOR | repository-level MIT observed | QUALIFICATION_PENDING / selective port | permission basis currently `FOUNDER_ATTESTATION_2026-08-24`; source-specific proof not stored; durable events/tool guards/approval seams; do not inherit the whole rapidly evolving agent runtime |
 | continuedev/continue | UNPINNED — exact qualification required before import | FOUNDER_ATTESTED_DONOR | repository-level Apache-2.0 observed | QUALIFICATION_PENDING / integration-layer reuse | permission basis currently `FOUNDER_ATTESTATION_2026-08-24`; source-specific proof not stored; VS Code/JetBrains/CLI/diff plumbing may be reused selectively; no need for a wholesale product fork |
@@ -167,6 +168,42 @@ modifications: no upstream source modified/copied; Sentrdel wraps Petgraph behin
 qualified_by: Sentrdel dependency qualification review
 qualified_at: 2026-08-28
 qualification_report: docs/third-party/petgraph-qualification.md
+```
+
+## TSQ-001 — TypeScript grammar dependency qualification record
+
+```text
+source_id: TSQ-001
+repository: tree-sitter/tree-sitter-typescript
+exact_ref: f975a621f4e7f532fe322e13c4f79495e0a7b2e7
+tag: v0.23.2
+crate: tree-sitter-typescript =0.23.2
+crate_checksum: 6c5f76ed8d947a75cc446d5fccd8b602ebf0cde64ccf2ffa434d873d7a575eff
+files_or_artifacts:
+  - crates.io tree-sitter-typescript 0.23.2 package
+  - upstream Cargo.toml @ f975a621f4e7f532fe322e13c4f79495e0a7b2e7
+  - upstream bindings/rust/build.rs @ f975a621f4e7f532fe322e13c4f79495e0a7b2e7
+  - upstream LICENSE @ f975a621f4e7f532fe322e13c4f79495e0a7b2e7
+  - typescript/src/parser.c and scanner.c from the published crate
+  - tsx/src/parser.c and scanner.c from the published crate
+  - common/scanner.h from the published crate
+  - committed Sentrdel Cargo.lock dependency closure
+permission_basis: public MIT package/repository license grant
+source_specific_permission_reference: N/A
+license_expression: MIT
+notices: preserve applicable upstream MIT notice in redistributed source/package contexts; Sentrdel consumes the crates.io package rather than copying donor implementation source
+integration_mode: NATIVE_DEP for Sentrdel-owned bounded in-process TypeScript structural parsing only
+features: default-features=false; upstream crate declares no feature set
+executes_at_build: YES — bindings/rust/build.rs uses cc::Build to compile committed generated TypeScript and TSX parser/scanner C sources and emits Cargo rerun metadata; no artifact download, network, credential access, package-manager invocation, grammar generation, target-repository command, or repository-controlled script path was observed
+procedural_macro: NO new proc-macro package is introduced by the exact lock delta
+native_code: YES — generated C grammar objects are compiled by build.rs and reached through the upstream Rust FFI binding; the package has no Cargo links declaration, while Sentrdel's own workspace continues to forbid unsafe code
+downloads_artifacts: no build/runtime artifact download is performed by the selected package; ordinary crates.io resolution occurs only in the trusted first-party workspace
+security_notes: grants only a fixed in-process grammar for later bounded structural extraction; no direct Finding creation, policy/reconciler authority, target execution, network, credentials, provider access, repository rule/plugin/script execution, dynamic grammar loading, universal CPG authority, or clean-security inference from parse failure is admitted
+maintenance_notes: v0.23.2 remains the latest published upstream release observed on 2026-09-02; upstream master 75b3874edb2dc714fb1fd77a32013d0f8699989f later adds LICENSE packaging, so any newer version/source/checksum/build-script/closure change requires a fresh qualification delta
+modifications: no upstream source modified/copied; Sentrdel pins the published crate exactly and later tasks must explicitly wire/test any TypeScript or TSX language surface they expose
+qualified_by: Sentrdel dependency qualification review
+qualified_at: 2026-09-02
+qualification_report: docs/third-party/tree-sitter-typescript-qualification.md
 ```
 
 ## Record template
