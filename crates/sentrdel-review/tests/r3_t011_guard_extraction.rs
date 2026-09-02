@@ -277,9 +277,12 @@ fn dynamic_auth_property_guard_fails_visible_as_unsupported() {
     .expect("extract dynamic auth guard coverage");
 
     assert!(result.guards().is_empty());
-    assert!(result.gaps().iter().any(|gap| {
-        gap.reason() == GuardCoverageGapReason::UnsupportedGuardShape
-    }));
+    assert!(
+        result
+            .gaps()
+            .iter()
+            .any(|gap| { gap.reason() == GuardCoverageGapReason::UnsupportedGuardShape })
+    );
 }
 
 #[test]
