@@ -1,0 +1,66 @@
+name: Temporary R3 T009 Semantic Repair V4
+
+on:
+  push:
+    branches:
+      - aux/r3-t009-semantic-repair
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact T009 candidate branch
+        uses: actions/checkout@v4
+        with:
+          ref: feat/r3-t009-bounded-route-extraction
+          fetch-depth: 0
+
+      - name: Guard expected candidate head
+        run: |
+          set -euo pipefail
+          expected=950198bb12063b97e787a7938d661b834e0f7cb6
+          test "$(git rev-parse HEAD)" = "$expected"
+          test "$(git rev-parse origin/feat/r3-t009-bounded-route-extraction)" = "$expected"
+
+      - name: Install pinned Rust toolchain and qualification components
+        run: |
+          set -euo pipefail
+          rustup toolchain install 1.98.0 --profile minimal
+          rustup component add --toolchain 1.98.0 rustfmt clippy
+          rustup override set 1.98.0
+
+      - name: Apply bounded Express middleware casing repair
+        run: |
+          set -euo pipefail
+          echo 'ZnJvbSBwYXRobGliIGltcG9ydCBQYXRoCgpyb3V0ZV9wYXRoID0gUGF0aCgiY3JhdGVzL3NlbnRyZGVsLXJldmlldy9zcmMvYnVzaW5lc3NfbG9naWMvcm91dGUucnMiKQpyb3V0ZSA9IHJvdXRlX3BhdGgucmVhZF90ZXh0KGVuY29kaW5nPSJ1dGYtOCIpCm9sZCA9ICdyZWdpc3RyYXRpb24uZXFfaWdub3JlX2FzY2lpX2Nhc2UoInVzZSIpJwppZiByb3V0ZS5jb3VudChvbGQpICE9IDE6CiAgICByYWlzZSBTeXN0ZW1FeGl0KGYicm91dGUgcGF0Y2ggZ3VhcmQgZmFpbGVkOiBmb3VuZCB7cm91dGUuY291bnQob2xkKX0gb2NjdXJyZW5jZXMiKQpyb3V0ZSA9IHJvdXRlLnJlcGxhY2Uob2xkLCAncmVnaXN0cmF0aW9uID09ICJ1c2UiJykKcm91dGVfcGF0aC53cml0ZV90ZXh0KHJvdXRlLCBlbmNvZGluZz0idXRmLTgiKQoKdGVzdHNfcGF0aCA9IFBhdGgoImNyYXRlcy9zZW50cmRlbC1yZXZpZXcvdGVzdHMvcjNfdDAwOV9yb3V0ZV9leHRyYWN0aW9uLnJzIikKdGVzdHMgPSB0ZXN0c19wYXRoLnJlYWRfdGV4dChlbmNvZGluZz0idXRmLTgiKQptYXJrZXIgPSAnJycjW3Rlc3RdCmZuIGV4cHJlc3NfYWxsX3JlZ2lzdHJhdGlvbnNfYXJlX2V4cGxpY2l0X2NvdmVyYWdlX2dhcHMoKSB7CicnJwppZiB0ZXN0cy5jb3VudChtYXJrZXIpICE9IDE6CiAgICByYWlzZSBTeXN0ZW1FeGl0KGYidGVzdCBpbnNlcnRpb24gZ3VhcmQgZmFpbGVkOiBmb3VuZCB7dGVzdHMuY291bnQobWFya2VyKX0gb2NjdXJyZW5jZXMiKQphZGRpdGlvbiA9ICcnJyNbdGVzdF0KZm4gZXhwcmVzc19taWRkbGV3YXJlX3JlZ2lzdHJhdGlvbl9pc19jYXNlX3NlbnNpdGl2ZSgpIHsKICAgIGxldCByZXN1bHQgPSBleHRyYWN0X3JvdXRlcygKICAgICAgICBSb3V0ZUFkYXB0ZXI6OkV4cHJlc3MsCiAgICAgICAgU3RydWN0dXJhbExhbmd1YWdlOjpKYXZhU2NyaXB0LAogICAgICAgICZwYXRoKCJzcmMvcm91dGVzLmpzIiksCiAgICAgICAgYiJhcHAuVVNFKCcvbm90LWV4cHJlc3MtbWlkZGxld2FyZScsIGhhbmRsZXIpO1xcbnJvdXRlci5VU0UoJy9hbHNvLW5vdC1leHByZXNzLW1pZGRsZXdhcmUnLCBoYW5kbGVyKTtcXG4iLAogICAgICAgIEJ1c2luZXNzTG9naWNMaW1pdHM6OmRlZmF1bHQoKSwKICAgICkKICAgIC5leHBlY3QoInBhcnNlIHZhbGlkIEphdmFTY3JpcHQiKTsKCiAgICBhc3NlcnQhKHJlc3VsdC5yb3V0ZXMoKS5pc19lbXB0eSgpKTsKICAgIGFzc2VydCEocmVzdWx0LmdhcHMoKS5pc19lbXB0eSgpKTsKfQoKJycnCnRlc3RzID0gdGVzdHMucmVwbGFjZShtYXJrZXIsIGFkZGl0aW9uICsgbWFya2VyKQp0ZXN0c19wYXRoLndyaXRlX3RleHQodGVzdHMsIGVuY29kaW5nPSJ1dGYtOCIpCg==' | base64 -d > /tmp/r3_t009_middleware_case_repair.py
+          python3 /tmp/r3_t009_middleware_case_repair.py
+          cargo fmt --all
+          git diff --check
+
+      - name: Run focused T009 qualification
+        run: cargo test -p sentrdel-review --test r3_t009_route_extraction
+
+      - name: Run T009 Clippy qualification
+        run: cargo clippy -p sentrdel-review --all-targets -- -D warnings
+
+      - name: Commit product-only repair
+        run: |
+          set -euo pipefail
+          test -z "$(git status --porcelain -- .github/workflows)"
+          git status --short
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add crates/sentrdel-review/src/business_logic/route.rs crates/sentrdel-review/tests/r3_t009_route_extraction.rs
+          git diff --cached --quiet && { echo "expected product repair is empty" >&2; exit 1; }
+          git commit -m "fix(r3): preserve Express middleware casing"
+
+      - name: Guard remote head and push product repair
+        run: |
+          set -euo pipefail
+          expected=950198bb12063b97e787a7938d661b834e0f7cb6
+          git fetch origin feat/r3-t009-bounded-route-extraction
+          test "$(git rev-parse FETCH_HEAD)" = "$expected"
+          git push origin HEAD:feat/r3-t009-bounded-route-extraction
