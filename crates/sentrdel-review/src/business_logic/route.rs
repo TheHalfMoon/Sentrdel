@@ -346,9 +346,20 @@ fn extract_express(
     mask: &[u8],
     builder: &mut ExtractionBuilder<'_>,
 ) -> Result<(), RouteExtractionError> {
-    let app_binding_ambiguous = has_ambiguous_express_receiver_binding(source, language, "app")?;
-    let router_binding_ambiguous =
-        has_ambiguous_express_receiver_binding(source, language, "router")?;
+    let express_factory_binding_ambiguous =
+        has_ambiguous_express_factory_binding(source, language)?;
+    let app_binding_ambiguous = has_ambiguous_express_receiver_binding(
+        source,
+        language,
+        "app",
+        express_factory_binding_ambiguous,
+    )?;
+    let router_binding_ambiguous = has_ambiguous_express_receiver_binding(
+        source,
+        language,
+        "router",
+        express_factory_binding_ambiguous,
+    )?;
     let bytes = source.as_bytes();
     let mut index = 0;
     while index < mask.len() {
@@ -1086,10 +1097,84 @@ fn extract_supabase_edge(
     Ok(())
 }
 
+fn has_ambiguous_express_factory_binding(
+    source: &str,
+    structural_language: StructuralLanguage,
+) -> Result<bool, StructuralError> {
+    let language: tree_sitter::Language = match structural_language {
+        StructuralLanguage::JavaScript => tree_sitter_javascript::LANGUAGE.into(),
+        StructuralLanguage::TypeScript => tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into(),
+    };
+    let mut parser = tree_sitter::Parser::new();
+    parser
+        .set_language(&language)
+        .map_err(|error| StructuralError::ParseFailed(error.to_string()))?;
+    let tree = parser.parse(source, None).ok_or_else(|| {
+        StructuralError::ParseFailed(
+            "Express factory binding parser returned no syntax tree".to_owned(),
+        )
+    })?;
+    let mut cursor = tree.root_node().walk();
+    loop {
+        let node = cursor.node();
+        if matches!(
+            node.kind(),
+            "identifier" | "shorthand_property_identifier_pattern"
+        ) && source.get(node.byte_range()) == Some("express")
+            && identifier_is_binding(node)
+            && !express_binding_is_known_factory_source(node, source)
+        {
+            return Ok(true);
+        }
+        if cursor.goto_first_child() {
+            continue;
+        }
+        loop {
+            if cursor.goto_next_sibling() {
+                break;
+            }
+            if !cursor.goto_parent() {
+                return Ok(false);
+            }
+        }
+    }
+}
+
+fn express_binding_is_known_factory_source(node: tree_sitter::Node<'_>, source: &str) -> bool {
+    let mut ancestor = node.parent();
+    while let Some(current) = ancestor {
+        match current.kind() {
+            "import_statement" => {
+                let Some(module) = current.child_by_field_name("source") else {
+                    return false;
+                };
+                return matches!(
+                    source.get(module.byte_range()),
+                    Some("\"express\"") | Some("'express'")
+                );
+            }
+            "variable_declarator"
+            | "function_declaration"
+            | "generator_function_declaration"
+            | "class_declaration"
+            | "formal_parameters"
+            | "required_parameter"
+            | "optional_parameter"
+            | "catch_clause"
+            | "assignment_expression"
+            | "assignment_pattern" => return false,
+            "program" => return false,
+            _ => ancestor = current.parent(),
+        }
+    }
+    false
+}
+
 fn has_ambiguous_express_receiver_binding(
     source: &str,
     structural_language: StructuralLanguage,
     receiver: &str,
+    express_factory_binding_ambiguous: bool,
 ) -> Result<bool, StructuralError> {
     let language: tree_sitter::Language = match structural_language {
         StructuralLanguage::JavaScript => tree_sitter_javascript::LANGUAGE.into(),
@@ -1110,7 +1195,7 @@ fn has_ambiguous_express_receiver_binding(
             "identifier" | "shorthand_property_identifier_pattern"
         ) && source.get(node.byte_range()) == Some(receiver)
             && identifier_is_binding(node)
-            && !express_binding_is_known_receiver(node, source)
+            && !express_binding_is_known_receiver(node, source, express_factory_binding_ambiguous)
         {
             return Ok(true);
         }
@@ -1128,7 +1213,11 @@ fn has_ambiguous_express_receiver_binding(
     }
 }
 
-fn express_binding_is_known_receiver(node: tree_sitter::Node<'_>, source: &str) -> bool {
+fn express_binding_is_known_receiver(
+    node: tree_sitter::Node<'_>,
+    source: &str,
+    express_factory_binding_ambiguous: bool,
+) -> bool {
     let mut ancestor = node.parent();
     while let Some(current) = ancestor {
         match current.kind() {
@@ -1147,7 +1236,8 @@ fn express_binding_is_known_receiver(node: tree_sitter::Node<'_>, source: &str) 
                 let Some(value) = current.child_by_field_name("value") else {
                     return false;
                 };
-                return is_bounded_express_factory_call(value, source);
+                return !express_factory_binding_ambiguous
+                    && is_bounded_express_factory_call(value, source);
             }
             "program" => return false,
             _ => ancestor = current.parent(),

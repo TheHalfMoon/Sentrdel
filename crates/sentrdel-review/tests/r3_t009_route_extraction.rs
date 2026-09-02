@@ -1307,3 +1307,78 @@ fn lookalike_express_factory_bindings_are_ambiguous() {
         2
     );
 }
+
+#[test]
+fn shadowed_express_factory_binding_is_ambiguous() {
+    for source in [
+        b"const express = createMockFactory;\nconst app = express();\napp.get('/mock-app', handler);".as_slice(),
+        b"const express = createMockFactory;\nconst router = express.Router();\nrouter.get('/mock-router', handler);".as_slice(),
+        b"export function configure(express) {\n  const app = express();\n  app.get('/parameter-shadow', handler);\n}".as_slice(),
+    ] {
+        let result = extract_routes(
+            RouteAdapter::Express,
+            StructuralLanguage::JavaScript,
+            &path("src/shadowed-express-factory.js"),
+            source,
+            BusinessLogicLimits::default(),
+        )
+        .expect("classify shadowed express factory as ambiguous");
+
+        assert!(result.routes().is_empty());
+        assert!(
+            result
+                .gaps()
+                .iter()
+                .any(|gap| gap.reason() == RouteCoverageGapReason::AmbiguousReceiverBinding)
+        );
+    }
+}
+
+#[test]
+fn canonical_express_package_import_factory_remains_supported() {
+    let source = b"import express from 'express';\nconst app = express();\nconst router = express.Router();\napp.get('/app-import', handler);\nrouter.post('/router-import', handler);\n";
+    let result = extract_routes(
+        RouteAdapter::Express,
+        StructuralLanguage::JavaScript,
+        &path("src/imported-express.js"),
+        source,
+        BusinessLogicLimits::default(),
+    )
+    .expect("preserve exact express package import");
+
+    assert_eq!(result.routes().len(), 2);
+    assert!(result.gaps().is_empty());
+    assert!(
+        result
+            .routes()
+            .iter()
+            .any(|route| route.route_pattern() == "/app-import")
+    );
+    assert!(
+        result
+            .routes()
+            .iter()
+            .any(|route| route.route_pattern() == "/router-import")
+    );
+}
+
+#[test]
+fn noncanonical_express_import_factory_is_ambiguous() {
+    let source = b"import express from './mock-express.js';\nconst app = express();\napp.get('/mock-import', handler);\n";
+    let result = extract_routes(
+        RouteAdapter::Express,
+        StructuralLanguage::JavaScript,
+        &path("src/mock-import.js"),
+        source,
+        BusinessLogicLimits::default(),
+    )
+    .expect("reject noncanonical express import factory");
+
+    assert!(result.routes().is_empty());
+    assert!(
+        result
+            .gaps()
+            .iter()
+            .any(|gap| gap.reason() == RouteCoverageGapReason::AmbiguousReceiverBinding)
+    );
+}
