@@ -1,9 +1,9 @@
 //! Bounded R3 actor/auth context extraction for the frozen JavaScript/TypeScript adapters.
 //!
 //! Repository source is untrusted data. Static recognition of a supported auth seam records
-//! only source structure; it never proves that a runtime token, session, user, tenant, or role
-//! is valid. This module executes no target code, performs no network/provider access, loads no
-//! repository rules, and creates no Findings.
+//! source structure only; it never proves runtime token, session, user, tenant, or role validity.
+//! This module executes no target code, performs no provider/network access, loads no repository
+//! rules, and creates no Findings.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::error::Error;
@@ -136,13 +136,9 @@ pub fn extract_actor_contexts(
     limits: BusinessLogicLimits,
 ) -> Result<ActorExtraction, ActorExtractionError> {
     let limits = limits.validate()?;
-
-    // Reuse the fixed Sentrdel-owned structural parser boundary so malformed syntax, oversized
-    // source, and unsupported input fail visibly before actor interpretation starts.
     let validator = StructuralRegistry::new(&[])?;
     validator.scan_language(language, path, source)?;
     let source = std::str::from_utf8(source).map_err(|_| StructuralError::NonUtf8Source)?;
-
     let digest =
         content_id("r3-actor-source", &(path.as_str(), source)).map_err(ModelError::from)?;
     let tree = parse_tree(language, source)?;
@@ -166,9 +162,9 @@ pub fn extract_actor_contexts(
                             node.start_byte(),
                             node.end_byte(),
                         )?;
-                        continue;
-                    }
-                    if let Some(identity_kind) = verified_identity_kind(&chain, adapter, &facts) {
+                    } else if let Some(identity_kind) =
+                        verified_identity_kind(&chain, adapter, &facts)
+                    {
                         builder.actor(
                             identity_kind,
                             ActorSourceKind::VerifiedAuthAdapter,
@@ -181,57 +177,17 @@ pub fn extract_actor_contexts(
                 }
             }
             "subscript_expression" => {
-                let Some(object) = node.child_by_field_name("object") else {
-                    continue;
-                };
-                let root = expression_chain(object, source)
-                    .and_then(|chain| chain.first().cloned())
-                    .or_else(|| node_text(object, source).map(str::to_owned));
-                let Some(root) = root else {
-                    continue;
-                };
-                if is_request_root(&root, adapter) {
-                    builder.gap(
-                        ActorCoverageGapReason::DynamicRequestAccess,
-                        node.start_byte(),
-                        node.end_byte(),
-                    )?;
-                    builder.actor(
-                        ActorIdentityKind::Unknown,
-                        ActorSourceKind::Unknown,
-                        &format!("dynamic-request@{}", node.start_byte()),
-                        TrustBasis::Unknown,
-                        node.start_byte(),
-                        node.end_byte(),
-                    )?;
-                } else if is_verified_auth_root(&root, adapter, &facts) {
-                    builder.gap(
-                        ActorCoverageGapReason::DynamicAuthIdentity,
-                        node.start_byte(),
-                        node.end_byte(),
-                    )?;
-                    builder.actor(
-                        ActorIdentityKind::Unknown,
-                        ActorSourceKind::Unknown,
-                        &format!("dynamic-auth@{}", node.start_byte()),
-                        TrustBasis::Unknown,
-                        node.start_byte(),
-                        node.end_byte(),
-                    )?;
-                }
+                observe_dynamic_subscript(*node, source, adapter, &facts, &mut builder)?;
             }
             "variable_declarator" => {
                 observe_constant(*node, source, &mut builder)?;
                 observe_unsupported_auth_binding(*node, source, &mut builder)?;
             }
-            "call_expression" => {
-                observe_request_call(*node, source, adapter, &facts, &mut builder)?;
-            }
             _ => {}
         }
     }
 
-    builder.finish()
+    Ok(builder.finish())
 }
 
 struct ActorBuilder<'a> {
@@ -243,11 +199,7 @@ struct ActorBuilder<'a> {
 }
 
 impl<'a> ActorBuilder<'a> {
-    fn new(
-        path: &'a NormalizedRepoPath,
-        digest: String,
-        limits: BusinessLogicLimits,
-    ) -> Self {
+    fn new(path: &'a NormalizedRepoPath, digest: String, limits: BusinessLogicLimits) -> Self {
         Self {
             path,
             digest,
@@ -266,6 +218,7 @@ impl<'a> ActorBuilder<'a> {
         )?)
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn actor(
         &mut self,
         identity_kind: ActorIdentityKind,
@@ -277,15 +230,13 @@ impl<'a> ActorBuilder<'a> {
     ) -> Result<(), ActorExtractionError> {
         let start_text = start.to_string();
         let end_text = end.to_string();
-        let identity_text = identity_kind_key(identity_kind);
-        let source_text = source_kind_key(source_kind);
         let actor_id = StableSemanticId::from_parts(
             "r3.actor-context",
             &[
                 self.path.as_str(),
                 semantic_key,
-                identity_text,
-                source_text,
+                identity_kind_key(identity_kind),
+                source_kind_key(source_kind),
                 &start_text,
                 &end_text,
             ],
@@ -334,11 +285,11 @@ impl<'a> ActorBuilder<'a> {
         Ok(())
     }
 
-    fn finish(self) -> Result<ActorExtraction, ActorExtractionError> {
-        Ok(ActorExtraction {
+    fn finish(self) -> ActorExtraction {
+        ActorExtraction {
             actors: self.actors.into_values().collect(),
             gaps: self.gaps.into_values().collect(),
-        })
+        }
     }
 }
 
@@ -404,7 +355,6 @@ fn collect_binding_facts(
                 continue;
             };
             let value = unwrap_expression(value);
-
             if adapter == RouteAdapter::NextApp && is_auth_call(value, source) {
                 changed |= facts.session_bindings.insert(binding.to_owned());
             }
@@ -446,19 +396,21 @@ fn request_source_kind(
 ) -> Option<ActorSourceKind> {
     let root = chain.first()?.as_str();
     let second = chain.get(1).map(String::as_str);
-
     if facts.request_body_bindings.contains(root) {
         return Some(ActorSourceKind::RequestBody);
     }
 
+    // The frozen ActorSourceKind model intentionally has RequestParam but no RequestQuery.
+    // T010 therefore records both path and query parameter access as request-controlled
+    // parameters while preserving the exact source chain in semantic_key. T012's
+    // ValueOriginKind distinguishes RequestPath from RequestQuery explicitly.
     match adapter {
         RouteAdapter::Express => {
             if root != "req" {
                 return None;
             }
             match second? {
-                "params" => Some(ActorSourceKind::RequestParam),
-                "query" => Some(ActorSourceKind::RequestQuery),
+                "params" | "query" => Some(ActorSourceKind::RequestParam),
                 "body" => Some(ActorSourceKind::RequestBody),
                 "headers" | "header" => Some(ActorSourceKind::RequestHeader),
                 _ => None,
@@ -469,7 +421,7 @@ fn request_source_kind(
                 return None;
             }
             match second? {
-                "query" => Some(ActorSourceKind::RequestQuery),
+                "query" => Some(ActorSourceKind::RequestParam),
                 "body" => Some(ActorSourceKind::RequestBody),
                 "headers" | "header" => Some(ActorSourceKind::RequestHeader),
                 _ => None,
@@ -486,7 +438,7 @@ fn request_source_kind(
                 && chain.get(1).map(String::as_str) == Some("nextUrl")
                 && chain.get(2).map(String::as_str) == Some("searchParams")
             {
-                return Some(ActorSourceKind::RequestQuery);
+                return Some(ActorSourceKind::RequestParam);
             }
             None
         }
@@ -535,6 +487,46 @@ fn verified_identity_kind(
         Some("role" | "roles") => Some(ActorIdentityKind::Role),
         Some(_) => None,
     }
+}
+
+fn observe_dynamic_subscript(
+    node: tree_sitter::Node<'_>,
+    source: &str,
+    adapter: RouteAdapter,
+    facts: &BindingFacts,
+    builder: &mut ActorBuilder<'_>,
+) -> Result<(), ActorExtractionError> {
+    let Some(object) = node.child_by_field_name("object") else {
+        return Ok(());
+    };
+    let root = expression_chain(object, source)
+        .and_then(|chain| chain.first().cloned())
+        .or_else(|| node_text(object, source).map(str::to_owned));
+    let Some(root) = root else {
+        return Ok(());
+    };
+    let (reason, semantic_key) = if is_request_root(&root, adapter) {
+        (
+            ActorCoverageGapReason::DynamicRequestAccess,
+            format!("dynamic-request@{}", node.start_byte()),
+        )
+    } else if is_verified_auth_root(&root, adapter, facts) {
+        (
+            ActorCoverageGapReason::DynamicAuthIdentity,
+            format!("dynamic-auth@{}", node.start_byte()),
+        )
+    } else {
+        return Ok(());
+    };
+    builder.gap(reason, node.start_byte(), node.end_byte())?;
+    builder.actor(
+        ActorIdentityKind::Unknown,
+        ActorSourceKind::Unknown,
+        &semantic_key,
+        TrustBasis::Unknown,
+        node.start_byte(),
+        node.end_byte(),
+    )
 }
 
 fn observe_constant(
@@ -597,56 +589,25 @@ fn observe_unsupported_auth_binding(
     )
 }
 
-fn observe_request_call(
-    node: tree_sitter::Node<'_>,
-    source: &str,
-    adapter: RouteAdapter,
-    facts: &BindingFacts,
-    builder: &mut ActorBuilder<'_>,
-) -> Result<(), ActorExtractionError> {
-    let Some(function) = node.child_by_field_name("function") else {
-        return Ok(());
-    };
-    let Some(chain) = expression_chain(function, source) else {
-        return Ok(());
-    };
-
-    let source_kind = request_source_kind(&chain, adapter, facts);
-    if matches!(source_kind, Some(ActorSourceKind::RequestHeader | ActorSourceKind::RequestQuery)) {
-        builder.actor(
-            ActorIdentityKind::RequestControlled,
-            source_kind.expect("matched request source kind"),
-            &format!("{}@{}", chain.join("."), node.start_byte()),
-            TrustBasis::DirectObservation,
-            node.start_byte(),
-            node.end_byte(),
-        )?;
-    }
-    Ok(())
-}
-
 fn is_auth_call(node: tree_sitter::Node<'_>, source: &str) -> bool {
-    if node.kind() != "call_expression" {
-        return false;
-    }
-    node.child_by_field_name("function")
-        .and_then(|function| expression_chain(function, source))
-        .is_some_and(|chain| chain == ["auth".to_owned()])
+    node.kind() == "call_expression"
+        && node
+            .child_by_field_name("function")
+            .and_then(|function| expression_chain(function, source))
+            .is_some_and(|chain| chain.len() == 1 && chain[0] == "auth")
 }
 
 fn is_supabase_get_user_call(node: tree_sitter::Node<'_>, source: &str) -> bool {
-    if node.kind() != "call_expression" {
-        return false;
-    }
-    node.child_by_field_name("function")
-        .and_then(|function| expression_chain(function, source))
-        .is_some_and(|chain| {
-            chain == [
-                "supabase".to_owned(),
-                "auth".to_owned(),
-                "getUser".to_owned(),
-            ]
-        })
+    node.kind() == "call_expression"
+        && node
+            .child_by_field_name("function")
+            .and_then(|function| expression_chain(function, source))
+            .is_some_and(|chain| {
+                chain.len() == 3
+                    && chain[0] == "supabase"
+                    && chain[1] == "auth"
+                    && chain[2] == "getUser"
+            })
 }
 
 fn is_request_json_call(
@@ -654,14 +615,12 @@ fn is_request_json_call(
     source: &str,
     adapter: RouteAdapter,
 ) -> bool {
-    if !matches!(adapter, RouteAdapter::NextApp | RouteAdapter::SupabaseEdge)
-        || node.kind() != "call_expression"
-    {
-        return false;
-    }
-    node.child_by_field_name("function")
-        .and_then(|function| expression_chain(function, source))
-        .is_some_and(|chain| chain == ["request".to_owned(), "json".to_owned()])
+    matches!(adapter, RouteAdapter::NextApp | RouteAdapter::SupabaseEdge)
+        && node.kind() == "call_expression"
+        && node
+            .child_by_field_name("function")
+            .and_then(|function| expression_chain(function, source))
+            .is_some_and(|chain| chain.len() == 2 && chain[0] == "request" && chain[1] == "json")
 }
 
 fn unwrap_expression(mut node: tree_sitter::Node<'_>) -> tree_sitter::Node<'_> {
@@ -700,12 +659,10 @@ fn is_nested_member_prefix(node: tree_sitter::Node<'_>) -> bool {
     let Some(parent) = node.parent() else {
         return false;
     };
-    if parent.kind() != "member_expression" {
-        return false;
-    }
-    parent.child_by_field_name("object").is_some_and(|object| {
-        object.start_byte() == node.start_byte() && object.end_byte() == node.end_byte()
-    })
+    parent.kind() == "member_expression"
+        && parent.child_by_field_name("object").is_some_and(|object| {
+            object.start_byte() == node.start_byte() && object.end_byte() == node.end_byte()
+        })
 }
 
 fn is_literal_constant(node: tree_sitter::Node<'_>) -> bool {
@@ -721,10 +678,8 @@ fn is_identifier(value: &str) -> bool {
     let Some(first) = bytes.next() else {
         return false;
     };
-    if !(first == b'_' || first == b'$' || first.is_ascii_alphabetic()) {
-        return false;
-    }
-    bytes.all(|byte| byte == b'_' || byte == b'$' || byte.is_ascii_alphanumeric())
+    (first == b'_' || first == b'$' || first.is_ascii_alphabetic())
+        && bytes.all(|byte| byte == b'_' || byte == b'$' || byte.is_ascii_alphanumeric())
 }
 
 fn is_request_root(root: &str, adapter: RouteAdapter) -> bool {
@@ -757,7 +712,6 @@ const fn source_kind_key(kind: ActorSourceKind) -> &'static str {
     match kind {
         ActorSourceKind::VerifiedAuthAdapter => "verified-auth-adapter",
         ActorSourceKind::RequestParam => "request-param",
-        ActorSourceKind::RequestQuery => "request-query",
         ActorSourceKind::RequestBody => "request-body",
         ActorSourceKind::RequestHeader => "request-header",
         ActorSourceKind::TokenClaim => "token-claim",
