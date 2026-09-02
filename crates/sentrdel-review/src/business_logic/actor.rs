@@ -546,11 +546,12 @@ fn is_verified_auth_chain(chain: &[String], adapter: RouteAdapter, facts: &Bindi
     match adapter {
         RouteAdapter::Express => root == "req" && chain.get(1).is_some_and(|part| part == "user"),
         RouteAdapter::NextApp => {
-            (facts.session_bindings.contains(root)
-                && chain.get(1).is_some_and(|part| part == "user"))
+            facts.session_bindings.contains(root) || facts.verified_user_bindings.contains(root)
+        }
+        RouteAdapter::SupabaseEdge => {
+            facts.supabase_user_result_bindings.contains(root)
                 || facts.verified_user_bindings.contains(root)
         }
-        RouteAdapter::SupabaseEdge => facts.verified_user_bindings.contains(root),
         RouteAdapter::NextPagesApi => false,
     }
 }
