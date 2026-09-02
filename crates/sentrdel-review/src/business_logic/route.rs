@@ -1141,31 +1141,25 @@ fn has_ambiguous_express_factory_binding(
 }
 
 fn express_binding_is_known_factory_source(node: tree_sitter::Node<'_>, source: &str) -> bool {
-    let mut ancestor = node.parent();
+    let Some(parent) = node.parent() else {
+        return false;
+    };
+    if parent.kind() != "import_clause" {
+        return false;
+    }
+
+    let mut ancestor = Some(parent);
     while let Some(current) = ancestor {
-        match current.kind() {
-            "import_statement" => {
-                let Some(module) = current.child_by_field_name("source") else {
-                    return false;
-                };
-                return matches!(
-                    source.get(module.byte_range()),
-                    Some("\"express\"") | Some("'express'")
-                );
-            }
-            "variable_declarator"
-            | "function_declaration"
-            | "generator_function_declaration"
-            | "class_declaration"
-            | "formal_parameters"
-            | "required_parameter"
-            | "optional_parameter"
-            | "catch_clause"
-            | "assignment_expression"
-            | "assignment_pattern" => return false,
-            "program" => return false,
-            _ => ancestor = current.parent(),
+        if current.kind() == "import_statement" {
+            let Some(module) = current.child_by_field_name("source") else {
+                return false;
+            };
+            return matches!(
+                source.get(module.byte_range()),
+                Some("\"express\"") | Some("'express'")
+            );
         }
+        ancestor = current.parent();
     }
     false
 }

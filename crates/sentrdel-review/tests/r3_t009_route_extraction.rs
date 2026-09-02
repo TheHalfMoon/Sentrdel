@@ -1382,3 +1382,45 @@ fn noncanonical_express_import_factory_is_ambiguous() {
             .any(|gap| gap.reason() == RouteCoverageGapReason::AmbiguousReceiverBinding)
     );
 }
+
+#[test]
+fn named_and_namespace_express_imports_are_ambiguous() {
+    for source in [
+        b"import { json as express } from 'express';\nconst app = express();\napp.get('/named-alias', handler);".as_slice(),
+        b"import * as express from 'express';\nconst app = express();\napp.get('/namespace-import', handler);".as_slice(),
+    ] {
+        let result = extract_routes(
+            RouteAdapter::Express,
+            StructuralLanguage::JavaScript,
+            &path("src/ambiguous-express-import.js"),
+            source,
+            BusinessLogicLimits::default(),
+        )
+        .expect("classify non-default Express imports as ambiguous");
+
+        assert!(result.routes().is_empty());
+        assert!(
+            result
+                .gaps()
+                .iter()
+                .any(|gap| gap.reason() == RouteCoverageGapReason::AmbiguousReceiverBinding)
+        );
+    }
+}
+
+#[test]
+fn default_express_import_with_named_imports_remains_supported() {
+    let source = b"import express, { json } from 'express';\nconst app = express();\napp.get('/default-plus-named', handler);\n";
+    let result = extract_routes(
+        RouteAdapter::Express,
+        StructuralLanguage::JavaScript,
+        &path("src/default-express-import.js"),
+        source,
+        BusinessLogicLimits::default(),
+    )
+    .expect("preserve default Express factory binding");
+
+    assert_eq!(result.routes().len(), 1);
+    assert_eq!(result.routes()[0].route_pattern(), "/default-plus-named");
+    assert!(result.gaps().is_empty());
+}
