@@ -36,26 +36,32 @@ jobs:
           python3 scripts/tmp_r3_t009_codex_reconcile.py
           python3 - <<'PY'
           from pathlib import Path
+          import re
+
           path = Path("crates/sentrdel-review/src/business_logic/route.rs")
           text = path.read_text()
-          old = '''        if end >= start + 2 && &bytes[end - 2..end] == b"*/" {
-              if let Some(relative) = source[start..end - 2].rfind("/*") {
-                  end = start + relative;
-                  continue;
-              }
-          }
-          '''
-          new = '''        if end >= start + 2
-              && &bytes[end - 2..end] == b"*/"
-              && let Some(relative) = source[start..end - 2].rfind("/*")
-          {
-              end = start + relative;
-              continue;
-          }
-          '''
-          if text.count(old) != 1:
-              raise SystemExit("expected one generated collapsible-if block")
-          path.write_text(text.replace(old, new, 1))
+          pattern = re.compile(
+              r'(?ms)^(\s*)if end >= start \+ 2 && &bytes\[end - 2\.\.end\] == b"\*/" \{\n'
+              r'\1    if let Some\(relative\) = source\[start\.\.end - 2\]\.rfind\("/\*"\) \{\n'
+              r'\1        end = start \+ relative;\n'
+              r'\1        continue;\n'
+              r'\1    \}\n'
+              r'\1\}'
+          )
+          matches = list(pattern.finditer(text))
+          if len(matches) != 1:
+              raise SystemExit(f"expected one generated collapsible-if block, found {len(matches)}")
+          indent = matches[0].group(1)
+          replacement = (
+              f'{indent}if end >= start + 2\n'
+              f'{indent}    && &bytes[end - 2..end] == b"*/"\n'
+              f'{indent}    && let Some(relative) = source[start..end - 2].rfind("/*")\n'
+              f'{indent}{{\n'
+              f'{indent}    end = start + relative;\n'
+              f'{indent}    continue;\n'
+              f'{indent}}}'
+          )
+          path.write_text(pattern.sub(replacement, text, count=1))
           PY
 
       - name: Install pinned Rust toolchain
