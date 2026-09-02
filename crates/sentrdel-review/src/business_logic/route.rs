@@ -58,6 +58,7 @@ pub enum RouteCoverageGapReason {
     UnresolvedCallback,
     UnsupportedRouteFile,
     UnsupportedHandlerExport,
+    AmbiguousReceiverBinding,
     MethodNotStaticallyBound,
 }
 
@@ -390,6 +391,20 @@ fn extract_express(
         let method_end = parse_ident_end(mask, cursor);
         let registration = &source[cursor..method_end];
         let after_registration = skip_mask_ws(mask, method_end);
+        if registration == "route" && mask.get(after_registration) == Some(&b'(') {
+            let Some(call_end) = find_balanced(mask, after_registration, b'(', b')') else {
+                return Err(RouteExtractionError::Structural(
+                    StructuralError::MalformedSyntax,
+                ));
+            };
+            builder.gap(
+                RouteCoverageGapReason::MethodNotStaticallyBound,
+                receiver_start,
+                call_end + 1,
+            )?;
+            index = call_end + 1;
+            continue;
+        }
         if registration == "use" && mask.get(after_registration) == Some(&b'(') {
             let Some(call_end) = find_balanced(mask, after_registration, b'(', b')') else {
                 return Err(RouteExtractionError::Structural(
@@ -434,7 +449,7 @@ fn extract_express(
                 StructuralError::MalformedSyntax,
             ));
         };
-        let first = skip_source_ws(bytes, call_start + 1);
+        let first = skip_source_ws_and_comments(source, call_start + 1, call_end);
         let Some((route_pattern, after_path)) = parse_string_literal(source, first) else {
             builder.gap(
                 RouteCoverageGapReason::DynamicRoutePattern,
@@ -444,7 +459,12 @@ fn extract_express(
             index = call_end + 1;
             continue;
         };
-        let after_path = skip_source_ws(bytes, after_path);
+        let after_path = skip_source_ws_and_comments(source, after_path, call_end);
+        // Express overloads app.get(name) as an application-setting getter. It is not a route.
+        if method == HttpMethod::Get && after_path >= call_end {
+            index = call_end + 1;
+            continue;
+        }
         let mut callback_keys = Vec::new();
         let mut partial = false;
         if after_path >= call_end || bytes[after_path] != b',' {
@@ -571,6 +591,15 @@ fn extract_next_app(
                     }
                 }
             }
+        } else if mask.get(cursor) == Some(&b'{')
+            && let Some(close) = find_balanced(mask, cursor, b'{', b'}')
+            && export_list_mentions_next_http_method(source, mask, cursor + 1, close)
+        {
+            builder.gap(
+                RouteCoverageGapReason::UnsupportedHandlerExport,
+                export_start,
+                close + 1,
+            )?;
         }
         index = export_start + "export".len();
     }
@@ -582,6 +611,26 @@ fn extract_next_app(
         )?;
     }
     Ok(())
+}
+
+fn export_list_mentions_next_http_method(
+    source: &str,
+    mask: &[u8],
+    mut index: usize,
+    end: usize,
+) -> bool {
+    while index < end {
+        if is_ident_start(mask[index]) {
+            let token_end = parse_ident_end(mask, index);
+            if token_end <= end && parse_next_http_method(&source[index..token_end]).is_some() {
+                return true;
+            }
+            index = token_end;
+        } else {
+            index += 1;
+        }
+    }
+    false
 }
 
 fn extract_next_pages(
@@ -682,6 +731,7 @@ fn extract_supabase_edge(
         return Ok(());
     };
     let route_pattern = format!("/functions/v1/{function_name}");
+    let deno_shadowed = has_local_deno_binding(source)?;
     let mut index = 0;
     let mut found = false;
     while let Some(deno_start) = find_word(mask, b"Deno", index) {
@@ -713,6 +763,16 @@ fn extract_supabase_edge(
                 StructuralError::MalformedSyntax,
             ));
         };
+        if deno_shadowed {
+            builder.gap(
+                RouteCoverageGapReason::AmbiguousReceiverBinding,
+                deno_start,
+                call_end + 1,
+            )?;
+            found = true;
+            index = call_end + 1;
+            continue;
+        }
         let args = split_top_level_args(source, mask, call_start + 1, call_end);
         let callback = match args.as_slice() {
             [(start, end)] => callback_key(source, mask, *start, *end),
@@ -755,6 +815,70 @@ fn extract_supabase_edge(
         )?;
     }
     Ok(())
+}
+
+fn has_local_deno_binding(source: &str) -> Result<bool, StructuralError> {
+    let language: tree_sitter::Language = tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into();
+    let mut parser = tree_sitter::Parser::new();
+    parser
+        .set_language(&language)
+        .map_err(|error| StructuralError::ParseFailed(error.to_string()))?;
+    let tree = parser.parse(source, None).ok_or_else(|| {
+        StructuralError::ParseFailed("Deno binding parser returned no syntax tree".to_owned())
+    })?;
+    let mut cursor = tree.root_node().walk();
+    loop {
+        let node = cursor.node();
+        if matches!(
+            node.kind(),
+            "identifier" | "shorthand_property_identifier_pattern"
+        ) && source.get(node.byte_range()) == Some("Deno")
+            && identifier_is_binding(node)
+        {
+            return Ok(true);
+        }
+        if cursor.goto_first_child() {
+            continue;
+        }
+        loop {
+            if cursor.goto_next_sibling() {
+                break;
+            }
+            if !cursor.goto_parent() {
+                return Ok(false);
+            }
+        }
+    }
+}
+
+fn identifier_is_binding(node: tree_sitter::Node<'_>) -> bool {
+    let Some(parent) = node.parent() else {
+        return false;
+    };
+    let same_as_field = |field: &str| {
+        parent.child_by_field_name(field).is_some_and(|candidate| {
+            candidate.start_byte() == node.start_byte() && candidate.end_byte() == node.end_byte()
+        })
+    };
+    match parent.kind() {
+        "variable_declarator" | "function_declaration" | "class_declaration" => {
+            same_as_field("name")
+        }
+        "assignment_expression" => same_as_field("left"),
+        "formal_parameters"
+        | "required_parameter"
+        | "optional_parameter"
+        | "rest_pattern"
+        | "import_specifier"
+        | "namespace_import"
+        | "shorthand_property_identifier_pattern" => true,
+        _ => parent.parent().is_some_and(|grandparent| {
+            matches!(
+                grandparent.kind(),
+                "formal_parameters" | "required_parameter" | "optional_parameter"
+            )
+        }),
+    }
 }
 
 fn method_identity(method: HttpMethod) -> &'static str {
@@ -845,8 +969,9 @@ fn supabase_function_name(path: &str) -> Option<&str> {
 }
 
 fn callback_key(source: &str, mask: &[u8], start: usize, end: usize) -> Option<String> {
+    let (start, end) = trim_source_trivia_range(source, start, end);
     let value = source.get(start..end)?.trim();
-    if value.is_empty() || value.starts_with("...") {
+    if value.is_empty() || value.starts_with("...") || matches!(value, "true" | "false" | "null") {
         return None;
     }
     if looks_like_function_value(mask, start) {
@@ -874,7 +999,6 @@ fn split_top_level_args(
     start: usize,
     end: usize,
 ) -> Vec<(usize, usize)> {
-    let bytes = source.as_bytes();
     let mut args = Vec::new();
     let mut item_start = start;
     let mut index = start;
@@ -890,7 +1014,8 @@ fn split_top_level_args(
             b'[' => bracket += 1,
             b']' => bracket = bracket.saturating_sub(1),
             b',' if paren == 0 && brace == 0 && bracket == 0 => {
-                let (trimmed_start, trimmed_end) = trim_range(bytes, item_start, index);
+                let (trimmed_start, trimmed_end) =
+                    trim_source_trivia_range(source, item_start, index);
                 if trimmed_start < trimmed_end {
                     args.push((trimmed_start, trimmed_end));
                 }
@@ -900,7 +1025,7 @@ fn split_top_level_args(
         }
         index += 1;
     }
-    let (trimmed_start, trimmed_end) = trim_range(bytes, item_start, end);
+    let (trimmed_start, trimmed_end) = trim_source_trivia_range(source, item_start, end);
     if trimmed_start < trimmed_end {
         args.push((trimmed_start, trimmed_end));
     }
@@ -1120,19 +1245,58 @@ fn skip_mask_ws(mask: &[u8], mut index: usize) -> usize {
     index
 }
 
-fn skip_source_ws(bytes: &[u8], mut index: usize) -> usize {
-    while index < bytes.len() && bytes[index].is_ascii_whitespace() {
-        index += 1;
+fn skip_source_ws_and_comments(source: &str, mut index: usize, end: usize) -> usize {
+    let bytes = source.as_bytes();
+    loop {
+        while index < end && bytes[index].is_ascii_whitespace() {
+            index += 1;
+        }
+        if index + 1 >= end {
+            return index;
+        }
+        if &bytes[index..index + 2] == b"//" {
+            index += 2;
+            while index < end && !matches!(bytes[index], b'\n' | b'\r') {
+                index += 1;
+            }
+            continue;
+        }
+        if &bytes[index..index + 2] == b"/*" {
+            let mut cursor = index + 2;
+            while cursor + 1 < end && &bytes[cursor..cursor + 2] != b"*/" {
+                cursor += 1;
+            }
+            if cursor + 1 >= end {
+                return end;
+            }
+            index = cursor + 2;
+            continue;
+        }
+        return index;
     }
-    index
 }
 
-fn trim_range(bytes: &[u8], mut start: usize, mut end: usize) -> (usize, usize) {
-    while start < end && bytes[start].is_ascii_whitespace() {
-        start += 1;
+fn trim_source_trivia_range(source: &str, start: usize, mut end: usize) -> (usize, usize) {
+    let bytes = source.as_bytes();
+    let start = skip_source_ws_and_comments(source, start, end);
+    loop {
+        while end > start && bytes[end - 1].is_ascii_whitespace() {
+            end -= 1;
+        }
+        if end >= start + 2
+            && &bytes[end - 2..end] == b"*/"
+            && let Some(relative) = source[start..end - 2].rfind("/*")
+        {
+            end = start + relative;
+            continue;
+        }
+        let line_start = source[start..end]
+            .rfind(['\n', '\r'])
+            .map_or(start, |relative| start + relative + 1);
+        if let Some(relative) = source[line_start..end].find("//") {
+            end = line_start + relative;
+            continue;
+        }
+        return (start, end);
     }
-    while end > start && bytes[end - 1].is_ascii_whitespace() {
-        end -= 1;
-    }
-    (start, end)
 }

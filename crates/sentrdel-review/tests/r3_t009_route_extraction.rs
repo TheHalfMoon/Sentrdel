@@ -1,4 +1,6 @@
-use sentrdel_review::business_logic::model::{BusinessLogicLimits, FrameworkFamily, HttpMethod};
+use sentrdel_review::business_logic::model::{
+    BusinessLogicLimits, FrameworkFamily, HttpMethod, StableSemanticId,
+};
 use sentrdel_review::business_logic::route::{
     MAX_ROUTE_CALLBACKS, RouteAdapter, RouteCoverageGapReason, RouteExtractionError, extract_routes,
 };
@@ -652,5 +654,186 @@ fn qualified_deno_receiver_cannot_mint_supabase_edge_route() {
             .gaps()
             .iter()
             .any(|gap| gap.reason() == RouteCoverageGapReason::UnsupportedHandlerExport)
+    );
+}
+
+#[test]
+fn express_callback_chain_preserves_execution_order() {
+    let limits = BusinessLogicLimits::default();
+    let result = extract_routes(
+        RouteAdapter::Express,
+        StructuralLanguage::JavaScript,
+        &path("src/order.js"),
+        b"app.get('/ordered', authenticate, requireTenant, handler);",
+        limits,
+    )
+    .expect("extract ordered callback chain");
+
+    let expected = ["authenticate", "requireTenant", "handler"]
+        .iter()
+        .enumerate()
+        .map(|(index, key)| {
+            let index = index.to_string();
+            StableSemanticId::from_parts(
+                "r3-route-callback",
+                &["express", "src/order.js", "/ordered", &index, key],
+                limits,
+            )
+            .expect("expected callback id")
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(result.routes().len(), 1);
+    assert_eq!(result.routes()[0].callback_chain(), expected.as_slice());
+}
+
+#[test]
+fn express_route_chains_are_explicit_coverage_gaps() {
+    let result = extract_routes(
+        RouteAdapter::Express,
+        StructuralLanguage::JavaScript,
+        &path("src/chains.js"),
+        b"app.route('/admin').get(handler); router.route('/tenant').post(handler);",
+        BusinessLogicLimits::default(),
+    )
+    .expect("classify unsupported route chains");
+
+    assert!(result.routes().is_empty());
+    assert_eq!(result.gaps().len(), 2);
+    assert!(
+        result
+            .gaps()
+            .iter()
+            .all(|gap| gap.reason() == RouteCoverageGapReason::MethodNotStaticallyBound)
+    );
+}
+
+#[test]
+fn express_setting_getter_does_not_mint_a_route() {
+    let result = extract_routes(
+        RouteAdapter::Express,
+        StructuralLanguage::JavaScript,
+        &path("src/settings.js"),
+        b"const env = app.get('env'); app.get('/real', handler);",
+        BusinessLogicLimits::default(),
+    )
+    .expect("distinguish Express setting getter");
+
+    assert_eq!(result.routes().len(), 1);
+    assert_eq!(result.routes()[0].route_pattern(), "/real");
+    assert!(result.gaps().is_empty());
+}
+
+#[test]
+fn express_comments_between_arguments_are_trivia() {
+    let result = extract_routes(
+        RouteAdapter::Express,
+        StructuralLanguage::JavaScript,
+        &path("src/comments.js"),
+        b"app.get(/* audited */ '/admin' /* path */, /* guard */ authenticate, /* handler */ handler);",
+        BusinessLogicLimits::default(),
+    )
+    .expect("treat comments as argument trivia");
+
+    assert_eq!(result.routes().len(), 1);
+    assert_eq!(result.routes()[0].route_pattern(), "/admin");
+    assert_eq!(result.routes()[0].callback_chain().len(), 2);
+    assert_eq!(result.routes()[0].coverage_state(), &CoverageState::Covered);
+    assert!(result.gaps().is_empty());
+}
+
+#[test]
+fn non_function_callback_literals_are_unresolved() {
+    let result = extract_routes(
+        RouteAdapter::Express,
+        StructuralLanguage::JavaScript,
+        &path("src/non-callable.js"),
+        b"app.get('/true', true); app.post('/null', null);",
+        BusinessLogicLimits::default(),
+    )
+    .expect("classify non-callable literals");
+
+    assert_eq!(result.routes().len(), 2);
+    assert!(
+        result
+            .routes()
+            .iter()
+            .all(|route| route.coverage_state() == &CoverageState::Partial)
+    );
+    assert!(
+        result
+            .routes()
+            .iter()
+            .all(|route| route.callback_chain().is_empty())
+    );
+    assert_eq!(
+        result
+            .gaps()
+            .iter()
+            .filter(|gap| gap.reason() == RouteCoverageGapReason::UnresolvedCallback)
+            .count(),
+        2
+    );
+}
+
+#[test]
+fn next_app_mixed_supported_and_export_list_methods_keep_gap_visible() {
+    let source = b"export function GET() { return new Response('ok'); }\nconst handler = () => new Response('post');\nexport { handler as POST };\n";
+    let result = extract_routes(
+        RouteAdapter::NextApp,
+        StructuralLanguage::JavaScript,
+        &path("app/api/mixed/route.js"),
+        source,
+        BusinessLogicLimits::default(),
+    )
+    .expect("classify mixed Next exports");
+
+    assert_eq!(result.routes().len(), 1);
+    assert_eq!(result.routes()[0].method(), HttpMethod::Get);
+    assert!(
+        result
+            .gaps()
+            .iter()
+            .any(|gap| gap.reason() == RouteCoverageGapReason::UnsupportedHandlerExport)
+    );
+}
+
+#[test]
+fn shadowed_deno_binding_is_an_explicit_coverage_gap() {
+    let source = b"const Deno = mockRuntime; const handler = (req: Request) => new Response('ok'); Deno.serve(handler);";
+    let result = extract_routes(
+        RouteAdapter::SupabaseEdge,
+        StructuralLanguage::TypeScript,
+        &path("supabase/functions/shadowed/index.ts"),
+        source,
+        BusinessLogicLimits::default(),
+    )
+    .expect("classify shadowed Deno binding");
+
+    assert!(result.routes().is_empty());
+    assert!(
+        result
+            .gaps()
+            .iter()
+            .any(|gap| gap.reason() == RouteCoverageGapReason::AmbiguousReceiverBinding)
+    );
+}
+
+#[test]
+fn deno_serve_non_function_literal_is_unresolved() {
+    let result = extract_routes(
+        RouteAdapter::SupabaseEdge,
+        StructuralLanguage::TypeScript,
+        &path("supabase/functions/non-callable/index.ts"),
+        b"Deno.serve(null);",
+        BusinessLogicLimits::default(),
+    )
+    .expect("classify non-callable Deno handler");
+
+    assert!(result.routes().is_empty());
+    assert!(
+        result
+            .gaps()
+            .iter()
+            .any(|gap| gap.reason() == RouteCoverageGapReason::UnresolvedCallback)
     );
 }
