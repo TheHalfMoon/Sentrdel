@@ -10,19 +10,21 @@
 
 Sentrdel MUST NOT become an open-source clone of a broad AppSec platform.
 
-Sentrdel SHOULD become the **open-source semantic security graph and evidence judgment layer for software changes**, with a first-class PR security-regression workflow.
+Sentrdel SHOULD become the **open-source security-invariant regression and evidence judgment engine for AI-built software**.
+
+The **Sentrdel Semantic Security Graph (SSG)** is the bounded reasoning substrate that makes this possible; it is not the category by itself.
 
 The durable product wedge is:
 
-> **Understand the security meaning of a change, prove what is known, expose what is not known, and show exactly which security invariant became weaker or stronger.**
+> **Understand which security property changed, prove what is known, expose what is not known, and show exactly which invariant became weaker, stronger, contradicted, or no longer provable.**
 
 This keeps the existing constitutional thesis intact:
 
 - reuse mature scanners and security infrastructure where possible;
-- own the canonical evidence, graph, invariant, reconciliation, guard, verification, and developer-judgment layers;
+- own the canonical evidence, graph, invariant, reconciliation, guard, verification, conformance, and developer-judgment layers;
 - remain local-first and useful without a proprietary cloud;
 - keep uncertainty and coverage gaps explicit;
-- never let a model, external scanner, graph edge, or vendor integration silently upgrade security authority.
+- never let a model, external scanner, graph edge, vendor integration, severity score, or reachability score silently upgrade security authority.
 
 ## Why this amendment exists
 
@@ -35,25 +37,26 @@ A current review of Aikido Security is strategically useful because it demonstra
 5. supply-chain intelligence and pre-install controls can become a strong adoption flywheel;
 6. a generous free product can be a distribution strategy rather than a demo.
 
+A second competitive triangulation against Semgrep, Endor Labs, Socket, GitHub Code Security/CodeQL, and XBOW materially changed the initial conclusion: **diff-aware PR scanning, cross-file context, graph/reachability, agent-action policy, package interception, autofix, and proof-oriented offensive validation are already emerging as table stakes across the market.** They are valuable capabilities but are not sufficient standalone moats.
+
 These are research observations, not authority. Vendor claims are not benchmark truth and do not change Sentrdel's evidence model.
 
-### Primary research inputs
+### Research inputs
 
-Observed on 2026-09-02:
+Observed on 2026-09-02 and recorded in the companion competitive research artifact:
 
 - Aikido PR Review: `https://www.aikido.dev/code/pr-review`
 - Aikido AI Pentesting: `https://www.aikido.dev/attack/aipentest`
 - Aikido pricing: `https://www.aikido.dev/pricing`
 - Aikido Intel research: `https://www.aikido.dev/blog/aikido-intel-detects-malware-vulnerabilities-first`
 - Aikido Safe Chain: `https://github.com/AikidoSec/safe-chain`
-
-Aikido describes PR review that uses full-codebase context, a pentest flow where additional agents validate candidate findings, a broad free/product-led distribution surface, a threat-intelligence pipeline, and an open-source package-install protection tool. Sentrdel should learn from the product shape without copying the platform breadth.
+- current official product/documentation references for Semgrep, Endor Labs, Socket, GitHub Code Security/CodeQL, and XBOW as recorded in `competitive-triangulation-2026-09-02.md`.
 
 ## Competitive conclusion
 
 ### What broad platforms are good at
 
-Platforms such as Aikido can create value by combining many surfaces:
+Modern platforms can create value by combining or deeply implementing many surfaces:
 
 - SAST;
 - SCA and dependency risk;
@@ -62,16 +65,35 @@ Platforms such as Aikido can create value by combining many surfaces:
 - container/VM scanning;
 - attack-surface discovery;
 - runtime protection;
-- PR review;
+- diff-aware PR review;
+- cross-file context and reachability;
+- coding-agent action controls;
+- package/firewall controls;
 - autofix;
 - offensive verification;
 - threat intelligence.
 
 Trying to recreate all of those engines inside Sentrdel would violate Principle VII in spirit even if the code were technically permissive.
 
+### Capabilities that are not enough to define the category
+
+Sentrdel must not mistake the following for a durable category moat by themselves:
+
+- "we scan the PR diff";
+- "we use full-repository context";
+- "we have a code graph";
+- "we calculate reachability";
+- "we review AI-generated code";
+- "we guard coding agents";
+- "we block suspicious packages";
+- "we autofix findings";
+- "we verify vulnerabilities offensively".
+
+Sentrdel may implement or integrate some of these, but the market already contains serious versions of each.
+
 ### What Sentrdel should own instead
 
-Sentrdel's moat should be the security meaning that sits **between** these observations:
+Sentrdel's moat should be the security meaning that sits **between** observations and across revisions:
 
 - which route changed;
 - which actor reaches it;
@@ -84,9 +106,10 @@ Sentrdel's moat should be the security meaning that sits **between** these obser
 - which evidence supports or contradicts the path;
 - which coverage dimension is missing;
 - what changed relative to the trusted base;
-- whether a separately authorized verifier proved or disproved the claim.
+- whether losing analysis capability made a formerly provable property uncertain;
+- whether a separately authorized verifier proved or disproved a stronger claim.
 
-The product must answer questions that raw scanners usually cannot answer deterministically:
+The product must answer questions that raw scanners, generic graph engines, and generic AI reviewers usually cannot answer as an open deterministic contract:
 
 > Did this PR weaken tenant isolation?
 
@@ -98,9 +121,11 @@ The product must answer questions that raw scanners usually cannot answer determ
 
 > Did coverage fall because a formerly supported path became dynamic?
 
-## The Open Semantic Security Graph
+> Did the security property become genuinely safer, or did the detector merely lose visibility?
 
-The long-term canonical graph should be named explicitly:
+## The Sentrdel Semantic Security Graph
+
+The long-term canonical graph direction should be named explicitly:
 
 > **Sentrdel Semantic Security Graph (SSG)**
 
@@ -158,21 +183,21 @@ A graph is a reasoning substrate, not an epistemic upgrade mechanism.
 
 No graph node, edge, confidence score, path score, model annotation, or external-engine relationship may independently promote Evidence from one epistemic class to another. The existing reconciler remains the only canonical Finding authority.
 
-## First post-R3 product wedge: Semantic PR Regression
+## First post-R3 product wedge: Security Invariant Regression
 
-After R3 is canonical and post-merge proven, the highest-value product slice should be a **semantic PR regression engine**, not broad provider-pack proliferation.
+After R3 is canonical and post-merge proven, the highest-value product slice should be a **security-invariant regression engine**, not broad provider-pack proliferation and not generic diff-aware scanning.
 
-The engine compares a trusted base graph with a candidate/head graph and reports security-relevant state changes rather than dumping every current observation.
+The engine compares a trusted base semantic state with a candidate/head semantic state and reports **security-property changes** rather than dumping every current observation.
 
 ### Required comparison classes
 
-At minimum, future specifications should support evidence-backed states such as:
+At minimum, future specifications should evaluate evidence-backed states such as:
 
 - `NEW`;
 - `PRE_EXISTING`;
 - `WORSENED`;
 - `MITIGATED`;
-- `MOVED`;
+- `MOVED` only where semantic identity is sufficiently proven;
 - `REINTRODUCED`;
 - `UNCERTAIN`;
 - `COVERAGE_LOST`;
@@ -180,12 +205,20 @@ At minimum, future specifications should support evidence-backed states such as:
 
 These labels must be graph/evidence-diff backed. They must not invent causality merely because two commits are adjacent.
 
+### Coverage regression is a security result
+
+Coverage regression is not a secondary diagnostic.
+
+If the trusted base had a supported route → actor → guard → data path and the candidate refactors that path into unsupported/dynamic semantics, Sentrdel must not report the disappearance of a violation or guard observation as improvement. It must expose that the security property is no longer provable under the current bounded analysis.
+
+This is one of the project's most important differentiators because it operationalizes Evidence Before Verdict at the change boundary.
+
 ### Example target developer output
 
 A useful PR result should look conceptually like:
 
 ```text
-SECURITY REGRESSION
+SECURITY INVARIANT REGRESSION
 
 POST /org/:org_id/invoices
 
@@ -225,13 +258,35 @@ The default PR experience should optimize for **change relevance**, not total ba
 The primary summary should answer:
 
 1. what security property changed;
-2. whether it became safer, weaker, or unknown;
+2. whether it became safer, weaker, contradicted, or unknown;
 3. why Sentrdel believes that;
 4. where the evidence came from;
-5. what analysis was unsupported;
-6. what action is required before merge.
+5. what analysis was unsupported or lost;
+6. what stronger claim, if any, was separately verified;
+7. what action is required before merge.
 
 Existing/pre-existing findings may remain accessible without dominating the PR signal.
+
+## Open Evidence + Coverage conformance as a moat
+
+The project should not keep its strongest semantics as undocumented implementation detail.
+
+R9 should mature into an open conformance ecosystem for:
+
+- canonical Evidence producer behavior;
+- provenance completeness;
+- Coverage truthfulness;
+- invariant evaluation states;
+- trusted-base/candidate regression pairs;
+- external importer authority ceilings;
+- verification/evidence-upgrade boundaries;
+- deterministic semantic identity and replay.
+
+A third-party producer should eventually be able to prove that it emits valid Sentrdel-compatible evidence without becoming trusted judgment authority.
+
+This can create an ecosystem moat that proprietary platforms are structurally less incentivized to standardize openly: Sentrdel becomes both an implementation and an inspectable contract for how security claims, uncertainty, and change-relative evidence should behave.
+
+Public conformance corpora do not replace protected holdouts for release qualification.
 
 ## External Evidence Interop: import, do not rebuild
 
@@ -266,7 +321,7 @@ This allows Sentrdel to become the open judgment layer above the security ecosys
 
 ## Verification and fix loop
 
-Aikido's product direction reinforces an existing constitutional decision: strong claims become more trustworthy when a separate verifier can reproduce them.
+Current proof-oriented offensive and verification products reinforce an existing constitutional decision: strong claims become more trustworthy when a separate verifier can reproduce them.
 
 Sentrdel's R6 should therefore be framed as an **Evidence Upgrade and Fix Validation Plane**.
 
@@ -298,11 +353,11 @@ Verification remains opt-in, isolated, target-scoped, resource-bounded, and non-
 
 ## Supply-chain and developer-action control
 
-Aikido Safe Chain demonstrates the product value of protecting the package-install seam before malicious code executes.
+Package-firewall products demonstrate the product value of protecting the package-install seam before malicious code executes.
 
-Sentrdel should learn from that adoption pattern, but not copy its implementation into the trusted core.
+Sentrdel should learn from that adoption pattern, but not copy a proprietary or third-party implementation into the trusted core merely for parity.
 
-A later R7/agent-control spec should evaluate a bounded **dependency-action guard** that can protect controllable package/install actions from coding agents and CI. It should prefer existing ecosystem intelligence and qualified package metadata rather than building a proprietary malware-analysis engine first.
+A later R7/agent-control spec should evaluate a bounded **dependency-action guard** that can protect controllable package/install/build actions from coding agents and CI. It should prefer existing ecosystem intelligence and qualified package metadata rather than building a proprietary malware-analysis engine first.
 
 Potential evidence/control inputs include:
 
@@ -319,7 +374,7 @@ Repository-controlled configuration must not silently weaken the kernel authorit
 
 ## Open Security Intelligence direction
 
-Aikido Intel illustrates a real moat: continuously refreshed security intelligence can improve detection and prevention faster than static vulnerability databases alone.
+Continuously refreshed security intelligence can improve detection and prevention faster than static vulnerability databases alone.
 
 Sentrdel should not respond by making a proprietary threat feed mandatory.
 
@@ -352,18 +407,18 @@ Core community assets should remain inspectable and portable:
 - Rust CLI/core;
 - canonical Evidence and event contracts;
 - SSG schemas/projections when frozen;
-- benchmark contracts and public corpus portions;
+- benchmark and conformance contracts and public corpus portions;
 - Security Pack manifests;
 - external evidence import contracts;
 - local explain output;
-- local PR regression analysis;
+- local invariant-regression analysis;
 - rule/pack qualification metadata.
 
 A future hosted service may add collaboration, managed intelligence, fleet policy, storage, or scale, but MUST NOT become required for the core security judgment promised by the open-source project.
 
 ## Revised strategic sequencing after R3
 
-Roadmap IDs remain stable; this section describes priority, not permission to bypass active specs.
+Roadmap IDs remain stable; this section describes priority, not permission to bypass active specs. The detailed dependency-ordered decomposition is recorded in `post-r3-execution-blueprint-2026-09-02.md`.
 
 ### P0 — Finish R3 exactly as currently governed
 
@@ -371,50 +426,55 @@ Do not change the canonical `R3-T009 -> ... -> R3-T038` order because of this am
 
 R3 is already building the crucial semantic substrate. Its graph/link/correlation tasks are the foundation for the strategy described here.
 
-### P1 — R5 first productization slice: Semantic PR Regression + Forge integration
+### P1 — R5 first productization slice: Security Invariant Regression + Forge integration
 
-After R3 closeout, prioritize the R5 GitHub/forge path that turns SSG base/head comparison into a first-class developer workflow.
+After R3 closeout, prioritize the R5 path that turns SSG/invariant base-head comparison into a first-class developer workflow.
 
-R5 should depend on R3 for the semantic regression capability. IDE/agent integrations may follow the same stable local protocol rather than each becoming a new judgment implementation.
+R5 should depend on R3 for the semantic regression capability. The local CLI/protocol should freeze before forge/IDE integrations so vendor adapters consume one judgment implementation instead of forking semantics.
 
-### P2 — R9 benchmark expansion for semantic regressions
+### P2 — R9 open conformance + benchmark expansion
 
-Before broadening detector/provider support aggressively, freeze benchmark dimensions for:
+Before broadening detector/provider support aggressively, freeze benchmark/conformance dimensions for:
 
-- semantic regression precision;
+- invariant-regression precision;
 - known-ground-truth misses;
 - clean-PR false-positive rate;
 - coverage-loss visibility;
 - provenance completeness;
 - deterministic graph-diff replay;
 - explanation correctness;
+- authority correctness;
 - latency/resource bounds.
 
 ### P3 — R6 Evidence Upgrade + Fix Verification
 
 Build bounded verification around a small number of high-value invariant classes before attempting generic autonomous security testing.
 
-### P4 — R4 provider/auth expansion through graph semantics
+### P4 — R7 standards-first External Evidence Import Protocol
+
+Gain breadth by importing qualified mature evidence before deciding to build equivalent scanner engines.
+
+### P5 — R4 provider/auth expansion through graph semantics
 
 New packs must improve semantic judgment, not merely add checklist count.
 
 A provider pack should preferentially contribute nodes/relationships/coverage that make cross-layer invariants stronger.
 
-### P5 — R7 external evidence imports + supply-chain/action controls
+### P6 — R7 supply-chain/action controls and open intelligence
 
-Broaden security breadth by importing qualified mature evidence and protecting controllable dependency/build seams.
+Protect dependency/build actions only at genuinely controllable seams and prefer qualified multi-source intelligence over a proprietary mandatory feed.
 
-### P6 — R8 runtime evidence correlation
+### P7 — R8 runtime evidence correlation
 
 Runtime observations should attach to the same semantic identities where possible and must remain distinguishable from static evidence.
 
-### P7 — R10 full-project semantic posture
+### P8 — R10 full-project semantic posture
 
 R10 becomes the point where application semantics, dependencies, provider posture, CI, agent actions, deployment, and runtime observations converge into the mature SSG-backed project posture.
 
-### P8 — R11 controlled learning/intelligence flywheel
+### P9 — R11 controlled learning/intelligence flywheel
 
-Only after benchmark and verification maturity should Sentrdel automate candidate discovery at scale.
+Only after benchmark, conformance, and verification maturity should Sentrdel automate candidate discovery at scale.
 
 ## Roadmap mapping
 
@@ -424,11 +484,11 @@ Only after benchmark and verification maturity should Sentrdel automate candidat
 | R2 | Provider/static posture evidence feeding cross-layer semantics |
 | R3 | First application-semantic graph: route x actor x guard x data x invariant |
 | R4 | Framework/provider semantic expansion, not shallow rule proliferation |
-| R5 | Semantic PR regression, GitHub/forge delivery, IDE/agent presentation |
+| R5 | Security invariant regression, local developer contract, GitHub/forge delivery, IDE/agent presentation |
 | R6 | Evidence upgrade, bounded verification, fix validation |
 | R7 | External evidence imports, supply-chain/dependency/build security, open intelligence ingestion |
 | R8 | Runtime evidence and enforceable runtime tiers |
-| R9 | Public semantic-security benchmark and open judgment specifications |
+| R9 | Public semantic-security conformance, benchmark and open judgment specifications |
 | R10 | Mature SSG-backed A-to-Z project posture |
 | R11 | Controlled research/intelligence/learning candidate flywheel |
 
@@ -437,73 +497,87 @@ Only after benchmark and verification maturity should Sentrdel automate candidat
 | Competitor/platform strength | Sentrdel response |
 |---|---|
 | Broad scanner aggregation | Import mature evidence; do not rebuild every engine |
-| Full-codebase AI PR review | Deterministic semantic PR regression plus optional bounded AI context |
-| Reachability graph | Evidence-backed bounded SSG with explicit coverage and authority separation |
-| AI pentest validation | R6 bounded opt-in verification; no autonomous exploitation authority |
+| Diff-aware/full-codebase PR review | Deterministic **security-invariant regression** plus explicit coverage-loss semantics |
+| Reachability/code graph | Evidence-backed bounded SSG with explicit authority separation; graph is substrate, not category |
+| Coding-agent action policy | Keep monotonic local guard seams, but differentiate through invariant/evidence judgment and provenance |
+| Package firewall | Later bounded dependency/build action guard using qualified external intelligence |
 | Autofix | Candidate remediation + re-analysis + verification before `FIX_VERIFIED` |
+| AI/offensive validation | R6 bounded opt-in verification; no autonomous third-party/production exploitation authority |
 | Threat-intelligence feed | Multi-source open intelligence ingestion with provenance and qualification |
-| Developer/package interception | Later bounded agent/dependency-action controls at enforceable seams |
-| Proprietary platform correlation | Open local-first canonical evidence/graph/judgment contracts |
-| Noise reduction | Benchmark precision, change relevance, coverage truth, and reconciler discipline |
+| Proprietary platform correlation | Open Evidence/Coverage/Invariant/Regression conformance plus local SSG judgment |
 
-## Product principles added by this amendment
+## Four proof-of-category demos
 
-These refine the roadmap but do not amend the Constitution:
+Before broad feature expansion, Sentrdel should prove these cases end-to-end through the same contracts:
 
-1. **Security delta over security backlog.** PR workflows prioritize what changed.
-2. **Semantic relationships over rule count.** A new detector is valuable when it improves judgment, not because it increases a marketing number.
-3. **Coverage loss is a regression.** Moving from supported semantics to unknown/dynamic semantics must be visible.
-4. **Graph context never upgrades authority.** Correlation helps reasoning but does not mint proof.
-5. **Verification is an evidence upgrade, not a model opinion.**
-6. **External engines are evidence producers, not judges.**
-7. **Open contracts are distribution.** Evidence, graph, packs, benchmarks, and imports should be inspectable and reusable.
-8. **One local trusted core, many optional producers.**
-9. **No cloud dependency for core value.**
-10. **Developer trust is a release metric.** Precision, latency, explainability, and low false-block rate are security properties.
+1. **Tenant isolation regression** — a supported tenant/ownership guard is removed or weakened while request-controlled resource selection still reaches the data operation.
+2. **Elevated provider-authority regression** — a path becomes request-reachable through elevated/service-role authority without a corresponding supported application guard.
+3. **Protected-property mutation regression** — an explicit safe allowlist becomes a broad request-controlled mutation capable of including protected fields.
+4. **Coverage regression** — a formerly supported auth/ownership path becomes dynamic/unresolved and Sentrdel reports `COVERAGE_LOST`/uncertainty rather than a false improvement.
 
-## What Sentrdel should explicitly not build first
+Demo 4 is mandatory because it proves Sentrdel's Evidence Before Verdict thesis more clearly than another vulnerability screenshot.
 
-This amendment does not justify near-term work on:
+## Defensibility filter for future features
 
-- a generic CSPM platform;
-- a full DAST scanner;
+A major feature should normally be deferred or imported rather than built if:
+
+1. a mature external engine already provides the raw capability well;
+2. importing its evidence would preserve the security value needed by Sentrdel;
+3. building the engine would not materially improve invariant semantics, Evidence/Coverage truth, verification, or conformance;
+4. the new engine introduces significant dependency, credential, network, runtime, or supply-chain authority;
+5. it does not materially strengthen the four proof-of-category demos or another frozen benchmark dimension.
+
+This filter prevents roadmap drift back into scanner-count competition.
+
+## Product scorecard
+
+Strategic success should be measured using at least:
+
+- invariant-regression precision;
+- supported-case recall;
+- clean-PR false-positive rate;
+- coverage-loss truthfulness;
+- provenance completeness;
+- authority correctness;
+- deterministic replay;
+- warm/cold latency;
+- memory/resource bounds;
+- explanation usefulness;
+- false-block rate at enforcement seams;
+- local/offline usability;
+- conformance stability across producer/importer implementations.
+
+Rule count and alert count are not success metrics by themselves.
+
+## Explicit non-goals from this amendment
+
+This amendment does not authorize:
+
+- a generic CSPM platform in the near term;
+- a full in-house DAST scanner;
 - an autonomous pentest swarm;
-- endpoint/MDM fleet management;
-- a proprietary vulnerability database as a prerequisite for usefulness;
-- hundreds of shallow provider rules;
+- a proprietary vulnerability/advisory database as a core dependency;
 - a universal CPG;
-- an LLM-only PR reviewer;
-- automatic security-code mutation with self-approval;
-- a hosted control plane required for local analysis.
+- LLM-only PR judgment;
+- automatic self-approved remediation;
+- target execution or provider credentials inside R3;
+- a hosted control plane required for local Sentrdel analysis;
+- bypassing R3 task order to implement the strategy early.
 
-Those may be integrated, imported, or separately specified later where justified.
+## Merge and successor boundary
 
-## Success definition after this amendment
+This amendment should not move protected `main` while the active R3 implementation PR depends on the current canonical base for exact-head qualification.
 
-A mature Sentrdel should make the following workflow normal:
+After R3 becomes canonical and post-merge proven:
 
-```text
-coding agent / developer change
-        -> bounded local analysis
-        -> Semantic Security Graph update
-        -> trusted-base vs candidate graph diff
-        -> security invariant regression analysis
-        -> canonical Evidence + Coverage
-        -> reconciled high-signal Finding when justified
-        -> explainable PR result
-        -> optional separately authorized verification
-        -> candidate fix
-        -> re-analysis / re-verification
-```
+1. reconcile this amendment and its companion artifacts against the new canonical `main`;
+2. qualify and independently review the planning PR normally;
+3. merge it only when repository governance permits;
+4. create the first post-R3 successor Spec Kit separately;
+5. do not treat the roadmap text itself as implementation authority.
 
-The project wins when a developer can ask:
+## Companion artifacts
 
-> **"What security property did this change weaken, and can you prove it?"**
-
-and Sentrdel can answer with deterministic provenance, explicit uncertainty, bounded authority, and reproducible evidence.
-
-## Immediate execution boundary
-
-This is a roadmap amendment only.
-
-It MUST NOT modify or bypass the active R3 implementation sequence. As of the planning base, R3 remains the active canonical implementation line. Any implementation implied by this document requires its own future Spec Kit lifecycle and ordinary repository qualification.
+- `competitive-triangulation-2026-09-02.md` — records the broader market comparison that sharpened the moat.
+- `post-r3-execution-blueprint-2026-09-02.md` — decomposes the strategy into bounded future Spec Kit slices and gates.
+- `README.md` — navigation and authority index for the roadmap corpus.
