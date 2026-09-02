@@ -1334,6 +1334,33 @@ fn shadowed_express_factory_binding_is_ambiguous() {
 }
 
 #[test]
+fn destructured_express_factory_results_are_ambiguous() {
+    for source in [
+        b"import express from 'express';\nconst { app } = express();\napp.get('/object-destructure', handler);".as_slice(),
+        b"import express from 'express';\nconst { runtime: app } = express();\napp.get('/alias-destructure', handler);".as_slice(),
+        b"import express from 'express';\nconst [app] = express();\napp.get('/array-destructure', handler);".as_slice(),
+        b"import express from 'express';\nconst { router } = express.Router();\nrouter.post('/router-destructure', handler);".as_slice(),
+    ] {
+        let result = extract_routes(
+            RouteAdapter::Express,
+            StructuralLanguage::JavaScript,
+            &path("src/destructured-express-factory.js"),
+            source,
+            BusinessLogicLimits::default(),
+        )
+        .expect("classify destructured Express factory result as ambiguous");
+
+        assert!(result.routes().is_empty());
+        assert!(
+            result
+                .gaps()
+                .iter()
+                .any(|gap| gap.reason() == RouteCoverageGapReason::AmbiguousReceiverBinding)
+        );
+    }
+}
+
+#[test]
 fn canonical_express_package_import_factory_remains_supported() {
     let source = b"import express from 'express';\nconst app = express();\nconst router = express.Router();\napp.get('/app-import', handler);\nrouter.post('/router-import', handler);\n";
     let result = extract_routes(
