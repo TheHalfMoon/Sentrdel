@@ -174,6 +174,65 @@ fn dynamic_request_body_alias_access_fails_visible_as_unknown() {
 }
 
 #[test]
+fn next_app_dynamic_session_root_access_fails_visible_as_unknown() {
+    let source = br#"export async function GET(selector) {
+  const session = await auth();
+  return session[selector];
+}
+"#;
+    let result = extract_actor_contexts(
+        RouteAdapter::NextApp,
+        StructuralLanguage::JavaScript,
+        &path("app/api/session/route.js"),
+        source,
+        BusinessLogicLimits::default(),
+    )
+    .expect("extract dynamic Next App auth-result gap");
+
+    assert!(
+        result
+            .gaps()
+            .iter()
+            .any(|gap| gap.reason() == ActorCoverageGapReason::DynamicAuthIdentity)
+    );
+    assert!(result.actors().iter().any(|actor| {
+        actor.identity_kind() == ActorIdentityKind::Unknown
+            && actor.source_kind() == ActorSourceKind::Unknown
+            && actor.trust_basis() == TrustBasis::Unknown
+    }));
+}
+
+#[test]
+fn supabase_dynamic_auth_result_access_fails_visible_as_unknown() {
+    let source = br#"Deno.serve(async (request) => {
+  const authResult = await supabase.auth.getUser();
+  const selected = authResult.data.user[request.method];
+  return Response.json({ selected });
+});
+"#;
+    let result = extract_actor_contexts(
+        RouteAdapter::SupabaseEdge,
+        StructuralLanguage::TypeScript,
+        &path("supabase/functions/dynamic-auth/index.ts"),
+        source,
+        BusinessLogicLimits::default(),
+    )
+    .expect("extract dynamic Supabase auth-result gap");
+
+    assert!(
+        result
+            .gaps()
+            .iter()
+            .any(|gap| gap.reason() == ActorCoverageGapReason::DynamicAuthIdentity)
+    );
+    assert!(result.actors().iter().any(|actor| {
+        actor.identity_kind() == ActorIdentityKind::Unknown
+            && actor.source_kind() == ActorSourceKind::Unknown
+            && actor.trust_basis() == TrustBasis::Unknown
+    }));
+}
+
+#[test]
 fn literal_binding_is_recorded_without_promoting_lexical_identity() {
     let source = b"const actorKey = 'admin';\nexport function handler(req) { return req.params.id ?? actorKey; }\n";
     let result = extract_actor_contexts(
