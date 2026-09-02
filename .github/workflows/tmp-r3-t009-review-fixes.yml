@@ -1,0 +1,243 @@
+name: Temporary R3 T009 Review Fixes
+
+on:
+  push:
+    branches:
+      - feat/r3-t009-bounded-route-extraction
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout T009 branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: feat/r3-t009-bounded-route-extraction
+          fetch-depth: 0
+
+      - name: Apply exact review fixes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          route = Path('crates/sentrdel-review/src/business_logic/route.rs')
+          text = route.read_text(encoding='utf-8')
+
+          old = '''        if receiver != "app" && receiver != "router" {
+              index = receiver_end;
+              continue;
+          }
+          let mut cursor = skip_mask_ws(mask, receiver_end);
+'''
+          new = '''        if receiver != "app" && receiver != "router" {
+              index = receiver_end;
+              continue;
+          }
+          if !is_unqualified_identifier(mask, receiver_start) {
+              index = receiver_end;
+              continue;
+          }
+          let mut cursor = skip_mask_ws(mask, receiver_end);
+'''
+          if text.count(old) != 1:
+              raise SystemExit(f'expected one Express receiver block, got {text.count(old)}')
+          text = text.replace(old, new)
+
+          old = '''    while let Some(deno_start) = find_word(mask, b"Deno", index) {
+          let mut cursor = skip_mask_ws(mask, deno_start + "Deno".len());
+'''
+          new = '''    while let Some(deno_start) = find_word(mask, b"Deno", index) {
+          if !is_unqualified_identifier(mask, deno_start) {
+              index = deno_start + "Deno".len();
+              continue;
+          }
+          let mut cursor = skip_mask_ws(mask, deno_start + "Deno".len());
+'''
+          if text.count(old) != 1:
+              raise SystemExit(f'expected one Supabase Deno receiver block, got {text.count(old)}')
+          text = text.replace(old, new)
+
+          old = '''fn looks_like_function_value(mask: &[u8], mut index: usize) -> bool {
+              if let Some(end) = parse_ident_end_if_any(mask, index) {
+                  let token = &mask[index..end];
+                  if token == b"async" {
+                      index = skip_mask_ws(mask, end);
+                  } else if token == b"function" {
+                      return true;
+                  }
+              }
+              if let Some(end) = parse_ident_end_if_any(mask, index)
+                  && &mask[index..end] == b"function"
+              {
+                  return true;
+              }
+              let limit = mask.len().min(index.saturating_add(512));
+              mask[index..limit].windows(2).any(|window| window == b"=>")
+          }
+
+          fn parse_ident_end_if_any(mask: &[u8], start: usize) -> Option<usize> {
+'''
+          new = '''fn looks_like_function_value(mask: &[u8], mut index: usize) -> bool {
+              if let Some(end) = parse_ident_end_if_any(mask, index) {
+                  let token = &mask[index..end];
+                  if token == b"async" {
+                      index = skip_mask_ws(mask, end);
+                  } else if token == b"function" {
+                      return true;
+                  }
+              }
+              if let Some(end) = parse_ident_end_if_any(mask, index) {
+                  if &mask[index..end] == b"function" {
+                      return true;
+                  }
+                  let after = skip_mask_ws(mask, end);
+                  return mask.get(after..after.saturating_add(2)) == Some(b"=>");
+              }
+              if mask.get(index) == Some(&b'(')
+                  && let Some(close) = find_balanced(mask, index, b'(', b')')
+              {
+                  let after = skip_mask_ws(mask, close + 1);
+                  return mask.get(after..after.saturating_add(2)) == Some(b"=>");
+              }
+              false
+          }
+
+          fn is_unqualified_identifier(mask: &[u8], start: usize) -> bool {
+              let mut index = start;
+              while index > 0 {
+                  index -= 1;
+                  if !mask[index].is_ascii_whitespace() {
+                      return mask[index] != b'.';
+                  }
+              }
+              true
+          }
+
+          fn parse_ident_end_if_any(mask: &[u8], start: usize) -> Option<usize> {
+'''
+          if text.count(old) != 1:
+              raise SystemExit(f'expected one function-value helper block, got {text.count(old)}')
+          text = text.replace(old, new)
+          route.write_text(text, encoding='utf-8', newline='\n')
+
+          tests = Path('crates/sentrdel-review/tests/r3_t009_route_extraction.rs')
+          text = tests.read_text(encoding='utf-8')
+
+          marker = '''#[test]
+          fn unresolved_express_callback_makes_route_partial() {
+'''
+          addition = '''#[test]
+          fn qualified_express_receivers_cannot_mint_routes() {
+              let source = b"client.app.get('/nested', handler); client?.router.post('/optional', handler);\n";
+              let result = extract_routes(
+                  RouteAdapter::Express,
+                  StructuralLanguage::JavaScript,
+                  &path("src/nested.js"),
+                  source,
+                  BusinessLogicLimits::default(),
+              )
+              .expect("reject qualified Express receivers");
+
+              assert!(result.routes().is_empty());
+          }
+
+          #[test]
+          fn unresolved_express_callback_makes_route_partial() {
+'''
+          if text.count(marker) != 1:
+              raise SystemExit('missing Express test insertion marker')
+          text = text.replace(marker, addition)
+
+          marker = '''#[test]
+          fn next_pages_default_handler_preserves_unknown_method_as_partial_coverage() {
+'''
+          addition = '''#[test]
+          fn next_app_non_function_export_does_not_search_later_statements() {
+              let source = b"export const GET = configuration;\nconst later = () => {};\n";
+              let result = extract_routes(
+                  RouteAdapter::NextApp,
+                  StructuralLanguage::JavaScript,
+                  &path("app/api/example/route.js"),
+                  source,
+                  BusinessLogicLimits::default(),
+              )
+              .expect("reject non-function Next App handler export");
+
+              assert!(result.routes().is_empty());
+              assert!(
+                  result
+                      .gaps()
+                      .iter()
+                      .any(|gap| gap.reason() == RouteCoverageGapReason::UnsupportedHandlerExport)
+              );
+          }
+
+          #[test]
+          fn next_pages_default_handler_preserves_unknown_method_as_partial_coverage() {
+'''
+          if text.count(marker) != 1:
+              raise SystemExit('missing Next App test insertion marker')
+          text = text.replace(marker, addition)
+
+          marker = '''#[test]
+          fn malformed_source_fails_closed_through_fixed_grammar_boundary() {
+'''
+          addition = '''#[test]
+          fn qualified_deno_receiver_cannot_mint_supabase_edge_route() {
+              let source = b"runtime.Deno.serve(handler);\n";
+              let result = extract_routes(
+                  RouteAdapter::SupabaseEdge,
+                  StructuralLanguage::TypeScript,
+                  &path("supabase/functions/nested/index.ts"),
+                  source,
+                  BusinessLogicLimits::default(),
+              )
+              .expect("reject qualified Deno receiver");
+
+              assert!(result.routes().is_empty());
+              assert!(
+                  result
+                      .gaps()
+                      .iter()
+                      .any(|gap| gap.reason() == RouteCoverageGapReason::UnsupportedHandlerExport)
+              );
+          }
+
+          #[test]
+          fn malformed_source_fails_closed_through_fixed_grammar_boundary() {
+'''
+          if text.count(marker) != 1:
+              raise SystemExit('missing Supabase test insertion marker')
+          text = text.replace(marker, addition)
+          tests.write_text(text, encoding='utf-8', newline='\n')
+          PY
+
+      - name: Install pinned Rust toolchain
+        shell: bash
+        run: rustup toolchain install 1.98.0 --profile minimal --component rustfmt,clippy
+
+      - name: Format and verify focused candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo +1.98.0 fmt --all
+          git diff --check
+          cargo +1.98.0 test -p sentrdel-review --test r3_t009_route_extraction
+          cargo +1.98.0 clippy -p sentrdel-review --all-targets -- -D warnings
+
+      - name: Commit exact review fixes
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add crates/sentrdel-review/src/business_logic/route.rs crates/sentrdel-review/tests/r3_t009_route_extraction.rs
+          git diff --cached --check
+          git commit -m "fix(r3): harden T009 route extraction review boundaries"
+          git push origin HEAD:feat/r3-t009-bounded-route-extraction
