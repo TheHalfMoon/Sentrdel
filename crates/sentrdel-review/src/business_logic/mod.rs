@@ -6,6 +6,7 @@
 pub mod invariant;
 pub mod model;
 pub mod ordering;
+pub mod route;
 
 use sentrdel_schema::SCHEMA_V1;
 use sentrdel_schema::pack::{SecurityPackManifest, SourceProvenance};
