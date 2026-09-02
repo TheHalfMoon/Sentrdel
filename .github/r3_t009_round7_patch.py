@@ -42,7 +42,7 @@ anchor = '''fn has_ambiguous_express_receiver_binding(
     receiver: &str,
 ) -> Result<bool, StructuralError> {
 '''
-helper = '''fn has_ambiguous_express_factory_binding(
+helper = r'''fn has_ambiguous_express_factory_binding(
     source: &str,
     structural_language: StructuralLanguage,
 ) -> Result<bool, StructuralError> {
