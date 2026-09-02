@@ -6,6 +6,7 @@ on:
       - repair/r3-t009-review-round7
     paths:
       - .github/r3_t009_round7_patch.py
+      - .github/workflows/r3-t009-repair-round7.yml
 
 permissions:
   contents: write
