@@ -1,0 +1,261 @@
+name: Temporary R3 T009 Semantic Repair
+
+on:
+  push:
+    branches:
+      - aux/r3-t009-semantic-repair
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact T009 candidate branch
+        uses: actions/checkout@v4
+        with:
+          ref: feat/r3-t009-bounded-route-extraction
+          fetch-depth: 0
+
+      - name: Guard expected candidate head
+        run: |
+          set -euo pipefail
+          expected=daa0c60005c17912f08972e5f05a374e472f7eda
+          test "$(git rev-parse HEAD)" = "$expected"
+          test "$(git rev-parse origin/feat/r3-t009-bounded-route-extraction)" = "$expected"
+
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.98.0 --profile minimal && rustup override set 1.98.0
+
+      - name: Apply bounded semantic repairs and regressions
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          route_path = Path("crates/sentrdel-review/src/business_logic/route.rs")
+          route = route_path.read_text(encoding="utf-8")
+
+          replacements = [
+              (
+                  "let Some(method) = parse_http_method(registration) else {",
+                  "let Some(method) = parse_express_http_method(registration) else {",
+                  1,
+              ),
+              (
+                  "if let Some(method) = parse_http_method(name) {",
+                  "if let Some(method) = parse_next_http_method(name) {",
+                  2,
+              ),
+              (
+                  "if let Some(key) = callback_key(source, start, end) {",
+                  "if let Some(key) = callback_key(source, mask, start, end) {",
+                  1,
+              ),
+              (
+                  """        let callback = args
+            .first()
+            .and_then(|(start, end)| callback_key(source, *start, *end));
+""",
+                  """        let callback = match args.as_slice() {
+            [(start, end)] => callback_key(source, mask, *start, *end),
+            [_, (start, end)] => callback_key(source, mask, *start, *end),
+            _ => None,
+        };
+""",
+                  1,
+              ),
+          ]
+
+          for old, new, expected_count in replacements:
+              count = route.count(old)
+              if count != expected_count:
+                  raise SystemExit(f"route patch guard failed: expected {expected_count} occurrences, found {count}: {old[:80]!r}")
+              route = route.replace(old, new)
+
+          old_method = """fn parse_http_method(value: &str) -> Option<HttpMethod> {
+    match value.to_ascii_lowercase().as_str() {
+        \"get\" => Some(HttpMethod::Get),
+        \"post\" => Some(HttpMethod::Post),
+        \"put\" => Some(HttpMethod::Put),
+        \"patch\" => Some(HttpMethod::Patch),
+        \"delete\" => Some(HttpMethod::Delete),
+        \"options\" => Some(HttpMethod::Options),
+        \"head\" => Some(HttpMethod::Head),
+        _ => None,
+    }
+}
+"""
+          new_method = """fn parse_express_http_method(value: &str) -> Option<HttpMethod> {
+    match value {
+        \"get\" => Some(HttpMethod::Get),
+        \"post\" => Some(HttpMethod::Post),
+        \"put\" => Some(HttpMethod::Put),
+        \"patch\" => Some(HttpMethod::Patch),
+        \"delete\" => Some(HttpMethod::Delete),
+        \"options\" => Some(HttpMethod::Options),
+        \"head\" => Some(HttpMethod::Head),
+        _ => None,
+    }
+}
+
+fn parse_next_http_method(value: &str) -> Option<HttpMethod> {
+    match value {
+        \"GET\" => Some(HttpMethod::Get),
+        \"POST\" => Some(HttpMethod::Post),
+        \"PUT\" => Some(HttpMethod::Put),
+        \"PATCH\" => Some(HttpMethod::Patch),
+        \"DELETE\" => Some(HttpMethod::Delete),
+        \"OPTIONS\" => Some(HttpMethod::Options),
+        \"HEAD\" => Some(HttpMethod::Head),
+        _ => None,
+    }
+}
+"""
+          if route.count(old_method) != 1:
+              raise SystemExit("method parser patch guard failed")
+          route = route.replace(old_method, new_method)
+
+          old_callback = """fn callback_key(source: &str, start: usize, end: usize) -> Option<String> {
+    let value = source.get(start..end)?.trim();
+    if value.is_empty() || value.starts_with(\"...\") {
+        return None;
+    }
+    if value.contains(\"=>\") || value.starts_with(\"function\") || value.starts_with(\"async function\")
+    {
+        return Some(format!(\"inline@{start}\"));
+    }
+"""
+          new_callback = """fn callback_key(source: &str, mask: &[u8], start: usize, end: usize) -> Option<String> {
+    let value = source.get(start..end)?.trim();
+    if value.is_empty() || value.starts_with(\"...\") {
+        return None;
+    }
+    if looks_like_function_value(mask, start) {
+        return Some(format!(\"inline@{start}\"));
+    }
+"""
+          if route.count(old_callback) != 1:
+              raise SystemExit("callback parser patch guard failed")
+          route = route.replace(old_callback, new_callback)
+          route_path.write_text(route, encoding="utf-8")
+
+          tests_path = Path("crates/sentrdel-review/tests/r3_t009_route_extraction.rs")
+          tests = tests_path.read_text(encoding="utf-8")
+          marker = """#[test]
+fn express_use_middleware_is_explicit_coverage_gap() {
+"""
+          if tests.count(marker) != 1:
+              raise SystemExit("test insertion marker guard failed")
+          additions = r'''#[test]
+fn express_method_names_are_case_sensitive() {
+    let result = extract_routes(
+        RouteAdapter::Express,
+        StructuralLanguage::JavaScript,
+        &path("src/routes.js"),
+        b"app.GET('/not-express-get', handler);",
+        BusinessLogicLimits::default(),
+    )
+    .expect("parse valid JavaScript");
+
+    assert!(result.routes().is_empty());
+}
+
+#[test]
+fn next_app_http_method_exports_require_canonical_uppercase_names() {
+    let result = extract_routes(
+        RouteAdapter::NextApp,
+        StructuralLanguage::JavaScript,
+        &path("app/api/example/route.js"),
+        b"export function get() { return new Response('x'); }",
+        BusinessLogicLimits::default(),
+    )
+    .expect("parse valid JavaScript");
+
+    assert!(result.routes().is_empty());
+    assert!(
+        result
+            .gaps()
+            .iter()
+            .any(|gap| gap.reason() == RouteCoverageGapReason::UnsupportedHandlerExport)
+    );
+}
+
+#[test]
+fn conditional_callback_expression_is_partial_not_a_direct_inline_handler() {
+    let result = extract_routes(
+        RouteAdapter::Express,
+        StructuralLanguage::JavaScript,
+        &path("src/routes.js"),
+        b"app.get('/conditional', enabled ? (() => handlerA()) : handlerB);",
+        BusinessLogicLimits::default(),
+    )
+    .expect("parse valid JavaScript");
+
+    assert_eq!(result.routes().len(), 1);
+    assert_eq!(result.routes()[0].method(), HttpMethod::Get);
+    assert_eq!(result.routes()[0].coverage_state(), &CoverageState::Partial);
+    assert!(
+        result
+            .gaps()
+            .iter()
+            .any(|gap| gap.reason() == RouteCoverageGapReason::UnresolvedCallback)
+    );
+}
+
+#[test]
+fn deno_serve_two_argument_overload_uses_second_argument_as_handler() {
+    let result = extract_routes(
+        RouteAdapter::SupabaseEdge,
+        StructuralLanguage::TypeScript,
+        &path("supabase/functions/example/index.ts"),
+        b"const options = { port: 8080 }; const handler = (req: Request) => new Response('ok'); Deno.serve(options, handler);",
+        BusinessLogicLimits::default(),
+    )
+    .expect("parse valid TypeScript");
+
+    assert_eq!(result.routes().len(), 1);
+    assert_eq!(result.routes()[0].handler_semantic_key(), Some("handler"));
+    assert_eq!(result.routes()[0].coverage_state(), &CoverageState::Partial);
+    assert!(
+        result
+            .gaps()
+            .iter()
+            .any(|gap| gap.reason() == RouteCoverageGapReason::MethodNotStaticallyBound)
+    );
+}
+
+'''
+          tests = tests.replace(marker, additions + marker)
+          tests_path.write_text(tests, encoding="utf-8")
+          PY
+
+          cargo fmt --all
+          git diff --check
+
+      - name: Run focused T009 qualification
+        run: cargo test -p sentrdel-review --test r3_t009_route_extraction
+
+      - name: Run T009 Clippy qualification
+        run: cargo clippy -p sentrdel-review --all-targets -- -D warnings
+
+      - name: Commit product-only repair
+        run: |
+          set -euo pipefail
+          test -z "$(git status --porcelain -- .github/workflows)"
+          git status --short
+          git diff -- crates/sentrdel-review/src/business_logic/route.rs crates/sentrdel-review/tests/r3_t009_route_extraction.rs
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add crates/sentrdel-review/src/business_logic/route.rs crates/sentrdel-review/tests/r3_t009_route_extraction.rs
+          git diff --cached --quiet && { echo "expected product repair is empty" >&2; exit 1; }
+          git commit -m "fix(r3): tighten route adapter semantics"
+
+      - name: Guard remote head and push product repair
+        run: |
+          set -euo pipefail
+          expected=daa0c60005c17912f08972e5f05a374e472f7eda
+          git fetch origin feat/r3-t009-bounded-route-extraction
+          test "$(git rev-parse FETCH_HEAD)" = "$expected"
+          git push origin HEAD:feat/r3-t009-bounded-route-extraction
