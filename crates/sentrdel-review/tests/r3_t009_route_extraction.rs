@@ -1206,3 +1206,104 @@ fn shadowed_express_receiver_is_an_explicit_gap() {
             .any(|gap| gap.reason() == RouteCoverageGapReason::AmbiguousReceiverBinding)
     );
 }
+
+#[test]
+fn express_function_declaration_named_app_is_ambiguous() {
+    for source in [
+        b"function app() {}\napp.get('/local', handler);".as_slice(),
+        b"export function app() {}\napp.get('/exported-local', handler);".as_slice(),
+    ] {
+        let result = extract_routes(
+            RouteAdapter::Express,
+            StructuralLanguage::JavaScript,
+            &path("src/function-app.js"),
+            source,
+            BusinessLogicLimits::default(),
+        )
+        .expect("classify local function named app as ambiguous");
+
+        assert!(result.routes().is_empty());
+        assert!(
+            result
+                .gaps()
+                .iter()
+                .any(|gap| gap.reason() == RouteCoverageGapReason::AmbiguousReceiverBinding)
+        );
+    }
+}
+
+#[test]
+fn express_function_declaration_named_router_is_ambiguous() {
+    for source in [
+        b"function router() {}\nrouter.get('/local', handler);".as_slice(),
+        b"export function router() {}\nrouter.get('/exported-local', handler);".as_slice(),
+    ] {
+        let result = extract_routes(
+            RouteAdapter::Express,
+            StructuralLanguage::JavaScript,
+            &path("src/function-router.js"),
+            source,
+            BusinessLogicLimits::default(),
+        )
+        .expect("classify local function named router as ambiguous");
+
+        assert!(result.routes().is_empty());
+        assert!(
+            result
+                .gaps()
+                .iter()
+                .any(|gap| gap.reason() == RouteCoverageGapReason::AmbiguousReceiverBinding)
+        );
+    }
+}
+
+#[test]
+fn bounded_express_factory_bindings_remain_supported() {
+    let source = b"const app = express();\nconst router = express.Router();\napp.get('/app', handler);\nrouter.post('/router', handler);\n";
+    let result = extract_routes(
+        RouteAdapter::Express,
+        StructuralLanguage::JavaScript,
+        &path("src/factories.js"),
+        source,
+        BusinessLogicLimits::default(),
+    )
+    .expect("preserve bounded Express factory bindings");
+
+    assert_eq!(result.routes().len(), 2);
+    assert!(result.gaps().is_empty());
+    assert!(
+        result
+            .routes()
+            .iter()
+            .any(|route| route.route_pattern() == "/app")
+    );
+    assert!(
+        result
+            .routes()
+            .iter()
+            .any(|route| route.route_pattern() == "/router")
+    );
+}
+
+#[test]
+fn lookalike_express_factory_bindings_are_ambiguous() {
+    let source = b"const app = fakeexpress();\nconst router = other.Router();\napp.get('/fake-app', handler);\nrouter.get('/fake-router', handler);\n";
+    let result = extract_routes(
+        RouteAdapter::Express,
+        StructuralLanguage::JavaScript,
+        &path("src/lookalike-factories.js"),
+        source,
+        BusinessLogicLimits::default(),
+    )
+    .expect("reject lookalike Express factory bindings");
+
+    assert!(result.routes().is_empty());
+    assert_eq!(
+        result
+            .gaps()
+            .iter()
+            .filter(|gap| gap.reason() == RouteCoverageGapReason::AmbiguousReceiverBinding)
+            .count(),
+        2
+    );
+}
