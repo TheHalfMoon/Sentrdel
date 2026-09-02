@@ -413,6 +413,25 @@ fn extract_express(
         let method_end = parse_ident_end(mask, cursor);
         let registration = &source[cursor..method_end];
         let after_registration = skip_mask_ws(mask, method_end);
+        if is_express_registration_name(registration)
+            && mask.get(after_registration..after_registration.saturating_add(2)) == Some(b"?.")
+        {
+            let optional_call_start = skip_mask_ws(mask, after_registration + 2);
+            if mask.get(optional_call_start) == Some(&b'(') {
+                let Some(call_end) = find_balanced(mask, optional_call_start, b'(', b')') else {
+                    return Err(RouteExtractionError::Structural(
+                        StructuralError::MalformedSyntax,
+                    ));
+                };
+                builder.gap(
+                    RouteCoverageGapReason::DynamicRegistration,
+                    receiver_start,
+                    call_end + 1,
+                )?;
+                index = call_end + 1;
+                continue;
+            }
+        }
         if registration == "route" && mask.get(after_registration) == Some(&b'(') {
             let Some(call_end) = find_balanced(mask, after_registration, b'(', b')') else {
                 return Err(RouteExtractionError::Structural(
@@ -482,6 +501,15 @@ fn extract_express(
             continue;
         };
         let after_path = skip_source_ws_and_comments(source, after_path, call_end);
+        if after_path < call_end && bytes[after_path] != b',' {
+            builder.gap(
+                RouteCoverageGapReason::DynamicRoutePattern,
+                receiver_start,
+                call_end + 1,
+            )?;
+            index = call_end + 1;
+            continue;
+        }
         // Express overloads app.get(name) as an application-setting getter. It is not a route.
         if method == HttpMethod::Get && after_path >= call_end {
             index = call_end + 1;
@@ -643,6 +671,7 @@ fn extract_next_app(
                         )?;
                     }
                 }
+                surface_additional_next_const_methods(source, mask, name_end, builder)?;
             }
         } else if mask.get(cursor) == Some(&b'{')
             && let Some(close) = find_balanced(mask, cursor, b'{', b'}')
@@ -662,6 +691,47 @@ fn extract_next_app(
             0,
             source.len(),
         )?;
+    }
+    Ok(())
+}
+
+fn surface_additional_next_const_methods(
+    source: &str,
+    mask: &[u8],
+    mut index: usize,
+    builder: &mut ExtractionBuilder<'_>,
+) -> Result<(), RouteExtractionError> {
+    let mut paren = 0usize;
+    let mut brace = 0usize;
+    let mut bracket = 0usize;
+    while index < mask.len() {
+        match mask[index] {
+            b'(' => paren += 1,
+            b')' => paren = paren.saturating_sub(1),
+            b'{' => brace += 1,
+            b'}' => brace = brace.saturating_sub(1),
+            b'[' => bracket += 1,
+            b']' => bracket = bracket.saturating_sub(1),
+            b';' if paren == 0 && brace == 0 && bracket == 0 => break,
+            b',' if paren == 0 && brace == 0 && bracket == 0 => {
+                let name_start = skip_mask_ws(mask, index + 1);
+                if let Some(name_end) = parse_ident_end_if_any(mask, name_start) {
+                    let name = &source[name_start..name_end];
+                    let after_name = skip_mask_ws(mask, name_end);
+                    if parse_next_http_method(name).is_some()
+                        && matches!(mask.get(after_name), Some(&b'=') | Some(&b':'))
+                    {
+                        builder.gap(
+                            RouteCoverageGapReason::UnsupportedHandlerExport,
+                            name_start,
+                            name_end,
+                        )?;
+                    }
+                }
+            }
+            _ => {}
+        }
+        index += 1;
     }
     Ok(())
 }
@@ -917,7 +987,9 @@ fn identifier_is_binding(node: tree_sitter::Node<'_>) -> bool {
         "variable_declarator" | "function_declaration" | "class_declaration" => {
             same_as_field("name")
         }
-        "assignment_expression" => same_as_field("left"),
+        "assignment_expression" | "assignment_pattern" => same_as_field("left"),
+        "pair_pattern" => same_as_field("value"),
+        "object_pattern" | "array_pattern" => true,
         "formal_parameters"
         | "required_parameter"
         | "optional_parameter"
