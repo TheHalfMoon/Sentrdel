@@ -1,8 +1,8 @@
 # TSQ-001 — tree-sitter-typescript Dependency Qualification
 
-**Task:** R3-T007  
-**Qualification ID:** `TSQ-001`  
-**Technical decision:** `QUALIFIED_FOR_BOUNDED_R3_TYPESCRIPT_GRAMMAR`  
+**Task:** R3-T007
+**Qualification ID:** `TSQ-001`
+**Technical decision:** `QUALIFIED_FOR_BOUNDED_R3_TYPESCRIPT_GRAMMAR`
 **Canonicality:** This record has no canonical authority while it exists only on a feature branch. It becomes canonical only if the exact candidate passes required CI and independent review, merges through protected `main`, and the resulting `main` passes post-merge repository-governance verification.
 
 ## Capability need
