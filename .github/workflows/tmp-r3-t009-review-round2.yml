@@ -1,0 +1,62 @@
+name: Temporary R3 T009 Review Round 2
+
+on:
+  push:
+    branches:
+      - feat/r3-t009-bounded-route-extraction
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    if: ${{ github.actor != 'github-actions[bot]' }}
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout exact T009 branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: feat/r3-t009-bounded-route-extraction
+          fetch-depth: 0
+
+      - name: Apply exact review repairs
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 .github/scripts/tmp-r3-t009-review-round2.py
+          python3 .github/scripts/tmp-r3-t009-review-round2-cleanup.py
+          rm .github/scripts/tmp-r3-t009-review-round2.py
+          rm .github/scripts/tmp-r3-t009-review-round2-cleanup.py
+          rm .github/workflows/tmp-r3-t009-review-round2.yml
+
+      - name: Install pinned Rust toolchain
+        shell: bash
+        run: rustup toolchain install 1.98.0 --profile minimal --component rustfmt,clippy
+
+      - name: Verify repaired T009 candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo +1.98.0 fmt --all
+          cargo +1.98.0 fmt --all -- --check
+          cargo +1.98.0 test -p sentrdel-review --test r3_t009_route_extraction
+          cargo +1.98.0 clippy -p sentrdel-review --all-targets -- -D warnings
+          git diff --check
+
+      - name: Commit guarded product repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          base_head="$(git rev-parse HEAD)"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add crates/sentrdel-review/src/business_logic/route.rs
+          git add crates/sentrdel-review/tests/r3_t009_route_extraction.rs
+          git add -u .github/scripts/tmp-r3-t009-review-round2.py
+          git add -u .github/scripts/tmp-r3-t009-review-round2-cleanup.py
+          git add -u .github/workflows/tmp-r3-t009-review-round2.yml
+          git diff --cached --check
+          git commit -m "fix(r3): close second T009 review gaps"
+          remote_head="$(git ls-remote origin refs/heads/feat/r3-t009-bounded-route-extraction | cut -f1)"
+          test "$remote_head" = "$base_head"
+          git push origin HEAD:feat/r3-t009-bounded-route-extraction
