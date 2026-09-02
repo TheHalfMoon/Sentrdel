@@ -1029,3 +1029,180 @@ fn deno_serve_non_function_literal_is_unresolved() {
             .any(|gap| gap.reason() == RouteCoverageGapReason::UnresolvedCallback)
     );
 }
+
+#[test]
+fn next_app_multi_declarator_scan_stops_at_asi_boundary() {
+    let source = b"export const runtime = 'edge'\nlet local, POST = handler\nexport function GET() { return new Response('ok'); }\n";
+    let result = extract_routes(
+        RouteAdapter::NextApp,
+        StructuralLanguage::JavaScript,
+        &path("app/api/asi/route.js"),
+        source,
+        BusinessLogicLimits::default(),
+    )
+    .expect("stop additional declarator scan at ASI boundary");
+
+    assert_eq!(result.routes().len(), 1);
+    assert_eq!(result.routes()[0].method(), HttpMethod::Get);
+    assert!(result.gaps().is_empty());
+}
+
+#[test]
+fn typescript_non_null_express_receiver_is_a_visible_gap() {
+    let result = extract_routes(
+        RouteAdapter::Express,
+        StructuralLanguage::TypeScript,
+        &path("src/non-null.ts"),
+        b"app!.get('/admin', handler);",
+        BusinessLogicLimits::default(),
+    )
+    .expect("classify non-null asserted Express receiver");
+
+    assert!(result.routes().is_empty());
+    assert!(
+        result
+            .gaps()
+            .iter()
+            .any(|gap| gap.reason() == RouteCoverageGapReason::DynamicRegistration)
+    );
+}
+
+#[test]
+fn additional_express_http_methods_are_explicit_gaps() {
+    let result = extract_routes(
+        RouteAdapter::Express,
+        StructuralLanguage::JavaScript,
+        &path("src/extended-methods.js"),
+        b"app.trace('/proxy', handler); app.connect('/tunnel', handler);",
+        BusinessLogicLimits::default(),
+    )
+    .expect("surface bounded unsupported Express HTTP methods");
+
+    assert!(result.routes().is_empty());
+    assert_eq!(
+        result
+            .gaps()
+            .iter()
+            .filter(|gap| gap.reason() == RouteCoverageGapReason::MethodNotStaticallyBound)
+            .count(),
+        2
+    );
+}
+
+#[test]
+fn next_app_let_and_var_method_exports_remain_visible() {
+    let source = b"export function GET() { return new Response('get'); }\nexport let POST = async () => new Response('post');\nexport var PUT = () => new Response('put');\n";
+    let result = extract_routes(
+        RouteAdapter::NextApp,
+        StructuralLanguage::JavaScript,
+        &path("app/api/mutable/route.js"),
+        source,
+        BusinessLogicLimits::default(),
+    )
+    .expect("extract Next App let and var handlers");
+
+    assert_eq!(result.routes().len(), 3);
+    assert!(
+        result
+            .routes()
+            .iter()
+            .any(|route| route.method() == HttpMethod::Get)
+    );
+    assert!(
+        result
+            .routes()
+            .iter()
+            .any(|route| route.method() == HttpMethod::Post)
+    );
+    assert!(
+        result
+            .routes()
+            .iter()
+            .any(|route| route.method() == HttpMethod::Put)
+    );
+    assert!(result.gaps().is_empty());
+}
+
+#[test]
+fn next_app_wildcard_reexport_is_an_explicit_gap() {
+    let source =
+        b"export function GET() { return new Response('get'); }\nexport * from './handlers';\n";
+    let result = extract_routes(
+        RouteAdapter::NextApp,
+        StructuralLanguage::JavaScript,
+        &path("app/api/reexport/route.js"),
+        source,
+        BusinessLogicLimits::default(),
+    )
+    .expect("surface wildcard Next App re-export");
+
+    assert_eq!(result.routes().len(), 1);
+    assert!(
+        result
+            .gaps()
+            .iter()
+            .any(|gap| gap.reason() == RouteCoverageGapReason::UnsupportedHandlerExport)
+    );
+}
+
+#[test]
+fn catch_parameter_deno_binding_is_an_explicit_gap() {
+    let source = b"const handler = (req: Request) => new Response('ok'); try { throw mockRuntime; } catch (Deno) { Deno.serve(handler); }";
+    let result = extract_routes(
+        RouteAdapter::SupabaseEdge,
+        StructuralLanguage::TypeScript,
+        &path("supabase/functions/catch-shadow/index.ts"),
+        source,
+        BusinessLogicLimits::default(),
+    )
+    .expect("classify catch-parameter Deno binding");
+
+    assert!(result.routes().is_empty());
+    assert!(
+        result
+            .gaps()
+            .iter()
+            .any(|gap| gap.reason() == RouteCoverageGapReason::AmbiguousReceiverBinding)
+    );
+}
+
+#[test]
+fn next_app_private_folder_is_not_a_route() {
+    let result = extract_routes(
+        RouteAdapter::NextApp,
+        StructuralLanguage::TypeScript,
+        &path("app/_internal/route.ts"),
+        b"export function GET() { return new Response('hidden'); }",
+        BusinessLogicLimits::default(),
+    )
+    .expect("reject private Next App folder");
+
+    assert!(result.routes().is_empty());
+    assert!(
+        result
+            .gaps()
+            .iter()
+            .any(|gap| gap.reason() == RouteCoverageGapReason::UnsupportedRouteFile)
+    );
+}
+
+#[test]
+fn shadowed_express_receiver_is_an_explicit_gap() {
+    let source = b"function inspect(app) { app.get('/metadata', callback); }";
+    let result = extract_routes(
+        RouteAdapter::Express,
+        StructuralLanguage::JavaScript,
+        &path("src/shadowed-app.js"),
+        source,
+        BusinessLogicLimits::default(),
+    )
+    .expect("classify shadowed Express receiver");
+
+    assert!(result.routes().is_empty());
+    assert!(
+        result
+            .gaps()
+            .iter()
+            .any(|gap| gap.reason() == RouteCoverageGapReason::AmbiguousReceiverBinding)
+    );
+}

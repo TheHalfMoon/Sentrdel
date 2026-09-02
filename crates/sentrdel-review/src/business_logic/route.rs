@@ -182,7 +182,7 @@ pub fn extract_routes(
 
     let mut builder = ExtractionBuilder::new(adapter, path, digest, limits);
     match adapter {
-        RouteAdapter::Express => extract_express(source, &mask, &mut builder)?,
+        RouteAdapter::Express => extract_express(language, source, &mask, &mut builder)?,
         RouteAdapter::NextApp => extract_next_app(source, &mask, &mut builder)?,
         RouteAdapter::NextPagesApi => extract_next_pages(source, &mask, &mut builder)?,
         RouteAdapter::SupabaseEdge => extract_supabase_edge(source, &mask, &mut builder)?,
@@ -341,10 +341,14 @@ impl<'a> ExtractionBuilder<'a> {
 }
 
 fn extract_express(
+    language: StructuralLanguage,
     source: &str,
     mask: &[u8],
     builder: &mut ExtractionBuilder<'_>,
 ) -> Result<(), RouteExtractionError> {
+    let app_binding_ambiguous = has_ambiguous_express_receiver_binding(source, language, "app")?;
+    let router_binding_ambiguous =
+        has_ambiguous_express_receiver_binding(source, language, "router")?;
     let bytes = source.as_bytes();
     let mut index = 0;
     while index < mask.len() {
@@ -363,7 +367,43 @@ fn extract_express(
             index = receiver_end;
             continue;
         }
+        let receiver_binding_ambiguous = match receiver {
+            "app" => app_binding_ambiguous,
+            "router" => router_binding_ambiguous,
+            _ => false,
+        };
         let mut cursor = skip_mask_ws(mask, receiver_end);
+        if mask.get(cursor) == Some(&b'!') {
+            let dot = skip_mask_ws(mask, cursor + 1);
+            if mask.get(dot) == Some(&b'.') {
+                let member_start = skip_mask_ws(mask, dot + 1);
+                if let Some(member_end) = parse_ident_end_if_any(mask, member_start) {
+                    let registration = &source[member_start..member_end];
+                    let call_start = skip_mask_ws(mask, member_end);
+                    if (is_express_registration_name(registration)
+                        || is_other_express_http_method(registration))
+                        && mask.get(call_start) == Some(&b'(')
+                    {
+                        let Some(call_end) = find_balanced(mask, call_start, b'(', b')') else {
+                            return Err(RouteExtractionError::Structural(
+                                StructuralError::MalformedSyntax,
+                            ));
+                        };
+                        builder.gap(
+                            if receiver_binding_ambiguous {
+                                RouteCoverageGapReason::AmbiguousReceiverBinding
+                            } else {
+                                RouteCoverageGapReason::DynamicRegistration
+                            },
+                            receiver_start,
+                            call_end + 1,
+                        )?;
+                        index = call_end + 1;
+                        continue;
+                    }
+                }
+            }
+        }
         if mask.get(cursor..cursor.saturating_add(2)) == Some(b"?.") {
             let member_start = skip_mask_ws(mask, cursor + 2);
             if let Some(member_end) = parse_ident_end_if_any(mask, member_start) {
@@ -413,6 +453,35 @@ fn extract_express(
         let method_end = parse_ident_end(mask, cursor);
         let registration = &source[cursor..method_end];
         let after_registration = skip_mask_ws(mask, method_end);
+        if receiver_binding_ambiguous
+            && (is_express_registration_name(registration)
+                || is_other_express_http_method(registration))
+        {
+            let call_start = if mask.get(after_registration) == Some(&b'(') {
+                Some(after_registration)
+            } else if mask.get(after_registration..after_registration.saturating_add(2))
+                == Some(b"?.")
+            {
+                let candidate = skip_mask_ws(mask, after_registration + 2);
+                (mask.get(candidate) == Some(&b'(')).then_some(candidate)
+            } else {
+                None
+            };
+            if let Some(call_start) = call_start {
+                let Some(call_end) = find_balanced(mask, call_start, b'(', b')') else {
+                    return Err(RouteExtractionError::Structural(
+                        StructuralError::MalformedSyntax,
+                    ));
+                };
+                builder.gap(
+                    RouteCoverageGapReason::AmbiguousReceiverBinding,
+                    receiver_start,
+                    call_end + 1,
+                )?;
+                index = call_end + 1;
+                continue;
+            }
+        }
         if is_express_registration_name(registration)
             && mask.get(after_registration..after_registration.saturating_add(2)) == Some(b"?.")
         {
@@ -461,6 +530,21 @@ fn extract_express(
             continue;
         }
         if registration == "all" && mask.get(after_registration) == Some(&b'(') {
+            let Some(call_end) = find_balanced(mask, after_registration, b'(', b')') else {
+                return Err(RouteExtractionError::Structural(
+                    StructuralError::MalformedSyntax,
+                ));
+            };
+            builder.gap(
+                RouteCoverageGapReason::MethodNotStaticallyBound,
+                receiver_start,
+                call_end + 1,
+            )?;
+            index = call_end + 1;
+            continue;
+        }
+        if is_other_express_http_method(registration) && mask.get(after_registration) == Some(&b'(')
+        {
             let Some(call_end) = find_balanced(mask, after_registration, b'(', b')') else {
                 return Err(RouteExtractionError::Structural(
                     StructuralError::MalformedSyntax,
@@ -635,8 +719,8 @@ fn extract_next_app(
                     found = true;
                 }
             }
-        } else if word == Some("const") {
-            cursor = skip_mask_ws(mask, word_end.expect("const end"));
+        } else if matches!(word, Some("const" | "let" | "var")) {
+            cursor = skip_mask_ws(mask, word_end.expect("variable declaration end"));
             if let Some(name_end) = parse_ident_end_if_any(mask, cursor) {
                 let name = &source[cursor..name_end];
                 if let Some(method) = parse_next_http_method(name) {
@@ -671,8 +755,14 @@ fn extract_next_app(
                         )?;
                     }
                 }
-                surface_additional_next_const_methods(source, mask, name_end, builder)?;
+                surface_additional_next_variable_methods(source, mask, name_end, builder)?;
             }
+        } else if mask.get(cursor) == Some(&b'*') {
+            builder.gap(
+                RouteCoverageGapReason::UnsupportedHandlerExport,
+                export_start,
+                cursor + 1,
+            )?;
         } else if mask.get(cursor) == Some(&b'{')
             && let Some(close) = find_balanced(mask, cursor, b'{', b'}')
             && export_list_mentions_next_http_method(source, mask, cursor + 1, close)
@@ -695,7 +785,7 @@ fn extract_next_app(
     Ok(())
 }
 
-fn surface_additional_next_const_methods(
+fn surface_additional_next_variable_methods(
     source: &str,
     mask: &[u8],
     mut index: usize,
@@ -713,6 +803,14 @@ fn surface_additional_next_const_methods(
             b'[' => bracket += 1,
             b']' => bracket = bracket.saturating_sub(1),
             b';' if paren == 0 && brace == 0 && bracket == 0 => break,
+            b'\n' | b'\r'
+                if paren == 0
+                    && brace == 0
+                    && bracket == 0
+                    && top_level_newline_ends_statement(source, index) =>
+            {
+                break;
+            }
             b',' if paren == 0 && brace == 0 && bracket == 0 => {
                 let name_start = skip_mask_ws(mask, index + 1);
                 if let Some(name_end) = parse_ident_end_if_any(mask, name_start) {
@@ -734,6 +832,54 @@ fn surface_additional_next_const_methods(
         index += 1;
     }
     Ok(())
+}
+
+fn top_level_newline_ends_statement(source: &str, newline: usize) -> bool {
+    let bytes = source.as_bytes();
+    let mut previous = newline;
+    while previous > 0 && bytes[previous - 1].is_ascii_whitespace() {
+        previous -= 1;
+    }
+    let previous = previous
+        .checked_sub(1)
+        .and_then(|index| bytes.get(index))
+        .copied();
+
+    let mut next = newline.saturating_add(1);
+    while next < bytes.len() && bytes[next].is_ascii_whitespace() {
+        next += 1;
+    }
+    if next >= bytes.len() {
+        return true;
+    }
+    if matches!(bytes[next], b',' | b'.') || bytes.get(next..next.saturating_add(2)) == Some(b"?.")
+    {
+        return false;
+    }
+
+    !matches!(
+        previous,
+        Some(
+            b'=' | b','
+                | b'('
+                | b'['
+                | b'{'
+                | b':'
+                | b'?'
+                | b'+'
+                | b'-'
+                | b'*'
+                | b'/'
+                | b'%'
+                | b'&'
+                | b'|'
+                | b'^'
+                | b'!'
+                | b'~'
+                | b'<'
+                | b'>'
+        )
+    )
 }
 
 fn export_list_mentions_next_http_method(
@@ -940,6 +1086,73 @@ fn extract_supabase_edge(
     Ok(())
 }
 
+fn has_ambiguous_express_receiver_binding(
+    source: &str,
+    structural_language: StructuralLanguage,
+    receiver: &str,
+) -> Result<bool, StructuralError> {
+    let language: tree_sitter::Language = match structural_language {
+        StructuralLanguage::JavaScript => tree_sitter_javascript::LANGUAGE.into(),
+        StructuralLanguage::TypeScript => tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into(),
+    };
+    let mut parser = tree_sitter::Parser::new();
+    parser
+        .set_language(&language)
+        .map_err(|error| StructuralError::ParseFailed(error.to_string()))?;
+    let tree = parser.parse(source, None).ok_or_else(|| {
+        StructuralError::ParseFailed("Express binding parser returned no syntax tree".to_owned())
+    })?;
+    let mut cursor = tree.root_node().walk();
+    loop {
+        let node = cursor.node();
+        if matches!(
+            node.kind(),
+            "identifier" | "shorthand_property_identifier_pattern"
+        ) && source.get(node.byte_range()) == Some(receiver)
+            && identifier_is_binding(node)
+            && !express_binding_is_known_receiver(node, source)
+        {
+            return Ok(true);
+        }
+        if cursor.goto_first_child() {
+            continue;
+        }
+        loop {
+            if cursor.goto_next_sibling() {
+                break;
+            }
+            if !cursor.goto_parent() {
+                return Ok(false);
+            }
+        }
+    }
+}
+
+fn express_binding_is_known_receiver(node: tree_sitter::Node<'_>, source: &str) -> bool {
+    let mut ancestor = node.parent();
+    while let Some(current) = ancestor {
+        match current.kind() {
+            "function_declaration" | "generator_function_declaration" => {
+                return current
+                    .parent()
+                    .is_some_and(|parent| parent.kind() == "export_statement");
+            }
+            "variable_declarator" => {
+                let Some(value) = current.child_by_field_name("value") else {
+                    return false;
+                };
+                let value = source.get(value.byte_range()).unwrap_or_default();
+                return value.contains("express(")
+                    || value.contains("express.Router(")
+                    || value.contains(".Router(");
+            }
+            "program" => return false,
+            _ => ancestor = current.parent(),
+        }
+    }
+    false
+}
+
 fn has_local_deno_binding(source: &str) -> Result<bool, StructuralError> {
     let language: tree_sitter::Language = tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into();
     let mut parser = tree_sitter::Parser::new();
@@ -988,6 +1201,7 @@ fn identifier_is_binding(node: tree_sitter::Node<'_>) -> bool {
             same_as_field("name")
         }
         "assignment_expression" | "assignment_pattern" => same_as_field("left"),
+        "catch_clause" => same_as_field("parameter"),
         "pair_pattern" => same_as_field("value"),
         "object_pattern" | "array_pattern" => true,
         "formal_parameters"
@@ -1021,7 +1235,30 @@ fn method_identity(method: HttpMethod) -> &'static str {
 }
 
 fn is_express_registration_name(value: &str) -> bool {
-    parse_express_http_method(value).is_some() || matches!(value, "all" | "param" | "route" | "use")
+    parse_express_http_method(value).is_some()
+        || is_other_express_http_method(value)
+        || matches!(value, "all" | "param" | "route" | "use")
+}
+
+fn is_other_express_http_method(value: &str) -> bool {
+    matches!(
+        value,
+        "connect"
+            | "trace"
+            | "copy"
+            | "lock"
+            | "mkcol"
+            | "move"
+            | "notify"
+            | "propfind"
+            | "proppatch"
+            | "purge"
+            | "report"
+            | "search"
+            | "subscribe"
+            | "unlock"
+            | "unsubscribe"
+    )
 }
 
 fn parse_express_http_method(value: &str) -> Option<HttpMethod> {
@@ -1059,7 +1296,11 @@ fn next_app_route_pattern(path: &str) -> Option<String> {
     }
     let mut route_parts = Vec::new();
     for part in &parts[app + 1..parts.len() - 1] {
-        if part.starts_with('(') || part.starts_with('@') || part.is_empty() {
+        if part.starts_with('(')
+            || part.starts_with('@')
+            || part.starts_with('_')
+            || part.is_empty()
+        {
             return None;
         }
         route_parts.push(*part);
