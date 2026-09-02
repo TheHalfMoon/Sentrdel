@@ -178,12 +178,18 @@ fn dynamic_request_and_auth_property_access_fail_visible_as_unknown() {
     )
     .expect("extract dynamic gaps");
 
-    assert!(result.gaps().iter().any(|gap| {
-        gap.reason() == ActorCoverageGapReason::DynamicRequestAccess
-    }));
-    assert!(result.gaps().iter().any(|gap| {
-        gap.reason() == ActorCoverageGapReason::DynamicAuthIdentity
-    }));
+    assert!(
+        result
+            .gaps()
+            .iter()
+            .any(|gap| { gap.reason() == ActorCoverageGapReason::DynamicRequestAccess })
+    );
+    assert!(
+        result
+            .gaps()
+            .iter()
+            .any(|gap| { gap.reason() == ActorCoverageGapReason::DynamicAuthIdentity })
+    );
     assert!(result.actors().iter().any(|actor| {
         actor.identity_kind() == ActorIdentityKind::Unknown
             && actor.source_kind() == ActorSourceKind::Unknown
@@ -193,7 +199,8 @@ fn dynamic_request_and_auth_property_access_fail_visible_as_unknown() {
 
 #[test]
 fn destructured_auth_result_is_explicitly_unsupported_not_runtime_verified() {
-    let source = b"export async function DELETE() { const { user } = await auth(); return user?.id; }\n";
+    let source =
+        b"export async function DELETE() { const { user } = await auth(); return user?.id; }\n";
     let result = extract_actor_contexts(
         RouteAdapter::NextApp,
         StructuralLanguage::JavaScript,
@@ -203,9 +210,12 @@ fn destructured_auth_result_is_explicitly_unsupported_not_runtime_verified() {
     )
     .expect("classify unsupported auth binding");
 
-    assert!(result.gaps().iter().any(|gap| {
-        gap.reason() == ActorCoverageGapReason::UnsupportedAuthShape
-    }));
+    assert!(
+        result
+            .gaps()
+            .iter()
+            .any(|gap| { gap.reason() == ActorCoverageGapReason::UnsupportedAuthShape })
+    );
     assert!(result.actors().iter().any(|actor| {
         actor.identity_kind() == ActorIdentityKind::Unknown
             && actor.source_kind() == ActorSourceKind::Unknown
