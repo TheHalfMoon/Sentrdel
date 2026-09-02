@@ -1,0 +1,159 @@
+name: Temporary R3 T009 Consolidated Review Repair
+
+on:
+  push:
+    branches:
+      - aux/r3-t009-consolidated-review-repair
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact T009 candidate branch
+        uses: actions/checkout@v4
+        with:
+          ref: feat/r3-t009-bounded-route-extraction
+          fetch-depth: 0
+
+      - name: Guard expected candidate head
+        run: |
+          set -euo pipefail
+          expected=ffd5d0ae7ebfe587f155a8c2915c70fee5088c23
+          test "$(git rev-parse HEAD)" = "$expected"
+          test "$(git rev-parse origin/feat/r3-t009-bounded-route-extraction)" = "$expected"
+
+      - name: Install pinned Rust toolchain
+        run: |
+          set -euo pipefail
+          rustup toolchain install 1.98.0 --profile minimal
+          rustup component add --toolchain 1.98.0 rustfmt clippy
+          rustup override set 1.98.0
+
+      - name: Apply consolidated bounded repairs
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          route_path = Path('crates/sentrdel-review/src/business_logic/route.rs')
+          route = route_path.read_text(encoding='utf-8')
+
+          def replace_once(text, old, new, label):
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label} guard failed: expected 1 occurrence, found {count}')
+              return text.replace(old, new, 1)
+
+          route = replace_once(
+              route,
+              '    DynamicRegistration,\n    DynamicRoutePattern,',
+              '    DynamicRegistration,\n    UnsupportedRegistration,\n    DynamicRoutePattern,',
+              'coverage enum',
+          )
+
+          marker = '''        let Some(method) = parse_express_http_method(registration) else {\n            index = method_end;\n            continue;\n        };'''
+          insertion = '''        if registration == "route" && mask.get(after_registration) == Some(&b'(') {\n            let Some(call_end) = find_balanced(mask, after_registration, b'(', b')') else {\n                return Err(RouteExtractionError::Structural(\n                    StructuralError::MalformedSyntax,\n                ));\n            };\n            builder.gap(\n                RouteCoverageGapReason::UnsupportedRegistration,\n                receiver_start,\n                call_end + 1,\n            )?;\n            index = call_end + 1;\n            continue;\n        }\n        let Some(method) = parse_express_http_method(registration) else {\n            index = method_end;\n            continue;\n        };'''
+          route = replace_once(route, marker, insertion, 'app.route gap')
+
+          route = replace_once(
+              route,
+              '        let first = skip_source_ws(bytes, call_start + 1);',
+              '        let first = skip_source_trivia(source, call_start + 1, call_end);',
+              'first argument trivia',
+          )
+          route = replace_once(
+              route,
+              '        let after_path = skip_source_ws(bytes, after_path);\n        let mut callback_keys = Vec::new();',
+              '''        let after_path = skip_source_trivia(source, after_path, call_end);\n        if receiver == "app"\n            && method == HttpMethod::Get\n            && (after_path >= call_end || bytes[after_path] != b',')\n        {\n            // Express app.get(name) is a settings getter, not a route registration.\n            index = call_end + 1;\n            continue;\n        }\n        let mut callback_keys = Vec::new();''',
+              'setting getter',
+          )
+
+          route = replace_once(
+              route,
+              '''    if value.is_empty() || value.starts_with("...") {\n        return None;\n    }\n    if looks_like_function_value(mask, start) {''',
+              '''    if value.is_empty() || value.starts_with("...") {\n        return None;\n    }\n    if matches!(value, "true" | "false" | "null") {\n        return None;\n    }\n    if looks_like_function_value(mask, start) {''',
+              'non-function callback literals',
+          )
+
+          route = replace_once(
+              route,
+              ''') -> Vec<(usize, usize)> {\n    let bytes = source.as_bytes();\n    let mut args = Vec::new();''',
+              ''') -> Vec<(usize, usize)> {\n    let mut args = Vec::new();''',
+              'split args bytes removal',
+          )
+          route = replace_once(
+              route,
+              '                let (trimmed_start, trimmed_end) = trim_range(bytes, item_start, index);',
+              '                let (trimmed_start, trimmed_end) =\n                    trim_argument_range(source, mask, item_start, index);',
+              'split args inner trim',
+          )
+          route = replace_once(
+              route,
+              '    let (trimmed_start, trimmed_end) = trim_range(bytes, item_start, end);',
+              '    let (trimmed_start, trimmed_end) = trim_argument_range(source, mask, item_start, end);',
+              'split args final trim',
+          )
+
+          helper_marker = '''fn parse_string_literal(source: &str, start: usize) -> Option<(String, usize)> {'''
+          helpers = '''fn skip_source_trivia(source: &str, mut index: usize, end: usize) -> usize {\n    let bytes = source.as_bytes();\n    loop {\n        while index < end && bytes[index].is_ascii_whitespace() {\n            index += 1;\n        }\n        if index + 1 >= end || bytes[index] != b'/' {\n            return index;\n        }\n        if bytes[index + 1] == b'/' {\n            index += 2;\n            while index < end && !matches!(bytes[index], b'\\n' | b'\\r') {\n                index += 1;\n            }\n            continue;\n        }\n        if bytes[index + 1] == b'*' {\n            index += 2;\n            while index + 1 < end && !(bytes[index] == b'*' && bytes[index + 1] == b'/') {\n                index += 1;\n            }\n            if index + 1 < end {\n                index += 2;\n            }\n            continue;\n        }\n        return index;\n    }\n}\n\nfn trim_argument_range(\n    source: &str,\n    mask: &[u8],\n    mut start: usize,\n    mut end: usize,\n) -> (usize, usize) {\n    let bytes = source.as_bytes();\n    while start < end\n        && (bytes[start].is_ascii_whitespace() || mask.get(start) == Some(&b' '))\n    {\n        start += 1;\n    }\n    while end > start\n        && (bytes[end - 1].is_ascii_whitespace() || mask.get(end - 1) == Some(&b' '))\n    {\n        end -= 1;\n    }\n    (start, end)\n}\n\nfn parse_string_literal(source: &str, start: usize) -> Option<(String, usize)> {'''
+          route = replace_once(route, helper_marker, helpers, 'trivia helpers')
+          route_path.write_text(route, encoding='utf-8')
+
+          model_path = Path('crates/sentrdel-review/src/business_logic/model.rs')
+          model = model_path.read_text(encoding='utf-8')
+          model = replace_once(
+              model,
+              '            callback_chain: normalize_semantic_ids(callback_chain, limits)?,',
+              '''            callback_chain: {\n                // Callback order is semantic for middleware/guard dominance; preserve execution order.\n                if callback_chain.len() > limits.max_related_ids {\n                    return Err(ModelError::TooManyRelatedIds {\n                        count: callback_chain.len(),\n                        max: limits.max_related_ids,\n                    });\n                }\n                callback_chain\n            },''',
+              'callback ordering constructor',
+          )
+          model = replace_once(
+              model,
+              '        assert_eq!(route.callback_chain(), &[a, id("r3.callback", "b")]);',
+              '''        assert_eq!(\n            route.callback_chain(),\n            &[id("r3.callback", "b"), a, id("r3.callback", "b")]\n        );''',
+              'callback ordering model test',
+          )
+          model_path.write_text(model, encoding='utf-8')
+
+          tests_path = Path('crates/sentrdel-review/tests/r3_t009_route_extraction.rs')
+          tests = tests_path.read_text(encoding='utf-8')
+          tests = replace_once(
+              tests,
+              'use sentrdel_review::business_logic::model::{BusinessLogicLimits, FrameworkFamily, HttpMethod};',
+              'use sentrdel_review::business_logic::model::{\n    BusinessLogicLimits, FrameworkFamily, HttpMethod, StableSemanticId,\n};',
+              'test import',
+          )
+          sentinel = 'fn callback_execution_order_is_preserved_for_express_middleware_chain()'
+          if sentinel in tests:
+              raise SystemExit('test guard failed: consolidated regressions already exist')
+          tests += r'''\n\n#[test]\nfn callback_execution_order_is_preserved_for_express_middleware_chain() {\n    let limits = BusinessLogicLimits::default();\n    let source = b"app.get('/ordered', authenticate, authorize, handler);\\n";\n    let result = extract_routes(\n        RouteAdapter::Express,\n        StructuralLanguage::JavaScript,\n        &path("src/order.js"),\n        source,\n        limits,\n    )\n    .expect("extract ordered callback chain");\n\n    let expected = vec![\n        StableSemanticId::from_parts(\n            "r3-route-callback",\n            &["express", "src/order.js", "/ordered", "0", "authenticate"],\n            limits,\n        )\n        .unwrap(),\n        StableSemanticId::from_parts(\n            "r3-route-callback",\n            &["express", "src/order.js", "/ordered", "1", "authorize"],\n            limits,\n        )\n        .unwrap(),\n        StableSemanticId::from_parts(\n            "r3-route-callback",\n            &["express", "src/order.js", "/ordered", "2", "handler"],\n            limits,\n        )\n        .unwrap(),\n    ];\n    assert_eq!(result.routes().len(), 1);\n    assert_eq!(result.routes()[0].callback_chain(), expected.as_slice());\n}\n\n#[test]\nfn express_route_chains_are_explicit_unsupported_registration_gaps() {\n    let result = extract_routes(\n        RouteAdapter::Express,\n        StructuralLanguage::JavaScript,\n        &path("src/route-chain.js"),\n        b"app.route('/admin').get(handler);\\nrouter.route('/tenant').post(handler);\\n",\n        BusinessLogicLimits::default(),\n    )\n    .expect("classify unsupported Express route chains");\n\n    assert!(result.routes().is_empty());\n    assert_eq!(result.gaps().len(), 2);\n    assert!(result\n        .gaps()\n        .iter()\n        .all(|gap| gap.reason() == RouteCoverageGapReason::UnsupportedRegistration));\n}\n\n#[test]\nfn express_app_get_setting_lookup_does_not_mint_route() {\n    let app = extract_routes(\n        RouteAdapter::Express,\n        StructuralLanguage::JavaScript,\n        &path("src/settings.js"),\n        b"app.get('env');\\napp.get('trust proxy');\\n",\n        BusinessLogicLimits::default(),\n    )\n    .expect("classify Express setting getters");\n    assert!(app.routes().is_empty());\n    assert!(app.gaps().is_empty());\n\n    let router = extract_routes(\n        RouteAdapter::Express,\n        StructuralLanguage::JavaScript,\n        &path("src/router.js"),\n        b"router.get('/missing-handler');\\n",\n        BusinessLogicLimits::default(),\n    )\n    .expect("preserve Router route semantics");\n    assert_eq!(router.routes().len(), 1);\n    assert_eq!(router.routes()[0].coverage_state(), &CoverageState::Partial);\n    assert!(router\n        .gaps()\n        .iter()\n        .any(|gap| gap.reason() == RouteCoverageGapReason::UnresolvedCallback));\n}\n\n#[test]\nfn express_argument_comments_are_trivia_not_dynamic_semantics() {\n    let result = extract_routes(\n        RouteAdapter::Express,\n        StructuralLanguage::JavaScript,\n        &path("src/commented-route.js"),\n        b"app.get(/* audited path */ '/admin' /* route */, /* auth */ authenticate /* checked */, handler /* final */);\\n",\n        BusinessLogicLimits::default(),\n    )\n    .expect("extract commented static route");\n\n    assert_eq!(result.routes().len(), 1);\n    assert_eq!(result.routes()[0].route_pattern(), "/admin");\n    assert_eq!(result.routes()[0].coverage_state(), &CoverageState::Covered);\n    assert_eq!(result.routes()[0].callback_chain().len(), 2);\n    assert!(result.gaps().is_empty());\n}\n\n#[test]\nfn non_function_literals_are_not_resolved_callback_keys() {\n    let express = extract_routes(\n        RouteAdapter::Express,\n        StructuralLanguage::JavaScript,\n        &path("src/literal-handler.js"),\n        b"app.get('/admin', true);\\n",\n        BusinessLogicLimits::default(),\n    )\n    .expect("classify non-function Express callback literal");\n    assert_eq!(express.routes().len(), 1);\n    assert_eq!(express.routes()[0].coverage_state(), &CoverageState::Partial);\n    assert!(express.routes()[0].callback_chain().is_empty());\n    assert!(express\n        .gaps()\n        .iter()\n        .any(|gap| gap.reason() == RouteCoverageGapReason::UnresolvedCallback));\n\n    let supabase = extract_routes(\n        RouteAdapter::SupabaseEdge,\n        StructuralLanguage::TypeScript,\n        &path("supabase/functions/literal-handler/index.ts"),\n        b"Deno.serve(null);\\n",\n        BusinessLogicLimits::default(),\n    )\n    .expect("classify non-function Supabase callback literal");\n    assert!(supabase.routes().is_empty());\n    assert!(supabase\n        .gaps()\n        .iter()\n        .any(|gap| gap.reason() == RouteCoverageGapReason::UnresolvedCallback));\n}\n'''
+          tests_path.write_text(tests, encoding='utf-8')
+          PY
+
+      - name: Format and focused qualification
+        run: |
+          set -euo pipefail
+          cargo +1.98.0 fmt --all
+          cargo +1.98.0 fmt --all -- --check
+          cargo +1.98.0 test -p sentrdel-review --test r3_t009_route_extraction
+          cargo +1.98.0 test -p sentrdel-review business_logic::model::tests::route_constructor_normalizes_and_caps_collections
+          cargo +1.98.0 clippy -p sentrdel-review --all-targets -- -D warnings
+
+      - name: Guard product-only delta and push
+        run: |
+          set -euo pipefail
+          mapfile -t changed < <(git diff --name-only)
+          printf '%s\n' "${changed[@]}"
+          test "${#changed[@]}" -eq 3
+          test "${changed[0]}" = "crates/sentrdel-review/src/business_logic/model.rs"
+          test "${changed[1]}" = "crates/sentrdel-review/src/business_logic/route.rs"
+          test "${changed[2]}" = "crates/sentrdel-review/tests/r3_t009_route_extraction.rs"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add crates/sentrdel-review/src/business_logic/model.rs crates/sentrdel-review/src/business_logic/route.rs crates/sentrdel-review/tests/r3_t009_route_extraction.rs
+          git commit -m 'fix(r3): close bounded route extraction review gaps'
+          git push origin HEAD:feat/r3-t009-bounded-route-extraction
