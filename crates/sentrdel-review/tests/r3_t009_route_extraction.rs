@@ -314,6 +314,45 @@ fn regex_literals_cannot_mint_routes_or_unbalance_callbacks() {
 }
 
 #[test]
+fn regex_literal_after_control_flow_condition_cannot_mint_route() {
+    let source = b"if (enabled) /app.get('x', handler)/.test(value);\n";
+    let result = extract_routes(
+        RouteAdapter::Express,
+        StructuralLanguage::JavaScript,
+        &path("src/conditional-regex.js"),
+        source,
+        BusinessLogicLimits::default(),
+    )
+    .expect("mask regex literal used as an if consequent");
+
+    assert!(result.routes().is_empty());
+    assert!(result.gaps().is_empty());
+}
+
+#[test]
+fn express_use_middleware_is_explicit_coverage_gap() {
+    let source =
+        b"app.use('/admin', authenticationMiddleware);\nrouter.use('/tenant', tenantMiddleware);\n";
+    let result = extract_routes(
+        RouteAdapter::Express,
+        StructuralLanguage::JavaScript,
+        &path("src/middleware.js"),
+        source,
+        BusinessLogicLimits::default(),
+    )
+    .expect("classify unsupported Express middleware");
+
+    assert!(result.routes().is_empty());
+    assert_eq!(result.gaps().len(), 2);
+    assert!(
+        result
+            .gaps()
+            .iter()
+            .all(|gap| gap.reason() == RouteCoverageGapReason::UnsupportedMiddleware)
+    );
+}
+
+#[test]
 fn callback_cap_fails_closed() {
     let callbacks = (0..=MAX_ROUTE_CALLBACKS)
         .map(|index| format!("handler{index}"))

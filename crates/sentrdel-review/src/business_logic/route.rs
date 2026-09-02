@@ -54,6 +54,7 @@ impl RouteAdapter {
 pub enum RouteCoverageGapReason {
     DynamicRegistration,
     DynamicRoutePattern,
+    UnsupportedMiddleware,
     UnresolvedCallback,
     UnsupportedRouteFile,
     UnsupportedHandlerExport,
@@ -367,7 +368,7 @@ fn extract_express(
         {
             let after = skip_mask_ws(mask, close + 1);
             if mask.get(after) == Some(&b'(') {
-                let end = find_call_close(bytes, after).unwrap_or(after);
+                let end = find_balanced(mask, after, b'(', b')').unwrap_or(after);
                 builder.gap(
                     RouteCoverageGapReason::DynamicRegistration,
                     receiver_start,
@@ -387,17 +388,33 @@ fn extract_express(
             continue;
         }
         let method_end = parse_ident_end(mask, cursor);
-        let Some(method) = parse_http_method(&source[cursor..method_end]) else {
+        let registration = &source[cursor..method_end];
+        let after_registration = skip_mask_ws(mask, method_end);
+        if registration.eq_ignore_ascii_case("use") && mask.get(after_registration) == Some(&b'(') {
+            let Some(call_end) = find_balanced(mask, after_registration, b'(', b')') else {
+                return Err(RouteExtractionError::Structural(
+                    StructuralError::MalformedSyntax,
+                ));
+            };
+            builder.gap(
+                RouteCoverageGapReason::UnsupportedMiddleware,
+                receiver_start,
+                call_end + 1,
+            )?;
+            index = call_end + 1;
+            continue;
+        }
+        let Some(method) = parse_http_method(registration) else {
             index = method_end;
             continue;
         };
-        cursor = skip_mask_ws(mask, method_end);
+        cursor = after_registration;
         if mask.get(cursor) != Some(&b'(') {
             index = method_end;
             continue;
         }
         let call_start = cursor;
-        let Some(call_end) = find_call_close(bytes, call_start) else {
+        let Some(call_end) = find_balanced(mask, call_start, b'(', b')') else {
             // Grammar validation should already reject this, so retain the fail-closed behavior.
             return Err(RouteExtractionError::Structural(
                 StructuralError::MalformedSyntax,
@@ -424,7 +441,7 @@ fn extract_express(
                 call_end + 1,
             )?;
         } else {
-            let callbacks = split_top_level_args(source, after_path + 1, call_end);
+            let callbacks = split_top_level_args(source, mask, after_path + 1, call_end);
             if callbacks.len() > MAX_ROUTE_CALLBACKS {
                 return Err(RouteExtractionError::TooManyCallbacks {
                     count: callbacks.len(),
@@ -651,7 +668,6 @@ fn extract_supabase_edge(
         return Ok(());
     };
     let route_pattern = format!("/functions/v1/{function_name}");
-    let bytes = source.as_bytes();
     let mut index = 0;
     let mut found = false;
     while let Some(deno_start) = find_word(mask, b"Deno", index) {
@@ -678,12 +694,12 @@ fn extract_supabase_edge(
             index = serve_end;
             continue;
         }
-        let Some(call_end) = find_call_close(bytes, call_start) else {
+        let Some(call_end) = find_balanced(mask, call_start, b'(', b')') else {
             return Err(RouteExtractionError::Structural(
                 StructuralError::MalformedSyntax,
             ));
         };
-        let args = split_top_level_args(source, call_start + 1, call_end);
+        let args = split_top_level_args(source, mask, call_start + 1, call_end);
         let callback = args
             .first()
             .and_then(|(start, end)| callback_key(source, *start, *end));
@@ -824,7 +840,12 @@ fn callback_key(source: &str, start: usize, end: usize) -> Option<String> {
     None
 }
 
-fn split_top_level_args(source: &str, start: usize, end: usize) -> Vec<(usize, usize)> {
+fn split_top_level_args(
+    source: &str,
+    mask: &[u8],
+    start: usize,
+    end: usize,
+) -> Vec<(usize, usize)> {
     let bytes = source.as_bytes();
     let mut args = Vec::new();
     let mut item_start = start;
@@ -833,11 +854,7 @@ fn split_top_level_args(source: &str, start: usize, end: usize) -> Vec<(usize, u
     let mut brace = 0usize;
     let mut bracket = 0usize;
     while index < end {
-        if let Some(next) = skip_literal_or_comment(bytes, index) {
-            index = next;
-            continue;
-        }
-        match bytes[index] {
+        match mask[index] {
             b'(' => paren += 1,
             b')' => paren = paren.saturating_sub(1),
             b'{' => brace += 1,
@@ -885,32 +902,6 @@ fn parse_string_literal(source: &str, start: usize) -> Option<(String, usize)> {
         let ch = source[index..].chars().next()?;
         value.push(ch);
         index += ch.len_utf8();
-    }
-    None
-}
-
-fn find_call_close(bytes: &[u8], open: usize) -> Option<usize> {
-    if bytes.get(open) != Some(&b'(') {
-        return None;
-    }
-    let mut depth = 1usize;
-    let mut index = open + 1;
-    while index < bytes.len() {
-        if let Some(next) = skip_literal_or_comment(bytes, index) {
-            index = next;
-            continue;
-        }
-        match bytes[index] {
-            b'(' => depth += 1,
-            b')' => {
-                depth -= 1;
-                if depth == 0 {
-                    return Some(index);
-                }
-            }
-            _ => {}
-        }
-        index += 1;
     }
     None
 }
@@ -996,46 +987,6 @@ fn code_mask(source: &str) -> Vec<u8> {
     mask
 }
 
-fn skip_literal_or_comment(bytes: &[u8], index: usize) -> Option<usize> {
-    let byte = *bytes.get(index)?;
-    if matches!(byte, b'\'' | b'"' | b'`') {
-        let quote = byte;
-        let mut cursor = index + 1;
-        while cursor < bytes.len() {
-            if bytes[cursor] == b'\\' {
-                cursor = cursor.saturating_add(2);
-                continue;
-            }
-            if bytes[cursor] == quote {
-                return Some(cursor + 1);
-            }
-            cursor += 1;
-        }
-        return Some(bytes.len());
-    }
-    if byte == b'/' && bytes.get(index + 1) == Some(&b'/') {
-        let mut cursor = index + 2;
-        while cursor < bytes.len() && bytes[cursor] != b'\n' {
-            cursor += 1;
-        }
-        return Some(cursor);
-    }
-    if byte == b'/' && bytes.get(index + 1) == Some(&b'*') {
-        let mut cursor = index + 2;
-        while cursor + 1 < bytes.len() {
-            if bytes[cursor] == b'*' && bytes[cursor + 1] == b'/' {
-                return Some(cursor + 2);
-            }
-            cursor += 1;
-        }
-        return Some(bytes.len());
-    }
-    if byte == b'/' && regex_literal_can_start(bytes, index) {
-        return Some(regex_literal_end(bytes, index).unwrap_or(bytes.len()));
-    }
-    None
-}
-
 fn regex_literal_can_start(code: &[u8], index: usize) -> bool {
     let Some(previous) = (0..index)
         .rev()
@@ -1068,6 +1019,9 @@ fn regex_literal_can_start(code: &[u8], index: usize) -> bool {
     ) {
         return true;
     }
+    if code[previous] == b')' && control_flow_close_allows_regex(code, previous) {
+        return true;
+    }
     if !is_ident_continue(code[previous]) {
         return false;
     }
@@ -1090,6 +1044,49 @@ fn regex_literal_can_start(code: &[u8], index: usize) -> bool {
         || keyword == b"yield"
         || keyword == b"await"
         || keyword == b"new"
+        || keyword == b"else"
+        || keyword == b"do"
+}
+
+fn control_flow_close_allows_regex(code: &[u8], close: usize) -> bool {
+    let mut depth = 1usize;
+    let mut cursor = close;
+    while cursor > 0 {
+        cursor -= 1;
+        match code[cursor] {
+            b')' => depth += 1,
+            b'(' => {
+                depth -= 1;
+                if depth == 0 {
+                    return preceding_control_flow_keyword(code, cursor);
+                }
+            }
+            _ => {}
+        }
+    }
+    false
+}
+
+fn preceding_control_flow_keyword(code: &[u8], open: usize) -> bool {
+    let Some(previous) = (0..open)
+        .rev()
+        .find(|candidate| !code[*candidate].is_ascii_whitespace())
+    else {
+        return false;
+    };
+    if !is_ident_continue(code[previous]) {
+        return false;
+    }
+
+    let end = previous + 1;
+    let mut start = previous;
+    while start > 0 && is_ident_continue(code[start - 1]) {
+        start -= 1;
+    }
+    matches!(
+        &code[start..end],
+        b"if" | b"while" | b"for" | b"with" | b"switch" | b"catch"
+    )
 }
 
 fn regex_literal_end(bytes: &[u8], start: usize) -> Option<usize> {
