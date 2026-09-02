@@ -6,11 +6,8 @@ use sentrdel_review::view::NormalizedRepoPath;
 
 const EVAL_RULE: StructuralRule =
     StructuralRule::new("js.eval-call", StructuralLanguage::JavaScript, "eval($ARG)");
-const TS_EVAL_RULE: StructuralRule = StructuralRule::new(
-    "ts.eval-call",
-    StructuralLanguage::TypeScript,
-    "eval($ARG)",
-);
+const TS_EVAL_RULE: StructuralRule =
+    StructuralRule::new("ts.eval-call", StructuralLanguage::TypeScript, "eval($ARG)");
 
 fn path() -> NormalizedRepoPath {
     NormalizedRepoPath::parse("src/app.js", 128).unwrap()
