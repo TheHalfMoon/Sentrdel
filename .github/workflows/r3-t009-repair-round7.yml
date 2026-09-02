@@ -44,7 +44,21 @@ jobs:
           done
 
       - name: Test sentrdel-review library
-        run: cargo +1.98.0 test -p sentrdel-review --lib --locked
+        shell: bash
+        run: |
+          set +e
+          cargo +1.98.0 test -p sentrdel-review --lib --locked 2>&1 | tee /tmp/r3_t009_round7_lib.log
+          status=${PIPESTATUS[0]}
+          set -e
+          if [ "$status" -ne 0 ]; then
+            tail -n 240 /tmp/r3_t009_round7_lib.log > .github/r3_t009_round7_failure.log
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add .github/r3_t009_round7_failure.log
+            git commit -m "chore: capture T009 round 7 qualification failure"
+            git push origin HEAD:repair/r3-t009-review-round7
+            exit "$status"
+          fi
 
       - name: Test R3 T009 route extraction
         run: cargo +1.98.0 test -p sentrdel-review --test r3_t009_route_extraction --locked
@@ -60,6 +74,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add crates/sentrdel-review/src/business_logic/route.rs crates/sentrdel-review/tests/r3_t009_route_extraction.rs
           git commit -m "fix(r3): reject shadowed Express factory bindings"
+          rm -f .github/r3_t009_round7_failure.log
           git rm .github/r3_t009_round7_patch.py .github/workflows/r3-t009-repair-round7.yml
-          git commit -m "chore: remove temporary T009 repair round 7"
+          git commit -am "chore: remove temporary T009 repair round 7"
           git push origin HEAD:repair/r3-t009-review-round7
