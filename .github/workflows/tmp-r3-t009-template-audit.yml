@@ -1,0 +1,57 @@
+name: Temporary R3 T009 Template Audit
+
+on:
+  push:
+    branches:
+      - aux/copilot-review-r3-t009
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact qualified T009 head
+        uses: actions/checkout@v4
+        with:
+          ref: d0a1b8a8a4339bb5faf709f1cb35d3aaeafd9ca6
+          persist-credentials: false
+
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.98.0 --profile minimal && rustup override set 1.98.0
+
+      - name: Add ephemeral template interpolation regression
+        run: |
+          cat > crates/sentrdel-review/tests/tmp_r3_t009_template_interpolation.rs <<'RS'
+          use sentrdel_review::business_logic::model::BusinessLogicLimits;
+          use sentrdel_review::business_logic::route::{RouteAdapter, extract_routes};
+          use sentrdel_review::structural::StructuralLanguage;
+          use sentrdel_review::view::NormalizedRepoPath;
+
+          fn path(value: &str) -> NormalizedRepoPath {
+              NormalizedRepoPath::parse(value, 4_096).expect("normalized path")
+          }
+
+          #[test]
+          fn executable_template_substitution_route_is_not_silently_hidden() {
+              let source = br#"const note = `${app.get('/template-route', handler)}`;"#;
+              let result = extract_routes(
+                  RouteAdapter::Express,
+                  StructuralLanguage::JavaScript,
+                  &path("src/template.js"),
+                  source,
+                  BusinessLogicLimits::default(),
+              )
+              .expect("extract valid JavaScript");
+
+              assert!(
+                  result.routes().iter().any(|route| route.route_pattern() == "/template-route")
+                      || !result.gaps().is_empty(),
+                  "executable template substitution must yield a route or explicit coverage gap"
+              );
+          }
+          RS
+
+      - name: Run focused audit
+        run: cargo test -p sentrdel-review --test tmp_r3_t009_template_interpolation
