@@ -1,0 +1,97 @@
+name: Temporary R3 T009 Finalizer
+
+on:
+  push:
+    branches:
+      - feat/r3-t009-bounded-route-extraction
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout T009 branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: feat/r3-t009-bounded-route-extraction
+          fetch-depth: 0
+
+      - name: Apply bounded candidate finalization
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          route = Path('crates/sentrdel-review/src/business_logic/route.rs')
+          text = route.read_text(encoding='utf-8')
+          old = """        if mask.get(cursor) == Some(&b'[') {
+              if let Some(close) = find_balanced(mask, cursor, b'[', b']') {
+                  let after = skip_mask_ws(mask, close + 1);
+                  if mask.get(after) == Some(&b'(') {
+                      let end = find_call_close(bytes, after).unwrap_or(after);
+                      builder.gap(
+                          RouteCoverageGapReason::DynamicRegistration,
+                          receiver_start,
+                          end.saturating_add(1),
+                      )?;
+                      index = end.saturating_add(1);
+                      continue;
+                  }
+              }
+          }
+          """
+          new = """        if mask.get(cursor) == Some(&b'[')
+              && let Some(close) = find_balanced(mask, cursor, b'[', b']')
+          {
+              let after = skip_mask_ws(mask, close + 1);
+              if mask.get(after) == Some(&b'(') {
+                  let end = find_call_close(bytes, after).unwrap_or(after);
+                  builder.gap(
+                      RouteCoverageGapReason::DynamicRegistration,
+                      receiver_start,
+                      end.saturating_add(1),
+                  )?;
+                  index = end.saturating_add(1);
+                  continue;
+              }
+          }
+          """
+          if text.count(old) != 1:
+              raise SystemExit('expected exactly one T009 collapsible-if block')
+          route.write_text(text.replace(old, new), encoding='utf-8', newline='\n')
+
+          tasks = Path('specs/003-business-logic-invariants/tasks.md')
+          text = tasks.read_text(encoding='utf-8')
+          old = '- [ ] **R3-T009** Implement bounded route extraction for the frozen initial adapters: Express-style method/path/callback chains, Next.js App Router Route Handlers, Next.js Pages API routes and supported Supabase Edge Function handlers; unsupported dynamic registration/middleware becomes explicit coverage.'
+          new = old.replace('- [ ]', '- [x]', 1)
+          if text.count(old) != 1:
+              raise SystemExit('expected exactly one open R3-T009 ledger entry')
+          tasks.write_text(text.replace(old, new), encoding='utf-8', newline='\n')
+          PY
+
+      - name: Install pinned Rust formatter
+        shell: bash
+        run: rustup toolchain install 1.98.0 --profile minimal --component rustfmt
+
+      - name: Format and validate diff
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo +1.98.0 fmt --all
+          git diff --check
+          git diff -- crates/sentrdel-review/src/business_logic/route.rs specs/003-business-logic-invariants/tasks.md
+
+      - name: Commit candidate finalization
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add crates/sentrdel-review/src/business_logic/route.rs specs/003-business-logic-invariants/tasks.md
+          git diff --cached --check
+          git commit -m "fix(r3): finalize T009 route extraction candidate"
+          git push origin HEAD:feat/r3-t009-bounded-route-extraction
