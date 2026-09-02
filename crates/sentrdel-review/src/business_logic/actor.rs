@@ -540,11 +540,7 @@ fn observe_dynamic_subscript(
     )
 }
 
-fn is_verified_auth_chain(
-    chain: &[String],
-    adapter: RouteAdapter,
-    facts: &BindingFacts,
-) -> bool {
+fn is_verified_auth_chain(chain: &[String], adapter: RouteAdapter, facts: &BindingFacts) -> bool {
     let Some(root) = chain.first() else {
         return false;
     };
