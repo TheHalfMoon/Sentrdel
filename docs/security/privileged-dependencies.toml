@@ -329,3 +329,11 @@ surfaces = ["build-script", "native-link"]
 owner = "Sentrdel trusted-core maintainers"
 qualification = "T039Q-001"
 rationale = "Locked Tree-sitter language ABI bridge in the qualified T039 grammar closure; compile and link authority is limited to the trusted build."
+
+[[package]]
+name = "tree-sitter-typescript"
+version = "0.23.2"
+surfaces = ["build-script"]
+owner = "Sentrdel trusted-core maintainers"
+qualification = "TSQ-001"
+rationale = "Qualified fixed TypeScript/TSX grammar package for R3; build.rs compiles committed generated C parser/scanner sources through cc inside the trusted Sentrdel workspace. No target grammar generation, repository execution, network, credential, policy, Finding, provider, or runtime authority is admitted."
