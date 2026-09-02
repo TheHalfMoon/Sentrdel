@@ -1258,31 +1258,30 @@ fn express_function_declaration_named_router_is_ambiguous() {
 }
 
 #[test]
-fn bounded_express_factory_bindings_remain_supported() {
-    let source = b"const app = express();\nconst router = express.Router();\napp.get('/app', handler);\nrouter.post('/router', handler);\n";
-    let result = extract_routes(
-        RouteAdapter::Express,
-        StructuralLanguage::JavaScript,
-        &path("src/factories.js"),
-        source,
-        BusinessLogicLimits::default(),
-    )
-    .expect("preserve bounded Express factory bindings");
+fn unbound_express_factory_bindings_are_ambiguous() {
+    for source in [
+        b"const app = express();\napp.get('/unbound-app', handler);".as_slice(),
+        b"const router = express.Router();\nrouter.post('/unbound-router', handler);".as_slice(),
+    ] {
+        let result = extract_routes(
+            RouteAdapter::Express,
+            StructuralLanguage::JavaScript,
+            &path("src/unbound-express-factory.js"),
+            source,
+            BusinessLogicLimits::default(),
+        )
+        .expect("classify unbound Express factory provenance as ambiguous");
 
-    assert_eq!(result.routes().len(), 2);
-    assert!(result.gaps().is_empty());
-    assert!(
-        result
-            .routes()
-            .iter()
-            .any(|route| route.route_pattern() == "/app")
-    );
-    assert!(
-        result
-            .routes()
-            .iter()
-            .any(|route| route.route_pattern() == "/router")
-    );
+        assert!(result.routes().is_empty());
+        assert_eq!(
+            result
+                .gaps()
+                .iter()
+                .filter(|gap| gap.reason() == RouteCoverageGapReason::AmbiguousReceiverBinding)
+                .count(),
+            1
+        );
+    }
 }
 
 #[test]
