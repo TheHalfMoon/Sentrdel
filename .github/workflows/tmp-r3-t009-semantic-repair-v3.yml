@@ -1,0 +1,66 @@
+name: Temporary R3 T009 Semantic Repair V3
+
+on:
+  push:
+    branches:
+      - aux/r3-t009-semantic-repair
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact T009 candidate branch
+        uses: actions/checkout@v4
+        with:
+          ref: feat/r3-t009-bounded-route-extraction
+          fetch-depth: 0
+
+      - name: Guard expected candidate head
+        run: |
+          set -euo pipefail
+          expected=5ceaa8e43ab577f8a876ba0d69290286d842e320
+          test "$(git rev-parse HEAD)" = "$expected"
+          test "$(git rev-parse origin/feat/r3-t009-bounded-route-extraction)" = "$expected"
+
+      - name: Install pinned Rust toolchain and qualification components
+        run: |
+          set -euo pipefail
+          rustup toolchain install 1.98.0 --profile minimal
+          rustup component add --toolchain 1.98.0 rustfmt clippy
+          rustup override set 1.98.0
+
+      - name: Apply bounded Express all coverage repair
+        run: |
+          set -euo pipefail
+          echo 'ZnJvbSBwYXRobGliIGltcG9ydCBQYXRoCgpyb3V0ZV9wYXRoID0gUGF0aCgiY3JhdGVzL3NlbnRyZGVsLXJldmlldy9zcmMvYnVzaW5lc3NfbG9naWMvcm91dGUucnMiKQpyb3V0ZSA9IHJvdXRlX3BhdGgucmVhZF90ZXh0KGVuY29kaW5nPSJ1dGYtOCIpCgpvbGQgPSAnJycgICAgICAgIGxldCBTb21lKG1ldGhvZCkgPSBwYXJzZV9leHByZXNzX2h0dHBfbWV0aG9kKHJlZ2lzdHJhdGlvbikgZWxzZSB7CiAgICAgICAgICAgIGluZGV4ID0gbWV0aG9kX2VuZDsKICAgICAgICAgICAgY29udGludWU7CiAgICAgICAgfTsKICAgICAgICBjdXJzb3IgPSBhZnRlcl9yZWdpc3RyYXRpb247CicnJwpuZXcgPSAnJycgICAgICAgIGlmIHJlZ2lzdHJhdGlvbiA9PSAiYWxsIiAmJiBtYXNrLmdldChhZnRlcl9yZWdpc3RyYXRpb24pID09IFNvbWUoJmInKCcpIHsKICAgICAgICAgICAgbGV0IFNvbWUoY2FsbF9lbmQpID0gZmluZF9iYWxhbmNlZChtYXNrLCBhZnRlcl9yZWdpc3RyYXRpb24sIGInKCcsIGInKScpIGVsc2UgewogICAgICAgICAgICAgICAgcmV0dXJuIEVycihSb3V0ZUV4dHJhY3Rpb25FcnJvcjo6U3RydWN0dXJhbCgKICAgICAgICAgICAgICAgICAgICBTdHJ1Y3R1cmFsRXJyb3I6Ok1hbGZvcm1lZFN5bnRheCwKICAgICAgICAgICAgICAgICkpOwogICAgICAgICAgICB9OwogICAgICAgICAgICBidWlsZGVyLmdhcCgKICAgICAgICAgICAgICAgIFJvdXRlQ292ZXJhZ2VHYXBSZWFzb246Ok1ldGhvZE5vdFN0YXRpY2FsbHlCb3VuZCwKICAgICAgICAgICAgICAgIHJlY2VpdmVyX3N0YXJ0LAogICAgICAgICAgICAgICAgY2FsbF9lbmQgKyAxLAogICAgICAgICAgICApPzsKICAgICAgICAgICAgaW5kZXggPSBjYWxsX2VuZCArIDE7CiAgICAgICAgICAgIGNvbnRpbnVlOwogICAgICAgIH0KICAgICAgICBsZXQgU29tZShtZXRob2QpID0gcGFyc2VfZXhwcmVzc19odHRwX21ldGhvZChyZWdpc3RyYXRpb24pIGVsc2UgewogICAgICAgICAgICBpbmRleCA9IG1ldGhvZF9lbmQ7CiAgICAgICAgICAgIGNvbnRpbnVlOwogICAgICAgIH07CiAgICAgICAgY3Vyc29yID0gYWZ0ZXJfcmVnaXN0cmF0aW9uOwonJycKCmlmIHJvdXRlLmNvdW50KG9sZCkgIT0gMToKICAgIHJhaXNlIFN5c3RlbUV4aXQoZiJyb3V0ZSBwYXRjaCBndWFyZCBmYWlsZWQ6IGZvdW5kIHtyb3V0ZS5jb3VudChvbGQpfSBvY2N1cnJlbmNlcyIpCnJvdXRlID0gcm91dGUucmVwbGFjZShvbGQsIG5ldykKcm91dGVfcGF0aC53cml0ZV90ZXh0KHJvdXRlLCBlbmNvZGluZz0idXRmLTgiKQoKdGVzdHNfcGF0aCA9IFBhdGgoImNyYXRlcy9zZW50cmRlbC1yZXZpZXcvdGVzdHMvcjNfdDAwOV9yb3V0ZV9leHRyYWN0aW9uLnJzIikKdGVzdHMgPSB0ZXN0c19wYXRoLnJlYWRfdGV4dChlbmNvZGluZz0idXRmLTgiKQptYXJrZXIgPSAnJycjW3Rlc3RdCmZuIG5leHRfYXBwX2h0dHBfbWV0aG9kX2V4cG9ydHNfcmVxdWlyZV9jYW5vbmljYWxfdXBwZXJjYXNlX25hbWVzKCkgewonJycKYWRkaXRpb24gPSAnJycjW3Rlc3RdCmZuIGV4cHJlc3NfYWxsX3JlZ2lzdHJhdGlvbnNfYXJlX2V4cGxpY2l0X2NvdmVyYWdlX2dhcHMoKSB7CiAgICBsZXQgcmVzdWx0ID0gZXh0cmFjdF9yb3V0ZXMoCiAgICAgICAgUm91dGVBZGFwdGVyOjpFeHByZXNzLAogICAgICAgIFN0cnVjdHVyYWxMYW5ndWFnZTo6SmF2YVNjcmlwdCwKICAgICAgICAmcGF0aCgic3JjL3JvdXRlcy5qcyIpLAogICAgICAgIGIiYXBwLmFsbCgnL2FkbWluJywgaGFuZGxlcik7XFxucm91dGVyLmFsbCgnL3RlbmFudCcsIGhhbmRsZXIpO1xcbiIsCiAgICAgICAgQnVzaW5lc3NMb2dpY0xpbWl0czo6ZGVmYXVsdCgpLAogICAgKQogICAgLmV4cGVjdCgiY2xhc3NpZnkgRXhwcmVzcyBhbGwgcmVnaXN0cmF0aW9ucyIpOwoKICAgIGFzc2VydCEocmVzdWx0LnJvdXRlcygpLmlzX2VtcHR5KCkpOwogICAgYXNzZXJ0X2VxIShyZXN1bHQuZ2FwcygpLmxlbigpLCAyKTsKICAgIGFzc2VydCEoCiAgICAgICAgcmVzdWx0CiAgICAgICAgICAgIC5nYXBzKCkKICAgICAgICAgICAgLml0ZXIoKQogICAgICAgICAgICAuYWxsKHxnYXB8IGdhcC5yZWFzb24oKSA9PSBSb3V0ZUNvdmVyYWdlR2FwUmVhc29uOjpNZXRob2ROb3RTdGF0aWNhbGx5Qm91bmQpCiAgICApOwp9CgonJycKCmlmIHRlc3RzLmNvdW50KG1hcmtlcikgIT0gMToKICAgIHJhaXNlIFN5c3RlbUV4aXQoZiJ0ZXN0IGluc2VydGlvbiBndWFyZCBmYWlsZWQ6IGZvdW5kIHt0ZXN0cy5jb3VudChtYXJrZXIpfSBvY2N1cnJlbmNlcyIpCnRlc3RzID0gdGVzdHMucmVwbGFjZShtYXJrZXIsIGFkZGl0aW9uICsgbWFya2VyKQp0ZXN0c19wYXRoLndyaXRlX3RleHQodGVzdHMsIGVuY29kaW5nPSJ1dGYtOCIpCg==' | base64 -d > /tmp/r3_t009_all_repair.py
+          python3 /tmp/r3_t009_all_repair.py
+          cargo fmt --all
+          git diff --check
+
+      - name: Run focused T009 qualification
+        run: cargo test -p sentrdel-review --test r3_t009_route_extraction
+
+      - name: Run T009 Clippy qualification
+        run: cargo clippy -p sentrdel-review --all-targets -- -D warnings
+
+      - name: Commit product-only repair
+        run: |
+          set -euo pipefail
+          test -z "$(git status --porcelain -- .github/workflows)"
+          git status --short
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add crates/sentrdel-review/src/business_logic/route.rs crates/sentrdel-review/tests/r3_t009_route_extraction.rs
+          git diff --cached --quiet && { echo "expected product repair is empty" >&2; exit 1; }
+          git commit -m "fix(r3): make Express all registrations fail visible"
+
+      - name: Guard remote head and push product repair
+        run: |
+          set -euo pipefail
+          expected=5ceaa8e43ab577f8a876ba0d69290286d842e320
+          git fetch origin feat/r3-t009-bounded-route-extraction
+          test "$(git rev-parse FETCH_HEAD)" = "$expected"
+          git push origin HEAD:feat/r3-t009-bounded-route-extraction
