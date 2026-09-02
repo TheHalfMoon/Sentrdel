@@ -88,7 +88,10 @@ impl fmt::Display for GuardExtractionError {
                 write!(formatter, "guard AST node count {count} exceeds cap {max}")
             }
             Self::TooManyGuards { count, max } => {
-                write!(formatter, "guard observation count {count} exceeds cap {max}")
+                write!(
+                    formatter,
+                    "guard observation count {count} exceeds cap {max}"
+                )
             }
             Self::TooManyCoverageGaps { count, max } => {
                 write!(
@@ -822,9 +825,7 @@ fn is_authenticated_presence_chain(
         RouteAdapter::Express => chain.len() == 2 && root == "req" && chain[1] == "user",
         RouteAdapter::NextApp => {
             (chain.len() == 1 && facts.session_bindings.contains(root))
-                || (chain.len() == 2
-                    && facts.session_bindings.contains(root)
-                    && chain[1] == "user")
+                || (chain.len() == 2 && facts.session_bindings.contains(root) && chain[1] == "user")
                 || (chain.len() == 1 && facts.verified_user_bindings.contains(root))
         }
         RouteAdapter::SupabaseEdge => {
@@ -838,11 +839,7 @@ fn is_authenticated_presence_chain(
     }
 }
 
-fn is_verified_role_chain(
-    chain: &[String],
-    adapter: RouteAdapter,
-    facts: &GuardFacts,
-) -> bool {
+fn is_verified_role_chain(chain: &[String], adapter: RouteAdapter, facts: &GuardFacts) -> bool {
     let Some(field) = chain.last().map(String::as_str) else {
         return false;
     };
@@ -973,7 +970,9 @@ fn binary_operator<'a>(
     right: tree_sitter::Node<'_>,
     source: &'a str,
 ) -> Option<&'a str> {
-    source.get(left.end_byte()..right.start_byte()).map(str::trim)
+    source
+        .get(left.end_byte()..right.start_byte())
+        .map(str::trim)
 }
 
 fn string_literal_value(node: tree_sitter::Node<'_>, source: &str) -> Option<String> {
