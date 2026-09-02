@@ -34,6 +34,29 @@ jobs:
         run: |
           set -euo pipefail
           python3 scripts/tmp_r3_t009_codex_reconcile.py
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path("crates/sentrdel-review/src/business_logic/route.rs")
+          text = path.read_text()
+          old = '''        if end >= start + 2 && &bytes[end - 2..end] == b"*/" {
+              if let Some(relative) = source[start..end - 2].rfind("/*") {
+                  end = start + relative;
+                  continue;
+              }
+          }
+          '''
+          new = '''        if end >= start + 2
+              && &bytes[end - 2..end] == b"*/"
+              && let Some(relative) = source[start..end - 2].rfind("/*")
+          {
+              end = start + relative;
+              continue;
+          }
+          '''
+          if text.count(old) != 1:
+              raise SystemExit("expected one generated collapsible-if block")
+          path.write_text(text.replace(old, new, 1))
+          PY
 
       - name: Install pinned Rust toolchain
         shell: bash
