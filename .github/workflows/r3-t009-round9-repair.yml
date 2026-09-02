@@ -38,7 +38,10 @@ jobs:
             .github/r3_t009_round9_patch.py \
             .github/workflows/r3-t009-round9-repair.yml | sort)"
 
-      - name: Format contract
+      - name: Format repair
+        run: cargo +1.98.0 fmt --all
+
+      - name: Verify format contract
         run: cargo +1.98.0 fmt --all -- --check
 
       - name: Test sentrdel-review library
@@ -52,6 +55,14 @@ jobs:
 
       - name: Diff integrity
         run: git diff --check
+
+      - name: Re-verify bounded changed paths after rustfmt
+        run: |
+          test "$(git diff --name-only | sort)" = "$(printf '%s\n' \
+            crates/sentrdel-review/src/business_logic/route.rs \
+            crates/sentrdel-review/tests/r3_t009_route_extraction.rs \
+            .github/r3_t009_round9_patch.py \
+            .github/workflows/r3-t009-round9-repair.yml | sort)"
 
       - name: Commit qualified product repair
         run: |
