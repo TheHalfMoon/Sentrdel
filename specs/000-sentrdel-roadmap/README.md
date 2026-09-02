@@ -20,11 +20,13 @@ If any lower document conflicts with a higher authority, the lower document must
 
 ## Current implementation boundary
 
-At the time this index was authored, the active implementation authority is R3:
+The active implementation authority remains R3:
 
 `specs/003-business-logic-invariants/`
 
-The strategic documents in this directory **must not** reorder, widen, or bypass the canonical R3 task ledger.
+R3-T009 is canonical and post-merge proven. The current canonical implementation frontier begins at R3-T010 and continues only in the dependency order defined by the active Spec 003 task ledger.
+
+The strategic documents in this directory **must not** reorder, widen, or bypass that canonical R3 task ledger.
 
 In particular, the post-R3 blueprint is not permission to start R5, R6, R7, R9, or any other successor work before R3 has canonical closeout, post-merge CI, and live repository-governance proof.
 
@@ -114,8 +116,8 @@ Before approving a major future feature, ask:
 
 If the answer is mostly "no," defer the feature.
 
-## Merge-order warning for the current planning PR
+## Planning-PR reconciliation status
 
-The strategic roadmap PR created from this corpus must not move protected `main` while the active R3 PR depends on the current canonical base for exact-head qualification.
+The strategic roadmap planning line has been reconciled with canonical `main` after R3-T009 completed its merge, post-merge CI, and live repository-governance proof.
 
-Finish and prove the active R3 unit first. Then reconcile the roadmap PR against the new canonical `main`, qualify it normally, and only then consider merging the planning amendment.
+That reconciliation changes roadmap planning only. It does not authorize R3-T010 by itself, does not close R3, and does not authorize any post-R3 successor slice. Active implementation permission continues to come only from the Constitution and the canonical Spec 003 artifacts.
