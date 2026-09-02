@@ -1230,6 +1230,15 @@ fn express_binding_is_known_receiver(
                         .is_some_and(|parent| parent.kind() == "export_statement");
             }
             "variable_declarator" => {
+                let Some(name) = current.child_by_field_name("name") else {
+                    return false;
+                };
+                let node_is_bare_declarator_name = name.kind() == "identifier"
+                    && node.start_byte() == name.start_byte()
+                    && node.end_byte() == name.end_byte();
+                if !node_is_bare_declarator_name {
+                    return false;
+                }
                 let Some(value) = current.child_by_field_name("value") else {
                     return false;
                 };
