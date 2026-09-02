@@ -38,13 +38,13 @@ jobs:
           if len(starts) != 1:
               raise SystemExit(f'expected exactly one T009 collapsible-if opening, got {len(starts)}')
           start = starts[0]
-          targets = [
-              i for i in range(start + 2, len(lines))
-              if lines[i].strip() == "if mask.get(cursor) != Some(&b'.') {"
-          ]
-          if len(targets) != 1:
-              raise SystemExit(f'expected exactly one T009 post-dynamic-registration target, got {len(targets)}')
-          target = targets[0]
+          target = next(
+              (i for i in range(start + 2, len(lines))
+               if lines[i].strip() == "if mask.get(cursor) != Some(&b'.') {"),
+              None,
+          )
+          if target is None:
+              raise SystemExit('missing T009 post-dynamic-registration target')
           closings = [i for i in range(start + 2, target) if lines[i].strip() == '}']
           if len(closings) != 3:
               raise SystemExit(f'expected exactly three closing braces in T009 block, got {len(closings)}')
