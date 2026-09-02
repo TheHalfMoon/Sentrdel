@@ -1,0 +1,178 @@
+name: Temporary R3 T009 Express All Repair
+
+on:
+  push:
+    branches:
+      - aux/r3-t009-express-all-repair
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout exact T009 candidate branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: feat/r3-t009-bounded-route-extraction
+          fetch-depth: 0
+
+      - name: Guard expected candidate head
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected=5ceaa8e43ab577f8a876ba0d69290286d842e320
+          test "$(git rev-parse HEAD)" = "$expected"
+          test "$(git rev-parse origin/feat/r3-t009-bounded-route-extraction)" = "$expected"
+
+      - name: Install pinned Rust toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          rustup toolchain install 1.98.0 --profile minimal
+          rustup component add --toolchain 1.98.0 rustfmt clippy
+          rustup override set 1.98.0
+
+      - name: Apply bounded Express all repair and regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          route_path = Path("crates/sentrdel-review/src/business_logic/route.rs")
+          route = route_path.read_text(encoding="utf-8")
+
+          old = '''        let Some(method) = parse_express_http_method(registration) else {
+            index = method_end;
+            continue;
+        };
+        cursor = after_registration;
+'''
+          new = '''        let all_methods = registration == "all";
+        let method = if all_methods {
+            HttpMethod::OtherSupported
+        } else {
+            let Some(method) = parse_express_http_method(registration) else {
+                index = method_end;
+                continue;
+            };
+            method
+        };
+        cursor = after_registration;
+'''
+          if route.count(old) != 1:
+              raise SystemExit(f"Express method dispatch patch guard failed: {route.count(old)}")
+          route = route.replace(old, new)
+
+          old = '''        let after_path = skip_source_ws(bytes, after_path);
+        let mut callback_keys = Vec::new();
+        let mut partial = false;
+'''
+          new = '''        let after_path = skip_source_ws(bytes, after_path);
+        let mut callback_keys = Vec::new();
+        let mut partial = all_methods;
+        if all_methods {
+            builder.gap(
+                RouteCoverageGapReason::MethodNotStaticallyBound,
+                receiver_start,
+                call_end + 1,
+            )?;
+        }
+'''
+          if route.count(old) != 1:
+              raise SystemExit(f"Express coverage initialization patch guard failed: {route.count(old)}")
+          route = route.replace(old, new)
+          route_path.write_text(route, encoding="utf-8")
+
+          tests_path = Path("crates/sentrdel-review/tests/r3_t009_route_extraction.rs")
+          tests = tests_path.read_text(encoding="utf-8")
+          marker = '''#[test]
+fn express_method_names_are_case_sensitive() {
+'''
+          if tests.count(marker) != 1:
+              raise SystemExit(f"test insertion marker guard failed: {tests.count(marker)}")
+          additions = '''#[test]
+fn express_app_all_registration_is_partial_and_fail_visible() {
+    let result = extract_routes(
+        RouteAdapter::Express,
+        StructuralLanguage::JavaScript,
+        &path("src/routes.js"),
+        b"app.all('/admin', handler);",
+        BusinessLogicLimits::default(),
+    )
+    .expect("parse supported app.all registration conservatively");
+
+    assert_eq!(result.routes().len(), 1);
+    assert_eq!(result.routes()[0].method(), HttpMethod::OtherSupported);
+    assert_eq!(result.routes()[0].route_pattern(), "/admin");
+    assert_eq!(result.routes()[0].coverage_state(), &CoverageState::Partial);
+    assert!(
+        result
+            .gaps()
+            .iter()
+            .any(|gap| gap.reason() == RouteCoverageGapReason::MethodNotStaticallyBound)
+    );
+}
+
+#[test]
+fn express_router_all_registration_is_partial_and_fail_visible() {
+    let result = extract_routes(
+        RouteAdapter::Express,
+        StructuralLanguage::JavaScript,
+        &path("src/router.js"),
+        b"router.all('/tenant', handler);",
+        BusinessLogicLimits::default(),
+    )
+    .expect("parse supported router.all registration conservatively");
+
+    assert_eq!(result.routes().len(), 1);
+    assert_eq!(result.routes()[0].method(), HttpMethod::OtherSupported);
+    assert_eq!(result.routes()[0].route_pattern(), "/tenant");
+    assert_eq!(result.routes()[0].coverage_state(), &CoverageState::Partial);
+    assert!(
+        result
+            .gaps()
+            .iter()
+            .any(|gap| gap.reason() == RouteCoverageGapReason::MethodNotStaticallyBound)
+    );
+}
+
+'''
+          tests = tests.replace(marker, additions + marker)
+          tests_path.write_text(tests, encoding="utf-8")
+          PY
+          cargo fmt --all
+          git diff --check
+
+      - name: Run focused T009 qualification
+        shell: bash
+        run: cargo test -p sentrdel-review --test r3_t009_route_extraction
+
+      - name: Run T009 Clippy qualification
+        shell: bash
+        run: cargo clippy -p sentrdel-review --all-targets -- -D warnings
+
+      - name: Commit product-only repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -z "$(git status --porcelain -- .github/workflows)"
+          git status --short
+          git diff --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add crates/sentrdel-review/src/business_logic/route.rs crates/sentrdel-review/tests/r3_t009_route_extraction.rs
+          git diff --cached --quiet && { echo "expected product repair is empty" >&2; exit 1; }
+          test "$(git diff --cached --name-only | wc -l)" -eq 2
+          git commit -m "fix(r3): keep Express all registrations fail visible"
+
+      - name: Guard remote head and push product repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected=5ceaa8e43ab577f8a876ba0d69290286d842e320
+          git fetch origin feat/r3-t009-bounded-route-extraction
+          test "$(git rev-parse FETCH_HEAD)" = "$expected"
+          git push origin HEAD:feat/r3-t009-bounded-route-extraction
