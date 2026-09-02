@@ -1,0 +1,51 @@
+name: Temporary R3 T009 Supabase Entry Fix
+
+on:
+  push:
+    branches:
+      - feat/r3-t009-bounded-route-extraction
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: ${{ github.actor != 'github-actions[bot]' }}
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout T009 branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: feat/r3-t009-bounded-route-extraction
+          fetch-depth: 0
+
+      - name: Apply exact Supabase entry-file review fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf '%s' 'ZnJvbSBwYXRobGliIGltcG9ydCBQYXRoCgpyb3V0ZSA9IFBhdGgoImNyYXRlcy9zZW50cmRlbC1yZXZpZXcvc3JjL2J1c2luZXNzX2xvZ2ljL3JvdXRlLnJzIikKdGV4dCA9IHJvdXRlLnJlYWRfdGV4dChlbmNvZGluZz0idXRmLTgiKQpvbGQgPSByJycnZm4gc3VwYWJhc2VfZnVuY3Rpb25fbmFtZShwYXRoOiAmc3RyKSAtPiBPcHRpb248JnN0cj4gewogICAgbGV0IHBhcnRzOiBWZWM8JnN0cj4gPSBwYXRoLnNwbGl0KCcvJykuY29sbGVjdCgpOwogICAgZm9yIHdpbmRvdyBpbiBwYXJ0cy53aW5kb3dzKDMpIHsKICAgICAgICBpZiB3aW5kb3dbMF0gPT0gInN1cGFiYXNlIiAmJiB3aW5kb3dbMV0gPT0gImZ1bmN0aW9ucyIgJiYgIXdpbmRvd1syXS5pc19lbXB0eSgpIHsKICAgICAgICAgICAgcmV0dXJuIFNvbWUod2luZG93WzJdKTsKICAgICAgICB9CiAgICB9CiAgICBOb25lCn0KJycnCm5ldyA9IHInJydmbiBzdXBhYmFzZV9mdW5jdGlvbl9uYW1lKHBhdGg6ICZzdHIpIC0+IE9wdGlvbjwmc3RyPiB7CiAgICBsZXQgcGFydHM6IFZlYzwmc3RyPiA9IHBhdGguc3BsaXQoJy8nKS5jb2xsZWN0KCk7CiAgICBtYXRjaCBwYXJ0cy5hc19zbGljZSgpIHsKICAgICAgICBbInN1cGFiYXNlIiwgImZ1bmN0aW9ucyIsIGZ1bmN0aW9uX25hbWUsICJpbmRleC50cyJdIGlmICFmdW5jdGlvbl9uYW1lLmlzX2VtcHR5KCkgPT4gewogICAgICAgICAgICBTb21lKCpmdW5jdGlvbl9uYW1lKQogICAgICAgIH0KICAgICAgICBfID0+IE5vbmUsCiAgICB9Cn0KJycnCmlmIHRleHQuY291bnQob2xkKSAhPSAxOgogICAgcmFpc2UgU3lzdGVtRXhpdChmImV4cGVjdGVkIG9uZSBzdXBhYmFzZV9mdW5jdGlvbl9uYW1lIGJsb2NrLCBnb3Qge3RleHQuY291bnQob2xkKX0iKQpyb3V0ZS53cml0ZV90ZXh0KHRleHQucmVwbGFjZShvbGQsIG5ldyksIGVuY29kaW5nPSJ1dGYtOCIsIG5ld2xpbmU9IlxuIikKCnRlc3RzID0gUGF0aCgiY3JhdGVzL3NlbnRyZGVsLXJldmlldy90ZXN0cy9yM190MDA5X3JvdXRlX2V4dHJhY3Rpb24ucnMiKQp0ZXh0ID0gdGVzdHMucmVhZF90ZXh0KGVuY29kaW5nPSJ1dGYtOCIpCm1hcmtlciA9IHInJycjW3Rlc3RdCmZuIG1hbGZvcm1lZF9zb3VyY2VfZmFpbHNfY2xvc2VkX3Rocm91Z2hfZml4ZWRfZ3JhbW1hcl9ib3VuZGFyeSgpIHsKJycnCmFkZGl0aW9uID0gcicnJyNbdGVzdF0KZm4gc3VwYWJhc2Vfbm9uX2VudHJ5X2ZpbGVfaXNfYW5fZXhwbGljaXRfdW5zdXBwb3J0ZWRfcm91dGVfZmlsZV9nYXAoKSB7CiAgICBsZXQgcmVzdWx0ID0gZXh0cmFjdF9yb3V0ZXMoCiAgICAgICAgUm91dGVBZGFwdGVyOjpTdXBhYmFzZUVkZ2UsCiAgICAgICAgU3RydWN0dXJhbExhbmd1YWdlOjpUeXBlU2NyaXB0LAogICAgICAgICZwYXRoKCJzdXBhYmFzZS9mdW5jdGlvbnMvcHJpdmF0ZS1kb2MvaGVscGVyLnRzIiksCiAgICAgICAgU1VQQUJBU0VfRURHRV9TQUZFLmFzX2J5dGVzKCksCiAgICAgICAgQnVzaW5lc3NMb2dpY0xpbWl0czo6ZGVmYXVsdCgpLAogICAgKQogICAgLmV4cGVjdCgicmVqZWN0IG5vbi1lbnRyeSBTdXBhYmFzZSBFZGdlIHNvdXJjZSBmaWxlIik7CgogICAgYXNzZXJ0IShyZXN1bHQucm91dGVzKCkuaXNfZW1wdHkoKSk7CiAgICBhc3NlcnQhKAogICAgICAgIHJlc3VsdAogICAgICAgICAgICAuZ2FwcygpCiAgICAgICAgICAgIC5pdGVyKCkKICAgICAgICAgICAgLmFueSh8Z2FwfCBnYXAucmVhc29uKCkgPT0gUm91dGVDb3ZlcmFnZUdhcFJlYXNvbjo6VW5zdXBwb3J0ZWRSb3V0ZUZpbGUpCiAgICApOwp9CgojW3Rlc3RdCmZuIG1hbGZvcm1lZF9zb3VyY2VfZmFpbHNfY2xvc2VkX3Rocm91Z2hfZml4ZWRfZ3JhbW1hcl9ib3VuZGFyeSgpIHsKJycnCmlmIHRleHQuY291bnQobWFya2VyKSAhPSAxOgogICAgcmFpc2UgU3lzdGVtRXhpdCgibWlzc2luZyBTdXBhYmFzZSByZWdyZXNzaW9uIGluc2VydGlvbiBtYXJrZXIiKQp0ZXN0cy53cml0ZV90ZXh0KHRleHQucmVwbGFjZShtYXJrZXIsIGFkZGl0aW9uKSwgZW5jb2Rpbmc9InV0Zi04IiwgbmV3bGluZT0iXG4iKQo=' | base64 --decode > /tmp/r3_t009_supabase_entry_fix.py
+          python3 /tmp/r3_t009_supabase_entry_fix.py
+
+      - name: Install pinned Rust toolchain
+        shell: bash
+        run: rustup toolchain install 1.98.0 --profile minimal --component rustfmt,clippy
+
+      - name: Format and verify focused candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo +1.98.0 fmt --all
+          git diff --check
+          cargo +1.98.0 test -p sentrdel-review --test r3_t009_route_extraction
+          cargo +1.98.0 clippy -p sentrdel-review --all-targets -- -D warnings
+
+      - name: Commit exact review fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add crates/sentrdel-review/src/business_logic/route.rs crates/sentrdel-review/tests/r3_t009_route_extraction.rs
+          git diff --cached --check
+          git commit -m "fix(r3): require Supabase Edge entry source identity"
+          git push origin HEAD:feat/r3-t009-bounded-route-extraction
