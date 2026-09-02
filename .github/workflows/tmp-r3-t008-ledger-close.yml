@@ -1,0 +1,48 @@
+name: Temporary R3 T008 Ledger Close
+
+on:
+  push:
+    branches:
+      - feat/r3-t008-typescript-structural-registry
+
+permissions:
+  contents: write
+
+jobs:
+  close-ledger:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout T008 branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: feat/r3-t008-typescript-structural-registry
+          fetch-depth: 0
+
+      - name: Close only R3-T008 candidate ledger entry
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('specs/003-business-logic-invariants/tasks.md')
+          text = path.read_text(encoding='utf-8')
+          old = '- [ ] **R3-T008** Extend the structural registry only for the language support canonical after R3-T007, preserving Sentrdel-owned rules, malformed-syntax failure, deterministic match ordering, document/rule/pattern caps and no repository-provided grammar/rule execution.'
+          new = old.replace('- [ ]', '- [x]', 1)
+          if text.count(old) != 1:
+              raise SystemExit('expected exactly one open R3-T008 ledger entry')
+          path.write_text(text.replace(old, new), encoding='utf-8', newline='\n')
+          PY
+          git diff --check
+          git diff -- specs/003-business-logic-invariants/tasks.md
+
+      - name: Commit T008 candidate closeout
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add specs/003-business-logic-invariants/tasks.md
+          git diff --cached --check
+          git commit -m "docs(r3): mark T008 candidate complete"
+          git push origin HEAD:feat/r3-t008-typescript-structural-registry
