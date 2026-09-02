@@ -28,41 +28,34 @@ jobs:
 
           route = Path('crates/sentrdel-review/src/business_logic/route.rs')
           text = route.read_text(encoding='utf-8')
-          old = """        if mask.get(cursor) == Some(&b'[') {
-              if let Some(close) = find_balanced(mask, cursor, b'[', b']') {
-                  let after = skip_mask_ws(mask, close + 1);
-                  if mask.get(after) == Some(&b'(') {
-                      let end = find_call_close(bytes, after).unwrap_or(after);
-                      builder.gap(
-                          RouteCoverageGapReason::DynamicRegistration,
-                          receiver_start,
-                          end.saturating_add(1),
-                      )?;
-                      index = end.saturating_add(1);
-                      continue;
-                  }
-              }
-          }
-          """
-          new = """        if mask.get(cursor) == Some(&b'[')
-              && let Some(close) = find_balanced(mask, cursor, b'[', b']')
-          {
-              let after = skip_mask_ws(mask, close + 1);
-              if mask.get(after) == Some(&b'(') {
-                  let end = find_call_close(bytes, after).unwrap_or(after);
-                  builder.gap(
-                      RouteCoverageGapReason::DynamicRegistration,
-                      receiver_start,
-                      end.saturating_add(1),
-                  )?;
-                  index = end.saturating_add(1);
-                  continue;
-              }
-          }
-          """
-          if text.count(old) != 1:
-              raise SystemExit('expected exactly one T009 collapsible-if block')
-          route.write_text(text.replace(old, new), encoding='utf-8', newline='\n')
+          lines = text.splitlines()
+          starts = [
+              i for i, line in enumerate(lines)
+              if line.strip() == "if mask.get(cursor) == Some(&b'[') {"
+              and i + 1 < len(lines)
+              and lines[i + 1].strip() == "if let Some(close) = find_balanced(mask, cursor, b'[', b']') {"
+          ]
+          if len(starts) != 1:
+              raise SystemExit(f'expected exactly one T009 collapsible-if opening, got {len(starts)}')
+          start = starts[0]
+          targets = [
+              i for i in range(start + 2, len(lines))
+              if lines[i].strip() == "if mask.get(cursor) != Some(&b'.') {"
+          ]
+          if len(targets) != 1:
+              raise SystemExit(f'expected exactly one T009 post-dynamic-registration target, got {len(targets)}')
+          target = targets[0]
+          closings = [i for i in range(start + 2, target) if lines[i].strip() == '}']
+          if len(closings) != 3:
+              raise SystemExit(f'expected exactly three closing braces in T009 block, got {len(closings)}')
+          del lines[closings[-2]]
+          indent = lines[start][:-len(lines[start].lstrip())]
+          lines[start:start + 2] = [
+              indent + "if mask.get(cursor) == Some(&b'[')",
+              indent + "    && let Some(close) = find_balanced(mask, cursor, b'[', b']')",
+              indent + "{",
+          ]
+          route.write_text('\n'.join(lines) + '\n', encoding='utf-8', newline='\n')
 
           tasks = Path('specs/003-business-logic-invariants/tasks.md')
           text = tasks.read_text(encoding='utf-8')
