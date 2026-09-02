@@ -390,7 +390,7 @@ fn extract_express(
         let method_end = parse_ident_end(mask, cursor);
         let registration = &source[cursor..method_end];
         let after_registration = skip_mask_ws(mask, method_end);
-        if registration.eq_ignore_ascii_case("use") && mask.get(after_registration) == Some(&b'(') {
+        if registration == "use" && mask.get(after_registration) == Some(&b'(') {
             let Some(call_end) = find_balanced(mask, after_registration, b'(', b')') else {
                 return Err(RouteExtractionError::Structural(
                     StructuralError::MalformedSyntax,

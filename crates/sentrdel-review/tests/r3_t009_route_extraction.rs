@@ -380,6 +380,21 @@ fn express_method_names_are_case_sensitive() {
 }
 
 #[test]
+fn express_middleware_registration_is_case_sensitive() {
+    let result = extract_routes(
+        RouteAdapter::Express,
+        StructuralLanguage::JavaScript,
+        &path("src/routes.js"),
+        b"app.USE('/not-express-middleware', handler);\nrouter.USE('/also-not-express-middleware', handler);\n",
+        BusinessLogicLimits::default(),
+    )
+    .expect("parse valid JavaScript");
+
+    assert!(result.routes().is_empty());
+    assert!(result.gaps().is_empty());
+}
+
+#[test]
 fn express_all_registrations_are_explicit_coverage_gaps() {
     let result = extract_routes(
         RouteAdapter::Express,
