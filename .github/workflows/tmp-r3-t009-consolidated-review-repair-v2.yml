@@ -1,0 +1,67 @@
+name: Temporary R3 T009 Consolidated Review Repair V2
+
+on:
+  push:
+    branches:
+      - aux/r3-t009-consolidated-review-repair
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository with auxiliary repair source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Capture patcher from auxiliary branch
+        run: |
+          set -euo pipefail
+          git show HEAD:.github/tmp-r3-t009-consolidated-review-repair.py > /tmp/r3_t009_repair.py
+
+      - name: Checkout exact T009 candidate branch
+        run: |
+          set -euo pipefail
+          git checkout --force feat/r3-t009-bounded-route-extraction
+          expected=ffd5d0ae7ebfe587f155a8c2915c70fee5088c23
+          test "$(git rev-parse HEAD)" = "$expected"
+          test "$(git rev-parse origin/feat/r3-t009-bounded-route-extraction)" = "$expected"
+
+      - name: Install pinned Rust toolchain
+        run: |
+          set -euo pipefail
+          rustup toolchain install 1.98.0 --profile minimal
+          rustup component add --toolchain 1.98.0 rustfmt clippy
+          rustup override set 1.98.0
+
+      - name: Apply bounded repair
+        run: |
+          set -euo pipefail
+          python /tmp/r3_t009_repair.py
+
+      - name: Format and focused qualification
+        run: |
+          set -euo pipefail
+          cargo +1.98.0 fmt --all
+          cargo +1.98.0 fmt --all -- --check
+          cargo +1.98.0 test -p sentrdel-review --test r3_t009_route_extraction
+          cargo +1.98.0 test -p sentrdel-review business_logic::model::tests::route_constructor_normalizes_and_caps_collections
+          cargo +1.98.0 clippy -p sentrdel-review --all-targets -- -D warnings
+
+      - name: Guard product-only delta and push
+        run: |
+          set -euo pipefail
+          mapfile -t changed < <(git diff --name-only)
+          printf '%s\n' "${changed[@]}"
+          test "${#changed[@]}" -eq 3
+          test "${changed[0]}" = "crates/sentrdel-review/src/business_logic/model.rs"
+          test "${changed[1]}" = "crates/sentrdel-review/src/business_logic/route.rs"
+          test "${changed[2]}" = "crates/sentrdel-review/tests/r3_t009_route_extraction.rs"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add crates/sentrdel-review/src/business_logic/model.rs crates/sentrdel-review/src/business_logic/route.rs crates/sentrdel-review/tests/r3_t009_route_extraction.rs
+          git commit -m 'fix(r3): close bounded route extraction review gaps'
+          git push origin HEAD:feat/r3-t009-bounded-route-extraction
