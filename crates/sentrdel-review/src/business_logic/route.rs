@@ -927,73 +927,14 @@ fn find_balanced(mask: &[u8], open: usize, open_byte: u8, close_byte: u8) -> Opt
 }
 
 fn code_mask(language: StructuralLanguage, source: &str) -> Result<Vec<u8>, StructuralError> {
-    let bytes = source.as_bytes();
-    let mut mask = bytes.to_vec();
-    let regex_ranges = regex_literal_ranges(language, source)?;
-    let mut regex_index = 0usize;
-    let mut index = 0usize;
-    while index < bytes.len() {
-        if let Some(&(start, end)) = regex_ranges.get(regex_index)
-            && start == index
-        {
-            mask[start..end].fill(b' ');
-            regex_index += 1;
-            index = end;
-            continue;
-        }
-
-        match bytes[index] {
-            b'\'' | b'"' | b'`' => {
-                let quote = bytes[index];
-                mask[index] = b' ';
-                index += 1;
-                while index < bytes.len() {
-                    mask[index] = b' ';
-                    if bytes[index] == b'\\' {
-                        index += 1;
-                        if index < bytes.len() {
-                            mask[index] = b' ';
-                            index += 1;
-                        }
-                        continue;
-                    }
-                    if bytes[index] == quote {
-                        index += 1;
-                        break;
-                    }
-                    index += 1;
-                }
-            }
-            b'/' if bytes.get(index + 1) == Some(&b'/') => {
-                mask[index] = b' ';
-                mask[index + 1] = b' ';
-                index += 2;
-                while index < bytes.len() && bytes[index] != b'\n' {
-                    mask[index] = b' ';
-                    index += 1;
-                }
-            }
-            b'/' if bytes.get(index + 1) == Some(&b'*') => {
-                mask[index] = b' ';
-                mask[index + 1] = b' ';
-                index += 2;
-                while index < bytes.len() {
-                    mask[index] = b' ';
-                    if bytes.get(index) == Some(&b'*') && bytes.get(index + 1) == Some(&b'/') {
-                        mask[index + 1] = b' ';
-                        index += 2;
-                        break;
-                    }
-                    index += 1;
-                }
-            }
-            _ => index += 1,
-        }
+    let mut mask = source.as_bytes().to_vec();
+    for (start, end) in non_code_ranges(language, source)? {
+        mask[start..end].fill(b' ');
     }
     Ok(mask)
 }
 
-fn regex_literal_ranges(
+fn non_code_ranges(
     language: StructuralLanguage,
     source: &str,
 ) -> Result<Vec<(usize, usize)>, StructuralError> {
@@ -1006,15 +947,19 @@ fn regex_literal_ranges(
         .set_language(&parser_language)
         .map_err(|error| StructuralError::ParseFailed(error.to_string()))?;
     let tree = parser.parse(source, None).ok_or_else(|| {
-        StructuralError::ParseFailed("route regex parser returned no syntax tree".to_owned())
+        StructuralError::ParseFailed("route mask parser returned no syntax tree".to_owned())
     })?;
 
     let mut ranges = Vec::new();
     let mut cursor = tree.root_node().walk();
     loop {
         let node = cursor.node();
-        if node.kind() == "regex" {
-            ranges.push((node.start_byte(), node.end_byte()));
+        match node.kind() {
+            "string" | "comment" | "regex" => {
+                ranges.push((node.start_byte(), node.end_byte()));
+            }
+            "template_string" => push_template_literal_ranges(node, &mut ranges),
+            _ => {}
         }
         if cursor.goto_first_child() {
             continue;
@@ -1024,11 +969,50 @@ fn regex_literal_ranges(
                 break;
             }
             if !cursor.goto_parent() {
-                ranges.sort_unstable();
-                return Ok(ranges);
+                return Ok(merge_mask_ranges(ranges));
             }
         }
     }
+}
+
+fn push_template_literal_ranges(node: tree_sitter::Node<'_>, ranges: &mut Vec<(usize, usize)>) {
+    let mut visible_end = node.start_byte();
+    let mut cursor = node.walk();
+    if cursor.goto_first_child() {
+        loop {
+            let child = cursor.node();
+            if child.kind() == "template_substitution" {
+                if visible_end < child.start_byte() {
+                    ranges.push((visible_end, child.start_byte()));
+                }
+                visible_end = child.end_byte();
+            }
+            if !cursor.goto_next_sibling() {
+                break;
+            }
+        }
+    }
+    if visible_end < node.end_byte() {
+        ranges.push((visible_end, node.end_byte()));
+    }
+}
+
+fn merge_mask_ranges(mut ranges: Vec<(usize, usize)>) -> Vec<(usize, usize)> {
+    ranges.sort_unstable();
+    let mut merged: Vec<(usize, usize)> = Vec::with_capacity(ranges.len());
+    for (start, end) in ranges {
+        if start >= end {
+            continue;
+        }
+        if let Some(last) = merged.last_mut()
+            && start <= last.1
+        {
+            last.1 = last.1.max(end);
+            continue;
+        }
+        merged.push((start, end));
+    }
+    merged
 }
 
 fn find_word(mask: &[u8], word: &[u8], from: usize) -> Option<usize> {

@@ -346,6 +346,26 @@ fn division_after_function_expression_keeps_real_route_visible() {
 }
 
 #[test]
+fn template_literal_text_cannot_mint_routes_but_substitutions_remain_executable() {
+    let source = br#"
+const inert = `app.get('/template-fake', handler)`;
+const evaluated = `${app.get('/template-real', handler)}`;
+"#;
+    let result = extract_routes(
+        RouteAdapter::Express,
+        StructuralLanguage::JavaScript,
+        &path("src/template.js"),
+        source,
+        BusinessLogicLimits::default(),
+    )
+    .expect("preserve executable template substitution while masking literal text");
+
+    assert_eq!(result.routes().len(), 1);
+    assert_eq!(result.routes()[0].route_pattern(), "/template-real");
+    assert!(result.gaps().is_empty());
+}
+
+#[test]
 fn express_use_middleware_is_explicit_coverage_gap() {
     let source =
         b"app.use('/admin', authenticationMiddleware);\nrouter.use('/tenant', tenantMiddleware);\n";
