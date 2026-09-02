@@ -93,7 +93,9 @@ fn next_app_auth_session_role_and_route_param_are_static_only() {
             && actor.source_kind() == ActorSourceKind::RequestParam
             && actor.semantic_key() == "context.params.id"
     }));
-    assert!(!STATIC_AUTH_RECOGNITION_PROVES_RUNTIME_IDENTITY);
+    const {
+        assert!(!STATIC_AUTH_RECOGNITION_PROVES_RUNTIME_IDENTITY);
+    }
 }
 
 #[test]
