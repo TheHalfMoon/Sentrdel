@@ -366,6 +366,84 @@ const evaluated = `${app.get('/template-real', handler)}`;
 }
 
 #[test]
+fn express_method_names_are_case_sensitive() {
+    let result = extract_routes(
+        RouteAdapter::Express,
+        StructuralLanguage::JavaScript,
+        &path("src/routes.js"),
+        b"app.GET('/not-express-get', handler);",
+        BusinessLogicLimits::default(),
+    )
+    .expect("parse valid JavaScript");
+
+    assert!(result.routes().is_empty());
+}
+
+#[test]
+fn next_app_http_method_exports_require_canonical_uppercase_names() {
+    let result = extract_routes(
+        RouteAdapter::NextApp,
+        StructuralLanguage::JavaScript,
+        &path("app/api/example/route.js"),
+        b"export function get() { return new Response('x'); }",
+        BusinessLogicLimits::default(),
+    )
+    .expect("parse valid JavaScript");
+
+    assert!(result.routes().is_empty());
+    assert!(
+        result
+            .gaps()
+            .iter()
+            .any(|gap| gap.reason() == RouteCoverageGapReason::UnsupportedHandlerExport)
+    );
+}
+
+#[test]
+fn conditional_callback_expression_is_partial_not_a_direct_inline_handler() {
+    let result = extract_routes(
+        RouteAdapter::Express,
+        StructuralLanguage::JavaScript,
+        &path("src/routes.js"),
+        b"app.get('/conditional', enabled ? (() => handlerA()) : handlerB);",
+        BusinessLogicLimits::default(),
+    )
+    .expect("parse valid JavaScript");
+
+    assert_eq!(result.routes().len(), 1);
+    assert_eq!(result.routes()[0].method(), HttpMethod::Get);
+    assert_eq!(result.routes()[0].coverage_state(), &CoverageState::Partial);
+    assert!(
+        result
+            .gaps()
+            .iter()
+            .any(|gap| gap.reason() == RouteCoverageGapReason::UnresolvedCallback)
+    );
+}
+
+#[test]
+fn deno_serve_two_argument_overload_uses_second_argument_as_handler() {
+    let result = extract_routes(
+        RouteAdapter::SupabaseEdge,
+        StructuralLanguage::TypeScript,
+        &path("supabase/functions/example/index.ts"),
+        b"const options = { port: 8080 }; const handler = (req: Request) => new Response('ok'); Deno.serve(options, handler);",
+        BusinessLogicLimits::default(),
+    )
+    .expect("parse valid TypeScript");
+
+    assert_eq!(result.routes().len(), 1);
+    assert_eq!(result.routes()[0].handler_semantic_key(), Some("handler"));
+    assert_eq!(result.routes()[0].coverage_state(), &CoverageState::Partial);
+    assert!(
+        result
+            .gaps()
+            .iter()
+            .any(|gap| gap.reason() == RouteCoverageGapReason::MethodNotStaticallyBound)
+    );
+}
+
+#[test]
 fn express_use_middleware_is_explicit_coverage_gap() {
     let source =
         b"app.use('/admin', authenticationMiddleware);\nrouter.use('/tenant', tenantMiddleware);\n";

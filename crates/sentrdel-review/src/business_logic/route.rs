@@ -404,7 +404,7 @@ fn extract_express(
             index = call_end + 1;
             continue;
         }
-        let Some(method) = parse_http_method(registration) else {
+        let Some(method) = parse_express_http_method(registration) else {
             index = method_end;
             continue;
         };
@@ -449,7 +449,7 @@ fn extract_express(
                 });
             }
             for (start, end) in callbacks {
-                if let Some(key) = callback_key(source, start, end) {
+                if let Some(key) = callback_key(source, mask, start, end) {
                     callback_keys.push(key);
                 } else {
                     partial = true;
@@ -511,7 +511,7 @@ fn extract_next_app(
             cursor = skip_mask_ws(mask, word_end.expect("function end"));
             if let Some(name_end) = parse_ident_end_if_any(mask, cursor) {
                 let name = &source[cursor..name_end];
-                if let Some(method) = parse_http_method(name) {
+                if let Some(method) = parse_next_http_method(name) {
                     let callback_keys = vec![name.to_owned()];
                     builder.route(
                         method,
@@ -530,7 +530,7 @@ fn extract_next_app(
             cursor = skip_mask_ws(mask, word_end.expect("const end"));
             if let Some(name_end) = parse_ident_end_if_any(mask, cursor) {
                 let name = &source[cursor..name_end];
-                if let Some(method) = parse_http_method(name) {
+                if let Some(method) = parse_next_http_method(name) {
                     let mut rhs = skip_mask_ws(mask, name_end);
                     if mask.get(rhs) == Some(&b'=') {
                         rhs = skip_mask_ws(mask, rhs + 1);
@@ -700,9 +700,11 @@ fn extract_supabase_edge(
             ));
         };
         let args = split_top_level_args(source, mask, call_start + 1, call_end);
-        let callback = args
-            .first()
-            .and_then(|(start, end)| callback_key(source, *start, *end));
+        let callback = match args.as_slice() {
+            [(start, end)] => callback_key(source, mask, *start, *end),
+            [_, (start, end)] => callback_key(source, mask, *start, *end),
+            _ => None,
+        };
         match callback {
             Some(handler_key) => {
                 let callbacks = vec![handler_key.clone()];
@@ -754,8 +756,8 @@ fn method_identity(method: HttpMethod) -> &'static str {
     }
 }
 
-fn parse_http_method(value: &str) -> Option<HttpMethod> {
-    match value.to_ascii_lowercase().as_str() {
+fn parse_express_http_method(value: &str) -> Option<HttpMethod> {
+    match value {
         "get" => Some(HttpMethod::Get),
         "post" => Some(HttpMethod::Post),
         "put" => Some(HttpMethod::Put),
@@ -763,6 +765,19 @@ fn parse_http_method(value: &str) -> Option<HttpMethod> {
         "delete" => Some(HttpMethod::Delete),
         "options" => Some(HttpMethod::Options),
         "head" => Some(HttpMethod::Head),
+        _ => None,
+    }
+}
+
+fn parse_next_http_method(value: &str) -> Option<HttpMethod> {
+    match value {
+        "GET" => Some(HttpMethod::Get),
+        "POST" => Some(HttpMethod::Post),
+        "PUT" => Some(HttpMethod::Put),
+        "PATCH" => Some(HttpMethod::Patch),
+        "DELETE" => Some(HttpMethod::Delete),
+        "OPTIONS" => Some(HttpMethod::Options),
+        "HEAD" => Some(HttpMethod::Head),
         _ => None,
     }
 }
@@ -815,13 +830,12 @@ fn supabase_function_name(path: &str) -> Option<&str> {
     }
 }
 
-fn callback_key(source: &str, start: usize, end: usize) -> Option<String> {
+fn callback_key(source: &str, mask: &[u8], start: usize, end: usize) -> Option<String> {
     let value = source.get(start..end)?.trim();
     if value.is_empty() || value.starts_with("...") {
         return None;
     }
-    if value.contains("=>") || value.starts_with("function") || value.starts_with("async function")
-    {
+    if looks_like_function_value(mask, start) {
         return Some(format!("inline@{start}"));
     }
     if value
