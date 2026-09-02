@@ -380,6 +380,27 @@ fn express_method_names_are_case_sensitive() {
 }
 
 #[test]
+fn express_all_registrations_are_explicit_coverage_gaps() {
+    let result = extract_routes(
+        RouteAdapter::Express,
+        StructuralLanguage::JavaScript,
+        &path("src/routes.js"),
+        b"app.all('/admin', handler);\nrouter.all('/tenant', handler);\n",
+        BusinessLogicLimits::default(),
+    )
+    .expect("classify Express all registrations");
+
+    assert!(result.routes().is_empty());
+    assert_eq!(result.gaps().len(), 2);
+    assert!(
+        result
+            .gaps()
+            .iter()
+            .all(|gap| gap.reason() == RouteCoverageGapReason::MethodNotStaticallyBound)
+    );
+}
+
+#[test]
 fn next_app_http_method_exports_require_canonical_uppercase_names() {
     let result = extract_routes(
         RouteAdapter::NextApp,

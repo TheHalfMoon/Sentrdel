@@ -404,6 +404,20 @@ fn extract_express(
             index = call_end + 1;
             continue;
         }
+        if registration == "all" && mask.get(after_registration) == Some(&b'(') {
+            let Some(call_end) = find_balanced(mask, after_registration, b'(', b')') else {
+                return Err(RouteExtractionError::Structural(
+                    StructuralError::MalformedSyntax,
+                ));
+            };
+            builder.gap(
+                RouteCoverageGapReason::MethodNotStaticallyBound,
+                receiver_start,
+                call_end + 1,
+            )?;
+            index = call_end + 1;
+            continue;
+        }
         let Some(method) = parse_express_http_method(registration) else {
             index = method_end;
             continue;
