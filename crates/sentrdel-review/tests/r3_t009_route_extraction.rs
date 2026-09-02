@@ -330,6 +330,22 @@ fn regex_literal_after_control_flow_condition_cannot_mint_route() {
 }
 
 #[test]
+fn division_after_function_expression_keeps_real_route_visible() {
+    let source = b"const ratio = function () {} / app.get('/registered', handler);\n";
+    let result = extract_routes(
+        RouteAdapter::Express,
+        StructuralLanguage::JavaScript,
+        &path("src/division.js"),
+        source,
+        BusinessLogicLimits::default(),
+    )
+    .expect("preserve route registration used as division operand");
+
+    assert_eq!(result.routes().len(), 1);
+    assert_eq!(result.routes()[0].route_pattern(), "/registered");
+}
+
+#[test]
 fn express_use_middleware_is_explicit_coverage_gap() {
     let source =
         b"app.use('/admin', authenticationMiddleware);\nrouter.use('/tenant', tenantMiddleware);\n";

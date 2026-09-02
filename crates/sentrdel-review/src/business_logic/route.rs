@@ -177,7 +177,7 @@ pub fn extract_routes(
     let source = std::str::from_utf8(source).map_err(|_| StructuralError::NonUtf8Source)?;
     let digest =
         content_id("r3-route-source", &(path.as_str(), source)).map_err(ModelError::from)?;
-    let mask = code_mask(source);
+    let mask = code_mask(language, source)?;
 
     let mut builder = ExtractionBuilder::new(adapter, path, digest, limits);
     match adapter {
@@ -926,11 +926,22 @@ fn find_balanced(mask: &[u8], open: usize, open_byte: u8, close_byte: u8) -> Opt
     None
 }
 
-fn code_mask(source: &str) -> Vec<u8> {
+fn code_mask(language: StructuralLanguage, source: &str) -> Result<Vec<u8>, StructuralError> {
     let bytes = source.as_bytes();
     let mut mask = bytes.to_vec();
-    let mut index = 0;
+    let regex_ranges = regex_literal_ranges(language, source)?;
+    let mut regex_index = 0usize;
+    let mut index = 0usize;
     while index < bytes.len() {
+        if let Some(&(start, end)) = regex_ranges.get(regex_index)
+            && start == index
+        {
+            mask[start..end].fill(b' ');
+            regex_index += 1;
+            index = end;
+            continue;
+        }
+
         match bytes[index] {
             b'\'' | b'"' | b'`' => {
                 let quote = bytes[index];
@@ -976,149 +987,48 @@ fn code_mask(source: &str) -> Vec<u8> {
                     index += 1;
                 }
             }
-            b'/' if regex_literal_can_start(&mask, index) => {
-                let end = regex_literal_end(bytes, index).unwrap_or(bytes.len());
-                mask[index..end].fill(b' ');
-                index = end;
-            }
             _ => index += 1,
         }
     }
-    mask
+    Ok(mask)
 }
 
-fn regex_literal_can_start(code: &[u8], index: usize) -> bool {
-    let Some(previous) = (0..index)
-        .rev()
-        .find(|candidate| !code[*candidate].is_ascii_whitespace())
-    else {
-        return true;
+fn regex_literal_ranges(
+    language: StructuralLanguage,
+    source: &str,
+) -> Result<Vec<(usize, usize)>, StructuralError> {
+    let parser_language: tree_sitter::Language = match language {
+        StructuralLanguage::JavaScript => tree_sitter_javascript::LANGUAGE.into(),
+        StructuralLanguage::TypeScript => tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into(),
     };
+    let mut parser = tree_sitter::Parser::new();
+    parser
+        .set_language(&parser_language)
+        .map_err(|error| StructuralError::ParseFailed(error.to_string()))?;
+    let tree = parser.parse(source, None).ok_or_else(|| {
+        StructuralError::ParseFailed("route regex parser returned no syntax tree".to_owned())
+    })?;
 
-    if matches!(
-        code[previous],
-        b'(' | b','
-            | b'='
-            | b':'
-            | b';'
-            | b'!'
-            | b'&'
-            | b'|'
-            | b'?'
-            | b'{'
-            | b'}'
-            | b'['
-            | b'+'
-            | b'-'
-            | b'*'
-            | b'%'
-            | b'~'
-            | b'^'
-            | b'<'
-            | b'>'
-    ) {
-        return true;
-    }
-    if code[previous] == b')' && control_flow_close_allows_regex(code, previous) {
-        return true;
-    }
-    if !is_ident_continue(code[previous]) {
-        return false;
-    }
-
-    let end = previous + 1;
-    let mut start = previous;
-    while start > 0 && is_ident_continue(code[start - 1]) {
-        start -= 1;
-    }
-    let keyword = &code[start..end];
-    keyword == b"return"
-        || keyword == b"throw"
-        || keyword == b"case"
-        || keyword == b"delete"
-        || keyword == b"void"
-        || keyword == b"typeof"
-        || keyword == b"instanceof"
-        || keyword == b"in"
-        || keyword == b"of"
-        || keyword == b"yield"
-        || keyword == b"await"
-        || keyword == b"new"
-        || keyword == b"else"
-        || keyword == b"do"
-}
-
-fn control_flow_close_allows_regex(code: &[u8], close: usize) -> bool {
-    let mut depth = 1usize;
-    let mut cursor = close;
-    while cursor > 0 {
-        cursor -= 1;
-        match code[cursor] {
-            b')' => depth += 1,
-            b'(' => {
-                depth -= 1;
-                if depth == 0 {
-                    return preceding_control_flow_keyword(code, cursor);
-                }
+    let mut ranges = Vec::new();
+    let mut cursor = tree.root_node().walk();
+    loop {
+        let node = cursor.node();
+        if node.kind() == "regex" {
+            ranges.push((node.start_byte(), node.end_byte()));
+        }
+        if cursor.goto_first_child() {
+            continue;
+        }
+        loop {
+            if cursor.goto_next_sibling() {
+                break;
             }
-            _ => {}
+            if !cursor.goto_parent() {
+                ranges.sort_unstable();
+                return Ok(ranges);
+            }
         }
     }
-    false
-}
-
-fn preceding_control_flow_keyword(code: &[u8], open: usize) -> bool {
-    let Some(previous) = (0..open)
-        .rev()
-        .find(|candidate| !code[*candidate].is_ascii_whitespace())
-    else {
-        return false;
-    };
-    if !is_ident_continue(code[previous]) {
-        return false;
-    }
-
-    let end = previous + 1;
-    let mut start = previous;
-    while start > 0 && is_ident_continue(code[start - 1]) {
-        start -= 1;
-    }
-    matches!(
-        &code[start..end],
-        b"if" | b"while" | b"for" | b"with" | b"switch" | b"catch"
-    )
-}
-
-fn regex_literal_end(bytes: &[u8], start: usize) -> Option<usize> {
-    if bytes.get(start) != Some(&b'/') {
-        return None;
-    }
-
-    let mut index = start + 1;
-    let mut in_character_class = false;
-    while index < bytes.len() {
-        match bytes[index] {
-            b'\\' => index = index.saturating_add(2),
-            b'[' if !in_character_class => {
-                in_character_class = true;
-                index += 1;
-            }
-            b']' if in_character_class => {
-                in_character_class = false;
-                index += 1;
-            }
-            b'/' if !in_character_class => {
-                index += 1;
-                while index < bytes.len() && bytes[index].is_ascii_alphabetic() {
-                    index += 1;
-                }
-                return Some(index);
-            }
-            b'\n' | b'\r' => return None,
-            _ => index += 1,
-        }
-    }
-    None
 }
 
 fn find_word(mask: &[u8], word: &[u8], from: usize) -> Option<usize> {
