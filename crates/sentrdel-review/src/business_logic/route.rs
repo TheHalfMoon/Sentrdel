@@ -566,7 +566,21 @@ fn extract_next_pages(
         )?;
         return Ok(());
     };
-    let Some(export_start) = find_word(mask, b"export", 0) else {
+
+    let mut search_index = 0usize;
+    let mut default_export = None;
+    while let Some(export_start) = find_word(mask, b"export", search_index) {
+        let cursor = skip_mask_ws(mask, export_start + "export".len());
+        if let Some(default_end) = parse_ident_end_if_any(mask, cursor)
+            && &source[cursor..default_end] == "default"
+        {
+            default_export = Some((export_start, skip_mask_ws(mask, default_end)));
+            break;
+        }
+        search_index = export_start + "export".len();
+    }
+
+    let Some((export_start, value_start)) = default_export else {
         builder.gap(
             RouteCoverageGapReason::UnsupportedHandlerExport,
             0,
@@ -574,53 +588,36 @@ fn extract_next_pages(
         )?;
         return Ok(());
     };
-    let mut cursor = skip_mask_ws(mask, export_start + "export".len());
-    let Some(default_end) = parse_ident_end_if_any(mask, cursor) else {
+
+    if !looks_like_function_value(mask, value_start) {
         builder.gap(
             RouteCoverageGapReason::UnsupportedHandlerExport,
             export_start,
             source.len(),
         )?;
         return Ok(());
-    };
-    if &source[cursor..default_end] != "default" {
-        builder.gap(
-            RouteCoverageGapReason::UnsupportedHandlerExport,
-            export_start,
-            default_end,
-        )?;
-        return Ok(());
     }
-    cursor = skip_mask_ws(mask, default_end);
+
+    let mut cursor = value_start;
     if let Some(async_end) = parse_ident_end_if_any(mask, cursor)
         && &source[cursor..async_end] == "async"
     {
         cursor = skip_mask_ws(mask, async_end);
     }
 
-    let mut handler_key = None;
-    if let Some(token_end) = parse_ident_end_if_any(mask, cursor) {
-        let token = &source[cursor..token_end];
-        if token == "function" {
+    let handler_key = if let Some(token_end) = parse_ident_end_if_any(mask, cursor) {
+        if &source[cursor..token_end] == "function" {
             cursor = skip_mask_ws(mask, token_end);
-            handler_key = parse_ident_end_if_any(mask, cursor)
-                .map(|end| source[cursor..end].to_owned())
-                .or_else(|| Some(format!("inline@{export_start}")));
+            parse_ident_end_if_any(mask, cursor)
+                .map(|handler_end| source[cursor..handler_end].to_owned())
+                .unwrap_or_else(|| format!("inline@{export_start}"))
         } else {
-            handler_key = Some(token.to_owned());
+            format!("inline@{export_start}")
         }
-    } else if mask.get(cursor) == Some(&b'(') {
-        handler_key = Some(format!("inline@{export_start}"));
-    }
-
-    let Some(handler_key) = handler_key else {
-        builder.gap(
-            RouteCoverageGapReason::UnsupportedHandlerExport,
-            export_start,
-            source.len(),
-        )?;
-        return Ok(());
+    } else {
+        format!("inline@{export_start}")
     };
+
     let callbacks = vec![handler_key.clone()];
     builder.route(
         HttpMethod::OtherSupported,
@@ -988,6 +985,11 @@ fn code_mask(source: &str) -> Vec<u8> {
                     index += 1;
                 }
             }
+            b'/' if regex_literal_can_start(&mask, index) => {
+                let end = regex_literal_end(bytes, index).unwrap_or(bytes.len());
+                mask[index..end].fill(b' ');
+                index = end;
+            }
             _ => index += 1,
         }
     }
@@ -1027,6 +1029,97 @@ fn skip_literal_or_comment(bytes: &[u8], index: usize) -> Option<usize> {
             cursor += 1;
         }
         return Some(bytes.len());
+    }
+    if byte == b'/' && regex_literal_can_start(bytes, index) {
+        return Some(regex_literal_end(bytes, index).unwrap_or(bytes.len()));
+    }
+    None
+}
+
+fn regex_literal_can_start(code: &[u8], index: usize) -> bool {
+    let Some(previous) = (0..index)
+        .rev()
+        .find(|candidate| !code[*candidate].is_ascii_whitespace())
+    else {
+        return true;
+    };
+
+    if matches!(
+        code[previous],
+        b'(' | b','
+            | b'='
+            | b':'
+            | b';'
+            | b'!'
+            | b'&'
+            | b'|'
+            | b'?'
+            | b'{'
+            | b'}'
+            | b'['
+            | b'+'
+            | b'-'
+            | b'*'
+            | b'%'
+            | b'~'
+            | b'^'
+            | b'<'
+            | b'>'
+    ) {
+        return true;
+    }
+    if !is_ident_continue(code[previous]) {
+        return false;
+    }
+
+    let end = previous + 1;
+    let mut start = previous;
+    while start > 0 && is_ident_continue(code[start - 1]) {
+        start -= 1;
+    }
+    let keyword = &code[start..end];
+    keyword == b"return"
+        || keyword == b"throw"
+        || keyword == b"case"
+        || keyword == b"delete"
+        || keyword == b"void"
+        || keyword == b"typeof"
+        || keyword == b"instanceof"
+        || keyword == b"in"
+        || keyword == b"of"
+        || keyword == b"yield"
+        || keyword == b"await"
+        || keyword == b"new"
+}
+
+fn regex_literal_end(bytes: &[u8], start: usize) -> Option<usize> {
+    if bytes.get(start) != Some(&b'/') {
+        return None;
+    }
+
+    let mut index = start + 1;
+    let mut in_character_class = false;
+    while index < bytes.len() {
+        match bytes[index] {
+            b'\\' => index = index.saturating_add(2),
+            b'[' if !in_character_class => {
+                in_character_class = true;
+                index += 1;
+            }
+            b']' if in_character_class => {
+                in_character_class = false;
+                index += 1;
+            }
+            b'/' if !in_character_class => {
+                index += 1;
+                while index < bytes.len() && bytes[index].is_ascii_alphabetic() {
+                    index += 1;
+                }
+                return Some(index);
+            }
+            b'\n' | b'\r' => return None,
+            _ => index += 1,
+        }
     }
     None
 }

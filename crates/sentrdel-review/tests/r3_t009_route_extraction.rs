@@ -24,6 +24,9 @@ const DYNAMIC_UNSUPPORTED: &str = include_str!(
 const MALFORMED: &str = include_str!(
     "../../../fixtures/repos/r3-business-logic/adversarial/malformed-source/src/broken.js"
 );
+const REGEX_LITERAL_ROUTE_SHAPE: &str = include_str!(
+    "../../../fixtures/repos/r3-business-logic/adversarial/regex-literal/src/route-shaped.js"
+);
 
 fn path(value: &str) -> NormalizedRepoPath {
     NormalizedRepoPath::parse(value, 4_096).expect("normalized fixture path")
@@ -165,6 +168,49 @@ fn next_pages_default_handler_preserves_unknown_method_as_partial_coverage() {
 }
 
 #[test]
+fn next_pages_named_export_before_default_handler_is_supported() {
+    let source = b"export const config = { api: { bodyParser: false } };\nexport default async function handler(req, res) { return res.json({ ok: true }); }\n";
+    let result = extract_routes(
+        RouteAdapter::NextPagesApi,
+        StructuralLanguage::JavaScript,
+        &path("pages/api/configured.js"),
+        source,
+        BusinessLogicLimits::default(),
+    )
+    .expect("find supported default handler after named export");
+
+    assert_eq!(result.routes().len(), 1);
+    assert_eq!(result.routes()[0].handler_semantic_key(), Some("handler"));
+    assert!(
+        result
+            .gaps()
+            .iter()
+            .any(|gap| gap.reason() == RouteCoverageGapReason::MethodNotStaticallyBound)
+    );
+}
+
+#[test]
+fn next_pages_non_function_default_export_is_an_explicit_gap() {
+    let source = b"export const config = { api: { bodyParser: false } };\nconst configuration = { enabled: true };\nexport default configuration;\n";
+    let result = extract_routes(
+        RouteAdapter::NextPagesApi,
+        StructuralLanguage::JavaScript,
+        &path("pages/api/configuration.js"),
+        source,
+        BusinessLogicLimits::default(),
+    )
+    .expect("classify non-function default export");
+
+    assert!(result.routes().is_empty());
+    assert!(
+        result
+            .gaps()
+            .iter()
+            .any(|gap| gap.reason() == RouteCoverageGapReason::UnsupportedHandlerExport)
+    );
+}
+
+#[test]
 fn supabase_edge_deno_serve_is_bounded_and_method_partial() {
     let result = extract_routes(
         RouteAdapter::SupabaseEdge,
@@ -244,6 +290,27 @@ export const value = 1;
 
     assert!(result.routes().is_empty());
     assert!(result.gaps().is_empty());
+}
+
+#[test]
+fn regex_literals_cannot_mint_routes_or_unbalance_callbacks() {
+    let result = extract_routes(
+        RouteAdapter::Express,
+        StructuralLanguage::JavaScript,
+        &path("src/route-shaped.js"),
+        REGEX_LITERAL_ROUTE_SHAPE.as_bytes(),
+        BusinessLogicLimits::default(),
+    )
+    .expect("mask route-shaped regex literal");
+
+    assert_eq!(result.routes().len(), 1);
+    assert_eq!(result.routes()[0].route_pattern(), "/real");
+    assert!(
+        !result
+            .routes()
+            .iter()
+            .any(|route| route.route_pattern() == "x")
+    );
 }
 
 #[test]
