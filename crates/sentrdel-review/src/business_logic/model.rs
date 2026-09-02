@@ -388,7 +388,8 @@ impl RouteObservation {
             method,
             route_pattern,
             handler_semantic_key,
-            callback_chain: normalize_semantic_ids(callback_chain, limits)?,
+            // Callback chains are execution-order sequences, not set-like related IDs.
+            callback_chain: preserve_semantic_id_sequence(callback_chain, limits)?,
             provenance: normalize_provenance(provenance, limits)?,
             coverage_state,
         })
@@ -1643,6 +1644,15 @@ fn enforce_collection_cap(field: &'static str, count: usize, max: usize) -> Resu
     Ok(())
 }
 
+fn preserve_semantic_id_sequence(
+    values: Vec<StableSemanticId>,
+    limits: BusinessLogicLimits,
+) -> Result<Vec<StableSemanticId>, ModelError> {
+    let limits = limits.validate()?;
+    validate_related_id_count(values.len(), limits)?;
+    Ok(values)
+}
+
 pub(crate) fn normalize_semantic_ids(
     mut values: Vec<StableSemanticId>,
     limits: BusinessLogicLimits,
@@ -1901,7 +1911,7 @@ mod tests {
     }
 
     #[test]
-    fn route_constructor_normalizes_and_caps_collections() {
+    fn route_constructor_preserves_callback_order_and_normalizes_provenance() {
         let limits = BusinessLogicLimits::default();
         let a = id("r3.callback", "a");
         let b = id("r3.callback", "b");
@@ -1921,7 +1931,10 @@ mod tests {
             limits,
         )
         .unwrap();
-        assert_eq!(route.callback_chain(), &[a, id("r3.callback", "b")]);
+        assert_eq!(
+            route.callback_chain(),
+            &[id("r3.callback", "b"), a, id("r3.callback", "b")]
+        );
         assert_eq!(route.provenance().len(), 2);
         assert!(route.provenance()[0].path() < route.provenance()[1].path());
 
