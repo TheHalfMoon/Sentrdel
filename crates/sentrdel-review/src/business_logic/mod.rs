@@ -3,6 +3,7 @@
 //! This module owns only static Evidence/Coverage inputs. It grants no Finding,
 //! policy, target-execution, provider-credential, network, or runtime authority.
 
+pub mod actor;
 pub mod invariant;
 pub mod model;
 pub mod ordering;
