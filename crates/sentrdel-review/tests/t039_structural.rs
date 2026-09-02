@@ -6,9 +6,15 @@ use sentrdel_review::view::NormalizedRepoPath;
 
 const EVAL_RULE: StructuralRule =
     StructuralRule::new("js.eval-call", StructuralLanguage::JavaScript, "eval($ARG)");
+const TS_EVAL_RULE: StructuralRule =
+    StructuralRule::new("ts.eval-call", StructuralLanguage::TypeScript, "eval($ARG)");
 
 fn path() -> NormalizedRepoPath {
     NormalizedRepoPath::parse("src/app.js", 128).unwrap()
+}
+
+fn typescript_path() -> NormalizedRepoPath {
+    NormalizedRepoPath::parse("src/app.ts", 128).unwrap()
 }
 
 #[test]
@@ -22,6 +28,32 @@ fn structural_registry_matches_sentrdel_owned_pattern_and_preserves_location() {
     assert_eq!(matches[0].language, StructuralLanguage::JavaScript);
     assert_eq!(matches[0].path.as_str(), "src/app.js");
     assert_eq!(&source[matches[0].byte_range.clone()], b"eval(userInput)");
+}
+
+#[test]
+fn typescript_scan_uses_qualified_grammar_and_filters_other_language_rules() {
+    let registry = StructuralRegistry::new(&[EVAL_RULE, TS_EVAL_RULE]).unwrap();
+    let source = b"const value: string = eval(userInput);\n";
+    let matches = registry
+        .scan_language(StructuralLanguage::TypeScript, &typescript_path(), source)
+        .unwrap();
+
+    assert_eq!(matches.len(), 1);
+    assert_eq!(matches[0].rule_id, "ts.eval-call");
+    assert_eq!(matches[0].language, StructuralLanguage::TypeScript);
+    assert_eq!(matches[0].path.as_str(), "src/app.ts");
+    assert_eq!(&source[matches[0].byte_range.clone()], b"eval(userInput)");
+}
+
+#[test]
+fn default_scan_remains_javascript_only() {
+    let registry = StructuralRegistry::new(&[TS_EVAL_RULE, EVAL_RULE]).unwrap();
+    let source = b"const value = eval(userInput);\n";
+    let matches = registry.scan(&path(), source).unwrap();
+
+    assert_eq!(matches.len(), 1);
+    assert_eq!(matches[0].rule_id, "js.eval-call");
+    assert_eq!(matches[0].language, StructuralLanguage::JavaScript);
 }
 
 #[test]
@@ -43,6 +75,19 @@ fn malformed_source_and_non_utf8_source_fail_closed() {
     assert!(matches!(
         registry.scan(&path(), &[0xff, 0xfe, 0xfd]),
         Err(StructuralError::NonUtf8Source)
+    ));
+}
+
+#[test]
+fn malformed_typescript_source_fails_closed() {
+    let registry = StructuralRegistry::new(&[TS_EVAL_RULE]).unwrap();
+    assert!(matches!(
+        registry.scan_language(
+            StructuralLanguage::TypeScript,
+            &typescript_path(),
+            b"const value: string = {"
+        ),
+        Err(StructuralError::MalformedSyntax)
     ));
 }
 
@@ -90,4 +135,30 @@ fn replay_and_rule_input_order_are_deterministic() {
     let b = second.scan(&path(), source).unwrap();
     assert_eq!(a, b);
     assert_eq!(a, first.scan(&path(), source).unwrap());
+}
+
+#[test]
+fn typescript_replay_and_rule_input_order_are_deterministic() {
+    const TS_CONSOLE_RULE: StructuralRule = StructuralRule::new(
+        "ts.console-call",
+        StructuralLanguage::TypeScript,
+        "console.log($ARG)",
+    );
+    let first = StructuralRegistry::new(&[TS_EVAL_RULE, TS_CONSOLE_RULE]).unwrap();
+    let second = StructuralRegistry::new(&[TS_CONSOLE_RULE, TS_EVAL_RULE]).unwrap();
+    let source = b"const value: string = eval(input);\nconsole.log(value);\n";
+
+    let a = first
+        .scan_language(StructuralLanguage::TypeScript, &typescript_path(), source)
+        .unwrap();
+    let b = second
+        .scan_language(StructuralLanguage::TypeScript, &typescript_path(), source)
+        .unwrap();
+    assert_eq!(a, b);
+    assert_eq!(
+        a,
+        first
+            .scan_language(StructuralLanguage::TypeScript, &typescript_path(), source)
+            .unwrap()
+    );
 }
