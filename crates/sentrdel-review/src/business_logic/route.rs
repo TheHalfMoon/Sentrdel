@@ -364,6 +364,28 @@ fn extract_express(
             continue;
         }
         let mut cursor = skip_mask_ws(mask, receiver_end);
+        if mask.get(cursor..cursor.saturating_add(2)) == Some(b"?.") {
+            let member_start = skip_mask_ws(mask, cursor + 2);
+            if let Some(member_end) = parse_ident_end_if_any(mask, member_start) {
+                let registration = &source[member_start..member_end];
+                let call_start = skip_mask_ws(mask, member_end);
+                if is_express_registration_name(registration) && mask.get(call_start) == Some(&b'(')
+                {
+                    let Some(call_end) = find_balanced(mask, call_start, b'(', b')') else {
+                        return Err(RouteExtractionError::Structural(
+                            StructuralError::MalformedSyntax,
+                        ));
+                    };
+                    builder.gap(
+                        RouteCoverageGapReason::DynamicRegistration,
+                        receiver_start,
+                        call_end + 1,
+                    )?;
+                    index = call_end + 1;
+                    continue;
+                }
+            }
+        }
         if mask.get(cursor) == Some(&b'[')
             && let Some(close) = find_balanced(mask, cursor, b'[', b']')
         {
@@ -405,7 +427,7 @@ fn extract_express(
             index = call_end + 1;
             continue;
         }
-        if registration == "use" && mask.get(after_registration) == Some(&b'(') {
+        if matches!(registration, "use" | "param") && mask.get(after_registration) == Some(&b'(') {
             let Some(call_end) = find_balanced(mask, after_registration, b'(', b')') else {
                 return Err(RouteExtractionError::Structural(
                     StructuralError::MalformedSyntax,
@@ -512,6 +534,31 @@ fn extract_express(
                 CoverageState::Covered
             },
         )?;
+        let suffix_dot = skip_mask_ws(mask, call_end + 1);
+        if mask.get(suffix_dot) == Some(&b'.') {
+            let member_start = skip_mask_ws(mask, suffix_dot + 1);
+            if let Some(member_end) = parse_ident_end_if_any(mask, member_start) {
+                let registration = &source[member_start..member_end];
+                let suffix_call_start = skip_mask_ws(mask, member_end);
+                if is_express_registration_name(registration)
+                    && mask.get(suffix_call_start) == Some(&b'(')
+                {
+                    let Some(suffix_call_end) = find_balanced(mask, suffix_call_start, b'(', b')')
+                    else {
+                        return Err(RouteExtractionError::Structural(
+                            StructuralError::MalformedSyntax,
+                        ));
+                    };
+                    builder.gap(
+                        RouteCoverageGapReason::DynamicRegistration,
+                        suffix_dot,
+                        suffix_call_end + 1,
+                    )?;
+                    index = suffix_call_end + 1;
+                    continue;
+                }
+            }
+        }
         index = call_end + 1;
     }
     Ok(())
@@ -588,6 +635,12 @@ fn extract_next_app(
                                 name_end,
                             )?;
                         }
+                    } else {
+                        builder.gap(
+                            RouteCoverageGapReason::UnsupportedHandlerExport,
+                            export_start,
+                            name_end,
+                        )?;
                     }
                 }
             }
@@ -870,6 +923,7 @@ fn identifier_is_binding(node: tree_sitter::Node<'_>) -> bool {
         | "optional_parameter"
         | "rest_pattern"
         | "import_specifier"
+        | "import_clause"
         | "namespace_import"
         | "shorthand_property_identifier_pattern" => true,
         _ => parent.parent().is_some_and(|grandparent| {
@@ -892,6 +946,10 @@ fn method_identity(method: HttpMethod) -> &'static str {
         HttpMethod::Head => "HEAD",
         HttpMethod::OtherSupported => "OTHER_SUPPORTED",
     }
+}
+
+fn is_express_registration_name(value: &str) -> bool {
+    parse_express_http_method(value).is_some() || matches!(value, "all" | "param" | "route" | "use")
 }
 
 fn parse_express_http_method(value: &str) -> Option<HttpMethod> {

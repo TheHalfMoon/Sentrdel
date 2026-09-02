@@ -819,6 +819,112 @@ fn shadowed_deno_binding_is_an_explicit_coverage_gap() {
 }
 
 #[test]
+fn express_param_callbacks_are_explicit_unsupported_middleware() {
+    let source = b"router.param('id', authorize); router.get('/users/:id', handler);";
+    let result = extract_routes(
+        RouteAdapter::Express,
+        StructuralLanguage::JavaScript,
+        &path("src/params.js"),
+        source,
+        BusinessLogicLimits::default(),
+    )
+    .expect("classify Express param callbacks");
+
+    assert_eq!(result.routes().len(), 1);
+    assert_eq!(result.routes()[0].route_pattern(), "/users/:id");
+    assert!(
+        result
+            .gaps()
+            .iter()
+            .any(|gap| gap.reason() == RouteCoverageGapReason::UnsupportedMiddleware)
+    );
+}
+
+#[test]
+fn optional_chained_express_registration_is_a_dynamic_gap() {
+    let result = extract_routes(
+        RouteAdapter::Express,
+        StructuralLanguage::JavaScript,
+        &path("src/optional.js"),
+        b"app?.get('/admin', handler);",
+        BusinessLogicLimits::default(),
+    )
+    .expect("classify optional Express registration");
+
+    assert!(result.routes().is_empty());
+    assert!(
+        result
+            .gaps()
+            .iter()
+            .any(|gap| gap.reason() == RouteCoverageGapReason::DynamicRegistration)
+    );
+}
+
+#[test]
+fn fluent_express_suffix_registration_is_a_dynamic_gap() {
+    let result = extract_routes(
+        RouteAdapter::Express,
+        StructuralLanguage::JavaScript,
+        &path("src/fluent.js"),
+        b"app.get('/a', first).post('/b', second);",
+        BusinessLogicLimits::default(),
+    )
+    .expect("classify fluent Express suffix");
+
+    assert_eq!(result.routes().len(), 1);
+    assert_eq!(result.routes()[0].route_pattern(), "/a");
+    assert!(
+        result
+            .gaps()
+            .iter()
+            .any(|gap| gap.reason() == RouteCoverageGapReason::DynamicRegistration)
+    );
+}
+
+#[test]
+fn next_app_typed_method_export_remains_visible_as_a_gap() {
+    let source = b"export function GET() { return new Response('get'); }\nexport const POST: RouteHandler = async () => new Response('post');\n";
+    let result = extract_routes(
+        RouteAdapter::NextApp,
+        StructuralLanguage::TypeScript,
+        &path("app/api/typed/route.ts"),
+        source,
+        BusinessLogicLimits::default(),
+    )
+    .expect("classify typed Next App method export");
+
+    assert_eq!(result.routes().len(), 1);
+    assert_eq!(result.routes()[0].method(), HttpMethod::Get);
+    assert!(
+        result
+            .gaps()
+            .iter()
+            .any(|gap| gap.reason() == RouteCoverageGapReason::UnsupportedHandlerExport)
+    );
+}
+
+#[test]
+fn default_imported_deno_binding_is_an_explicit_coverage_gap() {
+    let source = b"import Deno from './mock-runtime'; const handler = (req: Request) => new Response('ok'); Deno.serve(handler);";
+    let result = extract_routes(
+        RouteAdapter::SupabaseEdge,
+        StructuralLanguage::TypeScript,
+        &path("supabase/functions/import-shadow/index.ts"),
+        source,
+        BusinessLogicLimits::default(),
+    )
+    .expect("classify default-imported Deno binding");
+
+    assert!(result.routes().is_empty());
+    assert!(
+        result
+            .gaps()
+            .iter()
+            .any(|gap| gap.reason() == RouteCoverageGapReason::AmbiguousReceiverBinding)
+    );
+}
+
+#[test]
 fn deno_serve_non_function_literal_is_unresolved() {
     let result = extract_routes(
         RouteAdapter::SupabaseEdge,
