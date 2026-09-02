@@ -187,7 +187,7 @@ pub fn extract_actor_contexts(
             }
             "variable_declarator" => {
                 observe_constant(*node, source, &mut builder)?;
-                observe_unsupported_auth_binding(*node, source, &mut builder)?;
+                observe_unsupported_auth_binding(*node, source, adapter, &mut builder)?;
             }
             _ => {}
         }
@@ -520,7 +520,7 @@ fn observe_dynamic_subscript(
             ActorCoverageGapReason::DynamicAuthIdentity,
             format!("dynamic-auth@{}", node.start_byte()),
         )
-    } else if is_request_root(&root, adapter) {
+    } else if is_request_root(&root, adapter) || facts.request_body_bindings.contains(&root) {
         (
             ActorCoverageGapReason::DynamicRequestAccess,
             format!("dynamic-request@{}", node.start_byte()),
@@ -585,6 +585,7 @@ fn observe_constant(
 fn observe_unsupported_auth_binding(
     node: tree_sitter::Node<'_>,
     source: &str,
+    adapter: RouteAdapter,
     builder: &mut ActorBuilder<'_>,
 ) -> Result<(), ActorExtractionError> {
     let Some(name) = node.child_by_field_name("name") else {
@@ -597,7 +598,12 @@ fn observe_unsupported_auth_binding(
         return Ok(());
     };
     let value = unwrap_expression(value);
-    if !is_auth_call(value, source) && !is_supabase_get_user_call(value, source) {
+    let supported_auth_call = match adapter {
+        RouteAdapter::NextApp => is_auth_call(value, source),
+        RouteAdapter::SupabaseEdge => is_supabase_get_user_call(value, source),
+        RouteAdapter::Express | RouteAdapter::NextPagesApi => false,
+    };
+    if !supported_auth_call {
         return Ok(());
     }
     builder.gap(
