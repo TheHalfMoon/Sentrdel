@@ -463,17 +463,16 @@ fn verified_identity_kind(
     adapter: RouteAdapter,
     facts: &BindingFacts,
 ) -> Option<ActorIdentityKind> {
-    let field = if adapter == RouteAdapter::Express
+    let direct_user_chain = (adapter == RouteAdapter::Express
         && chain.first().map(String::as_str) == Some("req")
-        && chain.get(1).map(String::as_str) == Some("user")
-    {
-        chain.get(2).map(String::as_str)
-    } else if adapter == RouteAdapter::NextApp
-        && chain
-            .first()
-            .is_some_and(|root| facts.session_bindings.contains(root))
-        && chain.get(1).map(String::as_str) == Some("user")
-    {
+        && chain.get(1).map(String::as_str) == Some("user"))
+        || (adapter == RouteAdapter::NextApp
+            && chain
+                .first()
+                .is_some_and(|root| facts.session_bindings.contains(root))
+            && chain.get(1).map(String::as_str) == Some("user"));
+
+    let field = if direct_user_chain {
         chain.get(2).map(String::as_str)
     } else if chain
         .first()
@@ -648,11 +647,11 @@ fn is_request_json_call(node: tree_sitter::Node<'_>, source: &str, adapter: Rout
 
 fn unwrap_expression(mut node: tree_sitter::Node<'_>) -> tree_sitter::Node<'_> {
     loop {
-        if matches!(node.kind(), "await_expression" | "parenthesized_expression") {
-            if let Some(child) = node.named_child(0) {
-                node = child;
-                continue;
-            }
+        if matches!(node.kind(), "await_expression" | "parenthesized_expression")
+            && let Some(child) = node.named_child(0)
+        {
+            node = child;
+            continue;
         }
         return node;
     }
