@@ -270,3 +270,58 @@ fn equivalent_inputs_replay_deterministically() {
 
     assert_eq!(first, second);
 }
+
+#[test]
+fn qualified_express_receivers_cannot_mint_routes() {
+    let source =
+        b"client.app.get('/nested', handler); client?.router.post('/optional', handler);\n";
+    let result = extract_routes(
+        RouteAdapter::Express,
+        StructuralLanguage::JavaScript,
+        &path("src/nested.js"),
+        source,
+        BusinessLogicLimits::default(),
+    )
+    .expect("reject qualified Express receivers");
+    assert!(result.routes().is_empty());
+}
+
+#[test]
+fn next_app_non_function_export_does_not_search_later_statements() {
+    let source = b"export const GET = configuration;\nconst later = () => {};\n";
+    let result = extract_routes(
+        RouteAdapter::NextApp,
+        StructuralLanguage::JavaScript,
+        &path("app/api/example/route.js"),
+        source,
+        BusinessLogicLimits::default(),
+    )
+    .expect("reject non-function Next App handler export");
+    assert!(result.routes().is_empty());
+    assert!(
+        result
+            .gaps()
+            .iter()
+            .any(|gap| gap.reason() == RouteCoverageGapReason::UnsupportedHandlerExport)
+    );
+}
+
+#[test]
+fn qualified_deno_receiver_cannot_mint_supabase_edge_route() {
+    let source = b"runtime.Deno.serve(handler);\n";
+    let result = extract_routes(
+        RouteAdapter::SupabaseEdge,
+        StructuralLanguage::TypeScript,
+        &path("supabase/functions/nested/index.ts"),
+        source,
+        BusinessLogicLimits::default(),
+    )
+    .expect("reject qualified Deno receiver");
+    assert!(result.routes().is_empty());
+    assert!(
+        result
+            .gaps()
+            .iter()
+            .any(|gap| gap.reason() == RouteCoverageGapReason::UnsupportedHandlerExport)
+    );
+}

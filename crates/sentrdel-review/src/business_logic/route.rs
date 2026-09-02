@@ -357,6 +357,10 @@ fn extract_express(
             index = receiver_end;
             continue;
         }
+        if !is_unqualified_identifier(mask, receiver_start) {
+            index = receiver_end;
+            continue;
+        }
         let mut cursor = skip_mask_ws(mask, receiver_end);
         if mask.get(cursor) == Some(&b'[')
             && let Some(close) = find_balanced(mask, cursor, b'[', b']')
@@ -654,6 +658,10 @@ fn extract_supabase_edge(
     let mut index = 0;
     let mut found = false;
     while let Some(deno_start) = find_word(mask, b"Deno", index) {
+        if !is_unqualified_identifier(mask, deno_start) {
+            index = deno_start + "Deno".len();
+            continue;
+        }
         let mut cursor = skip_mask_ws(mask, deno_start + "Deno".len());
         if mask.get(cursor) != Some(&b'.') {
             index = deno_start + 1;
@@ -1046,13 +1054,31 @@ fn looks_like_function_value(mask: &[u8], mut index: usize) -> bool {
             return true;
         }
     }
-    if let Some(end) = parse_ident_end_if_any(mask, index)
-        && &mask[index..end] == b"function"
-    {
-        return true;
+    if let Some(end) = parse_ident_end_if_any(mask, index) {
+        if &mask[index..end] == b"function" {
+            return true;
+        }
+        let after = skip_mask_ws(mask, end);
+        return mask.get(after..after.saturating_add(2)) == Some(b"=>");
     }
-    let limit = mask.len().min(index.saturating_add(512));
-    mask[index..limit].windows(2).any(|window| window == b"=>")
+    if mask.get(index) == Some(&b'(')
+        && let Some(close) = find_balanced(mask, index, b'(', b')')
+    {
+        let after = skip_mask_ws(mask, close + 1);
+        return mask.get(after..after.saturating_add(2)) == Some(b"=>");
+    }
+    false
+}
+
+fn is_unqualified_identifier(mask: &[u8], start: usize) -> bool {
+    let mut index = start;
+    while index > 0 {
+        index -= 1;
+        if !mask[index].is_ascii_whitespace() {
+            return mask[index] != b'.';
+        }
+    }
+    true
 }
 
 fn parse_ident_end_if_any(mask: &[u8], start: usize) -> Option<usize> {
