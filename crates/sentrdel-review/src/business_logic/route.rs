@@ -1133,24 +1133,50 @@ fn express_binding_is_known_receiver(node: tree_sitter::Node<'_>, source: &str) 
     while let Some(current) = ancestor {
         match current.kind() {
             "function_declaration" | "generator_function_declaration" => {
-                return current
-                    .parent()
-                    .is_some_and(|parent| parent.kind() == "export_statement");
+                let Some(parameters) = current.child_by_field_name("parameters") else {
+                    return false;
+                };
+                let node_is_parameter = node.start_byte() >= parameters.start_byte()
+                    && node.end_byte() <= parameters.end_byte();
+                return node_is_parameter
+                    && current
+                        .parent()
+                        .is_some_and(|parent| parent.kind() == "export_statement");
             }
             "variable_declarator" => {
                 let Some(value) = current.child_by_field_name("value") else {
                     return false;
                 };
-                let value = source.get(value.byte_range()).unwrap_or_default();
-                return value.contains("express(")
-                    || value.contains("express.Router(")
-                    || value.contains(".Router(");
+                return is_bounded_express_factory_call(value, source);
             }
             "program" => return false,
             _ => ancestor = current.parent(),
         }
     }
     false
+}
+
+fn is_bounded_express_factory_call(value: tree_sitter::Node<'_>, source: &str) -> bool {
+    if value.kind() != "call_expression" {
+        return false;
+    }
+    let Some(function) = value.child_by_field_name("function") else {
+        return false;
+    };
+    match function.kind() {
+        "identifier" => source.get(function.byte_range()) == Some("express"),
+        "member_expression" => {
+            let Some(object) = function.child_by_field_name("object") else {
+                return false;
+            };
+            let Some(property) = function.child_by_field_name("property") else {
+                return false;
+            };
+            source.get(object.byte_range()) == Some("express")
+                && source.get(property.byte_range()) == Some("Router")
+        }
+        _ => false,
+    }
 }
 
 fn has_local_deno_binding(source: &str) -> Result<bool, StructuralError> {
