@@ -413,6 +413,59 @@ fn qualified_express_receivers_cannot_mint_routes() {
 }
 
 #[test]
+fn private_field_express_receiver_cannot_mint_route() {
+    let source = br#"
+class Routes {
+    #app;
+
+    install(handler) {
+        this.#app.get('/private-field', handler);
+    }
+}
+"#;
+    let result = extract_routes(
+        RouteAdapter::Express,
+        StructuralLanguage::JavaScript,
+        &path("src/private-field.js"),
+        source,
+        BusinessLogicLimits::default(),
+    )
+    .expect("reject private-field Express receiver");
+
+    assert!(result.routes().is_empty());
+    assert!(result.gaps().is_empty());
+}
+
+#[test]
+fn private_field_deno_receiver_cannot_mint_supabase_route() {
+    let source = br#"
+class Runtime {
+    #Deno;
+
+    install(handler) {
+        this.#Deno.serve(handler);
+    }
+}
+"#;
+    let result = extract_routes(
+        RouteAdapter::SupabaseEdge,
+        StructuralLanguage::TypeScript,
+        &path("supabase/functions/private-doc/index.ts"),
+        source,
+        BusinessLogicLimits::default(),
+    )
+    .expect("reject private-field Deno receiver");
+
+    assert!(result.routes().is_empty());
+    assert!(
+        result
+            .gaps()
+            .iter()
+            .any(|gap| gap.reason() == RouteCoverageGapReason::UnsupportedHandlerExport)
+    );
+}
+
+#[test]
 fn next_app_non_function_export_does_not_search_later_statements() {
     let source = b"export const GET = configuration;\nconst later = () => {};\n";
     let result = extract_routes(

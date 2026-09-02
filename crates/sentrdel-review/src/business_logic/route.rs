@@ -1165,7 +1165,7 @@ fn is_unqualified_identifier(mask: &[u8], start: usize) -> bool {
     while index > 0 {
         index -= 1;
         if !mask[index].is_ascii_whitespace() {
-            return mask[index] != b'.';
+            return !matches!(mask[index], b'.' | b'#');
         }
     }
     true
