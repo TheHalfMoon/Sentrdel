@@ -505,21 +505,26 @@ fn observe_dynamic_subscript(
     let Some(object) = node.child_by_field_name("object") else {
         return Ok(());
     };
-    let root = expression_chain(object, source)
+    let object_chain = expression_chain(object, source);
+    let root = object_chain
+        .as_ref()
         .and_then(|chain| chain.first().cloned())
         .or_else(|| node_text(object, source).map(str::to_owned));
     let Some(root) = root else {
         return Ok(());
     };
-    let (reason, semantic_key) = if is_request_root(&root, adapter) {
-        (
-            ActorCoverageGapReason::DynamicRequestAccess,
-            format!("dynamic-request@{}", node.start_byte()),
-        )
-    } else if is_verified_auth_root(&root, adapter, facts) {
+    let (reason, semantic_key) = if object_chain
+        .as_deref()
+        .is_some_and(|chain| is_verified_auth_chain(chain, adapter, facts))
+    {
         (
             ActorCoverageGapReason::DynamicAuthIdentity,
             format!("dynamic-auth@{}", node.start_byte()),
+        )
+    } else if is_request_root(&root, adapter) {
+        (
+            ActorCoverageGapReason::DynamicRequestAccess,
+            format!("dynamic-request@{}", node.start_byte()),
         )
     } else {
         return Ok(());
@@ -533,6 +538,26 @@ fn observe_dynamic_subscript(
         node.start_byte(),
         node.end_byte(),
     )
+}
+
+fn is_verified_auth_chain(
+    chain: &[String],
+    adapter: RouteAdapter,
+    facts: &BindingFacts,
+) -> bool {
+    let Some(root) = chain.first() else {
+        return false;
+    };
+    match adapter {
+        RouteAdapter::Express => root == "req" && chain.get(1).is_some_and(|part| part == "user"),
+        RouteAdapter::NextApp => {
+            (facts.session_bindings.contains(root)
+                && chain.get(1).is_some_and(|part| part == "user"))
+                || facts.verified_user_bindings.contains(root)
+        }
+        RouteAdapter::SupabaseEdge => facts.verified_user_bindings.contains(root),
+        RouteAdapter::NextPagesApi => false,
+    }
 }
 
 fn observe_constant(
@@ -690,12 +715,6 @@ fn is_request_root(root: &str, adapter: RouteAdapter) -> bool {
         RouteAdapter::NextApp => matches!(root, "request" | "context"),
         RouteAdapter::SupabaseEdge => root == "request",
     }
-}
-
-fn is_verified_auth_root(root: &str, adapter: RouteAdapter, facts: &BindingFacts) -> bool {
-    (adapter == RouteAdapter::Express && root == "req")
-        || facts.session_bindings.contains(root)
-        || facts.verified_user_bindings.contains(root)
 }
 
 const fn identity_kind_key(kind: ActorIdentityKind) -> &'static str {
