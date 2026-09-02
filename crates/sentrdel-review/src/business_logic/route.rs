@@ -114,13 +114,21 @@ pub enum RouteExtractionError {
 impl fmt::Display for RouteExtractionError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Structural(source) => write!(formatter, "route structural validation failed: {source}"),
+            Self::Structural(source) => {
+                write!(formatter, "route structural validation failed: {source}")
+            }
             Self::Model(source) => write!(formatter, "route model validation failed: {source}"),
             Self::TooManyRoutes { count, max } => {
-                write!(formatter, "route observation count {count} exceeds cap {max}")
+                write!(
+                    formatter,
+                    "route observation count {count} exceeds cap {max}"
+                )
             }
             Self::TooManyCoverageGaps { count, max } => {
-                write!(formatter, "route coverage gap count {count} exceeds cap {max}")
+                write!(
+                    formatter,
+                    "route coverage gap count {count} exceeds cap {max}"
+                )
             }
             Self::TooManyCallbacks { count, max } => {
                 write!(formatter, "route callback count {count} exceeds cap {max}")
@@ -166,7 +174,8 @@ pub fn extract_routes(
     let validator = StructuralRegistry::new(&[])?;
     validator.scan_language(language, path, source)?;
     let source = std::str::from_utf8(source).map_err(|_| StructuralError::NonUtf8Source)?;
-    let digest = content_id("r3-route-source", &(path.as_str(), source)).map_err(ModelError::from)?;
+    let digest =
+        content_id("r3-route-source", &(path.as_str(), source)).map_err(ModelError::from)?;
     let mask = code_mask(source);
 
     let mut builder = ExtractionBuilder::new(adapter, path, digest, limits);
@@ -309,12 +318,18 @@ impl<'a> ExtractionBuilder<'a> {
             left.route_id()
                 .as_str()
                 .cmp(right.route_id().as_str())
-                .then_with(|| left.provenance()[0].start_byte().cmp(&right.provenance()[0].start_byte()))
+                .then_with(|| {
+                    left.provenance()[0]
+                        .start_byte()
+                        .cmp(&right.provenance()[0].start_byte())
+                })
         });
         self.gaps.sort_by(|left, right| {
-            left.reason
-                .cmp(&right.reason)
-                .then_with(|| left.provenance.start_byte().cmp(&right.provenance.start_byte()))
+            left.reason.cmp(&right.reason).then_with(|| {
+                left.provenance
+                    .start_byte()
+                    .cmp(&right.provenance.start_byte())
+            })
         });
         Ok(RouteExtraction {
             routes: self.routes,
@@ -380,7 +395,9 @@ fn extract_express(
         let call_start = cursor;
         let Some(call_end) = find_call_close(bytes, call_start) else {
             // Grammar validation should already reject this, so retain the fail-closed behavior.
-            return Err(RouteExtractionError::Structural(StructuralError::MalformedSyntax));
+            return Err(RouteExtractionError::Structural(
+                StructuralError::MalformedSyntax,
+            ));
         };
         let first = skip_source_ws(bytes, call_start + 1);
         let Some((route_pattern, after_path)) = parse_string_literal(source, first) else {
@@ -451,7 +468,11 @@ fn extract_next_app(
     builder: &mut ExtractionBuilder<'_>,
 ) -> Result<(), RouteExtractionError> {
     let Some(route_pattern) = next_app_route_pattern(builder.path.as_str()) else {
-        builder.gap(RouteCoverageGapReason::UnsupportedRouteFile, 0, source.len())?;
+        builder.gap(
+            RouteCoverageGapReason::UnsupportedRouteFile,
+            0,
+            source.len(),
+        )?;
         return Ok(());
     };
     let mut found = false;
@@ -519,7 +540,11 @@ fn extract_next_app(
         index = export_start + "export".len();
     }
     if !found {
-        builder.gap(RouteCoverageGapReason::UnsupportedHandlerExport, 0, source.len())?;
+        builder.gap(
+            RouteCoverageGapReason::UnsupportedHandlerExport,
+            0,
+            source.len(),
+        )?;
     }
     Ok(())
 }
@@ -530,20 +555,36 @@ fn extract_next_pages(
     builder: &mut ExtractionBuilder<'_>,
 ) -> Result<(), RouteExtractionError> {
     let Some(route_pattern) = next_pages_route_pattern(builder.path.as_str()) else {
-        builder.gap(RouteCoverageGapReason::UnsupportedRouteFile, 0, source.len())?;
+        builder.gap(
+            RouteCoverageGapReason::UnsupportedRouteFile,
+            0,
+            source.len(),
+        )?;
         return Ok(());
     };
     let Some(export_start) = find_word(mask, b"export", 0) else {
-        builder.gap(RouteCoverageGapReason::UnsupportedHandlerExport, 0, source.len())?;
+        builder.gap(
+            RouteCoverageGapReason::UnsupportedHandlerExport,
+            0,
+            source.len(),
+        )?;
         return Ok(());
     };
     let mut cursor = skip_mask_ws(mask, export_start + "export".len());
     let Some(default_end) = parse_ident_end_if_any(mask, cursor) else {
-        builder.gap(RouteCoverageGapReason::UnsupportedHandlerExport, export_start, source.len())?;
+        builder.gap(
+            RouteCoverageGapReason::UnsupportedHandlerExport,
+            export_start,
+            source.len(),
+        )?;
         return Ok(());
     };
     if &source[cursor..default_end] != "default" {
-        builder.gap(RouteCoverageGapReason::UnsupportedHandlerExport, export_start, default_end)?;
+        builder.gap(
+            RouteCoverageGapReason::UnsupportedHandlerExport,
+            export_start,
+            default_end,
+        )?;
         return Ok(());
     }
     cursor = skip_mask_ws(mask, default_end);
@@ -569,7 +610,11 @@ fn extract_next_pages(
     }
 
     let Some(handler_key) = handler_key else {
-        builder.gap(RouteCoverageGapReason::UnsupportedHandlerExport, export_start, source.len())?;
+        builder.gap(
+            RouteCoverageGapReason::UnsupportedHandlerExport,
+            export_start,
+            source.len(),
+        )?;
         return Ok(());
     };
     let callbacks = vec![handler_key.clone()];
@@ -597,7 +642,11 @@ fn extract_supabase_edge(
     builder: &mut ExtractionBuilder<'_>,
 ) -> Result<(), RouteExtractionError> {
     let Some(function_name) = supabase_function_name(builder.path.as_str()) else {
-        builder.gap(RouteCoverageGapReason::UnsupportedRouteFile, 0, source.len())?;
+        builder.gap(
+            RouteCoverageGapReason::UnsupportedRouteFile,
+            0,
+            source.len(),
+        )?;
         return Ok(());
     };
     let route_pattern = format!("/functions/v1/{function_name}");
@@ -625,10 +674,14 @@ fn extract_supabase_edge(
             continue;
         }
         let Some(call_end) = find_call_close(bytes, call_start) else {
-            return Err(RouteExtractionError::Structural(StructuralError::MalformedSyntax));
+            return Err(RouteExtractionError::Structural(
+                StructuralError::MalformedSyntax,
+            ));
         };
         let args = split_top_level_args(source, call_start + 1, call_end);
-        let callback = args.first().and_then(|(start, end)| callback_key(source, *start, *end));
+        let callback = args
+            .first()
+            .and_then(|(start, end)| callback_key(source, *start, *end));
         match callback {
             Some(handler_key) => {
                 let callbacks = vec![handler_key.clone()];
@@ -658,7 +711,11 @@ fn extract_supabase_edge(
         index = call_end + 1;
     }
     if !found {
-        builder.gap(RouteCoverageGapReason::UnsupportedHandlerExport, 0, source.len())?;
+        builder.gap(
+            RouteCoverageGapReason::UnsupportedHandlerExport,
+            0,
+            source.len(),
+        )?;
     }
     Ok(())
 }
@@ -717,7 +774,9 @@ fn next_pages_route_pattern(path: &str) -> Option<String> {
         return None;
     }
     let file = *parts.last()?;
-    let stem = file.strip_suffix(".js").or_else(|| file.strip_suffix(".ts"))?;
+    let stem = file
+        .strip_suffix(".js")
+        .or_else(|| file.strip_suffix(".ts"))?;
     let mut route_parts: Vec<&str> = parts[pages + 1..parts.len() - 1].to_vec();
     if stem != "index" {
         route_parts.push(stem);
@@ -740,15 +799,20 @@ fn callback_key(source: &str, start: usize, end: usize) -> Option<String> {
     if value.is_empty() || value.starts_with("...") {
         return None;
     }
-    if value.contains("=>") || value.starts_with("function") || value.starts_with("async function") {
+    if value.contains("=>") || value.starts_with("function") || value.starts_with("async function")
+    {
         return Some(format!("inline@{start}"));
     }
     if value
         .bytes()
         .all(|byte| is_ident_continue(byte) || byte == b'.')
-        && value
-            .split('.')
-            .all(|part| !part.is_empty() && part.as_bytes().first().is_some_and(|byte| is_ident_start(*byte)))
+        && value.split('.').all(|part| {
+            !part.is_empty()
+                && part
+                    .as_bytes()
+                    .first()
+                    .is_some_and(|byte| is_ident_start(*byte))
+        })
     {
         return Some(value.to_owned());
     }

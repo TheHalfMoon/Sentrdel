@@ -1,6 +1,6 @@
 use sentrdel_review::business_logic::model::{BusinessLogicLimits, FrameworkFamily, HttpMethod};
 use sentrdel_review::business_logic::route::{
-    RouteAdapter, RouteCoverageGapReason, RouteExtractionError, MAX_ROUTE_CALLBACKS, extract_routes,
+    MAX_ROUTE_CALLBACKS, RouteAdapter, RouteCoverageGapReason, RouteExtractionError, extract_routes,
 };
 use sentrdel_review::structural::{StructuralError, StructuralLanguage};
 use sentrdel_review::view::NormalizedRepoPath;
@@ -48,7 +48,10 @@ fn express_literal_route_and_callback_chain_are_covered() {
     assert_eq!(route.route_pattern(), "/accounts/:id");
     assert_eq!(route.callback_chain().len(), 2);
     assert_eq!(route.coverage_state(), &CoverageState::Covered);
-    assert_eq!(route.provenance()[0].path().as_str(), "src/routes/accounts.js");
+    assert_eq!(
+        route.provenance()[0].path().as_str(),
+        "src/routes/accounts.js"
+    );
 }
 
 #[test]
@@ -63,10 +66,12 @@ fn dynamic_express_registration_is_a_visible_gap_not_a_route() {
     .expect("classify dynamic registration");
 
     assert!(result.routes().is_empty());
-    assert!(result
-        .gaps()
-        .iter()
-        .any(|gap| gap.reason() == RouteCoverageGapReason::DynamicRegistration));
+    assert!(
+        result
+            .gaps()
+            .iter()
+            .any(|gap| gap.reason() == RouteCoverageGapReason::DynamicRegistration)
+    );
 }
 
 #[test]
@@ -83,7 +88,10 @@ fn express_dynamic_path_is_a_visible_gap() {
 
     assert!(result.routes().is_empty());
     assert_eq!(result.gaps().len(), 1);
-    assert_eq!(result.gaps()[0].reason(), RouteCoverageGapReason::DynamicRoutePattern);
+    assert_eq!(
+        result.gaps()[0].reason(),
+        RouteCoverageGapReason::DynamicRoutePattern
+    );
 }
 
 #[test]
@@ -101,10 +109,12 @@ fn unresolved_express_callback_makes_route_partial() {
     assert_eq!(result.routes().len(), 1);
     assert_eq!(result.routes()[0].coverage_state(), &CoverageState::Partial);
     assert!(result.routes()[0].callback_chain().is_empty());
-    assert!(result
-        .gaps()
-        .iter()
-        .any(|gap| gap.reason() == RouteCoverageGapReason::UnresolvedCallback));
+    assert!(
+        result
+            .gaps()
+            .iter()
+            .any(|gap| gap.reason() == RouteCoverageGapReason::UnresolvedCallback)
+    );
 }
 
 #[test]
@@ -146,10 +156,12 @@ fn next_pages_default_handler_preserves_unknown_method_as_partial_coverage() {
     assert_eq!(route.route_pattern(), "/api/accounts/[id]");
     assert_eq!(route.handler_semantic_key(), Some("handler"));
     assert_eq!(route.coverage_state(), &CoverageState::Partial);
-    assert!(result
-        .gaps()
-        .iter()
-        .any(|gap| gap.reason() == RouteCoverageGapReason::MethodNotStaticallyBound));
+    assert!(
+        result
+            .gaps()
+            .iter()
+            .any(|gap| gap.reason() == RouteCoverageGapReason::MethodNotStaticallyBound)
+    );
 }
 
 #[test]
@@ -169,10 +181,12 @@ fn supabase_edge_deno_serve_is_bounded_and_method_partial() {
     assert_eq!(route.method(), HttpMethod::OtherSupported);
     assert_eq!(route.route_pattern(), "/functions/v1/private-doc");
     assert_eq!(route.coverage_state(), &CoverageState::Partial);
-    assert!(result
-        .gaps()
-        .iter()
-        .any(|gap| gap.reason() == RouteCoverageGapReason::MethodNotStaticallyBound));
+    assert!(
+        result
+            .gaps()
+            .iter()
+            .any(|gap| gap.reason() == RouteCoverageGapReason::MethodNotStaticallyBound)
+    );
 }
 
 #[test]
