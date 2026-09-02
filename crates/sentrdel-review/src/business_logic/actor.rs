@@ -89,10 +89,16 @@ impl fmt::Display for ActorExtractionError {
                 write!(formatter, "actor AST node count {count} exceeds cap {max}")
             }
             Self::TooManyActors { count, max } => {
-                write!(formatter, "actor observation count {count} exceeds cap {max}")
+                write!(
+                    formatter,
+                    "actor observation count {count} exceeds cap {max}"
+                )
             }
             Self::TooManyCoverageGaps { count, max } => {
-                write!(formatter, "actor coverage gap count {count} exceeds cap {max}")
+                write!(
+                    formatter,
+                    "actor coverage gap count {count} exceeds cap {max}"
+                )
             }
         }
     }
@@ -610,11 +616,7 @@ fn is_supabase_get_user_call(node: tree_sitter::Node<'_>, source: &str) -> bool 
             })
 }
 
-fn is_request_json_call(
-    node: tree_sitter::Node<'_>,
-    source: &str,
-    adapter: RouteAdapter,
-) -> bool {
+fn is_request_json_call(node: tree_sitter::Node<'_>, source: &str, adapter: RouteAdapter) -> bool {
     matches!(adapter, RouteAdapter::NextApp | RouteAdapter::SupabaseEdge)
         && node.kind() == "call_expression"
         && node
