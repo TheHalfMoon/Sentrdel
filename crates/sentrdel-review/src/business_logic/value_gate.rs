@@ -59,16 +59,6 @@ impl ValueExtraction {
     pub fn gaps(&self) -> &[ValueCoverageGap] {
         &self.gaps
     }
-
-    #[must_use]
-    pub fn value_for_range(&self, start: usize, end: usize) -> Option<&ValueOrigin> {
-        self.values.iter().find(|value| {
-            value
-                .provenance()
-                .iter()
-                .any(|location| location.start_byte() == start && location.end_byte() == end)
-        })
-    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
