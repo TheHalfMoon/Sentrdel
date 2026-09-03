@@ -903,11 +903,7 @@ fn is_verified_role_chain(chain: &[String], adapter: RouteAdapter, facts: &Guard
         && is_verified_actor_identity_chain(&chain[..chain.len().saturating_sub(1)], adapter, facts)
 }
 
-fn is_verified_user_id_chain(
-    chain: &[String],
-    adapter: RouteAdapter,
-    facts: &GuardFacts,
-) -> bool {
+fn is_verified_user_id_chain(chain: &[String], adapter: RouteAdapter, facts: &GuardFacts) -> bool {
     let Some(field) = chain.last().map(String::as_str) else {
         return false;
     };
