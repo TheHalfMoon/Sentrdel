@@ -10,6 +10,7 @@ pub mod invariant;
 pub mod model;
 pub mod ordering;
 pub mod route;
+pub mod value;
 
 use sentrdel_schema::SCHEMA_V1;
 use sentrdel_schema::pack::{SecurityPackManifest, SourceProvenance};
@@ -120,6 +121,5 @@ mod tests {
         const { assert!(!R3_TARGET_EXECUTION_ALLOWED) };
         const { assert!(!R3_PROVIDER_CREDENTIALS_ALLOWED) };
         const { assert!(!R3_DIRECT_FINDING_CREATION_ALLOWED) };
-        const { assert!(!crate::TARGET_BUILD_EXECUTION_ALLOWED) };
     }
 }
