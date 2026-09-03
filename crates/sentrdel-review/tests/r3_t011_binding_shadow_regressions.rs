@@ -145,7 +145,7 @@ fn class_binding_shadow_is_not_trusted_as_request_body() {
 }
 
 #[test]
-fn import_binding_collision_is_not_trusted_as_request_body() {
+fn function_local_request_body_alias_shadows_unrelated_import_binding() {
     let source = br#"import { body } from "./input.js";
 export function handler(req, res) {
   const body = req.body;
@@ -153,6 +153,25 @@ export function handler(req, res) {
   return res.json({ is_admin });
 }
 "#;
+    let result = extract_guard_observations(
+        RouteAdapter::Express,
+        StructuralLanguage::JavaScript,
+        &path("src/import-shadow.js"),
+        source,
+        BusinessLogicLimits::default(),
+    )
+    .expect("resolve local request-body alias over import binding");
 
-    assert_no_allowlist_with_visible_gap(source, "src/import-shadow.js");
+    assert!(
+        result
+            .guards()
+            .iter()
+            .any(|guard| guard.guard_kind() == GuardKind::PropertyAllowlist)
+    );
+    assert!(
+        result
+            .gaps()
+            .iter()
+            .all(|gap| gap.reason() != GuardCoverageGapReason::UnsupportedGuardShape)
+    );
 }
