@@ -37,6 +37,17 @@ function helper() {
             .iter()
             .any(|gap| gap.reason() == ValueCoverageGapReason::AmbiguousBinding)
     );
+
+    let helper_use_start = source
+        .windows(b"return accountId".len())
+        .rposition(|window| window == b"return accountId")
+        .expect("helper return expression")
+        + b"return ".len();
+    let helper_use_end = helper_use_start + b"accountId".len();
+    let helper_use = result
+        .value_for_range(helper_use_start, helper_use_end)
+        .expect("cross-scope identifier use must remain fail-visible");
+    assert_eq!(helper_use.origin_kind(), ValueOriginKind::Unknown);
 }
 
 #[test]
