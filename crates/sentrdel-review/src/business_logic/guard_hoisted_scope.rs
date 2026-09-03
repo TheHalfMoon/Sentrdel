@@ -79,8 +79,8 @@ struct ScopedBinding {
 
 impl ScopedBinding {
     fn visible_at(&self, offset: usize) -> bool {
-        let declaration_visible = self.kind == BindingKind::HoistedFunction
-            || self.declaration_start <= offset;
+        let declaration_visible =
+            self.kind == BindingKind::HoistedFunction || self.declaration_start <= offset;
         declaration_visible
             && self.function_start <= offset
             && offset < self.function_end
@@ -131,8 +131,7 @@ pub fn extract_guard_observations(
     let nodes = collect_nodes(tree.root_node())?;
     let bindings = collect_bindings(&nodes, source, tree.root_node());
     let aliases = collect_potential_aliases(&nodes, source, adapter);
-    let unsafe_origin_aliases =
-        collect_hoisted_origin_aliases(&nodes, source, adapter, &bindings);
+    let unsafe_origin_aliases = collect_hoisted_origin_aliases(&nodes, source, adapter, &bindings);
 
     let mut gaps = BTreeMap::new();
     for gap in raw.gaps() {
