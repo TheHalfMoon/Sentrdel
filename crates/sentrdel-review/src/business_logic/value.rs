@@ -214,10 +214,8 @@ pub fn extract_value_origins(
             "subscript_expression" => {
                 let _ = resolver.resolve_expression(node)?;
             }
-            "call_expression" => {
-                if classify_supported_call(node, source, adapter).is_some() {
-                    let _ = resolver.resolve_expression(node)?;
-                }
+            "call_expression" if classify_supported_call(node, source, adapter).is_some() => {
+                let _ = resolver.resolve_expression(node)?;
             }
             _ => {}
         }
@@ -1084,9 +1082,9 @@ fn classify_identity_field(field: Option<&str>) -> Option<ValueOriginKind> {
     }
 }
 
-fn classify_supported_call<'a>(
+fn classify_supported_call(
     node: tree_sitter::Node<'_>,
-    source: &'a str,
+    source: &str,
     adapter: RouteAdapter,
 ) -> Option<(ValueOriginKind, &'static str)> {
     if node.kind() != "call_expression" {
