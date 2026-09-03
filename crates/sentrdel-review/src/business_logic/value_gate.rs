@@ -245,7 +245,9 @@ fn exported_handler_is_unique_binding(nodes: &[tree_sitter::Node<'_>], source: &
 
 fn introduces_other_handler_binding(node: tree_sitter::Node<'_>, source: &str) -> bool {
     match node.kind() {
-        "function_declaration" | "generator_function_declaration" | "function_expression"
+        "function_declaration"
+        | "generator_function_declaration"
+        | "function_expression"
         | "generator_function" => {
             node.child_by_field_name("name")
                 .and_then(|name| node_text(name, source))
