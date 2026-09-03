@@ -246,3 +246,111 @@ fn predeclaration_request_use_in_shadowed_block_is_not_treated_as_handler_parame
         .expect("TDZ-shadowed request use must remain fail-visible");
     assert_eq!(value.origin_kind(), ValueOriginKind::Unknown);
 }
+
+#[test]
+fn fake_express_receiver_does_not_qualify_inline_request_origin() {
+    let source = br#"const app = { get: (_path, callback) => callback({ params: { id: "fake" } }) };
+app.get("/", (req) => req.params.id);
+"#;
+    let result = extract_value_origins(
+        RouteAdapter::Express,
+        StructuralLanguage::JavaScript,
+        &path("src/fake-app.js"),
+        source,
+        BusinessLogicLimits::default(),
+    )
+    .expect("inspect fake Express receiver");
+
+    assert!(
+        result
+            .values()
+            .iter()
+            .all(|value| value.origin_kind() != ValueOriginKind::RequestPath)
+    );
+    assert!(
+        result
+            .gaps()
+            .iter()
+            .any(|gap| gap.reason() == ValueCoverageGapReason::AmbiguousBinding)
+    );
+}
+
+#[test]
+fn proven_express_factory_still_qualifies_inline_request_origin() {
+    let source = br#"import express from "express";
+const app = express();
+app.get("/accounts/:id", (req, res) => res.json(req.params.id));
+"#;
+    let result = extract_value_origins(
+        RouteAdapter::Express,
+        StructuralLanguage::JavaScript,
+        &path("src/proven-app.js"),
+        source,
+        BusinessLogicLimits::default(),
+    )
+    .expect("inspect proven Express receiver");
+
+    assert!(
+        result
+            .values()
+            .iter()
+            .any(|value| value.origin_kind() == ValueOriginKind::RequestPath)
+    );
+}
+
+#[test]
+fn fake_deno_receiver_does_not_qualify_supabase_request_origin() {
+    let source = br#"const Deno = { serve: (callback) => callback({ headers: new Map() }) };
+Deno.serve((request) => request.headers.get("x-id"));
+"#;
+    let result = extract_value_origins(
+        RouteAdapter::SupabaseEdge,
+        StructuralLanguage::JavaScript,
+        &path("supabase/functions/fake/index.js"),
+        source,
+        BusinessLogicLimits::default(),
+    )
+    .expect("inspect fake Deno receiver");
+
+    assert!(
+        result
+            .values()
+            .iter()
+            .all(|value| value.origin_kind() != ValueOriginKind::RequestHeader)
+    );
+    assert!(
+        result
+            .gaps()
+            .iter()
+            .any(|gap| gap.reason() == ValueCoverageGapReason::AmbiguousBinding)
+    );
+}
+
+#[test]
+fn next_app_http_named_export_outside_route_file_is_not_qualified() {
+    let source = br#"export function GET(request) {
+  return request.headers.get("x-id");
+}
+"#;
+    let result = extract_value_origins(
+        RouteAdapter::NextApp,
+        StructuralLanguage::JavaScript,
+        &path("src/helper.js"),
+        source,
+        BusinessLogicLimits::default(),
+    )
+    .expect("inspect unsupported Next App route file");
+
+    assert!(
+        result
+            .values()
+            .iter()
+            .all(|value| value.origin_kind() != ValueOriginKind::RequestHeader)
+    );
+    assert!(
+        result
+            .gaps()
+            .iter()
+            .any(|gap| gap.reason() == ValueCoverageGapReason::AmbiguousBinding)
+    );
+}
