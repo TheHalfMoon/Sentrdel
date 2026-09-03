@@ -10,7 +10,7 @@ fn path(value: &str) -> NormalizedRepoPath {
 
 #[test]
 fn aliased_named_auth_import_does_not_shadow_unbound_next_app_origin() {
-    let source = br#"import { auth as importedAuth } from \"./other.js\";
+    let source = br#"import { auth as importedAuth } from "./other.js";
 
 export async function GET() {
   const session = await auth();
@@ -43,7 +43,7 @@ export async function GET() {
 
 #[test]
 fn aliased_named_supabase_import_does_not_shadow_unbound_edge_origin() {
-    let source = br#"import { supabase as importedSupabase } from \"./other.ts\";
+    let source = br#"import { supabase as importedSupabase } from "./other.ts";
 
 Deno.serve(async (request) => {
   const userResult = await supabase.auth.getUser(request.headers.get("Authorization"));
@@ -77,7 +77,7 @@ Deno.serve(async (request) => {
 
 #[test]
 fn direct_named_auth_import_still_shadows_next_app_origin() {
-    let source = br#"import { auth } from \"./other.js\";
+    let source = br#"import { auth } from "./other.js";
 
 export async function GET() {
   const session = await auth();
@@ -110,7 +110,7 @@ export async function GET() {
 
 #[test]
 fn namespace_supabase_import_still_shadows_edge_origin() {
-    let source = br#"import * as supabase from \"./other.ts\";
+    let source = br#"import * as supabase from "./other.ts";
 
 Deno.serve(async (request) => {
   const userResult = await supabase.auth.getUser(request.headers.get("Authorization"));
