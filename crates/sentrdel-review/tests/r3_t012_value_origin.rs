@@ -15,7 +15,10 @@ fn has_kind(
     result: &sentrdel_review::business_logic::value::ValueExtraction,
     kind: ValueOriginKind,
 ) -> bool {
-    result.values().iter().any(|value| value.origin_kind() == kind)
+    result
+        .values()
+        .iter()
+        .any(|value| value.origin_kind() == kind)
 }
 
 #[test]
