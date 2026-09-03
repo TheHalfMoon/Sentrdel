@@ -167,13 +167,7 @@ fn collect_predeclaration_pattern_bindings(
             continue;
         }
         let scope = variable_binding_scope(*node, root);
-        push_pattern_binding_identifiers(
-            name,
-            source,
-            node.start_byte(),
-            scope,
-            &mut bindings,
-        );
+        push_pattern_binding_identifiers(name, source, node.start_byte(), scope, &mut bindings);
     }
     bindings
 }
