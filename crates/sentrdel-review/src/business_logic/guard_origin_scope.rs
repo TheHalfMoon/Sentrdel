@@ -256,13 +256,35 @@ fn collect_local_bindings(
                     );
                 }
             }
-            "import_clause" | "namespace_import" | "named_imports" | "import_specifier" => {
+            "import_clause" => {
+                let scope = (root.start_byte(), root.end_byte());
+                let mut cursor = node.walk();
+                for child in node.named_children(&mut cursor) {
+                    if child.kind() == "identifier" {
+                        push_binding_identifiers(child, source, scope, &mut bindings);
+                    }
+                }
+            }
+            "namespace_import" => {
                 push_binding_identifiers(
                     *node,
                     source,
                     (root.start_byte(), root.end_byte()),
                     &mut bindings,
                 );
+            }
+            "import_specifier" => {
+                if let Some(local) = node
+                    .child_by_field_name("alias")
+                    .or_else(|| node.child_by_field_name("name"))
+                {
+                    push_binding_identifiers(
+                        local,
+                        source,
+                        (root.start_byte(), root.end_byte()),
+                        &mut bindings,
+                    );
+                }
             }
             _ => {}
         }
