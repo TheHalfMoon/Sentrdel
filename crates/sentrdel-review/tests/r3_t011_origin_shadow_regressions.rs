@@ -141,3 +141,74 @@ fn nested_supabase_parameter_does_not_shadow_outer_origin_call() {
             .all(|gap| gap.reason() != GuardCoverageGapReason::UnsupportedGuardShape)
     );
 }
+
+#[test]
+fn nested_block_const_auth_does_not_shadow_outer_next_app_origin_call() {
+    let source = br#"export async function GET() {
+  const session = await auth();
+  if (featureFlag) {
+    const auth = alternateAuth;
+    consume(auth);
+  }
+  if (!session) return new Response(null, { status: 401 });
+  return Response.json({ ok: true });
+}
+"#;
+    let result = extract_guard_observations(
+        RouteAdapter::NextApp,
+        StructuralLanguage::JavaScript,
+        &path("app/api/block-scoped-auth/route.js"),
+        source,
+        BusinessLogicLimits::default(),
+    )
+    .expect("keep outer auth origin valid across nested const binding");
+
+    assert!(
+        result
+            .guards()
+            .iter()
+            .any(|guard| guard.guard_kind() == GuardKind::Authentication)
+    );
+    assert!(
+        result
+            .gaps()
+            .iter()
+            .all(|gap| gap.reason() != GuardCoverageGapReason::UnsupportedGuardShape)
+    );
+}
+
+#[test]
+fn nested_block_let_supabase_does_not_shadow_outer_supabase_origin_call() {
+    let source = br#"Deno.serve(async (request) => {
+  const userResult = await supabase.auth.getUser(request.headers.get("Authorization"));
+  if (featureFlag) {
+    let supabase = alternateSupabase;
+    consume(supabase);
+  }
+  const user = userResult.data.user;
+  if (!user) return new Response(null, { status: 401 });
+  return Response.json({ ok: true });
+});
+"#;
+    let result = extract_guard_observations(
+        RouteAdapter::SupabaseEdge,
+        StructuralLanguage::JavaScript,
+        &path("supabase/functions/block-scoped-origin/index.js"),
+        source,
+        BusinessLogicLimits::default(),
+    )
+    .expect("keep outer Supabase origin valid across nested let binding");
+
+    assert!(
+        result
+            .guards()
+            .iter()
+            .any(|guard| guard.guard_kind() == GuardKind::Authentication)
+    );
+    assert!(
+        result
+            .gaps()
+            .iter()
+            .all(|gap| gap.reason() != GuardCoverageGapReason::UnsupportedGuardShape)
+    );
+}
