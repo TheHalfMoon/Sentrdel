@@ -339,17 +339,21 @@ fn collect_guard_facts(
                 }
             }
 
-            if value.kind() == "call_expression"
-                && call_has_request_controlled_argument(value, source, adapter, &facts)
-                && !is_known_static_auth_or_body_call(value, source, adapter)
-            {
-                changed |= facts.dynamic_callable_bindings.insert(binding.to_owned());
-            }
-            if value.kind() == "call_expression"
-                && call_function_identifier(value, source)
-                    .is_some_and(|function| facts.dynamic_callable_bindings.contains(function))
-            {
-                changed |= facts.dynamic_guard_results.insert(binding.to_owned());
+            if value.kind() == "call_expression" {
+                let request_selected_function =
+                    call_function_is_request_selected(value, source, adapter, &facts);
+                if call_has_request_controlled_argument(value, source, adapter, &facts)
+                    && !is_known_static_auth_or_body_call(value, source, adapter)
+                    && !request_selected_function
+                {
+                    changed |= facts.dynamic_callable_bindings.insert(binding.to_owned());
+                }
+                if request_selected_function
+                    || call_function_identifier(value, source)
+                        .is_some_and(|function| facts.dynamic_callable_bindings.contains(function))
+                {
+                    changed |= facts.dynamic_guard_results.insert(binding.to_owned());
+                }
             }
         }
         if !changed {
@@ -483,7 +487,7 @@ fn observe_negated_presence(
             GuardKind::Authentication,
             Vec::new(),
             ComparisonShape::OtherSupported,
-            DominanceScope::SameHandlerPrefix,
+            DominanceScope::Unknown,
             node.start_byte(),
             node.end_byte(),
         )?;
@@ -532,7 +536,7 @@ fn observe_role_comparison(
         GuardKind::RequiredRole,
         vec![literal],
         ComparisonShape::Equal,
-        DominanceScope::SameHandlerPrefix,
+        DominanceScope::Unknown,
         node.start_byte(),
         node.end_byte(),
     )?;
@@ -600,7 +604,7 @@ fn observe_identity_binding_comparison(
         kind,
         Vec::new(),
         ComparisonShape::Equal,
-        DominanceScope::SameHandlerPrefix,
+        DominanceScope::Unknown,
         node.start_byte(),
         node.end_byte(),
     )?;
@@ -657,7 +661,7 @@ fn observe_membership_guard(
         GuardKind::ObjectMembership,
         Vec::new(),
         ComparisonShape::Membership,
-        DominanceScope::SameHandlerPrefix,
+        DominanceScope::Unknown,
         node.start_byte(),
         node.end_byte(),
     )?;
@@ -690,7 +694,7 @@ fn observe_elevated_boundary_guard(
         GuardKind::ElevatedClientBoundary,
         Vec::new(),
         ComparisonShape::OtherSupported,
-        DominanceScope::SameHandlerPrefix,
+        DominanceScope::Unknown,
         node.start_byte(),
         node.end_byte(),
     )?;
@@ -743,7 +747,7 @@ fn observe_property_allowlist(
         GuardKind::PropertyAllowlist,
         properties,
         ComparisonShape::ExplicitAllowlist,
-        DominanceScope::SameHandlerPrefix,
+        DominanceScope::Unknown,
         node.start_byte(),
         node.end_byte(),
     )
@@ -854,15 +858,36 @@ fn call_has_request_controlled_argument(
     let Some(arguments) = call.child_by_field_name("arguments") else {
         return false;
     };
-    let mut stack = vec![arguments];
-    while let Some(node) = stack.pop() {
-        if expression_chain(node, source)
+    node_contains_request_controlled_chain(arguments, source, adapter, facts)
+}
+
+fn call_function_is_request_selected(
+    call: tree_sitter::Node<'_>,
+    source: &str,
+    adapter: RouteAdapter,
+    facts: &GuardFacts,
+) -> bool {
+    let Some(function) = call.child_by_field_name("function") else {
+        return false;
+    };
+    node_contains_request_controlled_chain(function, source, adapter, facts)
+}
+
+fn node_contains_request_controlled_chain(
+    node: tree_sitter::Node<'_>,
+    source: &str,
+    adapter: RouteAdapter,
+    facts: &GuardFacts,
+) -> bool {
+    let mut stack = vec![node];
+    while let Some(current) = stack.pop() {
+        if expression_chain(current, source)
             .is_some_and(|chain| is_request_controlled_chain(&chain, adapter, facts))
         {
             return true;
         }
-        let mut cursor = node.walk();
-        stack.extend(node.named_children(&mut cursor));
+        let mut cursor = current.walk();
+        stack.extend(current.named_children(&mut cursor));
     }
     false
 }
