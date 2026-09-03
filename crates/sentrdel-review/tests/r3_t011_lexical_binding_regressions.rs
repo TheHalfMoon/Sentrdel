@@ -109,3 +109,37 @@ fn active_nested_const_shadow_still_blocks_outer_request_body_alias_inside_block
             .any(|gap| gap.reason() == GuardCoverageGapReason::UnsupportedGuardShape)
     );
 }
+
+#[test]
+fn later_nested_destructuring_shadow_blocks_outer_request_body_alias_from_block_start() {
+    let source = br#"export function handler(req, res, other) {
+  const body = req.body;
+  {
+    const { display_name } = body;
+    const { body } = other;
+    return res.json({ display_name });
+  }
+}
+"#;
+    let result = extract_guard_observations(
+        RouteAdapter::Express,
+        StructuralLanguage::JavaScript,
+        &path("src/tdz-destructuring-request-body-shadow.js"),
+        source,
+        BusinessLogicLimits::default(),
+    )
+    .expect("reject outer request-body alias from nested binding scope start");
+
+    assert!(
+        result
+            .guards()
+            .iter()
+            .all(|guard| guard.guard_kind() != GuardKind::PropertyAllowlist)
+    );
+    assert!(
+        result
+            .gaps()
+            .iter()
+            .any(|gap| gap.reason() == GuardCoverageGapReason::UnsupportedGuardShape)
+    );
+}
