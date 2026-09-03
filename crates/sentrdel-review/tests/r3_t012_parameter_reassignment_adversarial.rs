@@ -38,6 +38,41 @@ fn assert_no_request_path_after_write(source: &[u8], fixture: &str) {
     );
 }
 
+fn assert_no_request_body_after_write(
+    adapter: RouteAdapter,
+    language: StructuralLanguage,
+    source: &[u8],
+    fixture: &str,
+) {
+    let result = extract_value_origins(
+        adapter,
+        language,
+        &path(fixture),
+        source,
+        BusinessLogicLimits::default(),
+    )
+    .expect("inspect request-body alias after parameter reassignment");
+
+    assert!(
+        result
+            .values()
+            .iter()
+            .all(|value| value.origin_kind() != ValueOriginKind::RequestBody)
+    );
+    assert!(
+        result
+            .gaps()
+            .iter()
+            .any(|gap| gap.reason() == ValueCoverageGapReason::AmbiguousBinding)
+    );
+    assert!(
+        result
+            .values()
+            .iter()
+            .any(|value| value.origin_kind() == ValueOriginKind::Unknown)
+    );
+}
+
 #[test]
 fn assigned_request_parameter_cannot_mint_request_origin() {
     let source = br#"import express from "express";
@@ -127,5 +162,39 @@ app.get("/", (req) => {
             .values()
             .iter()
             .any(|value| value.origin_kind() == ValueOriginKind::RequestPath)
+    );
+}
+
+#[test]
+fn next_request_json_alias_loses_typed_origin_after_request_reassignment() {
+    let source = br#"export async function POST(request) {
+  request = fakeRequest;
+  const body = await request.json();
+  return body.role;
+}
+"#;
+    assert_no_request_body_after_write(
+        RouteAdapter::NextApp,
+        StructuralLanguage::JavaScript,
+        source,
+        "app/api/users/route.js",
+    );
+}
+
+#[test]
+fn express_request_body_alias_loses_typed_origin_after_request_reassignment() {
+    let source = br#"import express from "express";
+const app = express();
+app.post("/", (req) => {
+  req = fakeRequest;
+  const body = req.body;
+  return body.role;
+});
+"#;
+    assert_no_request_body_after_write(
+        RouteAdapter::Express,
+        StructuralLanguage::JavaScript,
+        source,
+        "src/request-body-alias.js",
     );
 }
