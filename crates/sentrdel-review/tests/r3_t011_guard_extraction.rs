@@ -49,13 +49,13 @@ fn next_app_authentication_and_required_role_are_distinct_guards() {
     assert!(result.gaps().is_empty());
     assert!(result.guards().iter().any(|guard| {
         guard.guard_kind() == GuardKind::Authentication
-            && guard.dominance_scope() == DominanceScope::SameHandlerPrefix
+            && guard.dominance_scope() == DominanceScope::Unknown
     }));
     assert!(result.guards().iter().any(|guard| {
         guard.guard_kind() == GuardKind::RequiredRole
             && guard.comparison_shape() == ComparisonShape::Equal
             && guard.required_values() == ["admin"]
-            && guard.dominance_scope() == DominanceScope::SameHandlerPrefix
+            && guard.dominance_scope() == DominanceScope::Unknown
     }));
     const {
         assert!(!STATIC_GUARD_RECOGNITION_PROVES_RUNTIME_AUTHORIZATION);
@@ -76,7 +76,7 @@ fn supabase_verified_user_rejection_is_authentication_guard_only() {
     assert!(result.gaps().is_empty());
     assert!(result.guards().iter().any(|guard| {
         guard.guard_kind() == GuardKind::Authentication
-            && guard.dominance_scope() == DominanceScope::SameHandlerPrefix
+            && guard.dominance_scope() == DominanceScope::Unknown
     }));
     assert!(
         result
@@ -106,10 +106,12 @@ fn direct_owner_and_tenant_rejection_checks_are_typed_separately() {
     assert!(result.guards().iter().any(|guard| {
         guard.guard_kind() == GuardKind::OwnershipBinding
             && guard.comparison_shape() == ComparisonShape::Equal
+            && guard.dominance_scope() == DominanceScope::Unknown
     }));
     assert!(result.guards().iter().any(|guard| {
         guard.guard_kind() == GuardKind::TenantBinding
             && guard.comparison_shape() == ComparisonShape::Equal
+            && guard.dominance_scope() == DominanceScope::Unknown
     }));
 }
 
@@ -132,7 +134,7 @@ fn direct_membership_rejection_is_object_membership_guard() {
     assert!(result.guards().iter().any(|guard| {
         guard.guard_kind() == GuardKind::ObjectMembership
             && guard.comparison_shape() == ComparisonShape::Membership
-            && guard.dominance_scope() == DominanceScope::SameHandlerPrefix
+            && guard.dominance_scope() == DominanceScope::Unknown
     }));
 }
 
@@ -151,7 +153,7 @@ fn request_body_destructuring_is_explicit_property_allowlist() {
         guard.guard_kind() == GuardKind::PropertyAllowlist
             && guard.comparison_shape() == ComparisonShape::ExplicitAllowlist
             && guard.required_values() == ["display_name", "timezone"]
-            && guard.dominance_scope() == DominanceScope::SameHandlerPrefix
+            && guard.dominance_scope() == DominanceScope::Unknown
     }));
 }
 
@@ -194,6 +196,7 @@ fn request_json_alias_destructuring_is_property_allowlist() {
     assert!(result.guards().iter().any(|guard| {
         guard.guard_kind() == GuardKind::PropertyAllowlist
             && guard.required_values() == ["display_name", "timezone"]
+            && guard.dominance_scope() == DominanceScope::Unknown
     }));
 }
 
@@ -216,7 +219,7 @@ fn explicit_elevated_authorization_marker_is_bounded_boundary_guard() {
     assert!(result.guards().iter().any(|guard| {
         guard.guard_kind() == GuardKind::ElevatedClientBoundary
             && guard.comparison_shape() == ComparisonShape::OtherSupported
-            && guard.dominance_scope() == DominanceScope::SameHandlerPrefix
+            && guard.dominance_scope() == DominanceScope::Unknown
     }));
 }
 
@@ -249,6 +252,32 @@ fn request_selected_dynamic_guard_fails_visible_without_supported_guard() {
         BusinessLogicLimits::default(),
     )
     .expect("extract dynamic guard coverage");
+
+    assert!(result.guards().is_empty());
+    assert!(
+        result
+            .gaps()
+            .iter()
+            .any(|gap| gap.reason() == GuardCoverageGapReason::DynamicGuard)
+    );
+}
+
+#[test]
+fn computed_request_selected_guard_callback_fails_visible() {
+    let source = br#"export async function handler(req, res, guards) {
+  const allowed = await guards[req.query.guard](req);
+  if (!allowed) return res.status(403).end();
+  return res.json({ ok: true });
+}
+"#;
+    let result = extract_guard_observations(
+        RouteAdapter::Express,
+        StructuralLanguage::JavaScript,
+        &path("src/computed-guard.js"),
+        source,
+        BusinessLogicLimits::default(),
+    )
+    .expect("inspect computed request-selected guard");
 
     assert!(result.guards().is_empty());
     assert!(
@@ -369,6 +398,69 @@ fn nested_rejection_does_not_prove_same_handler_prefix_dominance() {
             .gaps()
             .iter()
             .any(|gap| gap.reason() == GuardCoverageGapReason::UnsupportedGuardShape)
+    );
+}
+
+#[test]
+fn file_wide_observations_do_not_claim_handler_prefix_dominance() {
+    let source = br#"export function guarded(req, res) {
+  if (!req.user) return res.status(401).end();
+  return res.json({ ok: true });
+}
+export function unguarded(req, res) {
+  performSensitiveWork();
+  return res.json({ ok: true });
+}
+"#;
+    let result = extract_guard_observations(
+        RouteAdapter::Express,
+        StructuralLanguage::JavaScript,
+        &path("src/two-handlers.js"),
+        source,
+        BusinessLogicLimits::default(),
+    )
+    .expect("inspect two handlers");
+
+    assert!(result.guards().iter().any(|guard| {
+        guard.guard_kind() == GuardKind::Authentication
+            && guard.dominance_scope() == DominanceScope::Unknown
+    }));
+    assert!(
+        result
+            .guards()
+            .iter()
+            .all(|guard| guard.dominance_scope() != DominanceScope::SameHandlerPrefix)
+    );
+}
+
+#[test]
+fn nested_callback_guard_does_not_claim_handler_prefix_dominance() {
+    let source = br#"export function handler(req, res, work) {
+  work.forEach(() => {
+    if (!req.user) return res.status(401).end();
+  });
+  performSensitiveWork();
+  return res.json({ ok: true });
+}
+"#;
+    let result = extract_guard_observations(
+        RouteAdapter::Express,
+        StructuralLanguage::JavaScript,
+        &path("src/nested-callback.js"),
+        source,
+        BusinessLogicLimits::default(),
+    )
+    .expect("inspect nested callback guard");
+
+    assert!(result.guards().iter().any(|guard| {
+        guard.guard_kind() == GuardKind::Authentication
+            && guard.dominance_scope() == DominanceScope::Unknown
+    }));
+    assert!(
+        result
+            .guards()
+            .iter()
+            .all(|guard| guard.dominance_scope() != DominanceScope::SameHandlerPrefix)
     );
 }
 
