@@ -1,10 +1,10 @@
 //! Final route and lexical-origin qualification for bounded R3 value derivation.
 //!
 //! `value_scope` already rejects cross-handler, shadowed request-parameter, and import-shadow
-//! ambiguity. This final qualifier closes two narrower seams that require information unavailable
-//! to the lower extractor: an Express named handler must be backed by a canonical route
-//! observation, and catch-bound authentication receiver names must never impersonate adapter
-//! origins. Rejected values degrade to UNKNOWN with fail-visible coverage.
+//! ambiguity. This final qualifier closes narrower seams that require information unavailable to
+//! the lower extractor: an Express named handler must be backed by a canonical route observation
+//! with an unambiguous lexical binding, and catch-bound authentication receiver names must never
+//! impersonate adapter origins. Rejected values degrade to UNKNOWN with fail-visible coverage.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -96,7 +96,7 @@ pub fn extract_value_origins(
         })?;
 
     let express_named_route_proven = adapter != RouteAdapter::Express
-        || unique_exported_handler(&nodes, source_text)
+        || exported_handler_is_unique_binding(&nodes, source_text)
             && routes
                 .routes()
                 .iter()
@@ -226,13 +226,59 @@ fn propagate_unsafe_inputs(
     }
 }
 
-fn unique_exported_handler(nodes: &[tree_sitter::Node<'_>], source: &str) -> bool {
-    nodes
+fn exported_handler_is_unique_binding(nodes: &[tree_sitter::Node<'_>], source: &str) -> bool {
+    if nodes
         .iter()
         .copied()
         .filter(|node| is_exported_named_handler(*node, source))
         .count()
-        == 1
+        != 1
+    {
+        return false;
+    }
+
+    !nodes
+        .iter()
+        .copied()
+        .any(|node| introduces_other_handler_binding(node, source))
+}
+
+fn introduces_other_handler_binding(node: tree_sitter::Node<'_>, source: &str) -> bool {
+    match node.kind() {
+        "function_declaration" | "generator_function_declaration" | "function_expression"
+        | "generator_function" => {
+            node.child_by_field_name("name")
+                .and_then(|name| node_text(name, source))
+                == Some("handler")
+                && !is_exported_named_handler(node, source)
+        }
+        "variable_declarator" => node
+            .child_by_field_name("name")
+            .is_some_and(|name| pattern_has_binding(name, source, "handler")),
+        "formal_parameters" => pattern_has_binding(node, source, "handler"),
+        "catch_clause" => node
+            .child_by_field_name("parameter")
+            .is_some_and(|parameter| pattern_has_binding(parameter, source, "handler")),
+        "class_declaration" => {
+            node.child_by_field_name("name")
+                .and_then(|name| node_text(name, source))
+                == Some("handler")
+        }
+        "import_statement" => node
+            .child_by_field_name("import_clause")
+            .is_some_and(|clause| pattern_has_binding(clause, source, "handler")),
+        "assignment_expression" => node
+            .child_by_field_name("left")
+            .is_some_and(|left| pattern_has_binding(left, source, "handler")),
+        "with_statement" => true,
+        _ => false,
+    }
+}
+
+fn pattern_has_binding(node: tree_sitter::Node<'_>, source: &str, target: &str) -> bool {
+    pattern_binding_names(node, source)
+        .iter()
+        .any(|binding| binding == target)
 }
 
 fn inside_exported_handler(
