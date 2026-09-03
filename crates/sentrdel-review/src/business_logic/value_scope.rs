@@ -376,11 +376,12 @@ fn identity_origin_import_shadowed(
 
 fn import_node_binds_name(node: tree_sitter::Node<'_>, source: &str, target: &str) -> bool {
     match node.kind() {
-        "import_specifier" => node
-            .child_by_field_name("alias")
-            .or_else(|| node.child_by_field_name("name"))
-            .and_then(|binding| node_text(binding, source))
-            == Some(target),
+        "import_specifier" => {
+            node.child_by_field_name("alias")
+                .or_else(|| node.child_by_field_name("name"))
+                .and_then(|binding| node_text(binding, source))
+                == Some(target)
+        }
         "namespace_import" => pattern_binding_names(node, source)
             .iter()
             .any(|binding| binding == target),
