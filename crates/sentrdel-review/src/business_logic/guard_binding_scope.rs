@@ -475,9 +475,10 @@ fn variable_binding_scope(
     root: tree_sitter::Node<'_>,
 ) -> (usize, usize, usize, usize) {
     let function = enclosing_function(node, root);
-    let is_var = node
-        .parent()
-        .is_some_and(|parent| parent.kind() == "variable_declaration");
+    let is_var = node.parent().is_some_and(|parent| {
+        parent.kind() == "variable_declaration"
+            && parent.child(0).is_some_and(|child| child.kind() == "var")
+    });
     if is_var {
         return (
             function.start_byte(),
