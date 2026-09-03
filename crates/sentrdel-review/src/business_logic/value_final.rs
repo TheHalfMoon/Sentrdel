@@ -75,7 +75,10 @@ impl ValueExtraction {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum ParameterWriteQualification {
     Clean,
-    Reassigned { function_start: usize, function_end: usize },
+    Reassigned {
+        function_start: usize,
+        function_end: usize,
+    },
     Unqualified,
 }
 
@@ -266,8 +269,7 @@ fn origin_function_range(
     nodes: &[tree_sitter::Node<'_>],
 ) -> Option<(usize, usize)> {
     let location = value.provenance().first()?;
-    let function =
-        innermost_function_for_range(nodes, location.start_byte(), location.end_byte())?;
+    let function = innermost_function_for_range(nodes, location.start_byte(), location.end_byte())?;
     Some((function.start_byte(), function.end_byte()))
 }
 
