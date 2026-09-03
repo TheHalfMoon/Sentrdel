@@ -167,6 +167,12 @@ pub fn extract_value_origins(
         values.insert(value.value_id().as_str().to_owned(), value.clone());
     }
 
+    for location in cross_scope_binding_use_ranges(&raw, &nodes, source, &handlers)? {
+        unsafe_ranges
+            .entry((location.start_byte(), location.end_byte()))
+            .or_insert(location);
+    }
+
     for ((start, end), location) in unsafe_ranges {
         insert_gap(
             &mut gaps,
@@ -262,9 +268,7 @@ fn semantic_root(semantic_key: &str) -> Option<&str> {
     let key = semantic_key
         .strip_prefix("destructure-source:")
         .unwrap_or(semantic_key);
-    let end = key
-        .find(|character: char| character == '.' || character == '(' || character == '[')
-        .unwrap_or(key.len());
+    let end = key.find(['.', '(', '[']).unwrap_or(key.len());
     let root = key.get(..end)?;
     is_identifier(root).then_some(root)
 }
@@ -326,6 +330,147 @@ fn visible_local_binding(
         }
     }
     matches == 1
+}
+
+fn cross_scope_binding_use_ranges(
+    raw: &core::ValueExtraction,
+    nodes: &[tree_sitter::Node<'_>],
+    source: &str,
+    handlers: &[HandlerScope],
+) -> Result<Vec<SourceLocation>, ValueExtractionError> {
+    let mut qualified_bindings = BTreeMap::<String, (HandlerScope, SourceLocation)>::new();
+    for value in raw.values() {
+        let Some(name) = value.semantic_key().strip_prefix("binding:") else {
+            continue;
+        };
+        if value.origin_kind() == ValueOriginKind::Unknown
+            || !value_is_scope_safe(value, nodes, source, handlers)
+        {
+            continue;
+        }
+        let Some(location) = value.provenance().first() else {
+            continue;
+        };
+        let Some(handler) = handler_for_range(
+            handlers,
+            nodes,
+            location.start_byte(),
+            location.end_byte(),
+        ) else {
+            continue;
+        };
+        if raw
+            .value_for_range(location.start_byte(), location.end_byte())
+            .is_none()
+        {
+            continue;
+        }
+        qualified_bindings
+            .entry(name.to_owned())
+            .or_insert_with(|| (handler.clone(), location.clone()));
+    }
+
+    let mut ranges = BTreeMap::<(usize, usize), SourceLocation>::new();
+    for node in nodes {
+        if !identifier_is_binding_reference(*node) {
+            continue;
+        }
+        let Some(name) = node_text(*node, source) else {
+            continue;
+        };
+        let Some((handler, anchor)) = qualified_bindings.get(name) else {
+            continue;
+        };
+        let same_function = innermost_function_for_range(
+            nodes,
+            node.start_byte(),
+            node.end_byte(),
+        )
+        .is_some_and(|function| {
+            function.start_byte() == handler.start && function.end_byte() == handler.end
+        });
+        if same_function {
+            continue;
+        }
+        let location = SourceLocation::new(
+            anchor.path().clone(),
+            node.start_byte(),
+            node.end_byte(),
+            anchor.content_digest().to_owned(),
+        )
+        .map_err(ValueExtractionError::Model)?;
+        ranges
+            .entry((location.start_byte(), location.end_byte()))
+            .or_insert(location);
+    }
+    Ok(ranges.into_values().collect())
+}
+
+fn identifier_is_binding_reference(node: tree_sitter::Node<'_>) -> bool {
+    if node.kind() != "identifier" {
+        return false;
+    }
+    let Some(parent) = node.parent() else {
+        return false;
+    };
+
+    if parent.kind() == "member_expression"
+        && parent
+            .child_by_field_name("property")
+            .is_some_and(|property| property.id() == node.id())
+    {
+        return false;
+    }
+    if matches!(parent.kind(), "pair" | "pair_pattern")
+        && parent
+            .child_by_field_name("key")
+            .is_some_and(|key| key.id() == node.id())
+    {
+        return false;
+    }
+
+    let mut current = node;
+    while let Some(ancestor) = current.parent() {
+        if ancestor.kind() == "variable_declarator"
+            && ancestor
+                .child_by_field_name("name")
+                .is_some_and(|name| {
+                    name.start_byte() <= node.start_byte() && node.end_byte() <= name.end_byte()
+                })
+        {
+            return false;
+        }
+        if matches!(
+            ancestor.kind(),
+            "import_statement"
+                | "import_clause"
+                | "import_specifier"
+                | "namespace_import"
+                | "named_imports"
+        ) {
+            return false;
+        }
+        if is_function_boundary(ancestor) {
+            if ancestor
+                .child_by_field_name("name")
+                .is_some_and(|name| {
+                    name.start_byte() <= node.start_byte() && node.end_byte() <= name.end_byte()
+                })
+                || ancestor
+                    .child_by_field_name("parameters")
+                    .or_else(|| ancestor.child_by_field_name("parameter"))
+                    .is_some_and(|parameters| {
+                        parameters.start_byte() <= node.start_byte()
+                            && node.end_byte() <= parameters.end_byte()
+                    })
+            {
+                return false;
+            }
+            break;
+        }
+        current = ancestor;
+    }
+    true
 }
 
 fn collect_verified_handlers(
