@@ -141,6 +141,7 @@ fn express_factory_binding_is_ambiguous(
     })?;
 
     let mut canonical_imports = 0usize;
+    let mut noncanonical_binding = false;
     let mut stack = vec![tree.root_node()];
     while let Some(node) = stack.pop() {
         if matches!(
@@ -152,14 +153,14 @@ fn express_factory_binding_is_ambiguous(
             if express_binding_is_canonical_default_import(node, source) {
                 canonical_imports = canonical_imports.saturating_add(1);
             } else {
-                return Ok(true);
+                noncanonical_binding = true;
             }
         }
         let mut cursor = node.walk();
         stack.extend(node.named_children(&mut cursor));
     }
 
-    Ok(canonical_imports != 1)
+    Ok(canonical_imports > 1 || (canonical_imports == 1 && noncanonical_binding))
 }
 
 fn express_binding_is_canonical_default_import(node: tree_sitter::Node<'_>, source: &str) -> bool {
