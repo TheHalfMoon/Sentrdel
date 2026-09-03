@@ -139,8 +139,7 @@ pub fn extract_value_origins(
                 source,
                 gap.provenance().start_byte(),
                 gap.provenance().end_byte(),
-            )
-        {
+            ) {
             ValueCoverageGapReason::DerivationDepthExceeded
         } else {
             gap.reason()
@@ -213,12 +212,9 @@ fn value_is_scope_safe(
     let Some(location) = value.provenance().first() else {
         return false;
     };
-    let Some(handler) = handler_for_range(
-        handlers,
-        nodes,
-        location.start_byte(),
-        location.end_byte(),
-    ) else {
+    let Some(handler) =
+        handler_for_range(handlers, nodes, location.start_byte(), location.end_byte())
+    else {
         return false;
     };
 
@@ -296,11 +292,13 @@ fn visible_local_binding(
 ) -> bool {
     let mut matches = 0usize;
     for node in nodes {
-        if node.kind() != "variable_declarator" || !handler.contains(node.start_byte(), node.end_byte())
+        if node.kind() != "variable_declarator"
+            || !handler.contains(node.start_byte(), node.end_byte())
         {
             continue;
         }
-        let Some(function) = innermost_function_for_range(nodes, node.start_byte(), node.end_byte())
+        let Some(function) =
+            innermost_function_for_range(nodes, node.start_byte(), node.end_byte())
         else {
             continue;
         };
@@ -362,11 +360,7 @@ fn collect_verified_handlers(
     handlers
 }
 
-fn is_supported_handler(
-    node: tree_sitter::Node<'_>,
-    source: &str,
-    adapter: RouteAdapter,
-) -> bool {
+fn is_supported_handler(node: tree_sitter::Node<'_>, source: &str, adapter: RouteAdapter) -> bool {
     match adapter {
         RouteAdapter::Express => {
             is_exported_named_function(node, source, "handler")
@@ -384,11 +378,7 @@ fn is_supported_handler(
     }
 }
 
-fn is_exported_named_function(
-    node: tree_sitter::Node<'_>,
-    source: &str,
-    expected: &str,
-) -> bool {
+fn is_exported_named_function(node: tree_sitter::Node<'_>, source: &str, expected: &str) -> bool {
     is_exported_function(node) && function_name(node, source) == Some(expected)
 }
 
@@ -413,7 +403,15 @@ fn is_inline_express_route_callback(node: tree_sitter::Node<'_>, source: &str) -
                 && matches!(chain[0].as_str(), "app" | "router")
                 && matches!(
                     chain[1].as_str(),
-                    "get" | "post" | "put" | "patch" | "delete" | "options" | "head" | "all" | "use"
+                    "get"
+                        | "post"
+                        | "put"
+                        | "patch"
+                        | "delete"
+                        | "options"
+                        | "head"
+                        | "all"
+                        | "use"
                 )
         })
 }
