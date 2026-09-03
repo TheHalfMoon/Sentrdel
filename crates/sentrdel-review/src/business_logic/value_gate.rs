@@ -13,7 +13,7 @@ use super::model::{
     BusinessLogicLimits, SourceLocation, StableSemanticId, ValueOrigin, ValueOriginKind,
 };
 pub(crate) use super::route;
-use super::route::{RouteAdapter, RouteExtraction};
+use super::route::RouteAdapter;
 use crate::structural::{StructuralError, StructuralLanguage};
 use crate::view::NormalizedRepoPath;
 
@@ -115,6 +115,13 @@ pub fn extract_value_origins(
             unsafe_ids.insert(value.value_id().as_str().to_owned());
             continue;
         };
+        if extracted
+            .value_for_range(location.start_byte(), location.end_byte())
+            .is_none()
+        {
+            unsafe_ids.insert(value.value_id().as_str().to_owned());
+            continue;
+        }
 
         if adapter == RouteAdapter::Express
             && is_direct_origin(value.origin_kind())
