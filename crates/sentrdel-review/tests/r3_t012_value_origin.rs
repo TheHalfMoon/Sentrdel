@@ -163,7 +163,7 @@ fn supabase_edge_verified_user_and_request_sources_are_bounded() {
     let result = extract_value_origins(
         RouteAdapter::SupabaseEdge,
         StructuralLanguage::JavaScript,
-        &path("supabase/functions/private/index.js"),
+        &path("supabase/functions/private/index.ts"),
         source,
         BusinessLogicLimits::default(),
     )
@@ -407,7 +407,7 @@ fn locally_shadowed_supabase_origin_does_not_mint_authenticated_value() {
     let result = extract_value_origins(
         RouteAdapter::SupabaseEdge,
         StructuralLanguage::JavaScript,
-        &path("supabase/functions/shadowed/index.js"),
+        &path("supabase/functions/shadowed/index.ts"),
         source,
         BusinessLogicLimits::default(),
     )
