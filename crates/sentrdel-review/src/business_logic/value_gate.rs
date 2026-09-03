@@ -90,9 +90,10 @@ pub fn extract_value_origins(
         .map_err(|_| ValueExtractionError::Structural(StructuralError::NonUtf8Source))?;
     let tree = parse_tree(language, source_text)?;
     let nodes = collect_nodes(tree.root_node())?;
-    let routes = route::extract_routes(adapter, language, path, source, limits).map_err(|error| {
-        ValueExtractionError::ParseFailed(format!("final route qualification failed: {error}"))
-    })?;
+    let routes =
+        route::extract_routes(adapter, language, path, source, limits).map_err(|error| {
+            ValueExtractionError::ParseFailed(format!("final route qualification failed: {error}"))
+        })?;
 
     let express_named_route_proven = adapter != RouteAdapter::Express
         || unique_exported_handler(&nodes, source_text)
@@ -337,7 +338,9 @@ fn parse_tree(
         .set_language(&language)
         .map_err(|error| ValueExtractionError::ParseFailed(error.to_string()))?;
     parser.parse(source, None).ok_or_else(|| {
-        ValueExtractionError::ParseFailed("final value qualifier returned no syntax tree".to_owned())
+        ValueExtractionError::ParseFailed(
+            "final value qualifier returned no syntax tree".to_owned(),
+        )
     })
 }
 
