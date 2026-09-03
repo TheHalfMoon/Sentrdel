@@ -108,7 +108,11 @@ pub fn extract_routes(
     gaps.sort_by(|left, right| {
         left.reason
             .cmp(&right.reason)
-            .then_with(|| left.provenance.start_byte().cmp(&right.provenance.start_byte()))
+            .then_with(|| {
+                left.provenance
+                    .start_byte()
+                    .cmp(&right.provenance.start_byte())
+            })
             .then_with(|| left.provenance.end_byte().cmp(&right.provenance.end_byte()))
     });
     gaps.dedup();
@@ -127,9 +131,9 @@ fn express_factory_binding_is_ambiguous(
         StructuralLanguage::TypeScript => tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into(),
     };
     let mut parser = tree_sitter::Parser::new();
-    parser
-        .set_language(&language)
-        .map_err(|error| RouteExtractionError::Structural(StructuralError::ParseFailed(error.to_string())))?;
+    parser.set_language(&language).map_err(|error| {
+        RouteExtractionError::Structural(StructuralError::ParseFailed(error.to_string()))
+    })?;
     let tree = parser.parse(source, None).ok_or_else(|| {
         RouteExtractionError::Structural(StructuralError::ParseFailed(
             "Express final binding parser returned no syntax tree".to_owned(),
@@ -158,10 +162,7 @@ fn express_factory_binding_is_ambiguous(
     Ok(canonical_imports != 1)
 }
 
-fn express_binding_is_canonical_default_import(
-    node: tree_sitter::Node<'_>,
-    source: &str,
-) -> bool {
+fn express_binding_is_canonical_default_import(node: tree_sitter::Node<'_>, source: &str) -> bool {
     let Some(parent) = node.parent() else {
         return false;
     };
@@ -171,7 +172,8 @@ fn express_binding_is_canonical_default_import(
     let Some(default_name) = parent.named_child(0) else {
         return false;
     };
-    if default_name.start_byte() != node.start_byte() || default_name.end_byte() != node.end_byte() {
+    if default_name.start_byte() != node.start_byte() || default_name.end_byte() != node.end_byte()
+    {
         return false;
     }
 
