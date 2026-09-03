@@ -11,6 +11,13 @@ fn path(value: &str) -> NormalizedRepoPath {
     NormalizedRepoPath::parse(value, 4_096).expect("normalized fixture path")
 }
 
+fn has_kind(
+    result: &sentrdel_review::business_logic::value::ValueExtraction,
+    kind: ValueOriginKind,
+) -> bool {
+    result.values().iter().any(|value| value.origin_kind() == kind)
+}
+
 #[test]
 fn express_direct_request_and_authenticated_origins_are_typed_separately() {
     let source = br#"export function handler(req, res) {
@@ -42,7 +49,7 @@ fn express_direct_request_and_authenticated_origins_are_typed_separately() {
         ValueOriginKind::AuthenticatedTenantId,
         ValueOriginKind::AuthenticatedRole,
     ] {
-        assert!(result.values().iter().any(|value| value.origin_kind() == kind));
+        assert!(has_kind(&result, kind));
     }
     const { assert!(!STATIC_VALUE_DERIVATION_PROVES_RUNTIME_VALUE) };
 }
@@ -133,7 +140,7 @@ fn next_app_request_and_authenticated_sources_remain_distinct() {
         ValueOriginKind::AuthenticatedTenantId,
         ValueOriginKind::AuthenticatedRole,
     ] {
-        assert!(result.values().iter().any(|value| value.origin_kind() == kind));
+        assert!(has_kind(&result, kind));
     }
 }
 
@@ -166,7 +173,7 @@ fn supabase_edge_verified_user_and_request_sources_are_bounded() {
         ValueOriginKind::AuthenticatedTenantId,
         ValueOriginKind::AuthenticatedRole,
     ] {
-        assert!(result.values().iter().any(|value| value.origin_kind() == kind));
+        assert!(has_kind(&result, kind));
     }
 }
 
@@ -195,10 +202,12 @@ fn dynamic_member_and_transform_call_terminate_in_unknown() {
         value.origin_kind() == ValueOriginKind::Unknown
             && value.semantic_key() == "binding:transformed"
     }));
-    assert!(result
-        .gaps()
-        .iter()
-        .any(|gap| gap.reason() == ValueCoverageGapReason::DynamicExpression));
+    assert!(
+        result
+            .gaps()
+            .iter()
+            .any(|gap| gap.reason() == ValueCoverageGapReason::DynamicExpression)
+    );
 }
 
 #[test]
@@ -223,10 +232,12 @@ fn duplicate_or_reassigned_bindings_never_gain_supported_equivalence() {
     )
     .expect("inspect ambiguous bindings");
 
-    assert!(result
-        .gaps()
-        .iter()
-        .any(|gap| gap.reason() == ValueCoverageGapReason::AmbiguousBinding));
+    assert!(
+        result
+            .gaps()
+            .iter()
+            .any(|gap| gap.reason() == ValueCoverageGapReason::AmbiguousBinding)
+    );
     assert!(!result.values().iter().any(|value| {
         value.semantic_key() == "binding:accountId"
             && value.origin_kind() == ValueOriginKind::SupportedDerived
@@ -254,13 +265,9 @@ fn static_string_subscript_is_supported_but_dynamic_subscript_is_not() {
     )
     .expect("inspect subscript values");
 
-    assert!(result
-        .values()
-        .iter()
-        .any(|value| value.origin_kind() == ValueOriginKind::RequestPath));
+    assert!(has_kind(&result, ValueOriginKind::RequestPath));
     assert!(result.values().iter().any(|value| {
-        value.origin_kind() == ValueOriginKind::Unknown
-            && value.semantic_key() == "binding:unknown"
+        value.origin_kind() == ValueOriginKind::Unknown && value.semantic_key() == "binding:unknown"
     }));
 }
 
@@ -287,14 +294,147 @@ fn derivation_depth_cap_fails_visible_instead_of_inventing_equivalence() {
     )
     .expect("bounded depth extraction");
 
-    assert!(result
-        .gaps()
-        .iter()
-        .any(|gap| gap.reason() == ValueCoverageGapReason::DerivationDepthExceeded));
-    assert!(result
-        .values()
-        .iter()
-        .all(|value| value.derivation_depth() <= limits.max_derivation_depth));
+    assert!(
+        result
+            .gaps()
+            .iter()
+            .any(|gap| gap.reason() == ValueCoverageGapReason::DerivationDepthExceeded)
+    );
+    assert!(
+        result
+            .values()
+            .iter()
+            .all(|value| value.derivation_depth() <= limits.max_derivation_depth)
+    );
+}
+
+#[test]
+fn derivation_fan_in_cap_fails_visible_for_supported_array_composition() {
+    let source = br#"export function handler(req) {
+  const ids = [req.params.a, req.params.b, req.params.c];
+  return ids;
+}
+"#;
+    let limits = BusinessLogicLimits {
+        max_derivation_fan_in: 2,
+        ..BusinessLogicLimits::default()
+    };
+    let result = extract_value_origins(
+        RouteAdapter::Express,
+        StructuralLanguage::JavaScript,
+        &path("src/fan-in.js"),
+        source,
+        limits,
+    )
+    .expect("bounded fan-in extraction");
+
+    assert!(
+        result
+            .gaps()
+            .iter()
+            .any(|gap| gap.reason() == ValueCoverageGapReason::DerivationFanInExceeded)
+    );
+    assert!(result.values().iter().any(|value| {
+        value.origin_kind() == ValueOriginKind::Unknown && value.semantic_key() == "binding:ids"
+    }));
+}
+
+#[test]
+fn unsupported_rest_destructuring_degrades_coverage() {
+    let source = br#"export function handler(req) {
+  const { accountId, ...rest } = req.params;
+  return { accountId, rest };
+}
+"#;
+    let result = extract_value_origins(
+        RouteAdapter::Express,
+        StructuralLanguage::JavaScript,
+        &path("src/rest.js"),
+        source,
+        BusinessLogicLimits::default(),
+    )
+    .expect("inspect rest destructuring");
+
+    assert!(
+        result
+            .gaps()
+            .iter()
+            .any(|gap| gap.reason() == ValueCoverageGapReason::UnsupportedDestructuring)
+    );
+}
+
+#[test]
+fn locally_shadowed_auth_origin_does_not_mint_authenticated_value() {
+    let source = br#"function auth() {
+  return { user: { id: "fake", tenant_id: "fake", role: "admin" } };
+}
+export async function GET() {
+  const session = await auth();
+  const user = session.user;
+  const id = user.id;
+  const tenant = user.tenant_id;
+  const role = user.role;
+  return Response.json({ id, tenant, role });
+}
+"#;
+    let result = extract_value_origins(
+        RouteAdapter::NextApp,
+        StructuralLanguage::JavaScript,
+        &path("app/api/shadowed/route.js"),
+        source,
+        BusinessLogicLimits::default(),
+    )
+    .expect("inspect shadowed auth origin");
+
+    assert!(!has_kind(&result, ValueOriginKind::AuthenticatedUserId));
+    assert!(!has_kind(&result, ValueOriginKind::AuthenticatedTenantId));
+    assert!(!has_kind(&result, ValueOriginKind::AuthenticatedRole));
+}
+
+#[test]
+fn locally_shadowed_supabase_origin_does_not_mint_authenticated_value() {
+    let source = br#"Deno.serve(async (request) => {
+  const supabase = { auth: { getUser: async () => ({ data: { user: { id: "fake" } } }) } };
+  const result = await supabase.auth.getUser("token");
+  const user = result.data.user;
+  const id = user.id;
+  return Response.json({ id, request });
+});
+"#;
+    let result = extract_value_origins(
+        RouteAdapter::SupabaseEdge,
+        StructuralLanguage::JavaScript,
+        &path("supabase/functions/shadowed/index.js"),
+        source,
+        BusinessLogicLimits::default(),
+    )
+    .expect("inspect shadowed Supabase origin");
+
+    assert!(!has_kind(&result, ValueOriginKind::AuthenticatedUserId));
+}
+
+#[test]
+fn typescript_wrappers_preserve_supported_origin_without_widening() {
+    let source = br#"export function handler(req: any) {
+  const id = (req.params.id as string)!;
+  const selected = id satisfies string;
+  return selected;
+}
+"#;
+    let result = extract_value_origins(
+        RouteAdapter::Express,
+        StructuralLanguage::TypeScript,
+        &path("src/wrapped.ts"),
+        source,
+        BusinessLogicLimits::default(),
+    )
+    .expect("extract TypeScript wrapper values");
+
+    assert!(has_kind(&result, ValueOriginKind::RequestPath));
+    assert!(result.values().iter().any(|value| {
+        value.origin_kind() == ValueOriginKind::SupportedDerived
+            && value.semantic_key() == "binding:selected"
+    }));
 }
 
 #[test]
