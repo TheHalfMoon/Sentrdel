@@ -363,10 +363,17 @@ fn observe_if_guard(
     let Some(consequence) = node.child_by_field_name("consequence") else {
         return Ok(());
     };
-    if !contains_rejection_exit(consequence, source) {
+    let condition = unwrap_expression(condition);
+    if !contains_direct_rejection_exit(consequence, source) {
+        if contains_rejection_exit(consequence, source) {
+            builder.gap(
+                GuardCoverageGapReason::UnsupportedGuardShape,
+                condition.start_byte(),
+                condition.end_byte(),
+            )?;
+        }
         return Ok(());
     }
-    let condition = unwrap_expression(condition);
 
     if condition_contains_dynamic_guard(condition, source, facts) {
         builder.gap(
@@ -396,7 +403,15 @@ fn observe_condition_parts(
             return Ok(());
         };
         let operator = binary_operator(left, right, source).unwrap_or_default();
-        if matches!(operator, "||" | "&&") {
+        if operator == "&&" {
+            builder.gap(
+                GuardCoverageGapReason::UnsupportedGuardShape,
+                node.start_byte(),
+                node.end_byte(),
+            )?;
+            return Ok(());
+        }
+        if operator == "||" {
             observe_condition_parts(left, source, adapter, facts, builder)?;
             observe_condition_parts(right, source, adapter, facts, builder)?;
             return Ok(());
@@ -540,19 +555,35 @@ fn observe_identity_binding_comparison(
     let right_field = right_chain.last().map(String::as_str).unwrap_or_default();
     let left_actor = is_verified_actor_identity_chain(&left_chain, adapter, facts);
     let right_actor = is_verified_actor_identity_chain(&right_chain, adapter, facts);
+    let left_user_id = is_verified_user_id_chain(&left_chain, adapter, facts);
+    let right_user_id = is_verified_user_id_chain(&right_chain, adapter, facts);
+    let left_tenant = is_verified_tenant_identity_chain(&left_chain, adapter, facts);
+    let right_tenant = is_verified_tenant_identity_chain(&right_chain, adapter, facts);
 
-    let kind = if (is_tenant_field(left_field) && right_actor)
-        || (is_tenant_field(right_field) && left_actor)
+    let kind = if (is_tenant_field(left_field) && right_tenant)
+        || (is_tenant_field(right_field) && left_tenant)
     {
         Some(GuardKind::TenantBinding)
-    } else if (is_ownership_field(left_field) && right_actor)
-        || (is_ownership_field(right_field) && left_actor)
+    } else if (is_ownership_field(left_field) && right_user_id)
+        || (is_ownership_field(right_field) && left_user_id)
     {
         Some(GuardKind::OwnershipBinding)
     } else {
         None
     };
     let Some(kind) = kind else {
+        let mismatched_identity = (is_tenant_field(left_field) && right_actor)
+            || (is_tenant_field(right_field) && left_actor)
+            || (is_ownership_field(left_field) && right_actor)
+            || (is_ownership_field(right_field) && left_actor);
+        if mismatched_identity {
+            builder.gap(
+                GuardCoverageGapReason::UnsupportedGuardShape,
+                node.start_byte(),
+                node.end_byte(),
+            )?;
+            return Ok(true);
+        }
         return Ok(false);
     };
 
@@ -747,28 +778,44 @@ fn contains_auth_relevant_dynamic_shape(
     false
 }
 
+fn contains_direct_rejection_exit(node: tree_sitter::Node<'_>, source: &str) -> bool {
+    if is_rejection_exit_node(node, source) {
+        return true;
+    }
+    if node.kind() != "statement_block" {
+        return false;
+    }
+    let mut cursor = node.walk();
+    node.named_children(&mut cursor)
+        .any(|child| is_rejection_exit_node(child, source))
+}
+
 fn contains_rejection_exit(node: tree_sitter::Node<'_>, source: &str) -> bool {
     let mut stack = vec![node];
     while let Some(current) = stack.pop() {
-        if matches!(current.kind(), "return_statement" | "throw_statement") {
-            if current.kind() == "throw_statement" {
-                return true;
-            }
-            let text = node_text(current, source).unwrap_or_default();
-            if text.contains("401")
-                || text.contains("403")
-                || text.contains("Unauthorized")
-                || text.contains("Forbidden")
-                || text.trim() == "return;"
-                || text.trim() == "return"
-            {
-                return true;
-            }
+        if is_rejection_exit_node(current, source) {
+            return true;
         }
         let mut cursor = current.walk();
         stack.extend(current.named_children(&mut cursor));
     }
     false
+}
+
+fn is_rejection_exit_node(node: tree_sitter::Node<'_>, source: &str) -> bool {
+    if !matches!(node.kind(), "return_statement" | "throw_statement") {
+        return false;
+    }
+    if node.kind() == "throw_statement" {
+        return true;
+    }
+    let text = node_text(node, source).unwrap_or_default();
+    text.contains("401")
+        || text.contains("403")
+        || text.contains("Unauthorized")
+        || text.contains("Forbidden")
+        || text.trim() == "return;"
+        || text.trim() == "return"
 }
 
 fn call_has_request_controlled_argument(
@@ -853,6 +900,30 @@ fn is_verified_role_chain(chain: &[String], adapter: RouteAdapter, facts: &Guard
         return false;
     };
     field == "role"
+        && is_verified_actor_identity_chain(&chain[..chain.len().saturating_sub(1)], adapter, facts)
+}
+
+fn is_verified_user_id_chain(
+    chain: &[String],
+    adapter: RouteAdapter,
+    facts: &GuardFacts,
+) -> bool {
+    let Some(field) = chain.last().map(String::as_str) else {
+        return false;
+    };
+    matches!(field, "id" | "user_id" | "userId")
+        && is_verified_actor_identity_chain(&chain[..chain.len().saturating_sub(1)], adapter, facts)
+}
+
+fn is_verified_tenant_identity_chain(
+    chain: &[String],
+    adapter: RouteAdapter,
+    facts: &GuardFacts,
+) -> bool {
+    let Some(field) = chain.last().map(String::as_str) else {
+        return false;
+    };
+    is_tenant_field(field)
         && is_verified_actor_identity_chain(&chain[..chain.len().saturating_sub(1)], adapter, facts)
 }
 
