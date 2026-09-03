@@ -12,7 +12,7 @@ use super::model::{
     BusinessLogicLimits, SourceLocation, StableSemanticId, ValueOrigin, ValueOriginKind,
 };
 pub(crate) use super::route;
-use super::route::RouteAdapter;
+use super::route::{RouteAdapter, RouteExtraction};
 use crate::structural::{StructuralError, StructuralLanguage};
 use crate::view::NormalizedRepoPath;
 
@@ -97,7 +97,17 @@ pub fn extract_value_origins(
         .map_err(|_| ValueExtractionError::Structural(StructuralError::NonUtf8Source))?;
     let tree = parse_tree(language, source)?;
     let nodes = collect_nodes(tree.root_node())?;
-    let handlers = collect_verified_handlers(&nodes, source, adapter);
+    let route_qualification = route::extract_routes(
+        adapter,
+        language,
+        path,
+        source.as_bytes(),
+        limits,
+    )
+    .map_err(|error| {
+        ValueExtractionError::ParseFailed(format!("route qualification failed: {error}"))
+    })?;
+    let handlers = collect_verified_handlers(&nodes, source, adapter, &route_qualification);
 
     let values_by_id: BTreeMap<String, &ValueOrigin> = raw
         .values()
@@ -124,7 +134,8 @@ pub fn extract_value_origins(
     propagate_unsafe_inputs(&raw, &values_by_id, &mut unsafe_ids);
 
     for value in raw.values() {
-        if unsafe_ids.contains(value.value_id().as_str()) || !is_direct_origin(value.origin_kind()) {
+        if unsafe_ids.contains(value.value_id().as_str()) || !is_direct_origin(value.origin_kind())
+        {
             continue;
         }
         let Some(location) = value.provenance().first() else {
@@ -620,13 +631,14 @@ fn collect_verified_handlers(
     nodes: &[tree_sitter::Node<'_>],
     source: &str,
     adapter: RouteAdapter,
+    routes: &RouteExtraction,
 ) -> Vec<HandlerScope> {
     let mut handlers = Vec::new();
     for node in nodes {
         if !is_function_boundary(*node) {
             continue;
         }
-        if !is_supported_handler(*node, source, adapter) {
+        if !is_supported_handler(*node, source, adapter, routes) {
             continue;
         }
         let parameters = function_parameter_names(*node, source);
@@ -648,22 +660,57 @@ fn collect_verified_handlers(
     handlers
 }
 
-fn is_supported_handler(node: tree_sitter::Node<'_>, source: &str, adapter: RouteAdapter) -> bool {
+fn is_supported_handler(
+    node: tree_sitter::Node<'_>,
+    source: &str,
+    adapter: RouteAdapter,
+    routes: &RouteExtraction,
+) -> bool {
     match adapter {
         RouteAdapter::Express => {
             is_exported_named_function(node, source, "handler")
-                || is_inline_express_route_callback(node, source)
+                || (is_inline_express_route_callback(node, source)
+                    && handler_inside_route_provenance(node, routes))
         }
-        RouteAdapter::NextPagesApi => is_exported_named_function(node, source, "handler"),
-        RouteAdapter::NextApp => function_name(node, source).is_some_and(|name| {
-            is_exported_function(node)
-                && matches!(
-                    name,
-                    "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "OPTIONS" | "HEAD"
-                )
-        }),
-        RouteAdapter::SupabaseEdge => is_deno_serve_callback(node, source),
+        RouteAdapter::NextPagesApi => {
+            is_exported_named_function(node, source, "handler")
+                && named_handler_matches_route(node, source, routes)
+        }
+        RouteAdapter::NextApp => {
+            function_name(node, source).is_some_and(|name| {
+                is_exported_function(node)
+                    && matches!(
+                        name,
+                        "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "OPTIONS" | "HEAD"
+                    )
+            }) && named_handler_matches_route(node, source, routes)
+        }
+        RouteAdapter::SupabaseEdge => {
+            is_deno_serve_callback(node, source) && handler_inside_route_provenance(node, routes)
+        }
     }
+}
+
+fn handler_inside_route_provenance(node: tree_sitter::Node<'_>, routes: &RouteExtraction) -> bool {
+    routes.routes().iter().any(|route| {
+        route.provenance().iter().any(|location| {
+            location.start_byte() <= node.start_byte() && node.end_byte() <= location.end_byte()
+        })
+    })
+}
+
+fn named_handler_matches_route(
+    node: tree_sitter::Node<'_>,
+    source: &str,
+    routes: &RouteExtraction,
+) -> bool {
+    let Some(name) = function_name(node, source) else {
+        return false;
+    };
+    routes
+        .routes()
+        .iter()
+        .any(|route| route.handler_semantic_key() == Some(name))
 }
 
 fn is_exported_named_function(node: tree_sitter::Node<'_>, source: &str, expected: &str) -> bool {
