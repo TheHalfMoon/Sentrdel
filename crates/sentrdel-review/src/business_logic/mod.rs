@@ -10,6 +10,7 @@ pub mod invariant;
 pub mod model;
 pub mod ordering;
 pub mod route;
+#[path = "value_scope.rs"]
 pub mod value;
 
 use sentrdel_schema::SCHEMA_V1;
