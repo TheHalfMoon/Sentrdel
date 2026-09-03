@@ -23,7 +23,12 @@ fn assert_visible_gap_without_guard(
     )
     .expect("inspect destructuring reassignment");
 
-    assert!(result.guards().iter().all(|guard| guard.guard_kind() != forbidden));
+    assert!(
+        result
+            .guards()
+            .iter()
+            .all(|guard| guard.guard_kind() != forbidden)
+    );
     assert!(
         result
             .gaps()
