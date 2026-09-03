@@ -249,7 +249,8 @@ fn predeclaration_request_use_in_shadowed_block_is_not_treated_as_handler_parame
 
 #[test]
 fn fake_express_receiver_does_not_qualify_inline_request_origin() {
-    let source = br#"const app = { get: (_path, callback) => callback({ params: { id: "fake" } }) };
+    let source =
+        br#"const app = { get: (_path, callback) => callback({ params: { id: "fake" } }) };
 app.get("/", (req) => req.params.id);
 "#;
     let result = extract_value_origins(
