@@ -8,8 +8,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 pub(crate) use super::model;
-pub(crate) use super::route;
 use super::model::{BusinessLogicLimits, GuardObservation, SourceLocation};
+pub(crate) use super::route;
 use super::route::RouteAdapter;
 use crate::structural::StructuralLanguage;
 use crate::view::NormalizedRepoPath;
@@ -239,10 +239,7 @@ fn qualify_aliases(
                         changed |= insert_safe(&mut safe_body, name, scope);
                     }
                 }
-                if chain.len() == 2
-                    && potential.session.contains(&chain[0])
-                    && chain[1] == "user"
-                {
+                if chain.len() == 2 && potential.session.contains(&chain[0]) && chain[1] == "user" {
                     changed |= potential.verified_user.insert(name.to_owned());
                     if let Some(scope) = scope
                         && safe_visible(&safe_session, &chain[0], value.start_byte())
