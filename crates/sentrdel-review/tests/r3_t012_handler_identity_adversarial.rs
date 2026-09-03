@@ -33,16 +33,22 @@ export function handler(req) {
     )
     .expect("inspect shadowed Express callback identity");
 
-    assert!(!result
-        .values()
-        .iter()
-        .any(|value| value.origin_kind() == ValueOriginKind::RequestPath));
-    assert!(result
-        .values()
-        .iter()
-        .any(|value| value.origin_kind() == ValueOriginKind::Unknown));
-    assert!(result
-        .gaps()
-        .iter()
-        .any(|gap| gap.reason() == ValueCoverageGapReason::AmbiguousBinding));
+    assert!(
+        !result
+            .values()
+            .iter()
+            .any(|value| value.origin_kind() == ValueOriginKind::RequestPath)
+    );
+    assert!(
+        result
+            .values()
+            .iter()
+            .any(|value| value.origin_kind() == ValueOriginKind::Unknown)
+    );
+    assert!(
+        result
+            .gaps()
+            .iter()
+            .any(|gap| gap.reason() == ValueCoverageGapReason::AmbiguousBinding)
+    );
 }
