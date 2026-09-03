@@ -302,10 +302,12 @@ fn rejection_conjunction_does_not_invent_independent_guards() {
     .expect("inspect conjunction guard");
 
     assert!(result.guards().is_empty());
-    assert!(result
-        .gaps()
-        .iter()
-        .any(|gap| gap.reason() == GuardCoverageGapReason::UnsupportedGuardShape));
+    assert!(
+        result
+            .gaps()
+            .iter()
+            .any(|gap| gap.reason() == GuardCoverageGapReason::UnsupportedGuardShape)
+    );
 }
 
 #[test]
@@ -329,10 +331,12 @@ fn tenant_and_ownership_bindings_require_matching_authenticated_identity_kind() 
         guard.guard_kind(),
         GuardKind::TenantBinding | GuardKind::OwnershipBinding
     )));
-    assert!(result
-        .gaps()
-        .iter()
-        .any(|gap| gap.reason() == GuardCoverageGapReason::UnsupportedGuardShape));
+    assert!(
+        result
+            .gaps()
+            .iter()
+            .any(|gap| gap.reason() == GuardCoverageGapReason::UnsupportedGuardShape)
+    );
 }
 
 #[test]
@@ -360,10 +364,12 @@ fn nested_rejection_does_not_prove_same_handler_prefix_dominance() {
             .iter()
             .all(|guard| guard.guard_kind() != GuardKind::Authentication)
     );
-    assert!(result
-        .gaps()
-        .iter()
-        .any(|gap| gap.reason() == GuardCoverageGapReason::UnsupportedGuardShape));
+    assert!(
+        result
+            .gaps()
+            .iter()
+            .any(|gap| gap.reason() == GuardCoverageGapReason::UnsupportedGuardShape)
+    );
 }
 
 #[test]
