@@ -336,10 +336,10 @@ fn enclosing_lexical_scope(
         .unwrap_or((function.start_byte(), function.end_byte()))
 }
 
-fn enclosing_function(
-    node: tree_sitter::Node<'_>,
-    root: tree_sitter::Node<'_>,
-) -> tree_sitter::Node<'_> {
+fn enclosing_function<'tree>(
+    node: tree_sitter::Node<'tree>,
+    root: tree_sitter::Node<'tree>,
+) -> tree_sitter::Node<'tree> {
     let mut cursor = Some(node);
     while let Some(current) = cursor {
         if is_function_boundary(current) {
