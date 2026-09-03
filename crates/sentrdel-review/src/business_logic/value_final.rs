@@ -190,11 +190,9 @@ fn direct_origin_parameter_is_reassigned(
     let Some(root) = semantic_root(value.semantic_key()) else {
         return true;
     };
-    let Some(function) = innermost_function_for_range(
-        nodes,
-        location.start_byte(),
-        location.end_byte(),
-    ) else {
+    let Some(function) =
+        innermost_function_for_range(nodes, location.start_byte(), location.end_byte())
+    else {
         return true;
     };
     if function_parameter_names(function, source)
@@ -210,9 +208,12 @@ fn direct_origin_parameter_is_reassigned(
         if !function_contains_node(function, node) || !node_reassigns_name(node, source, root) {
             return false;
         }
-        innermost_function_for_range(nodes, node.start_byte(), node.end_byte()).is_some_and(|owner| {
-            owner.start_byte() == function.start_byte() && owner.end_byte() == function.end_byte()
-        })
+        innermost_function_for_range(nodes, node.start_byte(), node.end_byte()).is_some_and(
+            |owner| {
+                owner.start_byte() == function.start_byte()
+                    && owner.end_byte() == function.end_byte()
+            },
+        )
     })
 }
 
@@ -369,7 +370,9 @@ fn parse_tree(
         .set_language(&language)
         .map_err(|error| ValueExtractionError::ParseFailed(error.to_string()))?;
     parser.parse(source, None).ok_or_else(|| {
-        ValueExtractionError::ParseFailed("final parameter-write parser returned no syntax tree".to_owned())
+        ValueExtractionError::ParseFailed(
+            "final parameter-write parser returned no syntax tree".to_owned(),
+        )
     })
 }
 
