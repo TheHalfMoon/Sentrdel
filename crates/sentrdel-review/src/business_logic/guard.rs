@@ -205,8 +205,8 @@ impl<'a> GuardBuilder<'a> {
     ) -> Result<(), GuardExtractionError> {
         let start_text = start.to_string();
         let end_text = end.to_string();
-        let values_key = content_id("r3.guard-required-values", &required_values)
-            .map_err(ModelError::from)?;
+        let values_key =
+            content_id("r3.guard-required-values", &required_values).map_err(ModelError::from)?;
         let guard_id = StableSemanticId::from_parts(
             "r3.guard-observation",
             &[
@@ -401,11 +401,16 @@ fn observe_condition_parts(
             observe_condition_parts(right, source, adapter, facts, builder)?;
             return Ok(());
         }
-        if observe_role_comparison((node, left, right), operator, source, adapter, facts, builder)?
-            || observe_identity_binding_comparison(
-                node, left, right, operator, source, adapter, facts, builder,
-            )?
-        {
+        if observe_role_comparison(
+            (node, left, right),
+            operator,
+            source,
+            adapter,
+            facts,
+            builder,
+        )? || observe_identity_binding_comparison(
+            node, left, right, operator, source, adapter, facts, builder,
+        )? {
             return Ok(());
         }
     }
