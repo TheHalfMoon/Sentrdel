@@ -355,3 +355,98 @@ fn next_app_http_named_export_outside_route_file_is_not_qualified() {
             .any(|gap| gap.reason() == ValueCoverageGapReason::AmbiguousBinding)
     );
 }
+
+#[test]
+fn direct_auth_import_shadows_next_app_identity_origin() {
+    let source = br#"import { auth } from "./fake-auth.js";
+export async function GET(request) {
+  const session = await auth();
+  const user = session.user;
+  return Response.json({ request, id: user.id });
+}
+"#;
+    let result = extract_value_origins(
+        RouteAdapter::NextApp,
+        StructuralLanguage::JavaScript,
+        &path("app/api/import-shadow/route.js"),
+        source,
+        BusinessLogicLimits::default(),
+    )
+    .expect("inspect direct auth import shadow");
+
+    assert!(result.values().iter().all(|value| {
+        !matches!(
+            value.origin_kind(),
+            ValueOriginKind::AuthenticatedUserId
+                | ValueOriginKind::AuthenticatedTenantId
+                | ValueOriginKind::AuthenticatedRole
+        )
+    }));
+    assert!(
+        result
+            .gaps()
+            .iter()
+            .any(|gap| gap.reason() == ValueCoverageGapReason::AmbiguousBinding)
+    );
+}
+
+#[test]
+fn aliased_auth_import_does_not_shadow_unbound_next_app_identity_origin() {
+    let source = br#"import { auth as importedAuth } from "./fake-auth.js";
+export async function GET(request) {
+  void importedAuth;
+  const session = await auth();
+  const user = session.user;
+  return Response.json({ request, id: user.id });
+}
+"#;
+    let result = extract_value_origins(
+        RouteAdapter::NextApp,
+        StructuralLanguage::JavaScript,
+        &path("app/api/import-alias/route.js"),
+        source,
+        BusinessLogicLimits::default(),
+    )
+    .expect("inspect aliased auth import");
+
+    assert!(
+        result
+            .values()
+            .iter()
+            .any(|value| value.origin_kind() == ValueOriginKind::AuthenticatedUserId)
+    );
+}
+
+#[test]
+fn direct_supabase_import_shadows_edge_identity_origin() {
+    let source = br#"import supabase from "./fake-supabase.js";
+Deno.serve(async (request) => {
+  const userResult = await supabase.auth.getUser("token");
+  const user = userResult.data.user;
+  return Response.json({ request, id: user.id });
+});
+"#;
+    let result = extract_value_origins(
+        RouteAdapter::SupabaseEdge,
+        StructuralLanguage::JavaScript,
+        &path("supabase/functions/import-shadow/index.js"),
+        source,
+        BusinessLogicLimits::default(),
+    )
+    .expect("inspect direct Supabase import shadow");
+
+    assert!(result.values().iter().all(|value| {
+        !matches!(
+            value.origin_kind(),
+            ValueOriginKind::AuthenticatedUserId
+                | ValueOriginKind::AuthenticatedTenantId
+                | ValueOriginKind::AuthenticatedRole
+        )
+    }));
+    assert!(
+        result
+            .gaps()
+            .iter()
+            .any(|gap| gap.reason() == ValueCoverageGapReason::AmbiguousBinding)
+    );
+}
