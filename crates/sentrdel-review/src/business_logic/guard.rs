@@ -22,6 +22,7 @@ use crate::view::NormalizedRepoPath;
 pub const MAX_GUARD_OBSERVATIONS: usize = 4_096;
 pub const MAX_GUARD_COVERAGE_GAPS: usize = 4_096;
 pub const MAX_GUARD_AST_NODES: usize = 100_000;
+pub const MAX_GUARD_FACT_ITERATIONS: usize = 5;
 pub const STATIC_GUARD_RECOGNITION_PROVES_RUNTIME_AUTHORIZATION: bool = false;
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -150,8 +151,16 @@ pub fn extract_guard_observations(
         content_id("r3-guard-source", &(path.as_str(), source)).map_err(ModelError::from)?;
     let tree = parse_tree(language, source)?;
     let nodes = collect_nodes(tree.root_node())?;
-    let facts = collect_guard_facts(&nodes, source, adapter);
+    let (facts, facts_converged) = collect_guard_facts(&nodes, source, adapter);
     let mut builder = GuardBuilder::new(path, digest, limits);
+    if !facts_converged {
+        let root = tree.root_node();
+        builder.gap(
+            GuardCoverageGapReason::UnsupportedGuardShape,
+            root.start_byte(),
+            root.end_byte(),
+        )?;
+    }
 
     for node in &nodes {
         match node.kind() {
@@ -277,9 +286,9 @@ fn collect_guard_facts(
     nodes: &[tree_sitter::Node<'_>],
     source: &str,
     adapter: RouteAdapter,
-) -> GuardFacts {
+) -> (GuardFacts, bool) {
     let mut facts = GuardFacts::default();
-    for _ in 0..5 {
+    for _ in 0..MAX_GUARD_FACT_ITERATIONS {
         let mut changed = false;
         for node in nodes {
             if node.kind() != "variable_declarator" {
@@ -344,10 +353,10 @@ fn collect_guard_facts(
             }
         }
         if !changed {
-            break;
+            return (facts, true);
         }
     }
-    facts
+    (facts, false)
 }
 
 fn observe_if_guard(
@@ -402,7 +411,7 @@ fn observe_condition_parts(
         let Some(right) = node.child_by_field_name("right") else {
             return Ok(());
         };
-        let operator = binary_operator(left, right, source).unwrap_or_default();
+        let operator = binary_operator(node, source).unwrap_or_default();
         if operator == "&&" {
             builder.gap(
                 GuardCoverageGapReason::UnsupportedGuardShape,
@@ -716,8 +725,12 @@ fn observe_property_allowlist(
     if !source_is_request_body {
         return Ok(());
     }
+    let mut pattern_cursor = name.walk();
+    let has_rest = name
+        .named_children(&mut pattern_cursor)
+        .any(|child| child.kind() == "rest_pattern");
     let properties = object_pattern_keys(name, source);
-    if properties.is_empty() {
+    if properties.is_empty() || has_rest {
         builder.gap(
             GuardCoverageGapReason::UnsupportedGuardShape,
             node.start_byte(),
@@ -793,6 +806,9 @@ fn contains_direct_rejection_exit(node: tree_sitter::Node<'_>, source: &str) -> 
 fn contains_rejection_exit(node: tree_sitter::Node<'_>, source: &str) -> bool {
     let mut stack = vec![node];
     while let Some(current) = stack.pop() {
+        if is_nested_function_boundary(current) {
+            continue;
+        }
         if is_rejection_exit_node(current, source) {
             return true;
         }
@@ -800,6 +816,17 @@ fn contains_rejection_exit(node: tree_sitter::Node<'_>, source: &str) -> bool {
         stack.extend(current.named_children(&mut cursor));
     }
     false
+}
+
+fn is_nested_function_boundary(node: tree_sitter::Node<'_>) -> bool {
+    matches!(
+        node.kind(),
+        "function_expression"
+            | "function_declaration"
+            | "arrow_function"
+            | "generator_function"
+            | "generator_function_declaration"
+    )
 }
 
 fn is_rejection_exit_node(node: tree_sitter::Node<'_>, source: &str) -> bool {
@@ -1041,14 +1068,9 @@ fn collect_nodes<'tree>(
     Ok(nodes)
 }
 
-fn binary_operator<'a>(
-    left: tree_sitter::Node<'_>,
-    right: tree_sitter::Node<'_>,
-    source: &'a str,
-) -> Option<&'a str> {
-    source
-        .get(left.end_byte()..right.start_byte())
-        .map(str::trim)
+fn binary_operator<'a>(node: tree_sitter::Node<'_>, source: &'a str) -> Option<&'a str> {
+    let operator = node.child_by_field_name("operator")?;
+    node_text(operator, source).map(str::trim)
 }
 
 fn string_literal_value(node: tree_sitter::Node<'_>, source: &str) -> Option<String> {
@@ -1115,8 +1137,14 @@ fn call_function_identifier<'a>(node: tree_sitter::Node<'_>, source: &'a str) ->
 
 fn unwrap_expression(mut node: tree_sitter::Node<'_>) -> tree_sitter::Node<'_> {
     loop {
-        if matches!(node.kind(), "await_expression" | "parenthesized_expression")
-            && let Some(child) = node.named_child(0)
+        if matches!(
+            node.kind(),
+            "await_expression"
+                | "parenthesized_expression"
+                | "non_null_expression"
+                | "as_expression"
+                | "satisfies_expression"
+        ) && let Some(child) = node.named_child(0)
         {
             node = child;
             continue;
@@ -1126,6 +1154,7 @@ fn unwrap_expression(mut node: tree_sitter::Node<'_>) -> tree_sitter::Node<'_> {
 }
 
 fn expression_chain(node: tree_sitter::Node<'_>, source: &str) -> Option<Vec<String>> {
+    let node = unwrap_expression(node);
     match node.kind() {
         "identifier" | "property_identifier" | "shorthand_property_identifier" => {
             Some(vec![node_text(node, source)?.to_owned()])
