@@ -104,32 +104,59 @@ pub fn extract_value_origins(
         .iter()
         .map(|value| (value.value_id().as_str().to_owned(), value))
         .collect();
+    let binding_ids: BTreeMap<String, String> = raw
+        .values()
+        .iter()
+        .filter_map(|value| {
+            value
+                .semantic_key()
+                .strip_prefix("binding:")
+                .map(|name| (name.to_owned(), value.value_id().as_str().to_owned()))
+        })
+        .collect();
     let mut unsafe_ids = BTreeSet::new();
 
     for value in raw.values() {
-        if !value_is_scope_safe(value, &nodes, source, &handlers) {
+        if !value_is_scope_safe(value, &nodes, source, &handlers, adapter) {
             unsafe_ids.insert(value.value_id().as_str().to_owned());
         }
     }
+    propagate_unsafe_inputs(&raw, &values_by_id, &mut unsafe_ids);
 
-    loop {
-        let mut changed = false;
-        for value in raw.values() {
-            let id = value.value_id().as_str();
-            if unsafe_ids.contains(id) {
-                continue;
-            }
-            let has_unsafe_or_missing_input = value.derivation_inputs().iter().any(|input| {
-                unsafe_ids.contains(input.as_str()) || !values_by_id.contains_key(input.as_str())
-            });
-            if has_unsafe_or_missing_input {
-                changed |= unsafe_ids.insert(id.to_owned());
-            }
+    for value in raw.values() {
+        if unsafe_ids.contains(value.value_id().as_str()) || !is_direct_origin(value.origin_kind()) {
+            continue;
         }
-        if !changed {
-            break;
+        let Some(location) = value.provenance().first() else {
+            unsafe_ids.insert(value.value_id().as_str().to_owned());
+            continue;
+        };
+        let Some(handler) = handler_for_range(
+            &handlers,
+            &nodes,
+            location.start_byte(),
+            location.end_byte(),
+        ) else {
+            unsafe_ids.insert(value.value_id().as_str().to_owned());
+            continue;
+        };
+        let Some(root) = semantic_root(value.semantic_key()) else {
+            unsafe_ids.insert(value.value_id().as_str().to_owned());
+            continue;
+        };
+        if handler.request_parameter.as_deref() == Some(root)
+            || handler.context_parameter.as_deref() == Some(root)
+        {
+            continue;
+        }
+        if binding_ids
+            .get(root)
+            .is_none_or(|binding_id| unsafe_ids.contains(binding_id))
+        {
+            unsafe_ids.insert(value.value_id().as_str().to_owned());
         }
     }
+    propagate_unsafe_inputs(&raw, &values_by_id, &mut unsafe_ids);
 
     let mut gaps = BTreeMap::new();
     for gap in raw.gaps() {
@@ -167,7 +194,7 @@ pub fn extract_value_origins(
         values.insert(value.value_id().as_str().to_owned(), value.clone());
     }
 
-    for location in cross_scope_binding_use_ranges(&raw, &nodes, source, &handlers)? {
+    for location in cross_scope_binding_use_ranges(&raw, &nodes, source, &handlers, adapter)? {
         unsafe_ranges
             .entry((location.start_byte(), location.end_byte()))
             .or_insert(location);
@@ -209,11 +236,37 @@ pub fn extract_value_origins(
     })
 }
 
+fn propagate_unsafe_inputs(
+    raw: &core::ValueExtraction,
+    values_by_id: &BTreeMap<String, &ValueOrigin>,
+    unsafe_ids: &mut BTreeSet<String>,
+) {
+    loop {
+        let mut changed = false;
+        for value in raw.values() {
+            let id = value.value_id().as_str();
+            if unsafe_ids.contains(id) {
+                continue;
+            }
+            let has_unsafe_or_missing_input = value.derivation_inputs().iter().any(|input| {
+                unsafe_ids.contains(input.as_str()) || !values_by_id.contains_key(input.as_str())
+            });
+            if has_unsafe_or_missing_input {
+                changed |= unsafe_ids.insert(id.to_owned());
+            }
+        }
+        if !changed {
+            break;
+        }
+    }
+}
+
 fn value_is_scope_safe(
     value: &ValueOrigin,
     nodes: &[tree_sitter::Node<'_>],
     source: &str,
     handlers: &[HandlerScope],
+    adapter: RouteAdapter,
 ) -> bool {
     let Some(location) = value.provenance().first() else {
         return false;
@@ -232,9 +285,14 @@ fn value_is_scope_safe(
         | ValueOriginKind::RequestHeader
         | ValueOriginKind::AuthenticatedUserId
         | ValueOriginKind::AuthenticatedTenantId
-        | ValueOriginKind::AuthenticatedRole => {
-            direct_origin_is_bound(value, nodes, source, handler, location.start_byte())
-        }
+        | ValueOriginKind::AuthenticatedRole => direct_origin_is_bound(
+            value,
+            nodes,
+            source,
+            handler,
+            location.start_byte(),
+            adapter,
+        ),
         ValueOriginKind::SupportedDerived | ValueOriginKind::Unknown => {
             if let Some(name) = value.semantic_key().strip_prefix("use:") {
                 visible_local_binding(nodes, source, handler, name, location.start_byte())
@@ -252,6 +310,7 @@ fn direct_origin_is_bound(
     source: &str,
     handler: &HandlerScope,
     use_offset: usize,
+    _adapter: RouteAdapter,
 ) -> bool {
     let Some(root) = semantic_root(value.semantic_key()) else {
         return false;
@@ -259,9 +318,22 @@ fn direct_origin_is_bound(
     if handler.request_parameter.as_deref() == Some(root)
         || handler.context_parameter.as_deref() == Some(root)
     {
-        return true;
+        return handler_parameter_is_visible(nodes, source, handler, root, use_offset);
     }
     visible_local_binding(nodes, source, handler, root, use_offset)
+}
+
+fn is_direct_origin(kind: ValueOriginKind) -> bool {
+    matches!(
+        kind,
+        ValueOriginKind::RequestPath
+            | ValueOriginKind::RequestQuery
+            | ValueOriginKind::RequestBody
+            | ValueOriginKind::RequestHeader
+            | ValueOriginKind::AuthenticatedUserId
+            | ValueOriginKind::AuthenticatedTenantId
+            | ValueOriginKind::AuthenticatedRole
+    )
 }
 
 fn semantic_root(semantic_key: &str) -> Option<&str> {
@@ -285,6 +357,88 @@ fn handler_for_range<'a>(
             && handler.start == function.start_byte()
             && handler.end == function.end_byte()
     })
+}
+
+fn handler_parameter_is_visible(
+    nodes: &[tree_sitter::Node<'_>],
+    source: &str,
+    handler: &HandlerScope,
+    name: &str,
+    use_offset: usize,
+) -> bool {
+    let Some(function) = nodes.iter().copied().find(|node| {
+        is_function_boundary(*node)
+            && node.start_byte() == handler.start
+            && node.end_byte() == handler.end
+    }) else {
+        return false;
+    };
+    if function_parameter_names(function, source)
+        .iter()
+        .filter(|parameter| parameter.as_str() == name)
+        .count()
+        != 1
+    {
+        return false;
+    }
+
+    for node in nodes {
+        if !handler.contains(node.start_byte(), node.end_byte()) {
+            continue;
+        }
+        let Some(owner) = innermost_function_for_range(nodes, node.start_byte(), node.end_byte())
+        else {
+            continue;
+        };
+        if owner.start_byte() != handler.start || owner.end_byte() != handler.end {
+            continue;
+        }
+
+        let shadow_scope = match node.kind() {
+            "variable_declarator" => {
+                let Some(pattern) = node.child_by_field_name("name") else {
+                    continue;
+                };
+                if !pattern_binding_names(pattern, source)
+                    .iter()
+                    .any(|binding| binding == name)
+                {
+                    continue;
+                }
+                nearest_statement_block(*node, function).unwrap_or(function)
+            }
+            "function_declaration" | "class_declaration" => {
+                let Some(binding) = node
+                    .child_by_field_name("name")
+                    .and_then(|binding| node_text(binding, source))
+                else {
+                    continue;
+                };
+                if binding != name {
+                    continue;
+                }
+                nearest_statement_block(*node, function).unwrap_or(function)
+            }
+            "catch_clause" => {
+                let Some(parameter) = node.child_by_field_name("parameter") else {
+                    continue;
+                };
+                if !pattern_binding_names(parameter, source)
+                    .iter()
+                    .any(|binding| binding == name)
+                {
+                    continue;
+                }
+                node.child_by_field_name("body").unwrap_or(*node)
+            }
+            _ => continue,
+        };
+
+        if shadow_scope.start_byte() <= use_offset && use_offset < shadow_scope.end_byte() {
+            return false;
+        }
+    }
+    true
 }
 
 fn visible_local_binding(
@@ -337,6 +491,7 @@ fn cross_scope_binding_use_ranges(
     nodes: &[tree_sitter::Node<'_>],
     source: &str,
     handlers: &[HandlerScope],
+    adapter: RouteAdapter,
 ) -> Result<Vec<SourceLocation>, ValueExtractionError> {
     let mut qualified_bindings = BTreeMap::<String, (HandlerScope, SourceLocation)>::new();
     for value in raw.values() {
@@ -344,7 +499,7 @@ fn cross_scope_binding_use_ranges(
             continue;
         };
         if value.origin_kind() == ValueOriginKind::Unknown
-            || !value_is_scope_safe(value, nodes, source, handlers)
+            || !value_is_scope_safe(value, nodes, source, handlers, adapter)
         {
             continue;
         }
