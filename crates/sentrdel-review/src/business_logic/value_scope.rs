@@ -351,12 +351,9 @@ fn cross_scope_binding_use_ranges(
         let Some(location) = value.provenance().first() else {
             continue;
         };
-        let Some(handler) = handler_for_range(
-            handlers,
-            nodes,
-            location.start_byte(),
-            location.end_byte(),
-        ) else {
+        let Some(handler) =
+            handler_for_range(handlers, nodes, location.start_byte(), location.end_byte())
+        else {
             continue;
         };
         if raw
@@ -381,14 +378,10 @@ fn cross_scope_binding_use_ranges(
         let Some((handler, anchor)) = qualified_bindings.get(name) else {
             continue;
         };
-        let same_function = innermost_function_for_range(
-            nodes,
-            node.start_byte(),
-            node.end_byte(),
-        )
-        .is_some_and(|function| {
-            function.start_byte() == handler.start && function.end_byte() == handler.end
-        });
+        let same_function = innermost_function_for_range(nodes, node.start_byte(), node.end_byte())
+            .is_some_and(|function| {
+                function.start_byte() == handler.start && function.end_byte() == handler.end
+            });
         if same_function {
             continue;
         }
@@ -432,11 +425,9 @@ fn identifier_is_binding_reference(node: tree_sitter::Node<'_>) -> bool {
     let mut current = node;
     while let Some(ancestor) = current.parent() {
         if ancestor.kind() == "variable_declarator"
-            && ancestor
-                .child_by_field_name("name")
-                .is_some_and(|name| {
-                    name.start_byte() <= node.start_byte() && node.end_byte() <= name.end_byte()
-                })
+            && ancestor.child_by_field_name("name").is_some_and(|name| {
+                name.start_byte() <= node.start_byte() && node.end_byte() <= name.end_byte()
+            })
         {
             return false;
         }
@@ -451,18 +442,15 @@ fn identifier_is_binding_reference(node: tree_sitter::Node<'_>) -> bool {
             return false;
         }
         if is_function_boundary(ancestor) {
-            if ancestor
-                .child_by_field_name("name")
-                .is_some_and(|name| {
-                    name.start_byte() <= node.start_byte() && node.end_byte() <= name.end_byte()
+            if ancestor.child_by_field_name("name").is_some_and(|name| {
+                name.start_byte() <= node.start_byte() && node.end_byte() <= name.end_byte()
+            }) || ancestor
+                .child_by_field_name("parameters")
+                .or_else(|| ancestor.child_by_field_name("parameter"))
+                .is_some_and(|parameters| {
+                    parameters.start_byte() <= node.start_byte()
+                        && node.end_byte() <= parameters.end_byte()
                 })
-                || ancestor
-                    .child_by_field_name("parameters")
-                    .or_else(|| ancestor.child_by_field_name("parameter"))
-                    .is_some_and(|parameters| {
-                        parameters.start_byte() <= node.start_byte()
-                            && node.end_byte() <= parameters.end_byte()
-                    })
             {
                 return false;
             }
