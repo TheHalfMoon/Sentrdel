@@ -206,7 +206,9 @@ fn identifier_is_binding(node: tree_sitter::Node<'_>) -> bool {
         "variable_declarator" | "function_declaration" | "class_declaration" => {
             same_as_field("name")
         }
-        "assignment_expression" | "assignment_pattern" => same_as_field("left"),
+        "assignment_expression" | "assignment_pattern" | "for_in_statement" => {
+            same_as_field("left")
+        }
         "catch_clause" => same_as_field("parameter"),
         "pair_pattern" => same_as_field("value"),
         "object_pattern" | "array_pattern" => true,
