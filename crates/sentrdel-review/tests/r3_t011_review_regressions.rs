@@ -1,6 +1,4 @@
-use sentrdel_review::business_logic::guard::{
-    GuardCoverageGapReason, extract_guard_observations,
-};
+use sentrdel_review::business_logic::guard::{GuardCoverageGapReason, extract_guard_observations};
 use sentrdel_review::business_logic::model::{BusinessLogicLimits, GuardKind};
 use sentrdel_review::business_logic::route::RouteAdapter;
 use sentrdel_review::structural::StructuralLanguage;
