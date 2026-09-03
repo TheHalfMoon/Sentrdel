@@ -1,10 +1,9 @@
 //! Conservative alias-origin qualification for R3 typed guard extraction.
 //!
 //! The lower guard layers qualify derived alias bindings and mutations. This final layer rejects
-//! observations whose supported alias origin (`auth` or `supabase`) is itself introduced as a
-//! local lexical binding. A handler parameter, local/import binding, function/class declaration,
-//! catch binding, or destructuring binding with the same origin name therefore cannot impersonate
-//! the fixed adapter seam. Ambiguity fails visible as unsupported coverage and never strengthens
+//! observations only when the supported alias origin (`auth` or `supabase`) resolves to a local
+//! lexical binding at the origin call site. Unrelated sibling or nested bindings do not poison a
+//! valid fixed adapter seam. Ambiguity fails visible as unsupported coverage and never strengthens
 //! authorization evidence.
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -61,6 +60,19 @@ impl GuardExtraction {
     }
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct ScopedBinding {
+    name: String,
+    scope_start: usize,
+    scope_end: usize,
+}
+
+impl ScopedBinding {
+    fn visible_at(&self, offset: usize) -> bool {
+        self.scope_start <= offset && offset < self.scope_end
+    }
+}
+
 pub fn extract_guard_observations(
     adapter: RouteAdapter,
     language: StructuralLanguage,
@@ -72,7 +84,7 @@ pub fn extract_guard_observations(
     let source = std::str::from_utf8(source).map_err(|_| StructuralError::NonUtf8Source)?;
     let tree = parse_tree(language, source)?;
     let nodes = collect_nodes(tree.root_node())?;
-    let bindings = collect_local_bindings(&nodes, source);
+    let bindings = collect_local_bindings(&nodes, source, tree.root_node());
     let unsafe_aliases = collect_unsafe_origin_aliases(&nodes, source, adapter, &bindings);
 
     let mut gaps = BTreeMap::new();
@@ -135,14 +147,8 @@ fn collect_unsafe_origin_aliases(
     nodes: &[tree_sitter::Node<'_>],
     source: &str,
     adapter: RouteAdapter,
-    bindings: &BTreeSet<String>,
+    bindings: &[ScopedBinding],
 ) -> BTreeSet<String> {
-    let auth_shadowed = adapter == RouteAdapter::NextApp && bindings.contains("auth");
-    let supabase_shadowed = adapter == RouteAdapter::SupabaseEdge && bindings.contains("supabase");
-    if !auth_shadowed && !supabase_shadowed {
-        return BTreeSet::new();
-    }
-
     let mut unsafe_aliases = BTreeSet::new();
     for _ in 0..MAX_GUARD_FACT_ITERATIONS {
         let mut changed = false;
@@ -164,8 +170,15 @@ fn collect_unsafe_origin_aliases(
             };
             let value = unwrap_expression(value);
 
-            if (auth_shadowed && is_auth_call(value, source))
-                || (supabase_shadowed && is_supabase_get_user_call(value, source))
+            if adapter == RouteAdapter::NextApp
+                && is_auth_call(value, source)
+                && origin_shadowed_at("auth", value.start_byte(), bindings)
+            {
+                changed |= unsafe_aliases.insert(name.to_owned());
+            }
+            if adapter == RouteAdapter::SupabaseEdge
+                && is_supabase_get_user_call(value, source)
+                && origin_shadowed_at("supabase", value.start_byte(), bindings)
             {
                 changed |= unsafe_aliases.insert(name.to_owned());
             }
@@ -190,47 +203,66 @@ fn collect_unsafe_origin_aliases(
     unsafe_aliases
 }
 
-fn collect_local_bindings(nodes: &[tree_sitter::Node<'_>], source: &str) -> BTreeSet<String> {
-    let mut bindings = BTreeSet::new();
+fn origin_shadowed_at(name: &str, offset: usize, bindings: &[ScopedBinding]) -> bool {
+    bindings
+        .iter()
+        .any(|binding| binding.name == name && binding.visible_at(offset))
+}
+
+fn collect_local_bindings(
+    nodes: &[tree_sitter::Node<'_>],
+    source: &str,
+    root: tree_sitter::Node<'_>,
+) -> Vec<ScopedBinding> {
+    let mut bindings = Vec::new();
     for node in nodes {
         match node.kind() {
             "variable_declarator" => {
                 if let Some(name) = node.child_by_field_name("name") {
-                    collect_binding_identifiers(name, source, &mut bindings);
+                    let scope = variable_binding_scope(*node, root);
+                    push_binding_identifiers(name, source, scope, &mut bindings);
                 }
             }
-            "function_declaration" | "generator_function_declaration" | "class_declaration" => {
+            "function_declaration" | "generator_function_declaration" => {
                 if let Some(name) = node.child_by_field_name("name") {
-                    collect_binding_identifiers(name, source, &mut bindings);
+                    let scope = enclosing_lexical_scope(*node, root);
+                    push_binding_identifiers(name, source, scope, &mut bindings);
                 }
-                if let Some(parameters) = node.child_by_field_name("parameters") {
-                    collect_binding_identifiers(parameters, source, &mut bindings);
-                }
-                if let Some(parameter) = node.child_by_field_name("parameter") {
-                    collect_binding_identifiers(parameter, source, &mut bindings);
-                }
+                push_function_parameters(*node, source, &mut bindings);
             }
-            "function_expression"
-            | "generator_function"
-            | "arrow_function"
-            | "method_definition" => {
+            "function_expression" | "generator_function" | "arrow_function" => {
                 if let Some(name) = node.child_by_field_name("name") {
-                    collect_binding_identifiers(name, source, &mut bindings);
+                    let scope = (node.start_byte(), node.end_byte());
+                    push_binding_identifiers(name, source, scope, &mut bindings);
                 }
-                if let Some(parameters) = node.child_by_field_name("parameters") {
-                    collect_binding_identifiers(parameters, source, &mut bindings);
-                }
-                if let Some(parameter) = node.child_by_field_name("parameter") {
-                    collect_binding_identifiers(parameter, source, &mut bindings);
+                push_function_parameters(*node, source, &mut bindings);
+            }
+            "method_definition" => {
+                push_function_parameters(*node, source, &mut bindings);
+            }
+            "class_declaration" => {
+                if let Some(name) = node.child_by_field_name("name") {
+                    let scope = enclosing_lexical_scope(*node, root);
+                    push_binding_identifiers(name, source, scope, &mut bindings);
                 }
             }
             "catch_clause" => {
                 if let Some(parameter) = node.child_by_field_name("parameter") {
-                    collect_binding_identifiers(parameter, source, &mut bindings);
+                    push_binding_identifiers(
+                        parameter,
+                        source,
+                        (node.start_byte(), node.end_byte()),
+                        &mut bindings,
+                    );
                 }
             }
             "import_clause" | "namespace_import" | "named_imports" | "import_specifier" => {
-                collect_binding_identifiers(*node, source, &mut bindings);
+                push_binding_identifiers(
+                    *node,
+                    source,
+                    (root.start_byte(), root.end_byte()),
+                    &mut bindings,
+                );
             }
             _ => {}
         }
@@ -238,24 +270,101 @@ fn collect_local_bindings(nodes: &[tree_sitter::Node<'_>], source: &str) -> BTre
     bindings
 }
 
-fn collect_binding_identifiers(
+fn push_function_parameters(
+    function: tree_sitter::Node<'_>,
+    source: &str,
+    bindings: &mut Vec<ScopedBinding>,
+) {
+    let scope = (function.start_byte(), function.end_byte());
+    if let Some(parameters) = function.child_by_field_name("parameters") {
+        push_binding_identifiers(parameters, source, scope, bindings);
+    }
+    if let Some(parameter) = function.child_by_field_name("parameter") {
+        push_binding_identifiers(parameter, source, scope, bindings);
+    }
+}
+
+fn push_binding_identifiers(
     node: tree_sitter::Node<'_>,
     source: &str,
-    bindings: &mut BTreeSet<String>,
+    scope: (usize, usize),
+    bindings: &mut Vec<ScopedBinding>,
 ) {
     if matches!(
         node.kind(),
         "identifier" | "shorthand_property_identifier_pattern"
     ) {
         if let Some(name) = node_text(node, source) {
-            bindings.insert(name.to_owned());
+            bindings.push(ScopedBinding {
+                name: name.to_owned(),
+                scope_start: scope.0,
+                scope_end: scope.1,
+            });
         }
         return;
     }
     let mut cursor = node.walk();
     for child in node.named_children(&mut cursor) {
-        collect_binding_identifiers(child, source, bindings);
+        push_binding_identifiers(child, source, scope, bindings);
     }
+}
+
+fn variable_binding_scope(
+    node: tree_sitter::Node<'_>,
+    root: tree_sitter::Node<'_>,
+) -> (usize, usize) {
+    let is_var = node
+        .parent()
+        .is_some_and(|parent| parent.kind() == "variable_declaration");
+    if is_var {
+        let function = enclosing_function(node, root);
+        return (function.start_byte(), function.end_byte());
+    }
+    let function = enclosing_function(node, root);
+    nearest_statement_block(node, function)
+        .map(|block| (block.start_byte(), block.end_byte()))
+        .unwrap_or((function.start_byte(), function.end_byte()))
+}
+
+fn enclosing_lexical_scope(
+    node: tree_sitter::Node<'_>,
+    root: tree_sitter::Node<'_>,
+) -> (usize, usize) {
+    let function = enclosing_function(node, root);
+    nearest_statement_block(node.parent().unwrap_or(root), function)
+        .map(|block| (block.start_byte(), block.end_byte()))
+        .unwrap_or((function.start_byte(), function.end_byte()))
+}
+
+fn enclosing_function(
+    node: tree_sitter::Node<'_>,
+    root: tree_sitter::Node<'_>,
+) -> tree_sitter::Node<'_> {
+    let mut cursor = Some(node);
+    while let Some(current) = cursor {
+        if is_function_boundary(current) {
+            return current;
+        }
+        cursor = current.parent();
+    }
+    root
+}
+
+fn nearest_statement_block<'tree>(
+    node: tree_sitter::Node<'tree>,
+    stop: tree_sitter::Node<'tree>,
+) -> Option<tree_sitter::Node<'tree>> {
+    let mut cursor = Some(node);
+    while let Some(current) = cursor {
+        if current.kind() == "statement_block" {
+            return Some(current);
+        }
+        if current.id() == stop.id() {
+            return None;
+        }
+        cursor = current.parent();
+    }
+    None
 }
 
 fn guard_mentions_alias(
@@ -319,6 +428,18 @@ fn collect_nodes<'tree>(
         stack.extend(children.into_iter().rev());
     }
     Ok(nodes)
+}
+
+fn is_function_boundary(node: tree_sitter::Node<'_>) -> bool {
+    matches!(
+        node.kind(),
+        "function_expression"
+            | "function_declaration"
+            | "arrow_function"
+            | "generator_function"
+            | "generator_function_declaration"
+            | "method_definition"
+    )
 }
 
 fn unwrap_expression(mut node: tree_sitter::Node<'_>) -> tree_sitter::Node<'_> {
