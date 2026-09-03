@@ -3,7 +3,9 @@
 //! Earlier value qualifiers prove adapter seams, lexical visibility, and route identity. This
 //! boundary closes one remaining identity class: a verified handler parameter stops being a
 //! trusted request/context origin if repository source writes that binding anywhere in the same
-//! handler function. The analysis is deliberately conservative and static-only.
+//! handler function. Once that happens, direct origins seeded inside the same handler are also
+//! conservatively invalidated so aliases cannot retain authority after losing an explicit
+//! derivation edge. The analysis is deliberately conservative and static-only.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -70,6 +72,13 @@ impl ValueExtraction {
     }
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum ParameterWriteQualification {
+    Clean,
+    Reassigned { function_start: usize, function_end: usize },
+    Unqualified,
+}
+
 pub fn extract_value_origins(
     adapter: RouteAdapter,
     language: StructuralLanguage,
@@ -90,14 +99,40 @@ pub fn extract_value_origins(
         .map(|value| (value.value_id().as_str().to_owned(), value))
         .collect();
     let mut unsafe_ids = BTreeSet::new();
+    let mut tainted_functions = BTreeSet::new();
 
     for value in extracted.values() {
-        if is_direct_origin(value.origin_kind())
-            && direct_origin_parameter_is_reassigned(value, &nodes, source_text)
-        {
-            unsafe_ids.insert(value.value_id().as_str().to_owned());
+        if !is_direct_origin(value.origin_kind()) {
+            continue;
+        }
+        match qualify_direct_origin_parameter_write(value, &nodes, source_text) {
+            ParameterWriteQualification::Clean => {}
+            ParameterWriteQualification::Reassigned {
+                function_start,
+                function_end,
+            } => {
+                unsafe_ids.insert(value.value_id().as_str().to_owned());
+                tainted_functions.insert((function_start, function_end));
+            }
+            ParameterWriteQualification::Unqualified => {
+                unsafe_ids.insert(value.value_id().as_str().to_owned());
+            }
         }
     }
+
+    if !tainted_functions.is_empty() {
+        for value in extracted.values() {
+            if !is_direct_origin(value.origin_kind()) {
+                continue;
+            }
+            if origin_function_range(value, &nodes)
+                .is_some_and(|range| tainted_functions.contains(&range))
+            {
+                unsafe_ids.insert(value.value_id().as_str().to_owned());
+            }
+        }
+    }
+
     propagate_unsafe_inputs(&extracted, &values_by_id, &mut unsafe_ids);
 
     let mut gaps = BTreeMap::new();
@@ -179,21 +214,21 @@ fn propagate_unsafe_inputs(
     }
 }
 
-fn direct_origin_parameter_is_reassigned(
+fn qualify_direct_origin_parameter_write(
     value: &ValueOrigin,
     nodes: &[tree_sitter::Node<'_>],
     source: &str,
-) -> bool {
+) -> ParameterWriteQualification {
     let Some(location) = value.provenance().first() else {
-        return true;
+        return ParameterWriteQualification::Unqualified;
     };
     let Some(root) = semantic_root(value.semantic_key()) else {
-        return true;
+        return ParameterWriteQualification::Unqualified;
     };
     let Some(function) =
         innermost_function_for_range(nodes, location.start_byte(), location.end_byte())
     else {
-        return true;
+        return ParameterWriteQualification::Unqualified;
     };
     if function_parameter_names(function, source)
         .iter()
@@ -201,10 +236,10 @@ fn direct_origin_parameter_is_reassigned(
         .count()
         != 1
     {
-        return false;
+        return ParameterWriteQualification::Clean;
     }
 
-    nodes.iter().copied().any(|node| {
+    let reassigned = nodes.iter().copied().any(|node| {
         if !function_contains_node(function, node) || !node_reassigns_name(node, source, root) {
             return false;
         }
@@ -214,7 +249,26 @@ fn direct_origin_parameter_is_reassigned(
                     && owner.end_byte() == function.end_byte()
             },
         )
-    })
+    });
+
+    if reassigned {
+        ParameterWriteQualification::Reassigned {
+            function_start: function.start_byte(),
+            function_end: function.end_byte(),
+        }
+    } else {
+        ParameterWriteQualification::Clean
+    }
+}
+
+fn origin_function_range(
+    value: &ValueOrigin,
+    nodes: &[tree_sitter::Node<'_>],
+) -> Option<(usize, usize)> {
+    let location = value.provenance().first()?;
+    let function =
+        innermost_function_for_range(nodes, location.start_byte(), location.end_byte())?;
+    Some((function.start_byte(), function.end_byte()))
 }
 
 fn node_reassigns_name(node: tree_sitter::Node<'_>, source: &str, target: &str) -> bool {
