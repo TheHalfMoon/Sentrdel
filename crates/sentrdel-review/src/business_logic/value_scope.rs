@@ -317,8 +317,14 @@ fn direct_origin_is_bound(
     source: &str,
     handler: &HandlerScope,
     use_offset: usize,
-    _adapter: RouteAdapter,
+    adapter: RouteAdapter,
 ) -> bool {
+    if is_authenticated_origin(value.origin_kind())
+        && identity_origin_import_shadowed(nodes, source, adapter)
+    {
+        return false;
+    }
+
     let Some(root) = semantic_root(value.semantic_key()) else {
         return false;
     };
@@ -341,6 +347,51 @@ fn is_direct_origin(kind: ValueOriginKind) -> bool {
             | ValueOriginKind::AuthenticatedTenantId
             | ValueOriginKind::AuthenticatedRole
     )
+}
+
+fn is_authenticated_origin(kind: ValueOriginKind) -> bool {
+    matches!(
+        kind,
+        ValueOriginKind::AuthenticatedUserId
+            | ValueOriginKind::AuthenticatedTenantId
+            | ValueOriginKind::AuthenticatedRole
+    )
+}
+
+fn identity_origin_import_shadowed(
+    nodes: &[tree_sitter::Node<'_>],
+    source: &str,
+    adapter: RouteAdapter,
+) -> bool {
+    let target = match adapter {
+        RouteAdapter::NextApp => "auth",
+        RouteAdapter::SupabaseEdge => "supabase",
+        RouteAdapter::Express | RouteAdapter::NextPagesApi => return false,
+    };
+    nodes
+        .iter()
+        .copied()
+        .any(|node| import_node_binds_name(node, source, target))
+}
+
+fn import_node_binds_name(node: tree_sitter::Node<'_>, source: &str, target: &str) -> bool {
+    match node.kind() {
+        "import_specifier" => node
+            .child_by_field_name("alias")
+            .or_else(|| node.child_by_field_name("name"))
+            .and_then(|binding| node_text(binding, source))
+            == Some(target),
+        "namespace_import" => pattern_binding_names(node, source)
+            .iter()
+            .any(|binding| binding == target),
+        "import_clause" => {
+            let mut cursor = node.walk();
+            node.named_children(&mut cursor).any(|child| {
+                child.kind() == "identifier" && node_text(child, source) == Some(target)
+            })
+        }
+        _ => false,
+    }
 }
 
 fn semantic_root(semantic_key: &str) -> Option<&str> {
