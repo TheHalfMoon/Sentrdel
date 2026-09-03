@@ -2,9 +2,7 @@ use sentrdel_review::business_logic::model::{BusinessLogicLimits, ValueOriginKin
 use sentrdel_review::business_logic::route::{
     RouteAdapter, RouteCoverageGapReason, extract_routes,
 };
-use sentrdel_review::business_logic::value::{
-    ValueCoverageGapReason, extract_value_origins,
-};
+use sentrdel_review::business_logic::value::{ValueCoverageGapReason, extract_value_origins};
 use sentrdel_review::structural::StructuralLanguage;
 use sentrdel_review::view::NormalizedRepoPath;
 
