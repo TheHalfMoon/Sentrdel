@@ -17,9 +17,9 @@ use crate::structural::{StructuralError, StructuralLanguage};
 use crate::view::NormalizedRepoPath;
 
 #[path = "guard_mutation_scope.rs"]
-mod qualified;
+mod origin_base;
 
-pub use qualified::{
+pub use origin_base::{
     GuardCoverageGapReason, GuardExtractionError, MAX_GUARD_AST_NODES, MAX_GUARD_COVERAGE_GAPS,
     MAX_GUARD_FACT_ITERATIONS, MAX_GUARD_OBSERVATIONS,
     STATIC_GUARD_RECOGNITION_PROVES_RUNTIME_AUTHORIZATION,
@@ -68,7 +68,7 @@ pub fn extract_guard_observations(
     source: &[u8],
     limits: BusinessLogicLimits,
 ) -> Result<GuardExtraction, GuardExtractionError> {
-    let raw = qualified::extract_guard_observations(adapter, language, path, source, limits)?;
+    let raw = origin_base::extract_guard_observations(adapter, language, path, source, limits)?;
     let source = std::str::from_utf8(source).map_err(|_| StructuralError::NonUtf8Source)?;
     let tree = parse_tree(language, source)?;
     let nodes = collect_nodes(tree.root_node())?;
