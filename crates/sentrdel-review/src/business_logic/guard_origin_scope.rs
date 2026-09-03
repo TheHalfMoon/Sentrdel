@@ -315,9 +315,7 @@ fn variable_binding_scope(
 ) -> (usize, usize) {
     let is_var = node.parent().is_some_and(|parent| {
         parent.kind() == "variable_declaration"
-            && (0..parent.child_count())
-                .filter_map(|index| parent.child(index))
-                .any(|child| child.kind() == "var")
+            && parent.child(0).is_some_and(|child| child.kind() == "var")
     });
     if is_var {
         let function = enclosing_function(node, root);
