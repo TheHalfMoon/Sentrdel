@@ -159,3 +159,159 @@ fn guard_fact_iteration_cap_is_fail_visible() {
             .any(|gap| gap.reason() == GuardCoverageGapReason::UnsupportedGuardShape)
     );
 }
+
+#[test]
+fn request_body_alias_does_not_cross_function_scope() {
+    let source = br#"function helper(req) {
+  const body = req.body;
+  return body;
+}
+
+export function handler(req, res) {
+  const body = { is_admin: true };
+  const { is_admin } = body;
+  return res.json({ is_admin });
+}
+"#;
+    let result = extract_guard_observations(
+        RouteAdapter::Express,
+        StructuralLanguage::JavaScript,
+        &path("src/cross-function-body.js"),
+        source,
+        BusinessLogicLimits::default(),
+    )
+    .expect("inspect cross-function request-body alias collision");
+
+    assert!(
+        result
+            .guards()
+            .iter()
+            .all(|guard| guard.guard_kind() != GuardKind::PropertyAllowlist)
+    );
+}
+
+#[test]
+fn auth_alias_does_not_cross_function_scope() {
+    let source = br#"async function helper() {
+  const session = await auth();
+  return session;
+}
+
+export function handler() {
+  const session = { user: { role: "admin" } };
+  if (session.user.role !== "admin") {
+    return new Response(null, { status: 403 });
+  }
+  return Response.json({ ok: true });
+}
+"#;
+    let result = extract_guard_observations(
+        RouteAdapter::NextApp,
+        StructuralLanguage::JavaScript,
+        &path("app/api/cross-function/route.js"),
+        source,
+        BusinessLogicLimits::default(),
+    )
+    .expect("inspect cross-function auth alias collision");
+
+    assert!(result.guards().is_empty());
+}
+
+#[test]
+fn reassigned_request_body_alias_fails_visible_without_allowlist() {
+    let source = br#"export function handler(req, res) {
+  let body = req.body;
+  body = { is_admin: true };
+  const { is_admin } = body;
+  return res.json({ is_admin });
+}
+"#;
+    let result = extract_guard_observations(
+        RouteAdapter::Express,
+        StructuralLanguage::JavaScript,
+        &path("src/reassigned-body.js"),
+        source,
+        BusinessLogicLimits::default(),
+    )
+    .expect("inspect reassigned request-body alias");
+
+    assert!(
+        result
+            .guards()
+            .iter()
+            .all(|guard| guard.guard_kind() != GuardKind::PropertyAllowlist)
+    );
+    assert!(
+        result
+            .gaps()
+            .iter()
+            .any(|gap| gap.reason() == GuardCoverageGapReason::UnsupportedGuardShape)
+    );
+}
+
+#[test]
+fn block_scoped_request_body_alias_does_not_escape_scope() {
+    let source = br#"export function handler(req, res) {
+  {
+    const body = req.body;
+  }
+  const { is_admin } = body;
+  return res.json({ is_admin });
+}
+"#;
+    let result = extract_guard_observations(
+        RouteAdapter::Express,
+        StructuralLanguage::JavaScript,
+        &path("src/block-body.js"),
+        source,
+        BusinessLogicLimits::default(),
+    )
+    .expect("inspect block-scoped request-body alias");
+
+    assert!(
+        result
+            .guards()
+            .iter()
+            .all(|guard| guard.guard_kind() != GuardKind::PropertyAllowlist)
+    );
+    assert!(
+        result
+            .gaps()
+            .iter()
+            .any(|gap| gap.reason() == GuardCoverageGapReason::UnsupportedGuardShape)
+    );
+}
+
+#[test]
+fn shadowed_request_body_alias_fails_visible_without_allowlist() {
+    let source = br#"export function handler(req, res) {
+  const body = req.body;
+  {
+    const body = { is_admin: true };
+    const { is_admin } = body;
+    return res.json({ is_admin });
+  }
+}
+"#;
+    let result = extract_guard_observations(
+        RouteAdapter::Express,
+        StructuralLanguage::JavaScript,
+        &path("src/shadowed-body.js"),
+        source,
+        BusinessLogicLimits::default(),
+    )
+    .expect("inspect shadowed request-body alias");
+
+    assert!(
+        result
+            .guards()
+            .iter()
+            .all(|guard| guard.guard_kind() != GuardKind::PropertyAllowlist)
+    );
+    assert!(
+        result
+            .gaps()
+            .iter()
+            .any(|gap| gap.reason() == GuardCoverageGapReason::UnsupportedGuardShape)
+    );
+}
