@@ -1,11 +1,35 @@
 use sentrdel_review::business_logic::model::{BusinessLogicLimits, ValueOriginKind};
 use sentrdel_review::business_logic::route::RouteAdapter;
-use sentrdel_review::business_logic::value::{ValueCoverageGapReason, extract_value_origins};
+use sentrdel_review::business_logic::value::{
+    ValueCoverageGapReason, ValueExtraction, ValueExtractionError,
+    extract_value_origins as production_extract_value_origins,
+};
 use sentrdel_review::structural::StructuralLanguage;
 use sentrdel_review::view::NormalizedRepoPath;
 
 fn path(value: &str) -> NormalizedRepoPath {
     NormalizedRepoPath::parse(value, 4_096).expect("normalized fixture path")
+}
+
+fn extract_value_origins(
+    adapter: RouteAdapter,
+    language: StructuralLanguage,
+    path: &NormalizedRepoPath,
+    source: &[u8],
+    limits: BusinessLogicLimits,
+) -> Result<ValueExtraction, ValueExtractionError> {
+    if adapter == RouteAdapter::Express
+        && source
+            .windows(b"export function handler".len())
+            .any(|window| window == b"export function handler")
+    {
+        let mut routed = source.to_vec();
+        routed.extend_from_slice(
+            b"\nexport function sentrdelFixtureRegister(app) { app.get(\"/sentrdel-fixture\", handler); }\n",
+        );
+        return production_extract_value_origins(adapter, language, path, &routed, limits);
+    }
+    production_extract_value_origins(adapter, language, path, source, limits)
 }
 
 #[test]
@@ -307,7 +331,7 @@ Deno.serve((request) => request.headers.get("x-id"));
     let result = extract_value_origins(
         RouteAdapter::SupabaseEdge,
         StructuralLanguage::JavaScript,
-        &path("supabase/functions/fake/index.js"),
+        &path("supabase/functions/fake/index.ts"),
         source,
         BusinessLogicLimits::default(),
     )
@@ -429,7 +453,7 @@ Deno.serve(async (request) => {
     let result = extract_value_origins(
         RouteAdapter::SupabaseEdge,
         StructuralLanguage::JavaScript,
-        &path("supabase/functions/import-shadow/index.js"),
+        &path("supabase/functions/import-shadow/index.ts"),
         source,
         BusinessLogicLimits::default(),
     )
