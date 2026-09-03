@@ -1,8 +1,8 @@
 use sentrdel_review::business_logic::model::{BusinessLogicLimits, ValueOriginKind};
 use sentrdel_review::business_logic::route::RouteAdapter;
 use sentrdel_review::business_logic::value::{
-    STATIC_VALUE_DERIVATION_PROVES_RUNTIME_VALUE, ValueCoverageGapReason, ValueExtractionError,
-    extract_value_origins,
+    STATIC_VALUE_DERIVATION_PROVES_RUNTIME_VALUE, ValueCoverageGapReason, ValueExtraction,
+    ValueExtractionError, extract_value_origins as production_extract_value_origins,
 };
 use sentrdel_review::structural::{StructuralError, StructuralLanguage};
 use sentrdel_review::view::NormalizedRepoPath;
@@ -11,14 +11,32 @@ fn path(value: &str) -> NormalizedRepoPath {
     NormalizedRepoPath::parse(value, 4_096).expect("normalized fixture path")
 }
 
-fn has_kind(
-    result: &sentrdel_review::business_logic::value::ValueExtraction,
-    kind: ValueOriginKind,
-) -> bool {
+fn has_kind(result: &ValueExtraction, kind: ValueOriginKind) -> bool {
     result
         .values()
         .iter()
         .any(|value| value.origin_kind() == kind)
+}
+
+fn extract_value_origins(
+    adapter: RouteAdapter,
+    language: StructuralLanguage,
+    path: &NormalizedRepoPath,
+    source: &[u8],
+    limits: BusinessLogicLimits,
+) -> Result<ValueExtraction, ValueExtractionError> {
+    if adapter == RouteAdapter::Express
+        && source
+            .windows(b"export function handler".len())
+            .any(|window| window == b"export function handler")
+    {
+        let mut routed = source.to_vec();
+        routed.extend_from_slice(
+            b"\nexport function sentrdelFixtureRegister(app) { app.get(\"/sentrdel-fixture\", handler); }\n",
+        );
+        return production_extract_value_origins(adapter, language, path, &routed, limits);
+    }
+    production_extract_value_origins(adapter, language, path, source, limits)
 }
 
 #[test]
@@ -483,4 +501,88 @@ fn equivalent_inputs_replay_deterministically() {
     .expect("replay extraction");
 
     assert_eq!(first, replay);
+}
+
+#[test]
+fn unregistered_exported_express_handler_is_not_route_authority() {
+    let source = br#"export function handler(req) {
+  return req.params.id;
+}
+"#;
+    let result = production_extract_value_origins(
+        RouteAdapter::Express,
+        StructuralLanguage::JavaScript,
+        &path("src/unregistered-handler.js"),
+        source,
+        BusinessLogicLimits::default(),
+    )
+    .expect("inspect unregistered Express helper");
+
+    assert!(!has_kind(&result, ValueOriginKind::RequestPath));
+    assert!(
+        result
+            .gaps()
+            .iter()
+            .any(|gap| gap.reason() == ValueCoverageGapReason::AmbiguousBinding)
+    );
+}
+
+#[test]
+fn catch_bound_auth_cannot_mint_next_app_identity() {
+    let source = br#"export async function GET(request) {
+  try {
+    throw new Error("fixture");
+  } catch (auth) {
+    const session = await auth();
+    const user = session.user;
+    return Response.json({ id: user.id, request });
+  }
+}
+"#;
+    let result = production_extract_value_origins(
+        RouteAdapter::NextApp,
+        StructuralLanguage::JavaScript,
+        &path("app/api/catch-shadow/route.js"),
+        source,
+        BusinessLogicLimits::default(),
+    )
+    .expect("inspect catch-bound Next App auth");
+
+    assert!(!has_kind(&result, ValueOriginKind::AuthenticatedUserId));
+    assert!(
+        result
+            .gaps()
+            .iter()
+            .any(|gap| gap.reason() == ValueCoverageGapReason::AmbiguousBinding)
+    );
+}
+
+#[test]
+fn catch_bound_supabase_cannot_mint_verified_identity() {
+    let source = br#"Deno.serve(async (request) => {
+  try {
+    throw new Error("fixture");
+  } catch (supabase) {
+    const result = await supabase.auth.getUser("token");
+    const user = result.data.user;
+    return Response.json({ id: user.id, request });
+  }
+});
+"#;
+    let result = production_extract_value_origins(
+        RouteAdapter::SupabaseEdge,
+        StructuralLanguage::JavaScript,
+        &path("supabase/functions/catch-shadow/index.ts"),
+        source,
+        BusinessLogicLimits::default(),
+    )
+    .expect("inspect catch-bound Supabase auth");
+
+    assert!(!has_kind(&result, ValueOriginKind::AuthenticatedUserId));
+    assert!(
+        result
+            .gaps()
+            .iter()
+            .any(|gap| gap.reason() == ValueCoverageGapReason::AmbiguousBinding)
+    );
 }
