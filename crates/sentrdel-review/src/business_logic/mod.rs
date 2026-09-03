@@ -4,7 +4,6 @@
 //! policy, target-execution, provider-credential, network, or runtime authority.
 
 pub mod actor;
-#[path = "guard_contract.rs"]
 pub mod guard;
 pub mod invariant;
 pub mod model;
