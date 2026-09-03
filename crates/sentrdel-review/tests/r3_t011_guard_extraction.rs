@@ -286,6 +286,87 @@ fn dynamic_auth_property_guard_fails_visible_as_unsupported() {
 }
 
 #[test]
+fn rejection_conjunction_does_not_invent_independent_guards() {
+    let source = br#"export function handler(req, res) {
+  if (!req.user && req.user.role !== "admin") return res.status(403).end();
+  return res.json({ ok: true });
+}
+"#;
+    let result = extract_guard_observations(
+        RouteAdapter::Express,
+        StructuralLanguage::JavaScript,
+        &path("src/conjunction.js"),
+        source,
+        BusinessLogicLimits::default(),
+    )
+    .expect("inspect conjunction guard");
+
+    assert!(result.guards().is_empty());
+    assert!(result
+        .gaps()
+        .iter()
+        .any(|gap| gap.reason() == GuardCoverageGapReason::UnsupportedGuardShape));
+}
+
+#[test]
+fn tenant_and_ownership_bindings_require_matching_authenticated_identity_kind() {
+    let source = br#"export function handler(req, res, resource) {
+  if (resource.tenant_id !== req.user.id) return res.status(403).end();
+  if (resource.owner_id !== req.user.role) return res.status(403).end();
+  return res.json(resource);
+}
+"#;
+    let result = extract_guard_observations(
+        RouteAdapter::Express,
+        StructuralLanguage::JavaScript,
+        &path("src/mismatched-bindings.js"),
+        source,
+        BusinessLogicLimits::default(),
+    )
+    .expect("inspect mismatched identity bindings");
+
+    assert!(result.guards().iter().all(|guard| !matches!(
+        guard.guard_kind(),
+        GuardKind::TenantBinding | GuardKind::OwnershipBinding
+    )));
+    assert!(result
+        .gaps()
+        .iter()
+        .any(|gap| gap.reason() == GuardCoverageGapReason::UnsupportedGuardShape));
+}
+
+#[test]
+fn nested_rejection_does_not_prove_same_handler_prefix_dominance() {
+    let source = br#"export function handler(req, res) {
+  if (!req.user) {
+    if (req.query.debug) return res.status(401).end();
+    performSensitiveWork();
+  }
+  return res.json({ ok: true });
+}
+"#;
+    let result = extract_guard_observations(
+        RouteAdapter::Express,
+        StructuralLanguage::JavaScript,
+        &path("src/nested-rejection.js"),
+        source,
+        BusinessLogicLimits::default(),
+    )
+    .expect("inspect nested rejection");
+
+    assert!(
+        result
+            .guards()
+            .iter()
+            .all(|guard| guard.guard_kind() != GuardKind::Authentication)
+    );
+    assert!(result
+        .gaps()
+        .iter()
+        .any(|gap| gap.reason() == GuardCoverageGapReason::UnsupportedGuardShape));
+}
+
+#[test]
 fn malformed_source_fails_before_guard_interpretation() {
     let error = extract_guard_observations(
         RouteAdapter::Express,
