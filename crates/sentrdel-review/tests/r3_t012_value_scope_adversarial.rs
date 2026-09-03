@@ -118,3 +118,131 @@ fn static_subscript_depth_exhaustion_is_not_reported_as_dynamic_access() {
         source.get(start..end) == Some(b"params[\"accountId\"]".as_slice())
     }));
 }
+
+#[test]
+fn express_request_parameter_shadow_does_not_mint_request_path_origin() {
+    let source = br#"export function handler(req) {
+  {
+    const req = { params: { id: "fake" } };
+    return req.params.id;
+  }
+}
+"#;
+    let result = extract_value_origins(
+        RouteAdapter::Express,
+        StructuralLanguage::JavaScript,
+        &path("src/shadowed-request.js"),
+        source,
+        BusinessLogicLimits::default(),
+    )
+    .expect("inspect shadowed Express request parameter");
+
+    assert!(
+        result
+            .values()
+            .iter()
+            .all(|value| value.origin_kind() != ValueOriginKind::RequestPath)
+    );
+    assert!(
+        result
+            .gaps()
+            .iter()
+            .any(|gap| gap.reason() == ValueCoverageGapReason::AmbiguousBinding)
+    );
+
+    let use_start = source
+        .windows(b"req.params.id".len())
+        .rposition(|window| window == b"req.params.id")
+        .expect("shadowed request member use");
+    let use_end = use_start + b"req.params.id".len();
+    let value = result
+        .value_for_range(use_start, use_end)
+        .expect("shadowed request use must remain fail-visible");
+    assert_eq!(value.origin_kind(), ValueOriginKind::Unknown);
+}
+
+#[test]
+fn next_app_shadowed_request_cannot_seed_request_body_alias() {
+    let source = br#"export async function POST(request) {
+  {
+    const request = { json: async () => ({ role: "admin" }) };
+    const body = await request.json();
+    return body.role;
+  }
+}
+"#;
+    let result = extract_value_origins(
+        RouteAdapter::NextApp,
+        StructuralLanguage::JavaScript,
+        &path("app/api/shadowed/route.js"),
+        source,
+        BusinessLogicLimits::default(),
+    )
+    .expect("inspect shadowed Next App request parameter");
+
+    assert!(
+        result
+            .values()
+            .iter()
+            .all(|value| value.origin_kind() != ValueOriginKind::RequestBody)
+    );
+    assert!(
+        result
+            .gaps()
+            .iter()
+            .any(|gap| gap.reason() == ValueCoverageGapReason::AmbiguousBinding)
+    );
+
+    let use_start = source
+        .windows(b"body.role".len())
+        .rposition(|window| window == b"body.role")
+        .expect("shadowed request-body alias use");
+    let use_end = use_start + b"body.role".len();
+    let value = result
+        .value_for_range(use_start, use_end)
+        .expect("shadow-derived body alias must remain fail-visible");
+    assert_eq!(value.origin_kind(), ValueOriginKind::Unknown);
+}
+
+#[test]
+fn predeclaration_request_use_in_shadowed_block_is_not_treated_as_handler_parameter() {
+    let source = br#"export function handler(req) {
+  {
+    const before = req.params.id;
+    const req = fakeRequest;
+    return before;
+  }
+}
+"#;
+    let result = extract_value_origins(
+        RouteAdapter::Express,
+        StructuralLanguage::JavaScript,
+        &path("src/request-tdz.js"),
+        source,
+        BusinessLogicLimits::default(),
+    )
+    .expect("inspect request parameter TDZ shadow");
+
+    assert!(
+        result
+            .values()
+            .iter()
+            .all(|value| value.origin_kind() != ValueOriginKind::RequestPath)
+    );
+    assert!(
+        result
+            .gaps()
+            .iter()
+            .any(|gap| gap.reason() == ValueCoverageGapReason::AmbiguousBinding)
+    );
+
+    let use_start = source
+        .windows(b"req.params.id".len())
+        .position(|window| window == b"req.params.id")
+        .expect("predeclaration request member use");
+    let use_end = use_start + b"req.params.id".len();
+    let value = result
+        .value_for_range(use_start, use_end)
+        .expect("TDZ-shadowed request use must remain fail-visible");
+    assert_eq!(value.origin_kind(), ValueOriginKind::Unknown);
+}
