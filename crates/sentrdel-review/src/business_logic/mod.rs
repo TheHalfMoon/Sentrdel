@@ -121,5 +121,6 @@ mod tests {
         const { assert!(!R3_TARGET_EXECUTION_ALLOWED) };
         const { assert!(!R3_PROVIDER_CREDENTIALS_ALLOWED) };
         const { assert!(!R3_DIRECT_FINDING_CREATION_ALLOWED) };
+        const { assert!(!crate::TARGET_BUILD_EXECUTION_ALLOWED) };
     }
 }
