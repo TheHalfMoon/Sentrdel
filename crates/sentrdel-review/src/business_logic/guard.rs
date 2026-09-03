@@ -321,8 +321,7 @@ fn collect_guard_facts(
                     .as_deref()
                     .is_some_and(|chain| {
                         is_direct_request_body_chain(chain, adapter)
-                            || (chain.len() == 1
-                                && facts.request_body_bindings.contains(&chain[0]))
+                            || (chain.len() == 1 && facts.request_body_bindings.contains(&chain[0]))
                     })
             {
                 changed |= facts.request_body_bindings.insert(binding.to_owned());
