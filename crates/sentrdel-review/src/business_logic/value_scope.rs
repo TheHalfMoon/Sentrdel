@@ -97,16 +97,12 @@ pub fn extract_value_origins(
         .map_err(|_| ValueExtractionError::Structural(StructuralError::NonUtf8Source))?;
     let tree = parse_tree(language, source)?;
     let nodes = collect_nodes(tree.root_node())?;
-    let route_qualification = route::extract_routes(
-        adapter,
-        language,
-        path,
-        source.as_bytes(),
-        limits,
-    )
-    .map_err(|error| {
-        ValueExtractionError::ParseFailed(format!("route qualification failed: {error}"))
-    })?;
+    let route_qualification =
+        route::extract_routes(adapter, language, path, source.as_bytes(), limits).map_err(
+            |error| {
+                ValueExtractionError::ParseFailed(format!("route qualification failed: {error}"))
+            },
+        )?;
     let handlers = collect_verified_handlers(&nodes, source, adapter, &route_qualification);
 
     let values_by_id: BTreeMap<String, &ValueOrigin> = raw
