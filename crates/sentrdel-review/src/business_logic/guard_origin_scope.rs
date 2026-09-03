@@ -171,10 +171,7 @@ fn collect_unsafe_origin_aliases(
             }
 
             if let Some(chain) = expression_chain(value, source) {
-                if chain.len() == 2
-                    && unsafe_aliases.contains(&chain[0])
-                    && chain[1] == "user"
-                {
+                if chain.len() == 2 && unsafe_aliases.contains(&chain[0]) && chain[1] == "user" {
                     changed |= unsafe_aliases.insert(name.to_owned());
                 }
                 if chain.len() == 3
@@ -193,10 +190,7 @@ fn collect_unsafe_origin_aliases(
     unsafe_aliases
 }
 
-fn collect_local_bindings(
-    nodes: &[tree_sitter::Node<'_>],
-    source: &str,
-) -> BTreeSet<String> {
+fn collect_local_bindings(nodes: &[tree_sitter::Node<'_>], source: &str) -> BTreeSet<String> {
     let mut bindings = BTreeSet::new();
     for node in nodes {
         match node.kind() {
@@ -301,7 +295,9 @@ fn parse_tree(
         .set_language(&language)
         .map_err(|error| GuardExtractionError::ParseFailed(error.to_string()))?;
     parser.parse(source, None).ok_or_else(|| {
-        GuardExtractionError::ParseFailed("guard origin-scope parser returned no syntax tree".to_owned())
+        GuardExtractionError::ParseFailed(
+            "guard origin-scope parser returned no syntax tree".to_owned(),
+        )
     })
 }
 
