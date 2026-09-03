@@ -11,7 +11,7 @@ pub mod model;
 pub mod ordering;
 #[path = "route_gate.rs"]
 pub mod route;
-#[path = "value_gate.rs"]
+#[path = "value_final.rs"]
 pub mod value;
 
 use sentrdel_schema::SCHEMA_V1;
