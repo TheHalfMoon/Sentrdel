@@ -1,0 +1,214 @@
+use sentrdel_review::business_logic::guard::{GuardCoverageGapReason, extract_guard_observations};
+use sentrdel_review::business_logic::model::{BusinessLogicLimits, GuardKind};
+use sentrdel_review::business_logic::route::RouteAdapter;
+use sentrdel_review::structural::StructuralLanguage;
+use sentrdel_review::view::NormalizedRepoPath;
+
+fn path(value: &str) -> NormalizedRepoPath {
+    NormalizedRepoPath::parse(value, 4_096).expect("normalized origin-shadow path")
+}
+
+#[test]
+fn next_app_auth_parameter_cannot_seed_authentication_or_role_guard() {
+    let source = br#"export async function GET(auth) {
+  const session = await auth();
+  if (!session || session.user.role !== "admin") {
+    return new Response(null, { status: 403 });
+  }
+  return Response.json({ ok: true });
+}
+"#;
+    let result = extract_guard_observations(
+        RouteAdapter::NextApp,
+        StructuralLanguage::JavaScript,
+        &path("app/api/shadowed-auth/route.js"),
+        source,
+        BusinessLogicLimits::default(),
+    )
+    .expect("inspect shadowed auth origin");
+
+    assert!(result.guards().iter().all(|guard| !matches!(
+        guard.guard_kind(),
+        GuardKind::Authentication | GuardKind::RequiredRole
+    )));
+    assert!(
+        result
+            .gaps()
+            .iter()
+            .any(|gap| gap.reason() == GuardCoverageGapReason::UnsupportedGuardShape)
+    );
+}
+
+#[test]
+fn supabase_parameter_cannot_seed_verified_user_authentication_guard() {
+    let source = br#"Deno.serve(async (request, supabase) => {
+  const userResult = await supabase.auth.getUser(request.headers.get("Authorization"));
+  const user = userResult.data.user;
+  if (!user) return new Response(null, { status: 401 });
+  return Response.json({ ok: true });
+});
+"#;
+    let result = extract_guard_observations(
+        RouteAdapter::SupabaseEdge,
+        StructuralLanguage::JavaScript,
+        &path("supabase/functions/shadowed-origin/index.js"),
+        source,
+        BusinessLogicLimits::default(),
+    )
+    .expect("inspect shadowed Supabase origin");
+
+    assert!(
+        result
+            .guards()
+            .iter()
+            .all(|guard| guard.guard_kind() != GuardKind::Authentication)
+    );
+    assert!(
+        result
+            .gaps()
+            .iter()
+            .any(|gap| gap.reason() == GuardCoverageGapReason::UnsupportedGuardShape)
+    );
+}
+
+#[test]
+fn sibling_auth_parameter_does_not_shadow_next_app_origin_call() {
+    let source = br#"function helper(auth) {
+  return auth;
+}
+
+export async function GET() {
+  const session = await auth();
+  if (!session) return new Response(null, { status: 401 });
+  return Response.json({ ok: helper("unused") });
+}
+"#;
+    let result = extract_guard_observations(
+        RouteAdapter::NextApp,
+        StructuralLanguage::JavaScript,
+        &path("app/api/sibling-origin/route.js"),
+        source,
+        BusinessLogicLimits::default(),
+    )
+    .expect("resolve sibling auth parameter away from route origin");
+
+    assert!(
+        result
+            .guards()
+            .iter()
+            .any(|guard| guard.guard_kind() == GuardKind::Authentication)
+    );
+    assert!(
+        result
+            .gaps()
+            .iter()
+            .all(|gap| gap.reason() != GuardCoverageGapReason::UnsupportedGuardShape)
+    );
+}
+
+#[test]
+fn nested_supabase_parameter_does_not_shadow_outer_origin_call() {
+    let source = br#"Deno.serve(async (request) => {
+  const userResult = await supabase.auth.getUser(request.headers.get("Authorization"));
+  function helper(supabase) {
+    return supabase;
+  }
+  const user = userResult.data.user;
+  if (!user) return new Response(null, { status: 401 });
+  helper(null);
+  return Response.json({ ok: true });
+});
+"#;
+    let result = extract_guard_observations(
+        RouteAdapter::SupabaseEdge,
+        StructuralLanguage::JavaScript,
+        &path("supabase/functions/nested-origin/index.js"),
+        source,
+        BusinessLogicLimits::default(),
+    )
+    .expect("resolve nested Supabase parameter away from outer origin");
+
+    assert!(
+        result
+            .guards()
+            .iter()
+            .any(|guard| guard.guard_kind() == GuardKind::Authentication)
+    );
+    assert!(
+        result
+            .gaps()
+            .iter()
+            .all(|gap| gap.reason() != GuardCoverageGapReason::UnsupportedGuardShape)
+    );
+}
+
+#[test]
+fn nested_block_const_auth_does_not_shadow_outer_next_app_origin_call() {
+    let source = br#"export async function GET() {
+  const session = await auth();
+  if (featureFlag) {
+    const auth = alternateAuth;
+    consume(auth);
+  }
+  if (!session) return new Response(null, { status: 401 });
+  return Response.json({ ok: true });
+}
+"#;
+    let result = extract_guard_observations(
+        RouteAdapter::NextApp,
+        StructuralLanguage::JavaScript,
+        &path("app/api/block-scoped-auth/route.js"),
+        source,
+        BusinessLogicLimits::default(),
+    )
+    .expect("keep outer auth origin valid across nested const binding");
+
+    assert!(
+        result
+            .guards()
+            .iter()
+            .any(|guard| guard.guard_kind() == GuardKind::Authentication)
+    );
+    assert!(
+        result
+            .gaps()
+            .iter()
+            .all(|gap| gap.reason() != GuardCoverageGapReason::UnsupportedGuardShape)
+    );
+}
+
+#[test]
+fn nested_block_let_supabase_does_not_shadow_outer_supabase_origin_call() {
+    let source = br#"Deno.serve(async (request) => {
+  const userResult = await supabase.auth.getUser(request.headers.get("Authorization"));
+  if (featureFlag) {
+    let supabase = alternateSupabase;
+    consume(supabase);
+  }
+  const user = userResult.data.user;
+  if (!user) return new Response(null, { status: 401 });
+  return Response.json({ ok: true });
+});
+"#;
+    let result = extract_guard_observations(
+        RouteAdapter::SupabaseEdge,
+        StructuralLanguage::JavaScript,
+        &path("supabase/functions/block-scoped-origin/index.js"),
+        source,
+        BusinessLogicLimits::default(),
+    )
+    .expect("keep outer Supabase origin valid across nested let binding");
+
+    assert!(
+        result
+            .guards()
+            .iter()
+            .any(|guard| guard.guard_kind() == GuardKind::Authentication)
+    );
+    assert!(
+        result
+            .gaps()
+            .iter()
+            .all(|gap| gap.reason() != GuardCoverageGapReason::UnsupportedGuardShape)
+    );
+}
