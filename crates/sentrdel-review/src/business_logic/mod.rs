@@ -9,6 +9,7 @@ pub mod guard;
 pub mod invariant;
 pub mod model;
 pub mod ordering;
+#[path = "route_gate.rs"]
 pub mod route;
 #[path = "value_gate.rs"]
 pub mod value;
