@@ -220,9 +220,7 @@ fn collect_non_variable_bindings(
     let mut bindings = BTreeSet::new();
     for node in nodes {
         match node.kind() {
-            "function_declaration"
-            | "generator_function_declaration"
-            | "class_declaration" => {
+            "function_declaration" | "generator_function_declaration" | "class_declaration" => {
                 if let Some(name) = node.child_by_field_name("name") {
                     collect_binding_identifiers(name, source, &mut bindings);
                 }
@@ -233,7 +231,10 @@ fn collect_non_variable_bindings(
                     collect_binding_identifiers(parameter, source, &mut bindings);
                 }
             }
-            "function_expression" | "generator_function" | "arrow_function" | "method_definition" => {
+            "function_expression"
+            | "generator_function"
+            | "arrow_function"
+            | "method_definition" => {
                 if let Some(name) = node.child_by_field_name("name") {
                     collect_binding_identifiers(name, source, &mut bindings);
                 }
@@ -322,7 +323,9 @@ fn parse_tree(
         .set_language(&language)
         .map_err(|error| GuardExtractionError::ParseFailed(error.to_string()))?;
     parser.parse(source, None).ok_or_else(|| {
-        GuardExtractionError::ParseFailed("guard binding-scope parser returned no syntax tree".to_owned())
+        GuardExtractionError::ParseFailed(
+            "guard binding-scope parser returned no syntax tree".to_owned(),
+        )
     })
 }
 
