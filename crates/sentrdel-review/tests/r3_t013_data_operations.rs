@@ -197,6 +197,91 @@ fn reassigned_request_parameter_never_qualifies_broad_request_object() {
 }
 
 #[test]
+fn transformed_request_body_never_becomes_broad_request_object() {
+    let source = br#"export function helper(client, req) {
+  return client.from("profiles").update(sanitize(req.body));
+}
+"#;
+    let result = extract_supabase_data_operations(
+        RouteAdapter::Express,
+        StructuralLanguage::JavaScript,
+        &path("src/transformed.js"),
+        source,
+        BusinessLogicLimits::default(),
+    )
+    .expect("inspect transformed request body");
+
+    assert_eq!(result.operations().len(), 1);
+    assert_eq!(
+        result.operations()[0]
+            .mutation_fields()
+            .expect("mutation field set")
+            .mode(),
+        FieldSetMode::Dynamic
+    );
+    assert!(
+        result
+            .gaps()
+            .iter()
+            .any(|gap| gap.reason() == DataCoverageGapReason::UnqualifiedBroadRequestObject)
+    );
+}
+
+#[test]
+fn block_shadowed_request_parameter_never_qualifies_broad_request_object() {
+    let source = br#"export function helper(client, req) {
+  {
+    const req = fakeRequest;
+    return client.from("profiles").update(req.body);
+  }
+}
+"#;
+    let result = extract_supabase_data_operations(
+        RouteAdapter::Express,
+        StructuralLanguage::JavaScript,
+        &path("src/shadowed.js"),
+        source,
+        BusinessLogicLimits::default(),
+    )
+    .expect("inspect block-shadowed request parameter");
+
+    assert_eq!(result.operations().len(), 1);
+    assert_eq!(
+        result.operations()[0]
+            .mutation_fields()
+            .expect("mutation field set")
+            .mode(),
+        FieldSetMode::Dynamic
+    );
+}
+
+#[test]
+fn overwritten_request_body_never_qualifies_broad_request_object() {
+    let source = br#"export function helper(client, req) {
+  req.body = fakeBody;
+  return client.from("profiles").update(req.body);
+}
+"#;
+    let result = extract_supabase_data_operations(
+        RouteAdapter::Express,
+        StructuralLanguage::JavaScript,
+        &path("src/body-overwrite.js"),
+        source,
+        BusinessLogicLimits::default(),
+    )
+    .expect("inspect overwritten request body");
+
+    assert_eq!(result.operations().len(), 1);
+    assert_eq!(
+        result.operations()[0]
+            .mutation_fields()
+            .expect("mutation field set")
+            .mode(),
+        FieldSetMode::Dynamic
+    );
+}
+
+#[test]
 fn dynamic_resource_and_rpc_names_fail_visible_instead_of_guessing_identity() {
     let source = br#"Deno.serve(async () => {
   await supabase.from(tableName).delete();
