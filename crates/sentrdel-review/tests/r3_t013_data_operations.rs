@@ -219,13 +219,12 @@ fn transformed_request_body_never_becomes_broad_request_object() {
             .mode(),
         FieldSetMode::Dynamic
     );
-    assert!(result.gaps().iter().any(|gap| {
-        matches!(
-            gap.reason(),
-            DataCoverageGapReason::DynamicMutationFields
-                | DataCoverageGapReason::UnqualifiedBroadRequestObject
-        )
-    }));
+    assert!(
+        result
+            .gaps()
+            .iter()
+            .any(|gap| gap.reason() == DataCoverageGapReason::DynamicMutationFields)
+    );
 }
 
 #[test]
