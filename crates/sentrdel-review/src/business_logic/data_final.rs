@@ -394,8 +394,7 @@ fn qualifies_broad_request_object(
     if !matches!(root, "req" | "request") {
         return false;
     }
-    let Some(function) = innermost_function_for_range(nodes, node.start_byte(), node.end_byte())
-    else {
+    let Some(function) = enclosing_function(node) else {
         return false;
     };
     if !handler_parameter_is_visible(function, nodes, source, root, node.start_byte()) {
@@ -424,11 +423,7 @@ fn handler_parameter_is_visible(
         if node.start_byte() < function.start_byte() || node.end_byte() > function.end_byte() {
             continue;
         }
-        let Some(owner) = innermost_function_for_range(nodes, node.start_byte(), node.end_byte())
-        else {
-            continue;
-        };
-        if owner.id() != function.id() {
+        if !node_belongs_to_function(*node, function) {
             continue;
         }
 
@@ -489,8 +484,7 @@ fn function_reassigns_request_source(
         if node.start_byte() < function.start_byte() || node.end_byte() > function.end_byte() {
             return false;
         }
-        let owner = innermost_function_for_range(nodes, node.start_byte(), node.end_byte());
-        if !owner.is_some_and(|owner| owner.id() == function.id()) {
+        if !node_belongs_to_function(node, function) {
             return false;
         }
         match node.kind() {
@@ -634,18 +628,20 @@ fn unwrap_expression(mut node: tree_sitter::Node<'_>) -> tree_sitter::Node<'_> {
     }
 }
 
-fn innermost_function_for_range<'tree>(
-    nodes: &[tree_sitter::Node<'tree>],
-    start: usize,
-    end: usize,
-) -> Option<tree_sitter::Node<'tree>> {
-    nodes
-        .iter()
-        .copied()
-        .filter(|node| {
-            is_function_boundary(*node) && node.start_byte() <= start && end <= node.end_byte()
-        })
-        .min_by_key(|node| node.end_byte().saturating_sub(node.start_byte()))
+fn enclosing_function(mut node: tree_sitter::Node<'_>) -> Option<tree_sitter::Node<'_>> {
+    loop {
+        if is_function_boundary(node) {
+            return Some(node);
+        }
+        node = node.parent()?;
+    }
+}
+
+fn node_belongs_to_function(
+    node: tree_sitter::Node<'_>,
+    function: tree_sitter::Node<'_>,
+) -> bool {
+    enclosing_function(node).is_some_and(|owner| owner.id() == function.id())
 }
 
 fn is_function_boundary(node: tree_sitter::Node<'_>) -> bool {
