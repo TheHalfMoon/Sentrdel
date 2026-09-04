@@ -637,10 +637,7 @@ fn enclosing_function(mut node: tree_sitter::Node<'_>) -> Option<tree_sitter::No
     }
 }
 
-fn node_belongs_to_function(
-    node: tree_sitter::Node<'_>,
-    function: tree_sitter::Node<'_>,
-) -> bool {
+fn node_belongs_to_function(node: tree_sitter::Node<'_>, function: tree_sitter::Node<'_>) -> bool {
     enclosing_function(node).is_some_and(|owner| owner.id() == function.id())
 }
 
