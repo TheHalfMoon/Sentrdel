@@ -130,6 +130,9 @@ export function register(app) {
     )
     .expect("extract supported Supabase data-operation baseline");
     assert_eq!(data.operations().len(), 1);
-    assert_eq!(data.operations()[0].operation_kind(), DataOperationKind::Read);
+    assert_eq!(
+        data.operations()[0].operation_kind(),
+        DataOperationKind::Read
+    );
     assert_eq!(data.operations()[0].resource().resource_name(), "profiles");
 }
