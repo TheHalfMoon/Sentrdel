@@ -4,10 +4,10 @@
 //! policy, target-execution, provider-credential, network, or runtime authority.
 
 pub mod actor;
-#[path = "data_gate.rs"]
-mod data_candidate;
 #[path = "data_final.rs"]
 pub mod data;
+#[path = "data_gate.rs"]
+mod data_candidate;
 #[path = "guard_tdz_scope.rs"]
 pub mod guard;
 pub mod invariant;
