@@ -1,7 +1,7 @@
 use sentrdel_review::business_logic::data::{
-    DataCoverageGapReason, SUPABASE_DATA_EXECUTES_QUERIES,
-    SUPABASE_DATA_PROVES_DATABASE_RESULT, SUPABASE_DATA_PROVES_HOSTED_STATE,
-    SUPABASE_DATA_PROVES_RUNTIME_REACHABILITY, extract_supabase_data_operations,
+    DataCoverageGapReason, SUPABASE_DATA_EXECUTES_QUERIES, SUPABASE_DATA_PROVES_DATABASE_RESULT,
+    SUPABASE_DATA_PROVES_HOSTED_STATE, SUPABASE_DATA_PROVES_RUNTIME_REACHABILITY,
+    extract_supabase_data_operations,
 };
 use sentrdel_review::business_logic::model::{
     BusinessLogicLimits, DataOperationKind, FieldSetMode,
@@ -42,7 +42,10 @@ fn static_relation_read_and_filters_are_observed_without_provider_authority() {
     assert_eq!(operation.filters().len(), 1);
     let fields = operation.read_fields().expect("static selected fields");
     assert_eq!(fields.mode(), FieldSetMode::Explicit);
-    assert_eq!(fields.fields(), &["display_name".to_owned(), "id".to_owned()]);
+    assert_eq!(
+        fields.fields(),
+        &["display_name".to_owned(), "id".to_owned()]
+    );
 }
 
 #[test]
@@ -131,9 +134,12 @@ fn lexical_request_name_without_t012_handler_proof_is_downgraded() {
             .mode(),
         FieldSetMode::Dynamic
     );
-    assert!(result.gaps().iter().any(|gap| {
-        gap.reason() == DataCoverageGapReason::UnqualifiedBroadRequestObject
-    }));
+    assert!(
+        result
+            .gaps()
+            .iter()
+            .any(|gap| { gap.reason() == DataCoverageGapReason::UnqualifiedBroadRequestObject })
+    );
 }
 
 #[test]
