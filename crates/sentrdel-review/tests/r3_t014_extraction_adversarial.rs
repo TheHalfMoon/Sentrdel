@@ -295,6 +295,10 @@ fn dynamic_security_relevant_constructs_remain_fail_visible() {
     )
     .expect("classify dynamic query fields");
     assert_eq!(dynamic_query.operations().len(), 1);
+    assert_eq!(
+        dynamic_query.operations()[0].coverage_state(),
+        &sentrdel_schema::coverage::CoverageState::Partial
+    );
     assert!(
         dynamic_query
             .gaps()
@@ -321,6 +325,10 @@ fn dynamic_security_relevant_constructs_remain_fail_visible() {
     )
     .expect("classify dynamic mutation fields");
     assert_eq!(dynamic_mutation.operations().len(), 1);
+    assert_eq!(
+        dynamic_mutation.operations()[0].coverage_state(),
+        &sentrdel_schema::coverage::CoverageState::Partial
+    );
     assert!(
         dynamic_mutation
             .gaps()
