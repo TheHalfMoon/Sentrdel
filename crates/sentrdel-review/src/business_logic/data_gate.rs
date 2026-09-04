@@ -934,8 +934,7 @@ impl<'a> ExtractionBuilder<'a> {
 
     fn is_verified_request_body(&self, node: tree_sitter::Node<'_>) -> bool {
         self.request_body_ranges
-            .iter()
-            .any(|(start, end)| node.start_byte() <= *start && *end <= node.end_byte())
+            .contains(&(node.start_byte(), node.end_byte()))
     }
 
     fn check_field_count(&self, count: usize) -> Result<(), DataExtractionError> {
