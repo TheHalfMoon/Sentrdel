@@ -51,11 +51,7 @@ fn next_pages_rejects_request_json_as_cross_adapter_request_body() {
   return client.from("profiles").update(request.json());
 }
 "#;
-    assert_unqualified_dynamic(
-        RouteAdapter::NextPagesApi,
-        "pages/api/profile.js",
-        source,
-    );
+    assert_unqualified_dynamic(RouteAdapter::NextPagesApi, "pages/api/profile.js", source);
 }
 
 #[test]
