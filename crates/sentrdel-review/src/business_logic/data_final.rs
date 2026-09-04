@@ -150,8 +150,7 @@ pub fn extract_supabase_data_operations(
         if qualified {
             qualified_ranges.insert(range);
         } else if fields.mode() == FieldSetMode::BroadRequestObject
-            || candidate_node
-                .is_some_and(|node| looks_like_broad_request_object(node, source_text))
+            || candidate_node.is_some_and(|node| looks_like_broad_request_object(node, source_text))
         {
             rejected_broad_ranges
                 .entry(range)
