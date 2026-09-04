@@ -518,47 +518,166 @@ void "supabase.from('profiles').update(req.body).eq('id', req.params.id)";
 
 #[test]
 fn adversarial_dynamic_extraction_is_deterministic_on_replay() {
-    let source = br#"export function handler(req, key) {
+    let route_source = br#"export function install(app, request, handler) {
+  const method = request.query.method;
+  const route = request.query.route;
+  app[method](route, handler);
+}
+"#;
+    let route_path = path("src/deterministic-dynamic-route.js");
+    let limits = BusinessLogicLimits::default();
+    let route_first = extract_routes(
+        RouteAdapter::Express,
+        StructuralLanguage::JavaScript,
+        &route_path,
+        route_source,
+        limits,
+    )
+    .expect("first route extraction");
+    let route_second = extract_routes(
+        RouteAdapter::Express,
+        StructuralLanguage::JavaScript,
+        &route_path,
+        route_source,
+        limits,
+    )
+    .expect("second route extraction");
+    assert_eq!(route_first, route_second);
+
+    let actor_value_source = br#"export function handler(req, key) {
   const selected = req.query[key];
   return selected;
 }
 "#;
-    let source_path = path("src/deterministic-dynamic.js");
-    let limits = BusinessLogicLimits::default();
-
+    let actor_value_path = path("src/deterministic-dynamic-actor-value.js");
     let actor_first = extract_actor_contexts(
         RouteAdapter::Express,
         StructuralLanguage::JavaScript,
-        &source_path,
-        source,
+        &actor_value_path,
+        actor_value_source,
         limits,
     )
     .expect("first actor extraction");
     let actor_second = extract_actor_contexts(
         RouteAdapter::Express,
         StructuralLanguage::JavaScript,
-        &source_path,
-        source,
+        &actor_value_path,
+        actor_value_source,
         limits,
     )
     .expect("second actor extraction");
     assert_eq!(actor_first, actor_second);
 
+    let guard_source = br#"export async function handler(req, res, guards) {
+  const allowed = await guards[req.query.guard](req);
+  if (!allowed) return res.status(403).end();
+  return res.json({ ok: true });
+}
+"#;
+    let guard_path = path("src/deterministic-dynamic-guard.js");
+    let guard_first = extract_guard_observations(
+        RouteAdapter::Express,
+        StructuralLanguage::JavaScript,
+        &guard_path,
+        guard_source,
+        limits,
+    )
+    .expect("first guard extraction");
+    let guard_second = extract_guard_observations(
+        RouteAdapter::Express,
+        StructuralLanguage::JavaScript,
+        &guard_path,
+        guard_source,
+        limits,
+    )
+    .expect("second guard extraction");
+    assert_eq!(guard_first, guard_second);
+
     let value_first = extract_value_origins(
         RouteAdapter::Express,
         StructuralLanguage::JavaScript,
-        &source_path,
-        source,
+        &actor_value_path,
+        actor_value_source,
         limits,
     )
     .expect("first value extraction");
     let value_second = extract_value_origins(
         RouteAdapter::Express,
         StructuralLanguage::JavaScript,
-        &source_path,
-        source,
+        &actor_value_path,
+        actor_value_source,
         limits,
     )
     .expect("second value extraction");
     assert_eq!(value_first, value_second);
+
+    let dynamic_resource_source = br#"Deno.serve(async () => {
+  return supabase.from(tableName).select("id");
+});
+"#;
+    let dynamic_resource_path = path("supabase/functions/deterministic-resource/index.ts");
+    let resource_first = extract_supabase_data_operations(
+        RouteAdapter::SupabaseEdge,
+        StructuralLanguage::JavaScript,
+        &dynamic_resource_path,
+        dynamic_resource_source,
+        limits,
+    )
+    .expect("first dynamic resource extraction");
+    let resource_second = extract_supabase_data_operations(
+        RouteAdapter::SupabaseEdge,
+        StructuralLanguage::JavaScript,
+        &dynamic_resource_path,
+        dynamic_resource_source,
+        limits,
+    )
+    .expect("second dynamic resource extraction");
+    assert_eq!(resource_first, resource_second);
+
+    let dynamic_query_source = br#"Deno.serve(async (request) => {
+  const body = await request.json();
+  return supabase.from("profiles").select(fields).eq(filterField, body.value);
+});
+"#;
+    let dynamic_query_path = path("supabase/functions/deterministic-query/index.ts");
+    let query_first = extract_supabase_data_operations(
+        RouteAdapter::SupabaseEdge,
+        StructuralLanguage::JavaScript,
+        &dynamic_query_path,
+        dynamic_query_source,
+        limits,
+    )
+    .expect("first dynamic query extraction");
+    let query_second = extract_supabase_data_operations(
+        RouteAdapter::SupabaseEdge,
+        StructuralLanguage::JavaScript,
+        &dynamic_query_path,
+        dynamic_query_source,
+        limits,
+    )
+    .expect("second dynamic query extraction");
+    assert_eq!(query_first, query_second);
+
+    let dynamic_mutation_source = br#"Deno.serve(async () => {
+  return supabase.from("profiles").update(payload);
+});
+"#;
+    let dynamic_mutation_path = path("supabase/functions/deterministic-mutation/index.ts");
+    let mutation_first = extract_supabase_data_operations(
+        RouteAdapter::SupabaseEdge,
+        StructuralLanguage::JavaScript,
+        &dynamic_mutation_path,
+        dynamic_mutation_source,
+        limits,
+    )
+    .expect("first dynamic mutation extraction");
+    let mutation_second = extract_supabase_data_operations(
+        RouteAdapter::SupabaseEdge,
+        StructuralLanguage::JavaScript,
+        &dynamic_mutation_path,
+        dynamic_mutation_source,
+        limits,
+    )
+    .expect("second dynamic mutation extraction");
+    assert_eq!(mutation_first, mutation_second);
 }
