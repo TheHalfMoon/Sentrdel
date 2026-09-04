@@ -307,6 +307,26 @@ fn dynamic_security_relevant_constructs_remain_fail_visible() {
             .iter()
             .any(|gap| gap.reason() == DataCoverageGapReason::DynamicFilterField)
     );
+
+    let dynamic_mutation_source = br#"Deno.serve(async () => {
+  return supabase.from("profiles").update(payload);
+});
+"#;
+    let dynamic_mutation = extract_supabase_data_operations(
+        RouteAdapter::SupabaseEdge,
+        StructuralLanguage::JavaScript,
+        &path("supabase/functions/dynamic-mutation/index.ts"),
+        dynamic_mutation_source,
+        BusinessLogicLimits::default(),
+    )
+    .expect("classify dynamic mutation fields");
+    assert_eq!(dynamic_mutation.operations().len(), 1);
+    assert!(
+        dynamic_mutation
+            .gaps()
+            .iter()
+            .any(|gap| gap.reason() == DataCoverageGapReason::DynamicMutationFields)
+    );
 }
 
 #[test]
