@@ -5,6 +5,8 @@
 
 pub mod actor;
 #[path = "data_gate.rs"]
+mod data_candidate;
+#[path = "data_final.rs"]
 pub mod data;
 #[path = "guard_tdz_scope.rs"]
 pub mod guard;
