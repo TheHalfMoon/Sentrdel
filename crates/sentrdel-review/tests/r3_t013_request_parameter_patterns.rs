@@ -31,9 +31,12 @@ fn assert_unqualified_request_parameter(source: &[u8], fixture_path: &str) {
         FieldSetMode::Dynamic
     );
     assert_eq!(operation.coverage_state(), &CoverageState::Partial);
-    assert!(result.gaps().iter().any(|gap| {
-        gap.reason() == DataCoverageGapReason::UnqualifiedBroadRequestObject
-    }));
+    assert!(
+        result
+            .gaps()
+            .iter()
+            .any(|gap| { gap.reason() == DataCoverageGapReason::UnqualifiedBroadRequestObject })
+    );
 }
 
 #[test]
