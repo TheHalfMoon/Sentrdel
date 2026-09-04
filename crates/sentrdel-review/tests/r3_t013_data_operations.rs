@@ -112,9 +112,37 @@ fn verified_request_body_can_be_observed_as_broad_mutation_without_runtime_claim
 }
 
 #[test]
-fn lexical_request_name_without_t012_handler_proof_is_downgraded() {
-    let source = br#"export function helper(request) {
-  return fakeDb.from("profiles").update(request.body);
+fn canonical_data_helper_parameter_qualifies_broad_request_object() {
+    let source = br#"export async function updateProfile(elevatedClient, req, userId) {
+  return elevatedClient
+    .from("profiles")
+    .update(req.body)
+    .eq("user_id", userId);
+}
+"#;
+    let result = extract_supabase_data_operations(
+        RouteAdapter::Express,
+        StructuralLanguage::JavaScript,
+        &path("src/profile.js"),
+        source,
+        BusinessLogicLimits::default(),
+    )
+    .expect("extract canonical broad request mutation");
+
+    assert_eq!(result.operations().len(), 1);
+    assert_eq!(
+        result.operations()[0]
+            .mutation_fields()
+            .expect("broad mutation")
+            .mode(),
+        FieldSetMode::BroadRequestObject
+    );
+}
+
+#[test]
+fn free_lexical_request_name_never_qualifies_broad_request_object() {
+    let source = br#"export function helper(client) {
+  return client.from("profiles").update(request.body);
 }
 "#;
     let result = extract_supabase_data_operations(
@@ -124,7 +152,7 @@ fn lexical_request_name_without_t012_handler_proof_is_downgraded() {
         source,
         BusinessLogicLimits::default(),
     )
-    .expect("inspect lexical request lookalike");
+    .expect("inspect free lexical request lookalike");
 
     assert_eq!(result.operations().len(), 1);
     assert_eq!(
@@ -138,7 +166,33 @@ fn lexical_request_name_without_t012_handler_proof_is_downgraded() {
         result
             .gaps()
             .iter()
-            .any(|gap| { gap.reason() == DataCoverageGapReason::UnqualifiedBroadRequestObject })
+            .any(|gap| gap.reason() == DataCoverageGapReason::UnqualifiedBroadRequestObject)
+    );
+}
+
+#[test]
+fn reassigned_request_parameter_never_qualifies_broad_request_object() {
+    let source = br#"export function helper(client, req) {
+  req = fakeRequest;
+  return client.from("profiles").update(req.body);
+}
+"#;
+    let result = extract_supabase_data_operations(
+        RouteAdapter::Express,
+        StructuralLanguage::JavaScript,
+        &path("src/reassigned.js"),
+        source,
+        BusinessLogicLimits::default(),
+    )
+    .expect("inspect reassigned request parameter");
+
+    assert_eq!(result.operations().len(), 1);
+    assert_eq!(
+        result.operations()[0]
+            .mutation_fields()
+            .expect("mutation field set")
+            .mode(),
+        FieldSetMode::Dynamic
     );
 }
 
