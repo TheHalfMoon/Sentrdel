@@ -40,7 +40,7 @@
 - [x] **R3-T011** Implement typed guard extraction for authentication, role/function authorization, tenant/ownership/object membership, property allowlisting and elevated-client boundaries with explicit supported dominance/link scope.
 - [x] **R3-T012** Implement bounded value-origin derivation with hard depth/fan-in caps; supported assignments/parameters/destructuring/member access may link values, while unsupported dynamic expressions terminate in UNKNOWN rather than lexical name equivalence.
 - [x] **R3-T013** Implement the frozen Supabase JavaScript data-operation subset for relation/resource identity, read/insert/update/upsert/delete/RPC observations, supported filters, selected/mutated fields and broad request-controlled mutation objects; no query execution or hosted-state claims.
-- [x] **R3-T014** Add positive/negative/adversarial extraction tests for malformed syntax, dynamic middleware/routes/queries/properties, oversized documents/match counts/derivations, generated/unsupported source and instruction-shaped repository content; every unsupported security-relevant area degrades coverage.
+- [ ] **R3-T014** Add positive/negative/adversarial extraction tests for malformed syntax, dynamic middleware/routes/queries/properties, oversized documents/match counts/derivations, generated/unsupported source and instruction-shaped repository content; every unsupported security-relevant area degrades coverage.
 
 **Checkpoint:** R3 can extract only its declared local semantics safely and deterministically before cross-layer correlation or invariant verdicts.
 
