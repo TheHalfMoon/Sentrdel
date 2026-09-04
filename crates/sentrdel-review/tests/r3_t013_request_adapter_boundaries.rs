@@ -18,7 +18,7 @@ fn assert_unqualified_dynamic(adapter: RouteAdapter, fixture_path: &str, source:
         source,
         BusinessLogicLimits::default(),
     )
-    .expect("inspect cross-adapter request mutation form");
+    .expect("inspect unqualified request mutation form");
 
     assert_eq!(result.operations().len(), 1);
     assert_eq!(
@@ -67,6 +67,50 @@ fn next_app_rejects_req_body_as_cross_adapter_request_body() {
 fn supabase_edge_rejects_req_body_as_cross_adapter_request_body() {
     let source = br#"Deno.serve(async (req) => {
   return supabase.from("profiles").update(req.body);
+});
+"#;
+    assert_unqualified_dynamic(
+        RouteAdapter::SupabaseEdge,
+        "supabase/functions/profile/index.js",
+        source,
+    );
+}
+
+#[test]
+fn next_app_rejects_argument_bearing_request_json() {
+    let source = br#"export async function POST(client, request) {
+  return client.from("profiles").update(request.json(attackerControlled));
+}
+"#;
+    assert_unqualified_dynamic(RouteAdapter::NextApp, "app/api/profile/route.js", source);
+}
+
+#[test]
+fn next_app_rejects_spread_argument_request_json() {
+    let source = br#"export async function POST(client, request, args) {
+  return client.from("profiles").update(request.json(...args));
+}
+"#;
+    assert_unqualified_dynamic(RouteAdapter::NextApp, "app/api/profile/route.js", source);
+}
+
+#[test]
+fn supabase_edge_rejects_argument_bearing_request_json() {
+    let source = br#"Deno.serve(async (request) => {
+  return supabase.from("profiles").update(request.json(attackerControlled));
+});
+"#;
+    assert_unqualified_dynamic(
+        RouteAdapter::SupabaseEdge,
+        "supabase/functions/profile/index.js",
+        source,
+    );
+}
+
+#[test]
+fn supabase_edge_rejects_spread_argument_request_json() {
+    let source = br#"Deno.serve(async (request, args) => {
+  return supabase.from("profiles").update(request.json(...args));
 });
 "#;
     assert_unqualified_dynamic(
