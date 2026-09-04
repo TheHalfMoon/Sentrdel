@@ -550,8 +550,7 @@ fn function_parameter_names(node: tree_sitter::Node<'_>, source: &str) -> Vec<St
 }
 
 fn direct_parameter_name(node: tree_sitter::Node<'_>, source: &str) -> Option<String> {
-    (node.kind() == "identifier")
-        .then(|| node_text(node, source).map(str::to_owned))?
+    (node.kind() == "identifier").then(|| node_text(node, source).map(str::to_owned))?
 }
 
 fn nearest_statement_block<'tree>(
