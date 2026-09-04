@@ -144,11 +144,15 @@ pub fn extract_supabase_data_operations(
             fields.provenance().start_byte(),
             fields.provenance().end_byte(),
         );
-        let qualified = node_for_range(&nodes, range.0, range.1)
+        let candidate_node = node_for_range(&nodes, range.0, range.1);
+        let qualified = candidate_node
             .is_some_and(|node| qualifies_broad_request_object(node, &nodes, source_text));
         if qualified {
             qualified_ranges.insert(range);
-        } else if fields.mode() == FieldSetMode::BroadRequestObject {
+        } else if fields.mode() == FieldSetMode::BroadRequestObject
+            || candidate_node
+                .is_some_and(|node| looks_like_broad_request_object(node, source_text))
+        {
             rejected_broad_ranges
                 .entry(range)
                 .or_insert_with(|| fields.provenance().clone());
@@ -383,6 +387,12 @@ fn qualifies_broad_request_object(
         if object.kind() != "identifier" || node_text(property, source) != Some("json") {
             return false;
         }
+        let Some(arguments) = node.child_by_field_name("arguments") else {
+            return false;
+        };
+        if arguments.named_child_count() != 0 {
+            return false;
+        }
         let Some(root) = node_text(object, source) else {
             return false;
         };
@@ -401,6 +411,39 @@ fn qualifies_broad_request_object(
         return false;
     }
     !function_reassigns_request_source(function, nodes, source, root)
+}
+
+fn looks_like_broad_request_object(node: tree_sitter::Node<'_>, source: &str) -> bool {
+    let node = unwrap_expression(node);
+    if node.kind() == "member_expression" {
+        let Some(object) = node.child_by_field_name("object") else {
+            return false;
+        };
+        let Some(property) = node.child_by_field_name("property") else {
+            return false;
+        };
+        return object.kind() == "identifier"
+            && matches!(node_text(object, source), Some("req" | "request"))
+            && node_text(property, source) == Some("body");
+    }
+    if node.kind() != "call_expression" {
+        return false;
+    }
+    let Some(function) = node.child_by_field_name("function") else {
+        return false;
+    };
+    if function.kind() != "member_expression" {
+        return false;
+    }
+    let Some(object) = function.child_by_field_name("object") else {
+        return false;
+    };
+    let Some(property) = function.child_by_field_name("property") else {
+        return false;
+    };
+    object.kind() == "identifier"
+        && matches!(node_text(object, source), Some("req" | "request"))
+        && node_text(property, source) == Some("json")
 }
 
 fn handler_parameter_is_visible(
