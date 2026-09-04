@@ -1,11 +1,13 @@
 //! Final qualification boundary for canonical R3-T013 data-operation extraction.
 //!
 //! The structural candidate remains conservative. This wrapper independently re-qualifies every
-//! broad request-controlled mutation candidate and upgrades dynamic candidates only when the exact
-//! mutation argument is `req.body`, `request.body`, or a direct `req/request.json()` call rooted in
-//! one unique visible parameter of the same enclosing function. Transformed expressions, free
-//! lexical lookalikes, outer bindings, nested functions, reassigned request bindings, request-body
-//! overwrites, and lexical shadowing never gain request-controlled authority.
+//! broad request-controlled mutation candidate and upgrades dynamic candidates only for the exact
+//! request-body form admitted by the selected canonical adapter: direct `req.body` for Express and
+//! Next.js Pages API, or a zero-argument direct `request.json()` call for Next.js App Router and
+//! Supabase Edge. Every form must be rooted in one unique visible parameter of the same enclosing
+//! function. Transformed expressions, cross-adapter lookalikes, free lexical lookalikes, outer
+//! bindings, nested functions, reassigned request bindings, request-body overwrites, and lexical
+//! shadowing never gain request-controlled authority.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -145,8 +147,9 @@ pub fn extract_supabase_data_operations(
             fields.provenance().end_byte(),
         );
         let candidate_node = node_for_range(&nodes, range.0, range.1);
-        let qualified = candidate_node
-            .is_some_and(|node| qualifies_broad_request_object(node, &nodes, source_text));
+        let qualified = candidate_node.is_some_and(|node| {
+            qualifies_broad_request_object(value_adapter, node, &nodes, source_text)
+        });
         if qualified {
             qualified_ranges.insert(range);
         } else if fields.mode() == FieldSetMode::BroadRequestObject
@@ -351,26 +354,33 @@ fn node_for_range<'tree>(
 }
 
 fn qualifies_broad_request_object(
+    adapter: RouteAdapter,
     node: tree_sitter::Node<'_>,
     nodes: &[tree_sitter::Node<'_>],
     source: &str,
 ) -> bool {
     let node = unwrap_expression(node);
     let root = if node.kind() == "member_expression" {
+        if !matches!(adapter, RouteAdapter::Express | RouteAdapter::NextPagesApi) {
+            return false;
+        }
         let Some(object) = node.child_by_field_name("object") else {
             return false;
         };
         let Some(property) = node.child_by_field_name("property") else {
             return false;
         };
-        if object.kind() != "identifier" || node_text(property, source) != Some("body") {
+        if object.kind() != "identifier"
+            || node_text(object, source) != Some("req")
+            || node_text(property, source) != Some("body")
+        {
             return false;
         }
-        let Some(root) = node_text(object, source) else {
-            return false;
-        };
-        root
+        "req"
     } else if node.kind() == "call_expression" {
+        if !matches!(adapter, RouteAdapter::NextApp | RouteAdapter::SupabaseEdge) {
+            return false;
+        }
         let Some(function) = node.child_by_field_name("function") else {
             return false;
         };
@@ -383,7 +393,10 @@ fn qualifies_broad_request_object(
         let Some(property) = function.child_by_field_name("property") else {
             return false;
         };
-        if object.kind() != "identifier" || node_text(property, source) != Some("json") {
+        if object.kind() != "identifier"
+            || node_text(object, source) != Some("request")
+            || node_text(property, source) != Some("json")
+        {
             return false;
         }
         let Some(arguments) = node.child_by_field_name("arguments") else {
@@ -392,17 +405,11 @@ fn qualifies_broad_request_object(
         if arguments.named_child_count() != 0 {
             return false;
         }
-        let Some(root) = node_text(object, source) else {
-            return false;
-        };
-        root
+        "request"
     } else {
         return false;
     };
 
-    if !matches!(root, "req" | "request") {
-        return false;
-    }
     let Some(function) = enclosing_function(node) else {
         return false;
     };
