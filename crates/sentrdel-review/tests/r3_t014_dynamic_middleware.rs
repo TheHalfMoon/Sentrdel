@@ -10,24 +10,35 @@ fn path(value: &str) -> NormalizedRepoPath {
 }
 
 #[test]
-fn dynamic_express_middleware_remains_an_explicit_coverage_gap() {
+fn dynamic_express_middleware_remains_an_explicit_deterministic_coverage_gap() {
     let source = br#"export function install(app, dynamicMiddleware) {
   app.use(dynamicMiddleware);
 }
 "#;
-    let result = extract_routes(
+    let source_path = path("src/dynamic-middleware.js");
+    let limits = BusinessLogicLimits::default();
+    let first = extract_routes(
         RouteAdapter::Express,
         StructuralLanguage::JavaScript,
-        &path("src/dynamic-middleware.js"),
+        &source_path,
         source,
-        BusinessLogicLimits::default(),
+        limits,
     )
-    .expect("classify unsupported dynamic middleware");
+    .expect("first unsupported dynamic middleware classification");
+    let second = extract_routes(
+        RouteAdapter::Express,
+        StructuralLanguage::JavaScript,
+        &source_path,
+        source,
+        limits,
+    )
+    .expect("second unsupported dynamic middleware classification");
 
-    assert!(result.routes().is_empty());
-    assert_eq!(result.gaps().len(), 1);
+    assert_eq!(first, second);
+    assert!(first.routes().is_empty());
+    assert_eq!(first.gaps().len(), 1);
     assert_eq!(
-        result.gaps()[0].reason(),
+        first.gaps()[0].reason(),
         RouteCoverageGapReason::UnsupportedMiddleware
     );
 }
