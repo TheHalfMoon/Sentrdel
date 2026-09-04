@@ -228,6 +228,68 @@ fn transformed_request_body_never_becomes_broad_request_object() {
 }
 
 #[test]
+fn argument_bearing_request_json_never_qualifies_broad_request_object() {
+    let source = br#"export function helper(client, req, attackerControlled) {
+  return client.from("profiles").update(req.json(attackerControlled));
+}
+"#;
+    let result = extract_supabase_data_operations(
+        RouteAdapter::Express,
+        StructuralLanguage::JavaScript,
+        &path("src/request-json-argument.js"),
+        source,
+        BusinessLogicLimits::default(),
+    )
+    .expect("inspect argument-bearing request json");
+
+    assert_eq!(result.operations().len(), 1);
+    assert_eq!(
+        result.operations()[0]
+            .mutation_fields()
+            .expect("mutation field set")
+            .mode(),
+        FieldSetMode::Dynamic
+    );
+    assert!(
+        result
+            .gaps()
+            .iter()
+            .any(|gap| gap.reason() == DataCoverageGapReason::UnqualifiedBroadRequestObject)
+    );
+}
+
+#[test]
+fn spread_argument_request_json_never_qualifies_broad_request_object() {
+    let source = br#"export function helper(client, req, args) {
+  return client.from("profiles").update(req.json(...args));
+}
+"#;
+    let result = extract_supabase_data_operations(
+        RouteAdapter::Express,
+        StructuralLanguage::JavaScript,
+        &path("src/request-json-spread.js"),
+        source,
+        BusinessLogicLimits::default(),
+    )
+    .expect("inspect spread-argument request json");
+
+    assert_eq!(result.operations().len(), 1);
+    assert_eq!(
+        result.operations()[0]
+            .mutation_fields()
+            .expect("mutation field set")
+            .mode(),
+        FieldSetMode::Dynamic
+    );
+    assert!(
+        result
+            .gaps()
+            .iter()
+            .any(|gap| gap.reason() == DataCoverageGapReason::UnqualifiedBroadRequestObject)
+    );
+}
+
+#[test]
 fn block_shadowed_request_parameter_never_qualifies_broad_request_object() {
     let source = br#"export function helper(client, req) {
   {
