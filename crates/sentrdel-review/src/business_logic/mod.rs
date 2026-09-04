@@ -4,6 +4,7 @@
 //! policy, target-execution, provider-credential, network, or runtime authority.
 
 pub mod actor;
+pub mod data;
 #[path = "guard_tdz_scope.rs"]
 pub mod guard;
 pub mod invariant;
