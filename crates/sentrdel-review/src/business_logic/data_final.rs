@@ -538,36 +538,20 @@ fn function_parameter_names(node: tree_sitter::Node<'_>, source: &str) -> Vec<St
         return Vec::new();
     };
     if parameter_node.kind() != "formal_parameters" {
-        return parameter_binding_name(parameter_node, source)
+        return direct_parameter_name(parameter_node, source)
             .into_iter()
             .collect();
     }
     let mut cursor = parameter_node.walk();
     parameter_node
         .named_children(&mut cursor)
-        .filter_map(|parameter| parameter_binding_name(parameter, source))
+        .filter_map(|parameter| direct_parameter_name(parameter, source))
         .collect()
 }
 
-fn parameter_binding_name(node: tree_sitter::Node<'_>, source: &str) -> Option<String> {
-    let mut current = node;
-    loop {
-        if current.kind() == "identifier" {
-            return node_text(current, source).map(str::to_owned);
-        }
-        if let Some(pattern) = current
-            .child_by_field_name("pattern")
-            .or_else(|| current.child_by_field_name("left"))
-        {
-            current = pattern;
-            continue;
-        }
-        if current.named_child_count() == 1 {
-            current = current.named_child(0)?;
-            continue;
-        }
-        return None;
-    }
+fn direct_parameter_name(node: tree_sitter::Node<'_>, source: &str) -> Option<String> {
+    (node.kind() == "identifier")
+        .then(|| node_text(node, source).map(str::to_owned))?
 }
 
 fn nearest_statement_block<'tree>(
