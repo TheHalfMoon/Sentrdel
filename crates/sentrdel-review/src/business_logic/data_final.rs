@@ -63,8 +63,9 @@ pub fn extract_supabase_data_operations(
         source,
         limits,
     )?;
-    let source_text = std::str::from_utf8(source)
-        .map_err(|_| DataExtractionError::Structural(crate::structural::StructuralError::NonUtf8Source))?;
+    let source_text = std::str::from_utf8(source).map_err(|_| {
+        DataExtractionError::Structural(crate::structural::StructuralError::NonUtf8Source)
+    })?;
     let tree = parse_tree(language, source_text)?;
     let nodes = collect_nodes(tree.root_node())?;
 
@@ -91,10 +92,7 @@ pub fn extract_supabase_data_operations(
         .gaps()
         .iter()
         .filter(|gap| {
-            let range = (
-                gap.provenance().start_byte(),
-                gap.provenance().end_byte(),
-            );
+            let range = (gap.provenance().start_byte(), gap.provenance().end_byte());
             !(qualified_ranges.contains(&range)
                 && matches!(
                     gap.reason(),
@@ -177,7 +175,9 @@ fn parse_tree(
         .set_language(&language)
         .map_err(|error| DataExtractionError::ParseFailed(error.to_string()))?;
     parser.parse(source, None).ok_or_else(|| {
-        DataExtractionError::ParseFailed("data qualification parser returned no syntax tree".to_owned())
+        DataExtractionError::ParseFailed(
+            "data qualification parser returned no syntax tree".to_owned(),
+        )
     })
 }
 
@@ -259,7 +259,8 @@ fn qualifies_broad_request_object(
     if !matches!(root, "req" | "request") {
         return false;
     }
-    let Some(function) = innermost_function_for_range(nodes, node.start_byte(), node.end_byte()) else {
+    let Some(function) = innermost_function_for_range(nodes, node.start_byte(), node.end_byte())
+    else {
         return false;
     };
     if function_parameter_count(function, source, root) != 1 {
@@ -308,11 +309,7 @@ fn is_function_boundary(node: tree_sitter::Node<'_>) -> bool {
     )
 }
 
-fn function_parameter_count(
-    function: tree_sitter::Node<'_>,
-    source: &str,
-    target: &str,
-) -> usize {
+fn function_parameter_count(function: tree_sitter::Node<'_>, source: &str, target: &str) -> usize {
     let Some(parameters) = function
         .child_by_field_name("parameters")
         .or_else(|| function.child_by_field_name("parameter"))
