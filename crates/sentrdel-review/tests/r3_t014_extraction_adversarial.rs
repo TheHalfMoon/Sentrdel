@@ -261,30 +261,52 @@ fn dynamic_security_relevant_constructs_remain_fail_visible() {
             .any(|gap| gap.reason() == GuardCoverageGapReason::DynamicGuard)
     );
 
-    let data_source = br#"Deno.serve(async (request) => {
-  const body = await request.json();
-  return supabase.from(tableName).select(fields).eq(filterField, body.value);
+    let dynamic_resource_source = br#"Deno.serve(async () => {
+  return supabase.from(tableName).select("id");
 });
 "#;
-    let data = extract_supabase_data_operations(
+    let dynamic_resource = extract_supabase_data_operations(
         RouteAdapter::SupabaseEdge,
         StructuralLanguage::JavaScript,
-        &path("supabase/functions/dynamic/index.ts"),
-        data_source,
+        &path("supabase/functions/dynamic-resource/index.ts"),
+        dynamic_resource_source,
         BusinessLogicLimits::default(),
     )
-    .expect("classify dynamic data operation");
+    .expect("classify dynamic resource");
+    assert!(dynamic_resource.operations().is_empty());
     assert!(
-        data.gaps()
+        dynamic_resource
+            .gaps()
             .iter()
             .any(|gap| gap.reason() == DataCoverageGapReason::DynamicResource)
     );
-    assert!(data.gaps().iter().any(|gap| matches!(
-        gap.reason(),
-        DataCoverageGapReason::DynamicSelectedFields
-            | DataCoverageGapReason::DynamicFilterField
-            | DataCoverageGapReason::UnresolvedFilterValue
-    )));
+
+    let dynamic_query_source = br#"Deno.serve(async (request) => {
+  const body = await request.json();
+  return supabase.from("profiles").select(fields).eq(filterField, body.value);
+});
+"#;
+    let dynamic_query = extract_supabase_data_operations(
+        RouteAdapter::SupabaseEdge,
+        StructuralLanguage::JavaScript,
+        &path("supabase/functions/dynamic-query/index.ts"),
+        dynamic_query_source,
+        BusinessLogicLimits::default(),
+    )
+    .expect("classify dynamic query fields");
+    assert_eq!(dynamic_query.operations().len(), 1);
+    assert!(
+        dynamic_query
+            .gaps()
+            .iter()
+            .any(|gap| gap.reason() == DataCoverageGapReason::DynamicSelectedFields)
+    );
+    assert!(
+        dynamic_query
+            .gaps()
+            .iter()
+            .any(|gap| gap.reason() == DataCoverageGapReason::DynamicFilterField)
+    );
 }
 
 #[test]
