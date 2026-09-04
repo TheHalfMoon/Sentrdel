@@ -4,8 +4,6 @@
 //! policy, target-execution, provider-credential, network, or runtime authority.
 
 pub mod actor;
-#[path = "data.rs"]
-mod data_raw;
 #[path = "data_gate.rs"]
 pub mod data;
 #[path = "guard_tdz_scope.rs"]
