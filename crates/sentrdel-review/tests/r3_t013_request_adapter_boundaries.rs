@@ -5,6 +5,7 @@ use sentrdel_review::business_logic::model::{BusinessLogicLimits, FieldSetMode};
 use sentrdel_review::business_logic::route::RouteAdapter;
 use sentrdel_review::structural::StructuralLanguage;
 use sentrdel_review::view::NormalizedRepoPath;
+use sentrdel_schema::coverage::CoverageState;
 
 fn path(value: &str) -> NormalizedRepoPath {
     NormalizedRepoPath::parse(value, 4_096).expect("normalized fixture path")
@@ -27,6 +28,10 @@ fn assert_unqualified_dynamic(adapter: RouteAdapter, fixture_path: &str, source:
             .expect("mutation field set")
             .mode(),
         FieldSetMode::Dynamic
+    );
+    assert_eq!(
+        result.operations()[0].coverage_state(),
+        &CoverageState::Partial
     );
     assert!(
         result
