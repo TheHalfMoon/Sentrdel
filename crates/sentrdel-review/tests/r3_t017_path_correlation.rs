@@ -291,27 +291,31 @@ fn explicit_actor_guard_value_operation_and_client_chain_is_preserved() {
 fn lexical_similarity_and_same_file_never_create_a_path() {
     let callback = id("r3.callback", "same-name");
     let routes = vec![route(callback, CoverageState::Covered)];
-    let actors = vec![ActorContext::new(
-        id("r3.actor", "same-name"),
-        ActorIdentityKind::AuthenticatedUser,
-        ActorSourceKind::VerifiedAuthAdapter,
-        "same-name",
-        TrustBasis::DirectObservation,
-        vec![location("src/routes.js", 20)],
-        limits(),
-    )
-    .expect("actor")];
-    let values = vec![ValueOrigin::new(
-        id("r3.value", "same-name"),
-        ValueOriginKind::RequestPath,
-        "same-name",
-        None,
-        Vec::new(),
-        0,
-        vec![location("src/routes.js", 40)],
-        limits(),
-    )
-    .expect("value")];
+    let actors = vec![
+        ActorContext::new(
+            id("r3.actor", "same-name"),
+            ActorIdentityKind::AuthenticatedUser,
+            ActorSourceKind::VerifiedAuthAdapter,
+            "same-name",
+            TrustBasis::DirectObservation,
+            vec![location("src/routes.js", 20)],
+            limits(),
+        )
+        .expect("actor"),
+    ];
+    let values = vec![
+        ValueOrigin::new(
+            id("r3.value", "same-name"),
+            ValueOriginKind::RequestPath,
+            "same-name",
+            None,
+            Vec::new(),
+            0,
+            vec![location("src/routes.js", 40)],
+            limits(),
+        )
+        .expect("value"),
+    ];
     let operations = vec![operation(None, None, Vec::new(), CoverageState::Covered)];
 
     let result = correlate_cross_layer_paths(
@@ -342,12 +346,7 @@ fn unknown_value_propagates_partial_path_state() {
     .expect("filter");
     let routes = vec![route(callback.clone(), CoverageState::Covered)];
     let values = vec![value.clone()];
-    let operations = vec![operation(
-        None,
-        None,
-        vec![filter],
-        CoverageState::Covered,
-    )];
+    let operations = vec![operation(None, None, vec![filter], CoverageState::Covered)];
     let links = vec![explicit_link(
         "r3.test.callback-value",
         callback,
