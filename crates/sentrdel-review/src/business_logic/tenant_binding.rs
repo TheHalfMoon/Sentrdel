@@ -238,6 +238,7 @@ pub fn evaluate_tenant_binding(
     }
 
     let mut unknown_filter_semantics = false;
+    let mut missing_supported_binding = false;
     let mut contradicting = BTreeSet::new();
     let mut satisfied: Option<(Vec<StableSemanticId>, &'static str)> = None;
 
@@ -329,6 +330,7 @@ pub fn evaluate_tenant_binding(
             }
         }
         if !filter_satisfied {
+            missing_supported_binding = true;
             contradicting.insert(value.value_id().clone());
         }
     }
@@ -345,6 +347,19 @@ pub fn evaluate_tenant_binding(
         );
     }
 
+    if missing_supported_binding {
+        contradicting.insert(inputs.operation.operation_id().clone());
+        return evaluation(
+            inputs.invariant,
+            inputs.path,
+            InvariantEvaluationState::Violated,
+            Vec::new(),
+            contradicting.into_iter().collect(),
+            vec!["covered_path_lacks_supported_tenant_or_owner_binding".to_owned()],
+            limits,
+        );
+    }
+
     if let Some((supporting_observation_ids, reason)) = satisfied {
         return evaluation(
             inputs.invariant,
@@ -357,16 +372,7 @@ pub fn evaluate_tenant_binding(
         );
     }
 
-    contradicting.insert(inputs.operation.operation_id().clone());
-    evaluation(
-        inputs.invariant,
-        inputs.path,
-        InvariantEvaluationState::Violated,
-        Vec::new(),
-        contradicting.into_iter().collect(),
-        vec!["covered_path_lacks_supported_tenant_or_owner_binding".to_owned()],
-        limits,
-    )
+    unreachable!("non-empty fully analyzed tenant filters must be satisfied or violated")
 }
 
 fn scope_applies(
