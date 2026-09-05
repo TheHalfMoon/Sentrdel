@@ -10,11 +10,7 @@
 //! existing bounded SCIP ingestion/producer-qualification boundary. Missing, ambiguous, heuristic,
 //! or incomplete semantic-index coverage never becomes a clean fallback.
 
-use std::{
-    collections::BTreeMap,
-    error::Error,
-    fmt,
-};
+use std::{collections::BTreeMap, error::Error, fmt};
 
 use sentrdel_schema::{canonical::content_id, coverage::CoverageState};
 
@@ -428,9 +424,7 @@ pub fn link_inter_file_semantics(
             &mut exports,
         )?;
         total_imports = total_imports.saturating_add(imports.len());
-        if total_imports > MAX_LOCAL_IMPORT_BINDINGS
-            || total_imports > limits.max_path_candidates
-        {
+        if total_imports > MAX_LOCAL_IMPORT_BINDINGS || total_imports > limits.max_path_candidates {
             return Err(LinkingError::TooManyImportBindings {
                 count: total_imports,
                 max: MAX_LOCAL_IMPORT_BINDINGS.min(limits.max_path_candidates),
@@ -485,7 +479,10 @@ pub fn link_inter_file_semantics(
             source = callback.clone();
         }
 
-        let Some(handler) = route.handler_semantic_key().filter(|value| is_identifier(value)) else {
+        let Some(handler) = route
+            .handler_semantic_key()
+            .filter(|value| is_identifier(value))
+        else {
             continue;
         };
         let Some(route_location) = route.provenance().first() else {
@@ -771,7 +768,11 @@ fn collect_import_statement(
         .strip_prefix('{')
         .and_then(|value| value.strip_suffix('}'))
     {
-        for item in named.split(',').map(str::trim).filter(|item| !item.is_empty()) {
+        for item in named
+            .split(',')
+            .map(str::trim)
+            .filter(|item| !item.is_empty())
+        {
             let words = item.split_whitespace().collect::<Vec<_>>();
             let (imported, local) = match words.as_slice() {
                 [name] => (*name, *name),
@@ -849,7 +850,11 @@ fn collect_export_statement(
         .strip_prefix("export {")
         .and_then(|value| value.trim_end_matches(';').strip_suffix('}'))
     {
-        for item in named.split(',').map(str::trim).filter(|item| !item.is_empty()) {
+        for item in named
+            .split(',')
+            .map(str::trim)
+            .filter(|item| !item.is_empty())
+        {
             let words = item.split_whitespace().collect::<Vec<_>>();
             let exported = match words.as_slice() {
                 [name] => *name,
@@ -1050,8 +1055,8 @@ fn is_identifier_continue(character: char) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::model::{FrameworkFamily, HttpMethod};
+    use super::*;
 
     fn path(value: &str) -> NormalizedRepoPath {
         NormalizedRepoPath::parse(value, DEFAULT_MAX_REPO_PATH_BYTES).expect("normalized path")
@@ -1121,10 +1126,12 @@ mod tests {
             link.basis() == LinkBasis::SupportedImportBinding
                 && link.confidence_basis() == ConfidenceBasis::Extracted
         }));
-        assert!(result
-            .links()
-            .iter()
-            .any(|link| link.basis() == LinkBasis::SupportedCallbackChain));
+        assert!(
+            result
+                .links()
+                .iter()
+                .any(|link| link.basis() == LinkBasis::SupportedCallbackChain)
+        );
     }
 
     #[test]
