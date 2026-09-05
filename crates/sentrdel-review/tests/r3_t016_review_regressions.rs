@@ -61,11 +61,7 @@ fn route_with_provenance(paths: &[&str]) -> RouteObservation {
     .expect("route observation")
 }
 
-fn document_with_language(
-    value: &str,
-    language: StructuralLanguage,
-    source: &str,
-) -> LinkDocument {
+fn document_with_language(value: &str, language: StructuralLanguage, source: &str) -> LinkDocument {
     LinkDocument::new(path(value), language, source.as_bytes().to_vec()).expect("link document")
 }
 
