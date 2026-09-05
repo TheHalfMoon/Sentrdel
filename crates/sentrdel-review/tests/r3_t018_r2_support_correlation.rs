@@ -301,7 +301,10 @@ fn canonical_coverage_is_preserved_without_t019_aggregation_or_live_upgrade() {
     assert_eq!(result.coverage().len(), 2);
     assert_eq!(result.coverage()[0].coverage_id, "coverage:r2:live-gap");
     assert_eq!(result.coverage()[0].state, CoverageState::Unavailable);
-    assert_eq!(result.coverage()[1].coverage_id, "coverage:r2:static-database");
+    assert_eq!(
+        result.coverage()[1].coverage_id,
+        "coverage:r2:static-database"
+    );
     assert_eq!(result.coverage()[1].state, CoverageState::Covered);
 }
 
@@ -318,10 +321,7 @@ fn resource_caps_fail_closed_before_correlation() {
         limits,
     )
     .expect_err("resource cap must fail closed");
-    assert_eq!(
-        error,
-        R2SupportError::TooManyResources { count: 2, max: 1 }
-    );
+    assert_eq!(error, R2SupportError::TooManyResources { count: 2, max: 1 });
 }
 
 #[test]
