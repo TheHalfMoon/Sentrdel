@@ -76,6 +76,29 @@ fn has_import_link(result: &sentrdel_review::business_logic::link::LinkingResult
         .any(|link| link.basis() == LinkBasis::SupportedImportBinding)
 }
 
+fn assert_shadowed_callback(
+    language: StructuralLanguage,
+    importer: &str,
+    target: &str,
+    source: &str,
+) {
+    let result = link_inter_file_semantics(
+        &[route(importer)],
+        &[
+            document_with_language(importer, language, source),
+            document_with_language(target, language, "export function handler() {}"),
+        ],
+        BusinessLogicLimits::default(),
+    )
+    .expect("shadowed callback linking must remain visible");
+
+    assert_eq!(result.coverage().local_state(), &CoverageState::Partial);
+    assert!(!has_import_link(&result));
+    assert!(result.diagnostics().iter().any(|diagnostic| {
+        diagnostic.reason() == LinkingDiagnosticReason::ShadowedImportBinding
+    }));
+}
+
 #[test]
 fn missing_route_source_document_is_partial_and_explicit() {
     let result = link_inter_file_semantics(
@@ -178,21 +201,41 @@ fn bare_arrow_parameters_never_resolve_to_top_level_imports() {
     ];
 
     for (language, importer, target, source) in cases {
-        let result = link_inter_file_semantics(
-            &[route(importer)],
-            &[
-                document_with_language(importer, language, source),
-                document_with_language(target, language, "export function handler() {}"),
-            ],
-            BusinessLogicLimits::default(),
-        )
-        .expect("bare arrow shadowing must remain visible");
+        assert_shadowed_callback(language, importer, target, source);
+    }
+}
 
-        assert_eq!(result.coverage().local_state(), &CoverageState::Partial);
-        assert!(!has_import_link(&result));
-        assert!(result.diagnostics().iter().any(|diagnostic| {
-            diagnostic.reason() == LinkingDiagnosticReason::ShadowedImportBinding
-        }));
+#[test]
+fn for_in_and_for_of_bindings_never_resolve_to_top_level_imports() {
+    let cases = [
+        (
+            StructuralLanguage::JavaScript,
+            "src/routes.js",
+            "src/handlers.js",
+            "import { handler } from './handlers.js';\nfor (const handler of registry) { app.get('/fixture', handler); }",
+        ),
+        (
+            StructuralLanguage::JavaScript,
+            "src/routes.js",
+            "src/handlers.js",
+            "import { handler } from './handlers.js';\nfor (let handler in registry) { app.get('/fixture', handler); }",
+        ),
+        (
+            StructuralLanguage::TypeScript,
+            "src/routes.ts",
+            "src/handlers.ts",
+            "import { handler } from './handlers.ts';\nfor (const handler of registry) { app.get('/fixture', handler); }",
+        ),
+        (
+            StructuralLanguage::TypeScript,
+            "src/routes.ts",
+            "src/handlers.ts",
+            "import { handler } from './handlers.ts';\nfor (let handler in registry) { app.get('/fixture', handler); }",
+        ),
+    ];
+
+    for (language, importer, target, source) in cases {
+        assert_shadowed_callback(language, importer, target, source);
     }
 }
 
