@@ -220,7 +220,7 @@ struct QueueItem {
     visited: BTreeSet<String>,
 }
 
-#[allow(clippy::too_many_lines)]
+#[allow(clippy::too_many_lines, clippy::collapsible_if)]
 pub fn correlate_cross_layer_paths(
     inputs: PathCorrelationInputs<'_>,
     model_limits: BusinessLogicLimits,
