@@ -65,19 +65,26 @@ fn r3_t015_records_use_existing_thin_graph_projection() {
     )
     .expect("data operation");
 
-    let records = map_validated_observations(
-        &[route],
-        &[operation],
-        &[],
-        R3GraphLimits::default(),
-    )
-    .expect("R3 graph records");
+    let records = map_validated_observations(&[route], &[operation], &[], R3GraphLimits::default())
+        .expect("R3 graph records");
     let (nodes, edges) = records.into_parts();
 
     assert!(!UNIVERSAL_CPG);
-    assert!(nodes.iter().any(|node| node.node_kind == GraphNodeKind::Resource));
-    assert!(edges.iter().any(|edge| edge.relation == GraphRelation::Refs));
-    assert!(edges.iter().any(|edge| edge.relation == GraphRelation::ReadsFrom));
+    assert!(
+        nodes
+            .iter()
+            .any(|node| node.node_kind == GraphNodeKind::Resource)
+    );
+    assert!(
+        edges
+            .iter()
+            .any(|edge| edge.relation == GraphRelation::Refs)
+    );
+    assert!(
+        edges
+            .iter()
+            .any(|edge| edge.relation == GraphRelation::ReadsFrom)
+    );
 
     let projection = GraphProjection::from_records(nodes, edges)
         .expect("existing sentrdel-graph projection accepts canonical R3 records");
