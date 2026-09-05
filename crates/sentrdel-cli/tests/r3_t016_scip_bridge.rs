@@ -101,9 +101,11 @@ fn heuristic_and_incomplete_ingestion_never_become_clean() {
         link.basis() == LinkBasis::ScipReference
             && link.confidence_basis() == ConfidenceBasis::Inferred
     }));
-    assert!(heuristic.diagnostics().iter().any(|diagnostic| {
-        diagnostic.reason() == ScipLinkingDiagnosticReason::ScipIncomplete
-    }));
+    assert!(
+        heuristic.diagnostics().iter().any(|diagnostic| {
+            diagnostic.reason() == ScipLinkingDiagnosticReason::ScipIncomplete
+        })
+    );
 
     let incomplete = link_scip_semantics(
         admitted(
@@ -170,14 +172,17 @@ fn provenance_caps_fail_closed() {
     let error = link_scip_semantics(
         ScipSemanticInput::Admitted {
             ingestion,
-            provenance: vec![provenance(), SourceLocation::new(
-                NormalizedRepoPath::parse("src/other.ts", DEFAULT_MAX_REPO_PATH_BYTES)
-                    .expect("normalized path"),
-                0,
-                1,
-                "sha256:2222222222222222222222222222222222222222222222222222222222222222",
-            )
-            .expect("second provenance")],
+            provenance: vec![
+                provenance(),
+                SourceLocation::new(
+                    NormalizedRepoPath::parse("src/other.ts", DEFAULT_MAX_REPO_PATH_BYTES)
+                        .expect("normalized path"),
+                    0,
+                    1,
+                    "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+                )
+                .expect("second provenance"),
+            ],
             complete: true,
         },
         limits,
