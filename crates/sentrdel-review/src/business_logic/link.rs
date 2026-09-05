@@ -93,6 +93,7 @@ pub enum LinkingDiagnosticReason {
     IncompleteRouteObservation,
     MissingRouteCallback,
     MissingRouteDocument,
+    AmbiguousRouteDocument,
     UnsupportedModuleSpecifier,
     UnsupportedImportBinding,
     DynamicImportBinding,
@@ -510,6 +511,20 @@ pub fn link_inter_file_semantics(
         let Some(route_location) = route.provenance().first() else {
             continue;
         };
+        if route
+            .provenance()
+            .iter()
+            .any(|location| location.path() != route_location.path())
+        {
+            local_partial = true;
+            push_diagnostic(
+                &mut diagnostics,
+                LinkingDiagnosticReason::AmbiguousRouteDocument,
+                route.provenance().to_vec(),
+                limits,
+            )?;
+            continue;
+        }
         let Some(importer) = parsed.get(route_location.path().as_str()) else {
             local_partial = true;
             push_diagnostic(
