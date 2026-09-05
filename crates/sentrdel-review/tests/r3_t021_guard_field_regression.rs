@@ -71,6 +71,7 @@ fn link(
 fn evaluate_with_guard(
     guard_kind: GuardKind,
     required_values: Vec<String>,
+    include_guard_value_link: bool,
 ) -> InvariantEvaluationState {
     let callback_id = id("r3.t021.regression.callback", "handler");
     let route = RouteObservation::new(
@@ -146,18 +147,12 @@ fn evaluate_with_guard(
     )
     .expect("operation");
 
-    let links = vec![
+    let mut links = vec![
         link(
             "r3.t021.regression.actor-guard",
             actor.actor_id().clone(),
             guard.guard_id().clone(),
             120,
-        ),
-        link(
-            "r3.t021.regression.guard-value",
-            guard.guard_id().clone(),
-            value.value_id().clone(),
-            140,
         ),
         link(
             "r3.t021.regression.value-operation",
@@ -166,6 +161,14 @@ fn evaluate_with_guard(
             160,
         ),
     ];
+    if include_guard_value_link {
+        links.push(link(
+            "r3.t021.regression.guard-value",
+            guard.guard_id().clone(),
+            value.value_id().clone(),
+            140,
+        ));
+    }
     let path = CrossLayerPath::new(
         id("r3.t021.regression.path", "account"),
         route.route_id().clone(),
@@ -227,6 +230,7 @@ fn guard_for_different_field_cannot_satisfy_tenant_binding() {
     let state = evaluate_with_guard(
         GuardKind::OwnershipBinding,
         vec!["different_field".to_owned()],
+        true,
     );
     assert_eq!(state, InvariantEvaluationState::Violated);
     assert_ne!(state, InvariantEvaluationState::Satisfied);
@@ -234,14 +238,25 @@ fn guard_for_different_field_cannot_satisfy_tenant_binding() {
 
 #[test]
 fn binding_guard_without_field_semantics_remains_unknown() {
-    let state = evaluate_with_guard(GuardKind::OwnershipBinding, Vec::new());
+    let state = evaluate_with_guard(GuardKind::OwnershipBinding, Vec::new(), true);
     assert_eq!(state, InvariantEvaluationState::Unknown);
     assert_ne!(state, InvariantEvaluationState::Satisfied);
 }
 
 #[test]
 fn unrelated_guard_without_field_semantics_does_not_mask_violation() {
-    let state = evaluate_with_guard(GuardKind::Authentication, Vec::new());
+    let state = evaluate_with_guard(GuardKind::Authentication, Vec::new(), true);
     assert_eq!(state, InvariantEvaluationState::Violated);
+    assert_ne!(state, InvariantEvaluationState::Satisfied);
+}
+
+#[test]
+fn binding_guard_with_unresolved_value_link_remains_unknown() {
+    let state = evaluate_with_guard(
+        GuardKind::OwnershipBinding,
+        vec!["user_id".to_owned()],
+        false,
+    );
+    assert_eq!(state, InvariantEvaluationState::Unknown);
     assert_ne!(state, InvariantEvaluationState::Satisfied);
 }
