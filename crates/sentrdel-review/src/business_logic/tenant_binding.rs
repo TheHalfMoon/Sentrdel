@@ -278,7 +278,6 @@ pub fn evaluate_tenant_binding(
                     ));
                 }
                 filter_satisfied = true;
-                break;
             }
 
             for guard_id in inputs.path.guard_ids() {
