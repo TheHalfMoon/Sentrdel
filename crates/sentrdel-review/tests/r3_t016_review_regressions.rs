@@ -1,8 +1,6 @@
 use sentrdel_review::{
     business_logic::{
-        link::{
-            LinkDocument, LinkingDiagnosticReason, LinkingError, link_inter_file_semantics,
-        },
+        link::{LinkDocument, LinkingDiagnosticReason, LinkingError, link_inter_file_semantics},
         model::{
             BusinessLogicLimits, FrameworkFamily, HttpMethod, LinkBasis, RouteObservation,
             SourceLocation, StableSemanticId,
