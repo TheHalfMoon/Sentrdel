@@ -42,11 +42,7 @@ pub struct SourceModule<'a> {
 
 impl<'a> SourceModule<'a> {
     #[must_use]
-    pub fn new(
-        path: NormalizedRepoPath,
-        language: StructuralLanguage,
-        source: &'a [u8],
-    ) -> Self {
+    pub fn new(path: NormalizedRepoPath, language: StructuralLanguage, source: &'a [u8]) -> Self {
         Self {
             path,
             language,
@@ -236,7 +232,10 @@ impl fmt::Display for InterFileLinkError {
         match self {
             Self::Model(source) => write!(formatter, "inter-file link model failed: {source}"),
             Self::Structural(source) => {
-                write!(formatter, "inter-file structural validation failed: {source}")
+                write!(
+                    formatter,
+                    "inter-file structural validation failed: {source}"
+                )
             }
             Self::ParseFailed(message) => write!(formatter, "inter-file parse failed: {message}"),
             Self::NonUtf8Source => formatter.write_str("inter-file source is not UTF-8"),
@@ -252,7 +251,10 @@ impl fmt::Display for InterFileLinkError {
                 "inter-file import binding count {count} exceeds cap {maximum}"
             ),
             Self::TooManyLinks { count, maximum } => {
-                write!(formatter, "inter-file link count {count} exceeds cap {maximum}")
+                write!(
+                    formatter,
+                    "inter-file link count {count} exceeds cap {maximum}"
+                )
             }
             Self::TooManyGaps { count, maximum } => write!(
                 formatter,
@@ -576,7 +578,10 @@ pub fn link_inter_file(
             references,
             coverage_state,
         } => {
-            if !matches!(coverage_state, CoverageState::Covered | CoverageState::Partial) {
+            if !matches!(
+                coverage_state,
+                CoverageState::Covered | CoverageState::Partial
+            ) {
                 return Err(InterFileLinkError::InvalidSemanticCoverageState);
             }
             if references.len() > limits.max_path_candidates {
@@ -656,7 +661,8 @@ fn extract_local_imports(
 ) -> Result<Vec<ImportBinding>, InterFileLinkError> {
     let validator = StructuralRegistry::new(&[])?;
     validator.scan_language(module.language, &module.path, module.source)?;
-    let source = std::str::from_utf8(module.source).map_err(|_| InterFileLinkError::NonUtf8Source)?;
+    let source =
+        std::str::from_utf8(module.source).map_err(|_| InterFileLinkError::NonUtf8Source)?;
     let language: tree_sitter::Language = match module.language {
         StructuralLanguage::JavaScript => tree_sitter_javascript::LANGUAGE.into(),
         StructuralLanguage::TypeScript => tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into(),
@@ -668,7 +674,8 @@ fn extract_local_imports(
     let tree = parser.parse(source, None).ok_or_else(|| {
         InterFileLinkError::ParseFailed("inter-file parser returned no syntax tree".to_owned())
     })?;
-    let digest = content_id("r3-link-source", &(module.path.as_str(), source))?;
+    let digest = content_id("r3-link-source", &(module.path.as_str(), source))
+        .map_err(ModelError::from)?;
 
     let mut imports = Vec::new();
     let mut stack = vec![tree.root_node()];
@@ -685,7 +692,11 @@ fn extract_local_imports(
             .cmp(&right.local_name)
             .then_with(|| left.specifier.cmp(&right.specifier))
             .then_with(|| left.imported_name.cmp(&right.imported_name))
-            .then_with(|| left.provenance.start_byte().cmp(&right.provenance.start_byte()))
+            .then_with(|| {
+                left.provenance
+                    .start_byte()
+                    .cmp(&right.provenance.start_byte())
+            })
     });
     imports.dedup_by(|left, right| {
         left.local_name == right.local_name
@@ -714,7 +725,10 @@ fn collect_import_statement(
     if !specifier.starts_with('.') {
         return Ok(());
     }
-    let statement_text = source.get(statement.byte_range()).unwrap_or_default().trim();
+    let statement_text = source
+        .get(statement.byte_range())
+        .unwrap_or_default()
+        .trim();
     let all_type_only = statement_text.starts_with("import type ");
     let provenance = SourceLocation::new(
         module.path.clone(),
@@ -912,7 +926,12 @@ fn make_link(
 ) -> Result<CrossLayerLink, InterFileLinkError> {
     let link_id = StableSemanticId::from_parts(
         "r3-cross-layer-link",
-        &[source.as_str(), target.as_str(), relation, link_basis_key(basis)],
+        &[
+            source.as_str(),
+            target.as_str(),
+            relation,
+            link_basis_key(basis),
+        ],
         limits,
     )?;
     Ok(CrossLayerLink::new(
@@ -942,10 +961,8 @@ fn insert_link(
             .collect::<BTreeSet<_>>()
             .into_iter()
             .collect();
-        let confidence = conservative_confidence(
-            existing.confidence_basis(),
-            link.confidence_basis(),
-        );
+        let confidence =
+            conservative_confidence(existing.confidence_basis(), link.confidence_basis());
         let merged = CrossLayerLink::new(
             existing.link_id().clone(),
             existing.source_semantic_id().clone(),
@@ -986,10 +1003,7 @@ fn add_gap(
     Ok(())
 }
 
-const fn conservative_confidence(
-    left: ConfidenceBasis,
-    right: ConfidenceBasis,
-) -> ConfidenceBasis {
+const fn conservative_confidence(left: ConfidenceBasis, right: ConfidenceBasis) -> ConfidenceBasis {
     match (left, right) {
         (ConfidenceBasis::Ambiguous, _) | (_, ConfidenceBasis::Ambiguous) => {
             ConfidenceBasis::Ambiguous
@@ -1027,7 +1041,10 @@ fn static_string(node: tree_sitter::Node<'_>, source: &str) -> Option<String> {
     let inner = raw
         .strip_prefix('\'')
         .and_then(|value| value.strip_suffix('\''))
-        .or_else(|| raw.strip_prefix('"').and_then(|value| value.strip_suffix('"')))?;
+        .or_else(|| {
+            raw.strip_prefix('"')
+                .and_then(|value| value.strip_suffix('"'))
+        })?;
     if inner.contains('\\') || inner.chars().any(char::is_control) {
         return None;
     }
