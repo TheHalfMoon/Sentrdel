@@ -71,10 +71,16 @@ impl fmt::Display for BusinessLogicCoverageAggregationError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::DuplicateArea(area) => {
-                write!(formatter, "R3 business-logic coverage area is duplicated: {area:?}")
+                write!(
+                    formatter,
+                    "R3 business-logic coverage area is duplicated: {area:?}"
+                )
             }
             Self::MissingArea(area) => {
-                write!(formatter, "R3 business-logic coverage area is missing: {area:?}")
+                write!(
+                    formatter,
+                    "R3 business-logic coverage area is missing: {area:?}"
+                )
             }
         }
     }
