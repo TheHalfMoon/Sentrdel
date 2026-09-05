@@ -69,7 +69,7 @@ fn r3_t015_records_use_existing_thin_graph_projection() {
         .expect("R3 graph records");
     let (nodes, edges) = records.into_parts();
 
-    assert!(!UNIVERSAL_CPG);
+    const { assert!(!UNIVERSAL_CPG) };
     assert!(
         nodes
             .iter()
