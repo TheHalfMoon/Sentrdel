@@ -19,11 +19,14 @@ use super::model::{
     SourceLocation, StableSemanticId, TrustBasis, ValueOrigin, ValueOriginKind,
 };
 
+pub const DEFAULT_MAX_CORRELATION_OBSERVATIONS: usize = 16_384;
 pub const DEFAULT_MAX_CORRELATION_NODES: usize = 16_384;
 pub const DEFAULT_MAX_CORRELATION_EDGES: usize = 32_768;
 pub const DEFAULT_MAX_CORRELATION_DEPTH: usize = 32;
 pub const DEFAULT_MAX_CORRELATION_CANDIDATES: usize = 4_096;
 pub const DEFAULT_MAX_CORRELATION_DIAGNOSTICS: usize = 1_024;
+pub const DEFAULT_MAX_CORRELATION_WORK_ITEMS: usize = 65_536;
+pub const DEFAULT_MAX_CORRELATION_FRONTIER: usize = 8_192;
 
 pub const R3_PATH_CORRELATION_EXECUTES_TARGET_CODE: bool = false;
 pub const R3_PATH_CORRELATION_PERFORMS_NETWORK_ACCESS: bool = false;
@@ -42,32 +45,41 @@ const OPERATION_CLIENT_RELATION: &str = "operation_uses_provider_client";
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct PathCorrelationLimits {
+    pub max_observations: usize,
     pub max_nodes: usize,
     pub max_edges: usize,
     pub max_depth: usize,
     pub max_candidate_paths: usize,
     pub max_diagnostics: usize,
+    pub max_work_items: usize,
+    pub max_frontier: usize,
 }
 
 impl Default for PathCorrelationLimits {
     fn default() -> Self {
         Self {
+            max_observations: DEFAULT_MAX_CORRELATION_OBSERVATIONS,
             max_nodes: DEFAULT_MAX_CORRELATION_NODES,
             max_edges: DEFAULT_MAX_CORRELATION_EDGES,
             max_depth: DEFAULT_MAX_CORRELATION_DEPTH,
             max_candidate_paths: DEFAULT_MAX_CORRELATION_CANDIDATES,
             max_diagnostics: DEFAULT_MAX_CORRELATION_DIAGNOSTICS,
+            max_work_items: DEFAULT_MAX_CORRELATION_WORK_ITEMS,
+            max_frontier: DEFAULT_MAX_CORRELATION_FRONTIER,
         }
     }
 }
 
 impl PathCorrelationLimits {
     pub fn validate(self) -> Result<Self, PathCorrelationError> {
-        if self.max_nodes == 0
+        if self.max_observations == 0
+            || self.max_nodes == 0
             || self.max_edges == 0
             || self.max_depth == 0
             || self.max_candidate_paths == 0
             || self.max_diagnostics == 0
+            || self.max_work_items == 0
+            || self.max_frontier == 0
         {
             return Err(PathCorrelationError::InvalidLimits);
         }
@@ -89,6 +101,7 @@ pub struct PathCorrelationInputs<'a> {
 pub enum PathCorrelationDiagnosticReason {
     NoRoutes,
     NoDataOperations,
+    ObservationLimitExceeded,
     AmbiguousSemanticIdentity,
     AmbiguousLinkIdentity,
     DanglingActorReference,
@@ -102,6 +115,8 @@ pub enum PathCorrelationDiagnosticReason {
     EdgeLimitExceeded,
     DepthLimitExceeded,
     CandidatePathLimitExceeded,
+    TraversalWorkLimitExceeded,
+    FrontierLimitExceeded,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -213,8 +228,8 @@ pub fn correlate_cross_layer_paths(
 ) -> Result<PathCorrelationResult, PathCorrelationError> {
     let model_limits = model_limits.validate()?;
     let correlation_limits = correlation_limits.validate()?;
-
     let mut diagnostics = BTreeMap::new();
+
     if inputs.routes.is_empty() {
         push_diagnostic(
             &mut diagnostics,
@@ -236,8 +251,40 @@ pub fn correlate_cross_layer_paths(
         )?;
     }
 
+    let observation_count = inputs
+        .routes
+        .len()
+        .saturating_add(inputs.actors.len())
+        .saturating_add(inputs.guards.len())
+        .saturating_add(inputs.values.len())
+        .saturating_add(inputs.data_operations.len())
+        .saturating_add(inputs.provider_clients.len());
+    if observation_count > correlation_limits.max_observations {
+        push_diagnostic(
+            &mut diagnostics,
+            PathCorrelationDiagnosticReason::ObservationLimitExceeded,
+            None,
+            None,
+            Vec::new(),
+            correlation_limits,
+        )?;
+        return Ok(partial_result(Vec::new(), diagnostics));
+    }
+    if inputs.links.len() > correlation_limits.max_edges {
+        push_diagnostic(
+            &mut diagnostics,
+            PathCorrelationDiagnosticReason::EdgeLimitExceeded,
+            None,
+            None,
+            Vec::new(),
+            correlation_limits,
+        )?;
+        return Ok(partial_result(Vec::new(), diagnostics));
+    }
+
     let mut ambiguous_semantic_ids = BTreeSet::new();
     let mut semantic_kinds = BTreeMap::<String, &'static str>::new();
+    let mut nodes = BTreeSet::new();
     let mut routes = BTreeMap::new();
     let mut actors = BTreeMap::new();
     let mut guards = BTreeMap::new();
@@ -246,6 +293,17 @@ pub fn correlate_cross_layer_paths(
     let mut clients = BTreeMap::new();
 
     for value in inputs.routes {
+        if !admit_node(
+            &mut nodes,
+            value.route_id(),
+            correlation_limits.max_nodes,
+        ) {
+            return bounded_result(
+                &mut diagnostics,
+                PathCorrelationDiagnosticReason::NodeLimitExceeded,
+                correlation_limits,
+            );
+        }
         insert_unique_record(
             &mut routes,
             &mut ambiguous_semantic_ids,
@@ -260,6 +318,17 @@ pub fn correlate_cross_layer_paths(
         );
     }
     for value in inputs.actors {
+        if !admit_node(
+            &mut nodes,
+            value.actor_id(),
+            correlation_limits.max_nodes,
+        ) {
+            return bounded_result(
+                &mut diagnostics,
+                PathCorrelationDiagnosticReason::NodeLimitExceeded,
+                correlation_limits,
+            );
+        }
         insert_unique_record(
             &mut actors,
             &mut ambiguous_semantic_ids,
@@ -274,6 +343,17 @@ pub fn correlate_cross_layer_paths(
         );
     }
     for value in inputs.guards {
+        if !admit_node(
+            &mut nodes,
+            value.guard_id(),
+            correlation_limits.max_nodes,
+        ) {
+            return bounded_result(
+                &mut diagnostics,
+                PathCorrelationDiagnosticReason::NodeLimitExceeded,
+                correlation_limits,
+            );
+        }
         insert_unique_record(
             &mut guards,
             &mut ambiguous_semantic_ids,
@@ -288,6 +368,17 @@ pub fn correlate_cross_layer_paths(
         );
     }
     for value in inputs.values {
+        if !admit_node(
+            &mut nodes,
+            value.value_id(),
+            correlation_limits.max_nodes,
+        ) {
+            return bounded_result(
+                &mut diagnostics,
+                PathCorrelationDiagnosticReason::NodeLimitExceeded,
+                correlation_limits,
+            );
+        }
         insert_unique_record(
             &mut values,
             &mut ambiguous_semantic_ids,
@@ -302,6 +393,17 @@ pub fn correlate_cross_layer_paths(
         );
     }
     for value in inputs.data_operations {
+        if !admit_node(
+            &mut nodes,
+            value.operation_id(),
+            correlation_limits.max_nodes,
+        ) {
+            return bounded_result(
+                &mut diagnostics,
+                PathCorrelationDiagnosticReason::NodeLimitExceeded,
+                correlation_limits,
+            );
+        }
         insert_unique_record(
             &mut operations,
             &mut ambiguous_semantic_ids,
@@ -316,6 +418,17 @@ pub fn correlate_cross_layer_paths(
         );
     }
     for value in inputs.provider_clients {
+        if !admit_node(
+            &mut nodes,
+            value.client_id(),
+            correlation_limits.max_nodes,
+        ) {
+            return bounded_result(
+                &mut diagnostics,
+                PathCorrelationDiagnosticReason::NodeLimitExceeded,
+                correlation_limits,
+            );
+        }
         insert_unique_record(
             &mut clients,
             &mut ambiguous_semantic_ids,
@@ -342,14 +455,19 @@ pub fn correlate_cross_layer_paths(
         semantic_kinds.remove(id);
     }
 
-    let mut nodes = BTreeSet::new();
-    nodes.extend(semantic_kinds.keys().cloned());
-
     let mut edges = BTreeMap::<String, CrossLayerLink>::new();
     let mut ambiguous_link_ids = BTreeSet::new();
     let mut partial_reference_ids = BTreeSet::new();
     for link in inputs.links {
-        insert_unique_link(&mut edges, &mut ambiguous_link_ids, link.clone());
+        if let Some(reason) = insert_unique_link_bounded(
+            &mut edges,
+            &mut ambiguous_link_ids,
+            &mut nodes,
+            link.clone(),
+            correlation_limits,
+        ) {
+            return bounded_result(&mut diagnostics, reason, correlation_limits);
+        }
     }
 
     for route in routes.values() {
@@ -372,7 +490,15 @@ pub fn correlate_cross_layer_paths(
                 route.provenance().to_vec(),
                 model_limits,
             )?;
-            insert_unique_link(&mut edges, &mut ambiguous_link_ids, link);
+            if let Some(reason) = insert_unique_link_bounded(
+                &mut edges,
+                &mut ambiguous_link_ids,
+                &mut nodes,
+                link,
+                correlation_limits,
+            ) {
+                return bounded_result(&mut diagnostics, reason, correlation_limits);
+            }
             source = callback.clone();
         }
     }
@@ -385,16 +511,20 @@ pub fn correlate_cross_layer_paths(
             if actors.contains_key(actor_id.as_str())
                 && !ambiguous_semantic_ids.contains(actor_id.as_str())
             {
-                insert_intrinsic_link(
+                if let Some(reason) = insert_intrinsic_link_bounded(
                     &mut edges,
                     &mut ambiguous_link_ids,
+                    &mut nodes,
                     "r3-path-actor-value",
                     actor_id,
                     value.value_id(),
                     ACTOR_VALUE_RELATION,
                     value.provenance().to_vec(),
                     model_limits,
-                )?;
+                    correlation_limits,
+                )? {
+                    return bounded_result(&mut diagnostics, reason, correlation_limits);
+                }
             } else {
                 partial_reference_ids.insert(value.value_id().as_str().to_owned());
                 push_diagnostic(
@@ -411,16 +541,20 @@ pub fn correlate_cross_layer_paths(
             if values.contains_key(input.as_str())
                 && !ambiguous_semantic_ids.contains(input.as_str())
             {
-                insert_intrinsic_link(
+                if let Some(reason) = insert_intrinsic_link_bounded(
                     &mut edges,
                     &mut ambiguous_link_ids,
+                    &mut nodes,
                     "r3-path-value-derivation",
                     input,
                     value.value_id(),
                     VALUE_DERIVATION_RELATION,
                     value.provenance().to_vec(),
                     model_limits,
-                )?;
+                    correlation_limits,
+                )? {
+                    return bounded_result(&mut diagnostics, reason, correlation_limits);
+                }
             } else {
                 partial_reference_ids.insert(value.value_id().as_str().to_owned());
                 push_diagnostic(
@@ -443,16 +577,20 @@ pub fn correlate_cross_layer_paths(
             if actors.contains_key(actor_id.as_str())
                 && !ambiguous_semantic_ids.contains(actor_id.as_str())
             {
-                insert_intrinsic_link(
+                if let Some(reason) = insert_intrinsic_link_bounded(
                     &mut edges,
                     &mut ambiguous_link_ids,
+                    &mut nodes,
                     "r3-path-actor-guard",
                     actor_id,
                     guard.guard_id(),
                     ACTOR_GUARD_RELATION,
                     guard.provenance().to_vec(),
                     model_limits,
-                )?;
+                    correlation_limits,
+                )? {
+                    return bounded_result(&mut diagnostics, reason, correlation_limits);
+                }
             } else {
                 partial_reference_ids.insert(guard.guard_id().as_str().to_owned());
                 push_diagnostic(
@@ -477,16 +615,20 @@ pub fn correlate_cross_layer_paths(
             if values.contains_key(filter.value_origin().as_str())
                 && !ambiguous_semantic_ids.contains(filter.value_origin().as_str())
             {
-                insert_intrinsic_link(
+                if let Some(reason) = insert_intrinsic_link_bounded(
                     &mut edges,
                     &mut ambiguous_link_ids,
+                    &mut nodes,
                     "r3-path-value-filter",
                     filter.value_origin(),
                     operation.operation_id(),
                     VALUE_FILTER_RELATION,
                     vec![filter.provenance().clone()],
                     model_limits,
-                )?;
+                    correlation_limits,
+                )? {
+                    return bounded_result(&mut diagnostics, reason, correlation_limits);
+                }
             } else {
                 partial_operation_ids.insert(operation.operation_id().as_str().to_owned());
                 push_diagnostic(
@@ -507,16 +649,20 @@ pub fn correlate_cross_layer_paths(
                 if values.contains_key(value_id.as_str())
                     && !ambiguous_semantic_ids.contains(value_id.as_str())
                 {
-                    insert_intrinsic_link(
+                    if let Some(reason) = insert_intrinsic_link_bounded(
                         &mut edges,
                         &mut ambiguous_link_ids,
+                        &mut nodes,
                         "r3-path-value-field",
                         value_id,
                         operation.operation_id(),
                         VALUE_FIELD_RELATION,
                         vec![field_set.provenance().clone()],
                         model_limits,
-                    )?;
+                        correlation_limits,
+                    )? {
+                        return bounded_result(&mut diagnostics, reason, correlation_limits);
+                    }
                 } else {
                     partial_operation_ids.insert(operation.operation_id().as_str().to_owned());
                     push_diagnostic(
@@ -531,16 +677,20 @@ pub fn correlate_cross_layer_paths(
             }
         }
         if let Some(handler) = operation.handler_symbol() {
-            insert_intrinsic_link(
+            if let Some(reason) = insert_intrinsic_link_bounded(
                 &mut edges,
                 &mut ambiguous_link_ids,
+                &mut nodes,
                 "r3-path-handler-operation",
                 handler,
                 operation.operation_id(),
                 HANDLER_OPERATION_RELATION,
                 operation.provenance().to_vec(),
                 model_limits,
-            )?;
+                correlation_limits,
+            )? {
+                return bounded_result(&mut diagnostics, reason, correlation_limits);
+            }
         }
         if let Some(client_id) = operation.provider_client() {
             if clients.contains_key(client_id.as_str())
@@ -554,11 +704,20 @@ pub fn correlate_cross_layer_paths(
                     operation.provenance().to_vec(),
                     model_limits,
                 )?;
+                let link_id = link.link_id().as_str().to_owned();
+                if let Some(reason) = insert_unique_link_bounded(
+                    &mut edges,
+                    &mut ambiguous_link_ids,
+                    &mut nodes,
+                    link,
+                    correlation_limits,
+                ) {
+                    return bounded_result(&mut diagnostics, reason, correlation_limits);
+                }
                 provider_link_ids.insert(
                     operation.operation_id().as_str().to_owned(),
-                    link.link_id().as_str().to_owned(),
+                    link_id,
                 );
-                insert_unique_link(&mut edges, &mut ambiguous_link_ids, link);
             } else {
                 partial_operation_ids.insert(operation.operation_id().as_str().to_owned());
                 push_diagnostic(
@@ -583,34 +742,6 @@ pub fn correlate_cross_layer_paths(
             Vec::new(),
             correlation_limits,
         )?;
-    }
-
-    for link in edges.values() {
-        nodes.insert(link.source_semantic_id().as_str().to_owned());
-        nodes.insert(link.target_semantic_id().as_str().to_owned());
-    }
-
-    if nodes.len() > correlation_limits.max_nodes {
-        push_diagnostic(
-            &mut diagnostics,
-            PathCorrelationDiagnosticReason::NodeLimitExceeded,
-            None,
-            None,
-            Vec::new(),
-            correlation_limits,
-        )?;
-        return Ok(partial_result(Vec::new(), diagnostics));
-    }
-    if edges.len() > correlation_limits.max_edges {
-        push_diagnostic(
-            &mut diagnostics,
-            PathCorrelationDiagnosticReason::EdgeLimitExceeded,
-            None,
-            None,
-            Vec::new(),
-            correlation_limits,
-        )?;
-        return Ok(partial_result(Vec::new(), diagnostics));
     }
 
     let mut partial_ids = BTreeSet::new();
@@ -660,9 +791,10 @@ pub fn correlate_cross_layer_paths(
     let mut paths = BTreeMap::<String, CrossLayerPath>::new();
     let mut reached_operations = BTreeSet::new();
     let mut routes_with_path = BTreeSet::new();
-    let mut candidate_limit_hit = false;
+    let mut candidate_paths_seen = 0usize;
+    let mut work_items_seen = 0usize;
 
-    'routes: for route in routes.values() {
+    for route in routes.values() {
         if ambiguous_semantic_ids.contains(route.route_id().as_str()) {
             continue;
         }
@@ -686,9 +818,21 @@ pub fn correlate_cross_layer_paths(
             visited,
         }]);
         let mut route_hit = false;
-        let mut depth_reported = false;
 
         while let Some(item) = queue.pop_front() {
+            work_items_seen = work_items_seen.saturating_add(1);
+            if work_items_seen > correlation_limits.max_work_items {
+                push_diagnostic(
+                    &mut diagnostics,
+                    PathCorrelationDiagnosticReason::TraversalWorkLimitExceeded,
+                    Some(route.route_id()),
+                    None,
+                    route.provenance().to_vec(),
+                    correlation_limits,
+                )?;
+                return Ok(partial_result(Vec::new(), diagnostics));
+            }
+
             if let Some(operation) = operations.get(item.node_id.as_str()) {
                 if item.ordered_links.is_empty() {
                     continue;
@@ -700,23 +844,21 @@ pub fn correlate_cross_layer_paths(
                     && let Some(provider_link) = edges.get(provider_link_id)
                 {
                     if ordered_links.len() >= correlation_limits.max_depth {
-                        if !depth_reported {
-                            push_diagnostic(
-                                &mut diagnostics,
-                                PathCorrelationDiagnosticReason::DepthLimitExceeded,
-                                Some(route.route_id()),
-                                Some(operation.operation_id()),
-                                route.provenance().to_vec(),
-                                correlation_limits,
-                            )?;
-                            depth_reported = true;
-                        }
-                        continue;
+                        push_diagnostic(
+                            &mut diagnostics,
+                            PathCorrelationDiagnosticReason::DepthLimitExceeded,
+                            Some(route.route_id()),
+                            Some(operation.operation_id()),
+                            route.provenance().to_vec(),
+                            correlation_limits,
+                        )?;
+                        return Ok(partial_result(Vec::new(), diagnostics));
                     }
                     ordered_links.push(provider_link.clone());
                 }
 
-                if paths.len() >= correlation_limits.max_candidate_paths {
+                candidate_paths_seen = candidate_paths_seen.saturating_add(1);
+                if candidate_paths_seen > correlation_limits.max_candidate_paths {
                     push_diagnostic(
                         &mut diagnostics,
                         PathCorrelationDiagnosticReason::CandidatePathLimitExceeded,
@@ -725,8 +867,7 @@ pub fn correlate_cross_layer_paths(
                         route.provenance().to_vec(),
                         correlation_limits,
                     )?;
-                    candidate_limit_hit = true;
-                    break 'routes;
+                    return Ok(partial_result(Vec::new(), diagnostics));
                 }
 
                 let path = build_path(
@@ -749,7 +890,7 @@ pub fn correlate_cross_layer_paths(
             }
 
             if item.ordered_links.len() >= correlation_limits.max_depth {
-                if !depth_reported && adjacency.contains_key(&item.node_id) {
+                if adjacency.contains_key(&item.node_id) {
                     push_diagnostic(
                         &mut diagnostics,
                         PathCorrelationDiagnosticReason::DepthLimitExceeded,
@@ -758,7 +899,7 @@ pub fn correlate_cross_layer_paths(
                         route.provenance().to_vec(),
                         correlation_limits,
                     )?;
-                    depth_reported = true;
+                    return Ok(partial_result(Vec::new(), diagnostics));
                 }
                 continue;
             }
@@ -770,6 +911,17 @@ pub fn correlate_cross_layer_paths(
                 let target = link.target_semantic_id().as_str();
                 if item.visited.contains(target) {
                     continue;
+                }
+                if queue.len() >= correlation_limits.max_frontier {
+                    push_diagnostic(
+                        &mut diagnostics,
+                        PathCorrelationDiagnosticReason::FrontierLimitExceeded,
+                        Some(route.route_id()),
+                        None,
+                        route.provenance().to_vec(),
+                        correlation_limits,
+                    )?;
+                    return Ok(partial_result(Vec::new(), diagnostics));
                 }
                 let mut visited = item.visited.clone();
                 visited.insert(target.to_owned());
@@ -783,7 +935,7 @@ pub fn correlate_cross_layer_paths(
             }
         }
 
-        if !route_hit && !candidate_limit_hit {
+        if !route_hit {
             push_diagnostic(
                 &mut diagnostics,
                 PathCorrelationDiagnosticReason::MissingRouteDataPath,
@@ -800,7 +952,6 @@ pub fn correlate_cross_layer_paths(
             continue;
         }
         if operation.coverage_state() != &CoverageState::Covered {
-            partial_ids.insert(operation.operation_id().as_str().to_owned());
             push_diagnostic(
                 &mut diagnostics,
                 PathCorrelationDiagnosticReason::IncompleteDataOperation,
@@ -810,7 +961,7 @@ pub fn correlate_cross_layer_paths(
                 correlation_limits,
             )?;
         }
-        if !reached_operations.contains(operation.operation_id().as_str()) && !candidate_limit_hit {
+        if !reached_operations.contains(operation.operation_id().as_str()) {
             push_diagnostic(
                 &mut diagnostics,
                 PathCorrelationDiagnosticReason::UncorrelatedDataOperation,
@@ -951,19 +1102,34 @@ fn build_path(
     )?)
 }
 
-fn insert_intrinsic_link(
+#[allow(clippy::too_many_arguments)]
+fn insert_intrinsic_link_bounded(
     edges: &mut BTreeMap<String, CrossLayerLink>,
     ambiguous: &mut BTreeSet<String>,
+    nodes: &mut BTreeSet<String>,
     namespace: &str,
     source: &StableSemanticId,
     target: &StableSemanticId,
     relation: &str,
     provenance: Vec<SourceLocation>,
-    limits: BusinessLogicLimits,
-) -> Result<(), PathCorrelationError> {
-    let link = intrinsic_link(namespace, source, target, relation, provenance, limits)?;
-    insert_unique_link(edges, ambiguous, link);
-    Ok(())
+    model_limits: BusinessLogicLimits,
+    correlation_limits: PathCorrelationLimits,
+) -> Result<Option<PathCorrelationDiagnosticReason>, PathCorrelationError> {
+    let link = intrinsic_link(
+        namespace,
+        source,
+        target,
+        relation,
+        provenance,
+        model_limits,
+    )?;
+    Ok(insert_unique_link_bounded(
+        edges,
+        ambiguous,
+        nodes,
+        link,
+        correlation_limits,
+    ))
 }
 
 fn intrinsic_link(
@@ -990,23 +1156,45 @@ fn intrinsic_link(
     )?)
 }
 
-fn insert_unique_link(
+fn insert_unique_link_bounded(
     edges: &mut BTreeMap<String, CrossLayerLink>,
     ambiguous: &mut BTreeSet<String>,
+    nodes: &mut BTreeSet<String>,
     link: CrossLayerLink,
-) {
+    limits: PathCorrelationLimits,
+) -> Option<PathCorrelationDiagnosticReason> {
     let key = link.link_id().as_str().to_owned();
     if ambiguous.contains(&key) {
-        return;
+        return None;
     }
     if let Some(existing) = edges.get(&key) {
         if existing != &link {
             edges.remove(&key);
             ambiguous.insert(key);
         }
-        return;
+        return None;
+    }
+    if edges.len() >= limits.max_edges {
+        return Some(PathCorrelationDiagnosticReason::EdgeLimitExceeded);
+    }
+    for endpoint in [link.source_semantic_id(), link.target_semantic_id()] {
+        if !admit_node(nodes, endpoint, limits.max_nodes) {
+            return Some(PathCorrelationDiagnosticReason::NodeLimitExceeded);
+        }
     }
     edges.insert(key, link);
+    None
+}
+
+fn admit_node(nodes: &mut BTreeSet<String>, id: &StableSemanticId, max: usize) -> bool {
+    if nodes.contains(id.as_str()) {
+        return true;
+    }
+    if nodes.len() >= max {
+        return false;
+    }
+    nodes.insert(id.as_str().to_owned());
+    true
 }
 
 fn insert_unique_record<'a, T: Eq>(
@@ -1044,6 +1232,22 @@ fn register_semantic_kind(
         return;
     }
     kinds.insert(id.to_owned(), kind);
+}
+
+fn bounded_result(
+    diagnostics: &mut BTreeMap<
+        (
+            PathCorrelationDiagnosticReason,
+            Option<String>,
+            Option<String>,
+        ),
+        PathCorrelationDiagnostic,
+    >,
+    reason: PathCorrelationDiagnosticReason,
+    limits: PathCorrelationLimits,
+) -> Result<PathCorrelationResult, PathCorrelationError> {
+    push_diagnostic(diagnostics, reason, None, None, Vec::new(), limits)?;
+    Ok(partial_result(Vec::new(), std::mem::take(diagnostics)))
 }
 
 fn push_diagnostic(
