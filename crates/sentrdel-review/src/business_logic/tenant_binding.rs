@@ -52,7 +52,10 @@ impl fmt::Display for TenantBindingError {
             }
             Self::PathOperationMismatch => formatter
                 .write_str("tenant-binding path operation does not match supplied data operation"),
-            Self::Model(source) => write!(formatter, "tenant-binding model validation failed: {source}"),
+            Self::Model(source) => write!(
+                formatter,
+                "tenant-binding model validation failed: {source}"
+            ),
         }
     }
 }
@@ -95,7 +98,12 @@ pub fn evaluate_tenant_binding(
         return Err(TenantBindingError::InvalidInvariantKind);
     };
 
-    if !scope_applies(inputs.invariant, inputs.path, inputs.route, inputs.operation) {
+    if !scope_applies(
+        inputs.invariant,
+        inputs.path,
+        inputs.route,
+        inputs.operation,
+    ) {
         return evaluation(
             inputs.invariant,
             inputs.path,
@@ -350,7 +358,9 @@ fn scope_applies(
         return false;
     }
     if !scope.operation_kinds().is_empty()
-        && !scope.operation_kinds().contains(&operation.operation_kind())
+        && !scope
+            .operation_kinds()
+            .contains(&operation.operation_kind())
     {
         return false;
     }
@@ -364,7 +374,9 @@ fn scope_applies(
 fn supported_authenticated_actor(actor: &ActorContext) -> bool {
     matches!(
         actor.source_kind(),
-        ActorSourceKind::VerifiedAuthAdapter | ActorSourceKind::TokenClaim | ActorSourceKind::DerivedSupported
+        ActorSourceKind::VerifiedAuthAdapter
+            | ActorSourceKind::TokenClaim
+            | ActorSourceKind::DerivedSupported
     ) && matches!(
         actor.trust_basis(),
         TrustBasis::DirectObservation | TrustBasis::SupportedDerivation
@@ -382,7 +394,10 @@ fn direct_actor_value_binding(
         (
             ActorIdentityKind::AuthenticatedUser,
             ValueOriginKind::AuthenticatedUserId
-        ) | (ActorIdentityKind::Tenant, ValueOriginKind::AuthenticatedTenantId)
+        ) | (
+            ActorIdentityKind::Tenant,
+            ValueOriginKind::AuthenticatedTenantId
+        )
     );
     kind_matches
         && value.source_actor() == Some(actor.actor_id())
@@ -412,7 +427,9 @@ fn guard_binds_actor_value(
             .is_none_or(|resource| resource == operation.resource())
         && matches!(
             guard.comparison_shape(),
-            ComparisonShape::Equal | ComparisonShape::Membership | ComparisonShape::ConjunctionSupported
+            ComparisonShape::Equal
+                | ComparisonShape::Membership
+                | ComparisonShape::ConjunctionSupported
         )
         && guard.dominance_scope() != DominanceScope::Unknown
         && has_link(path, actor.actor_id(), guard.guard_id())
@@ -420,9 +437,9 @@ fn guard_binds_actor_value(
 }
 
 fn has_link(path: &CrossLayerPath, source: &StableSemanticId, target: &StableSemanticId) -> bool {
-    path.links().iter().any(|link| {
-        link.source_semantic_id() == source && link.target_semantic_id() == target
-    })
+    path.links()
+        .iter()
+        .any(|link| link.source_semantic_id() == source && link.target_semantic_id() == target)
 }
 
 fn evaluation(
