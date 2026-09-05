@@ -14,9 +14,12 @@ use std::{collections::BTreeMap, error::Error, fmt};
 
 use sentrdel_schema::{canonical::content_id, coverage::CoverageState};
 
-use super::model::{
-    BusinessLogicLimits, ConfidenceBasis, CrossLayerLink, LinkBasis, ModelError, RouteObservation,
-    SourceLocation, StableSemanticId,
+use super::{
+    model::{
+        BusinessLogicLimits, ConfidenceBasis, CrossLayerLink, LinkBasis, ModelError,
+        RouteObservation, SourceLocation, StableSemanticId,
+    },
+    route::MAX_ROUTE_OBSERVATIONS,
 };
 use crate::{
     structural::{StructuralError, StructuralLanguage, StructuralRegistry},
@@ -37,6 +40,7 @@ pub const R3_LINK_PERFORMS_NETWORK_ACCESS: bool = false;
 pub const R3_LINK_QUALIFIES_SCIP_PRODUCERS: bool = false;
 pub const R3_LINK_CREATES_FINDINGS: bool = false;
 
+const MAX_SCIP_METADATA_BYTES: usize = 1_024;
 const SUPPORTED_MODULE_EXTENSIONS: &[&str] =
     &[".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx", ".mts", ".cts"];
 
@@ -88,6 +92,7 @@ pub enum LinkingDiagnosticReason {
     NoLocalLinkCandidates,
     IncompleteRouteObservation,
     MissingRouteCallback,
+    MissingRouteDocument,
     UnsupportedModuleSpecifier,
     UnsupportedImportBinding,
     DynamicImportBinding,
@@ -182,6 +187,7 @@ impl AdmittedScipReference {
         let limits = limits.validate()?;
         let qualification_id = qualification_id.into();
         let artifact_digest = artifact_digest.into();
+        validate_scip_admission_metadata(&qualification_id, &artifact_digest)?;
         let _admission_identity = StableSemanticId::from_parts(
             "r3-scip-admission",
             &[
@@ -253,6 +259,10 @@ impl LinkingResult {
 #[derive(Debug)]
 pub enum LinkingError {
     InvalidLimits,
+    TooManyRoutes {
+        count: usize,
+        max: usize,
+    },
     TooManyDocuments {
         count: usize,
         max: usize,
@@ -281,6 +291,8 @@ pub enum LinkingError {
     DuplicateDocumentPath(NormalizedRepoPath),
     NonUtf8Document(NormalizedRepoPath),
     ParseFailed(NormalizedRepoPath),
+    InvalidScipQualificationId,
+    InvalidScipArtifactDigest,
     MissingScipProvenance,
     TooManyScipProvenance {
         count: usize,
@@ -295,6 +307,10 @@ impl fmt::Display for LinkingError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::InvalidLimits => formatter.write_str("R3 linking limits must be non-zero"),
+            Self::TooManyRoutes { count, max } => write!(
+                formatter,
+                "R3 route observation count {count} exceeds linking cap {max}"
+            ),
             Self::TooManyDocuments { count, max } => write!(
                 formatter,
                 "R3 linking document count {count} exceeds cap {max}"
@@ -326,6 +342,12 @@ impl fmt::Display for LinkingError {
                 write!(formatter, "R3 linking document is not UTF-8: {path}")
             }
             Self::ParseFailed(path) => write!(formatter, "R3 linking parse failed for {path}"),
+            Self::InvalidScipQualificationId => formatter.write_str(
+                "admitted SCIP qualification id must be non-blank, bounded, and control-free",
+            ),
+            Self::InvalidScipArtifactDigest => formatter.write_str(
+                "admitted SCIP artifact digest must be canonical lowercase sha256",
+            ),
             Self::MissingScipProvenance => {
                 formatter.write_str("admitted SCIP reference requires explicit source provenance")
             }
@@ -396,6 +418,13 @@ pub fn link_inter_file_semantics(
         ModelError::InvalidLimits => LinkingError::InvalidLimits,
         other => LinkingError::Model(other),
     })?;
+    let route_cap = MAX_ROUTE_OBSERVATIONS.min(limits.max_path_candidates);
+    if routes.len() > route_cap {
+        return Err(LinkingError::TooManyRoutes {
+            count: routes.len(),
+            max: route_cap,
+        });
+    }
     let document_cap = MAX_LINK_DOCUMENTS.min(limits.max_path_candidates);
     if documents.len() > document_cap {
         return Err(LinkingError::TooManyDocuments {
@@ -483,6 +512,13 @@ pub fn link_inter_file_semantics(
             continue;
         };
         let Some(importer) = parsed.get(route_location.path().as_str()) else {
+            local_partial = true;
+            push_diagnostic(
+                &mut diagnostics,
+                LinkingDiagnosticReason::MissingRouteDocument,
+                route.provenance().to_vec(),
+                limits,
+            )?;
             continue;
         };
         let Some(handler) = route.handler_semantic_key() else {
@@ -1027,6 +1063,32 @@ fn resolve_explicit_local_import(
         )?),
         None,
     ))
+}
+
+fn validate_scip_admission_metadata(
+    qualification_id: &str,
+    artifact_digest: &str,
+) -> Result<(), LinkingError> {
+    if qualification_id.trim().is_empty()
+        || qualification_id.len() > MAX_SCIP_METADATA_BYTES
+        || qualification_id.chars().any(char::is_control)
+    {
+        return Err(LinkingError::InvalidScipQualificationId);
+    }
+    if !is_canonical_sha256_id(artifact_digest) {
+        return Err(LinkingError::InvalidScipArtifactDigest);
+    }
+    Ok(())
+}
+
+fn is_canonical_sha256_id(value: &str) -> bool {
+    let Some(hex) = value.strip_prefix("sha256:") else {
+        return false;
+    };
+    hex.len() == 64
+        && hex
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
 }
 
 fn parse_tree(
