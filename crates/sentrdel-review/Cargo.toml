@@ -17,6 +17,7 @@ ast-grep-core.workspace = true
 tree-sitter.workspace = true
 tree-sitter-javascript.workspace = true
 tree-sitter-typescript.workspace = true
+sentrdel-graph = { version = "=0.0.0", path = "../sentrdel-graph" }
 sentrdel-schema = { version = "=0.0.0", path = "../sentrdel-schema" }
 serde_json.workspace = true
 
