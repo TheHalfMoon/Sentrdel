@@ -68,6 +68,7 @@ fn link(
     .expect("link")
 }
 
+#[allow(clippy::too_many_arguments)]
 fn evaluate_with_guard(
     guard_kind: GuardKind,
     required_values: Vec<String>,
@@ -75,6 +76,7 @@ fn evaluate_with_guard(
     include_unresolved_filter: bool,
     include_unresolved_binding_guard: bool,
     include_unbound_filter: bool,
+    direct_binding: bool,
 ) -> InvariantEvaluationState {
     let callback_id = id("r3.t021.regression.callback", "handler");
     let route = RouteObservation::new(
@@ -103,9 +105,13 @@ fn evaluate_with_guard(
 
     let value = ValueOrigin::new(
         id("r3.t021.regression.value", "request-user-id"),
-        ValueOriginKind::RequestPath,
+        if direct_binding {
+            ValueOriginKind::AuthenticatedUserId
+        } else {
+            ValueOriginKind::RequestPath
+        },
         "req.params.user_id",
-        None,
+        direct_binding.then(|| actor.actor_id().clone()),
         Vec::new(),
         0,
         vec![location(40)],
@@ -221,6 +227,14 @@ fn evaluate_with_guard(
             160,
         ),
     ];
+    if direct_binding {
+        links.push(link(
+            "r3.t021.regression.actor-value",
+            actor.actor_id().clone(),
+            value.value_id().clone(),
+            130,
+        ));
+    }
     if include_guard_value_link {
         links.push(link(
             "r3.t021.regression.guard-value",
@@ -320,6 +334,7 @@ fn guard_for_different_field_cannot_satisfy_tenant_binding() {
         false,
         false,
         false,
+        false,
     );
     assert_eq!(state, InvariantEvaluationState::Violated);
     assert_ne!(state, InvariantEvaluationState::Satisfied);
@@ -331,6 +346,7 @@ fn binding_guard_without_field_semantics_remains_unknown() {
         GuardKind::OwnershipBinding,
         Vec::new(),
         true,
+        false,
         false,
         false,
         false,
@@ -348,6 +364,7 @@ fn unrelated_guard_without_field_semantics_does_not_mask_violation() {
         false,
         false,
         false,
+        false,
     );
     assert_eq!(state, InvariantEvaluationState::Violated);
     assert_ne!(state, InvariantEvaluationState::Satisfied);
@@ -358,6 +375,7 @@ fn binding_guard_with_unresolved_value_link_remains_unknown() {
     let state = evaluate_with_guard(
         GuardKind::OwnershipBinding,
         vec!["user_id".to_owned()],
+        false,
         false,
         false,
         false,
@@ -376,6 +394,7 @@ fn satisfied_filter_cannot_hide_another_unresolved_tenant_filter() {
         true,
         false,
         false,
+        false,
     );
     assert_eq!(state, InvariantEvaluationState::Unknown);
     assert_ne!(state, InvariantEvaluationState::Satisfied);
@@ -389,6 +408,7 @@ fn satisfied_guard_cannot_hide_another_unresolved_binding_guard() {
         true,
         false,
         true,
+        false,
         false,
     );
     assert_eq!(state, InvariantEvaluationState::Unknown);
@@ -404,7 +424,23 @@ fn one_bound_filter_cannot_hide_another_analyzable_unbound_filter() {
         false,
         false,
         true,
+        false,
     );
     assert_eq!(state, InvariantEvaluationState::Violated);
+    assert_ne!(state, InvariantEvaluationState::Satisfied);
+}
+
+#[test]
+fn direct_binding_cannot_bypass_unresolved_binding_guard() {
+    let state = evaluate_with_guard(
+        GuardKind::Authentication,
+        Vec::new(),
+        false,
+        false,
+        true,
+        false,
+        true,
+    );
+    assert_eq!(state, InvariantEvaluationState::Unknown);
     assert_ne!(state, InvariantEvaluationState::Satisfied);
 }
