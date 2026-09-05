@@ -21,6 +21,7 @@ pub mod path;
 pub mod r2_support;
 #[path = "route_gate.rs"]
 pub mod route;
+pub mod tenant_binding;
 #[path = "value_final.rs"]
 pub mod value;
 
