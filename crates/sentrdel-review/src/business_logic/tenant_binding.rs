@@ -297,6 +297,12 @@ pub fn evaluate_tenant_binding(
                 {
                     continue;
                 }
+                if !has_link(inputs.path, actor.actor_id(), guard.guard_id())
+                    || !has_link(inputs.path, guard.guard_id(), value.value_id())
+                {
+                    unknown_filter_semantics = true;
+                    continue;
+                }
                 if guard_binds_actor_value(
                     inputs.path,
                     actor,
