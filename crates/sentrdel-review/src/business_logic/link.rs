@@ -37,9 +37,8 @@ pub const R3_LINK_PERFORMS_NETWORK_ACCESS: bool = false;
 pub const R3_LINK_QUALIFIES_SCIP_PRODUCERS: bool = false;
 pub const R3_LINK_CREATES_FINDINGS: bool = false;
 
-const SUPPORTED_MODULE_EXTENSIONS: &[&str] = &[
-    ".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx", ".mts", ".cts",
-];
+const SUPPORTED_MODULE_EXTENSIONS: &[&str] =
+    &[".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx", ".mts", ".cts"];
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct LinkDocument {
@@ -296,23 +295,26 @@ impl fmt::Display for LinkingError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::InvalidLimits => formatter.write_str("R3 linking limits must be non-zero"),
-            Self::TooManyDocuments { count, max } => {
-                write!(formatter, "R3 linking document count {count} exceeds cap {max}")
-            }
+            Self::TooManyDocuments { count, max } => write!(
+                formatter,
+                "R3 linking document count {count} exceeds cap {max}"
+            ),
             Self::TooManyImportBindings { count, max } => write!(
                 formatter,
                 "R3 local import binding count {count} exceeds cap {max}"
             ),
-            Self::TooManyLinks { count, max } => {
-                write!(formatter, "R3 semantic link count {count} exceeds cap {max}")
-            }
+            Self::TooManyLinks { count, max } => write!(
+                formatter,
+                "R3 semantic link count {count} exceeds cap {max}"
+            ),
             Self::TooManyScipReferences { count, max } => write!(
                 formatter,
                 "R3 admitted SCIP reference count {count} exceeds cap {max}"
             ),
-            Self::TooManyDiagnostics { count, max } => {
-                write!(formatter, "R3 linking diagnostic count {count} exceeds cap {max}")
-            }
+            Self::TooManyDiagnostics { count, max } => write!(
+                formatter,
+                "R3 linking diagnostic count {count} exceeds cap {max}"
+            ),
             Self::DocumentTooLarge { path, bytes, max } => write!(
                 formatter,
                 "R3 linking document {path} size {bytes} exceeds cap {max}"
@@ -651,13 +653,7 @@ pub fn link_inter_file_semantics(
         )?;
     }
 
-    let semantic_state = add_scip_links(
-        &mut links,
-        &mut diagnostics,
-        scip,
-        limits,
-        max_links,
-    )?;
+    let semantic_state = add_scip_links(&mut links, &mut diagnostics, scip, limits, max_links)?;
     let mut links = links.into_values().collect::<Vec<_>>();
     links.sort();
     diagnostics.sort_by(|left, right| {
@@ -823,7 +819,9 @@ fn collect_import_statement(
     };
     let (target_path, path_reason) = resolve_explicit_local_import(&document.path, specifier)?;
 
-    if binding_text.starts_with("* as ") || binding_text.contains(',') && !binding_text.starts_with('{') {
+    if binding_text.starts_with("* as ")
+        || binding_text.contains(',') && !binding_text.starts_with('{')
+    {
         return Ok(false);
     }
 
