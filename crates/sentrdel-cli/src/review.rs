@@ -1,3 +1,5 @@
+pub mod r3_link;
+
 use std::{collections::BTreeSet, error::Error, fmt};
 
 use sentrdel_schema::{
