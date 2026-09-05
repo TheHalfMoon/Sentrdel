@@ -165,10 +165,10 @@ pub fn map_validated_observations(
         let route_id = route_node.node_id.clone();
         insert_node(&mut nodes, route_node, limits)?;
 
-        if let Some(handler_key) = route.handler_semantic_key() {
+        if let Some(handler) = route.callback_chain().last() {
             let handler_node = node(
                 GraphNodeKind::Symbol,
-                format!("r3:handler:{handler_key}"),
+                format!("r3:route-handler:{}", handler.as_str()),
                 provenance.clone(),
             )?;
             let handler_id = handler_node.node_id.clone();
@@ -435,7 +435,7 @@ mod tests {
             HttpMethod::Get,
             "/users/:id",
             Some("src/routes/users.js::handler".to_owned()),
-            Vec::new(),
+            vec![id("r3.route-callback", "users-handler")],
             provenance,
             CoverageState::Covered,
             BusinessLogicLimits::default(),
