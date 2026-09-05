@@ -179,7 +179,10 @@ fn evaluate_with_guard_fields(required_values: Vec<String>) -> InvariantEvaluati
     .expect("path");
 
     let invariant = InvariantDefinition::new(
-        id("sentrdel.r3.builtin-invariant", "tenant-binding-field-regression"),
+        id(
+            "sentrdel.r3.builtin-invariant",
+            "tenant-binding-field-regression",
+        ),
         InvariantKind::TenantBinding,
         InvariantSource::BuiltIn,
         InvariantScope::new(
