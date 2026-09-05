@@ -226,16 +226,28 @@ impl fmt::Display for R2SupportError {
                 write!(formatter, "R2 Coverage count {count} exceeds cap {max}")
             }
             Self::TooManyResources { count, max } => {
-                write!(formatter, "R3 resource count {count} exceeds R2 support cap {max}")
+                write!(
+                    formatter,
+                    "R3 resource count {count} exceeds R2 support cap {max}"
+                )
             }
             Self::TooManyClients { count, max } => {
-                write!(formatter, "R3 provider-client count {count} exceeds R2 support cap {max}")
+                write!(
+                    formatter,
+                    "R3 provider-client count {count} exceeds R2 support cap {max}"
+                )
             }
             Self::TooManyMatches { count, max } => {
-                write!(formatter, "R2 support match count {count} exceeds cap {max}")
+                write!(
+                    formatter,
+                    "R2 support match count {count} exceeds cap {max}"
+                )
             }
             Self::TooManyDiagnostics { count, max } => {
-                write!(formatter, "R2 support diagnostic count {count} exceeds cap {max}")
+                write!(
+                    formatter,
+                    "R2 support diagnostic count {count} exceeds cap {max}"
+                )
             }
         }
     }
@@ -257,8 +269,16 @@ pub fn correlate_supabase_r2_support(
     limits: R2SupportLimits,
 ) -> Result<R2SupportCorrelation, R2SupportError> {
     let limits = limits.validate()?;
-    enforce_count(provider.evidence().len(), limits.max_evidence, CountKind::Evidence)?;
-    enforce_count(provider.coverage().len(), limits.max_coverage, CountKind::Coverage)?;
+    enforce_count(
+        provider.evidence().len(),
+        limits.max_evidence,
+        CountKind::Evidence,
+    )?;
+    enforce_count(
+        provider.coverage().len(),
+        limits.max_coverage,
+        CountKind::Coverage,
+    )?;
     enforce_count(resources.len(), limits.max_resources, CountKind::Resources)?;
     enforce_count(clients.len(), limits.max_clients, CountKind::Clients)?;
 
@@ -450,7 +470,10 @@ fn push_diagnostic(
     subject: Option<String>,
     limits: R2SupportLimits,
 ) -> Result<(), R2SupportError> {
-    if diagnostics.iter().any(|item| item.reason == reason && item.subject == subject) {
+    if diagnostics
+        .iter()
+        .any(|item| item.reason == reason && item.subject == subject)
+    {
         return Ok(());
     }
     let next_count = diagnostics.len().saturating_add(1);
