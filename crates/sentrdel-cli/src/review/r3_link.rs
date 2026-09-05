@@ -34,7 +34,7 @@ pub enum ScipSemanticInput {
         provenance: Vec<SourceLocation>,
     },
     Admitted {
-        ingestion: ScipIngestionResult,
+        ingestion: Box<ScipIngestionResult>,
         provenance: Vec<SourceLocation>,
         complete: bool,
     },
