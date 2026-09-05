@@ -81,11 +81,7 @@ fn actor(name: &str, identity: ActorIdentityKind) -> ActorContext {
     .expect("actor")
 }
 
-fn value(
-    name: &str,
-    kind: ValueOriginKind,
-    source_actor: Option<StableSemanticId>,
-) -> ValueOrigin {
+fn value(name: &str, kind: ValueOriginKind, source_actor: Option<StableSemanticId>) -> ValueOrigin {
     ValueOrigin::new(
         id("r3.t021.value", name),
         kind,
@@ -115,14 +111,8 @@ fn guard(actor_id: StableSemanticId, kind: GuardKind, field: &str) -> GuardObser
 }
 
 fn operation(value_id: StableSemanticId, field: &str) -> DataOperation {
-    let filter = FilterPredicate::new(
-        field,
-        FilterOperator::Eq,
-        value_id,
-        location(80),
-        limits(),
-    )
-    .expect("filter");
+    let filter = FilterPredicate::new(field, FilterOperator::Eq, value_id, location(80), limits())
+        .expect("filter");
     DataOperation::new(
         id("r3.t021.operation", "read-account"),
         DataOperationKind::Read,
@@ -251,11 +241,7 @@ fn guarded_request_value_binding_is_satisfied_only_on_supported_path() {
 
     let evaluation = evaluate_tenant_binding(
         TenantBindingInputs {
-            invariant: &definition(
-                "user_id",
-                ActorIdentityKind::AuthenticatedUser,
-                "accounts",
-            ),
+            invariant: &definition("user_id", ActorIdentityKind::AuthenticatedUser, "accounts"),
             path,
             route: &route,
             actors: std::slice::from_ref(&actor),
@@ -303,11 +289,7 @@ fn covered_request_filter_without_supported_binding_is_violated() {
     let path = result.paths().first().expect("covered unsafe path");
     assert_eq!(path.path_state(), PathState::Supported);
 
-    let invariant = definition(
-        "user_id",
-        ActorIdentityKind::AuthenticatedUser,
-        "accounts",
-    );
+    let invariant = definition("user_id", ActorIdentityKind::AuthenticatedUser, "accounts");
     let evaluation = evaluate_tenant_binding(
         TenantBindingInputs {
             invariant: &invariant,
@@ -353,11 +335,7 @@ fn authenticated_identity_value_can_supply_direct_supported_binding() {
     );
     let path = result.paths().first().expect("supported direct path");
 
-    let invariant = definition(
-        "user_id",
-        ActorIdentityKind::AuthenticatedUser,
-        "accounts",
-    );
+    let invariant = definition("user_id", ActorIdentityKind::AuthenticatedUser, "accounts");
     let evaluation = evaluate_tenant_binding(
         TenantBindingInputs {
             invariant: &invariant,
@@ -405,11 +383,7 @@ fn partial_or_ambiguous_path_remains_unknown_and_cannot_satisfy() {
     let path = result.paths().first().expect("ambiguous path");
     assert_eq!(path.path_state(), PathState::Ambiguous);
 
-    let invariant = definition(
-        "user_id",
-        ActorIdentityKind::AuthenticatedUser,
-        "accounts",
-    );
+    let invariant = definition("user_id", ActorIdentityKind::AuthenticatedUser, "accounts");
     let evaluation = evaluate_tenant_binding(
         TenantBindingInputs {
             invariant: &invariant,
