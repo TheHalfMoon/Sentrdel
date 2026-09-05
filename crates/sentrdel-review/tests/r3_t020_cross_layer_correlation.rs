@@ -2,7 +2,7 @@
 
 use sentrdel_review::{
     business_logic::{
-        graph_map::R3_GRAPH_CONFIDENCE_GRANTS_EVIDENCE_AUTHORITY,
+        graph::R3_GRAPH_CONFIDENCE_GRANTS_EVIDENCE_AUTHORITY,
         model::{
             BusinessLogicLimits, ConfidenceBasis, CrossLayerLink, DataOperation, DataOperationKind,
             FrameworkFamily, HttpMethod, LinkBasis, PathState, ResourceKind, ResourceRef,
