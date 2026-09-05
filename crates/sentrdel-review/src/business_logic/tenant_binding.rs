@@ -22,6 +22,10 @@ pub const R3_TENANT_BINDING_CREATES_FINDINGS: bool = false;
 pub const R3_TENANT_BINDING_EXECUTES_TARGET_CODE: bool = false;
 pub const R3_TENANT_BINDING_PERFORMS_NETWORK_ACCESS: bool = false;
 pub const R3_TENANT_BINDING_PROVES_RUNTIME_AUTHORIZATION: bool = false;
+pub const R3_TENANT_ACTOR_VALUE_RELATION: &str = "actor_sources_value";
+pub const R3_TENANT_ACTOR_GUARD_RELATION: &str = "actor_subject_of_guard";
+pub const R3_TENANT_GUARD_VALUE_RELATION: &str = "guarded_value";
+pub const R3_TENANT_VALUE_OPERATION_RELATION: &str = "value_feeds_filter";
 
 pub struct TenantBindingInputs<'a> {
     pub invariant: &'a InvariantDefinition,
@@ -265,10 +269,11 @@ pub fn evaluate_tenant_binding(
             unknown_filter_semantics = true;
             continue;
         };
-        if !has_link(
+        if !has_supported_evidence_link(
             inputs.path,
             value.value_id(),
             inputs.operation.operation_id(),
+            R3_TENANT_VALUE_OPERATION_RELATION,
         ) {
             unknown_filter_semantics = true;
             continue;
@@ -323,9 +328,17 @@ pub fn evaluate_tenant_binding(
                     unknown_filter_semantics = true;
                     continue;
                 }
-                if !has_link(inputs.path, actor.actor_id(), guard.guard_id())
-                    || !has_link(inputs.path, guard.guard_id(), value.value_id())
-                {
+                if !has_supported_evidence_link(
+                    inputs.path,
+                    actor.actor_id(),
+                    guard.guard_id(),
+                    R3_TENANT_ACTOR_GUARD_RELATION,
+                ) || !has_supported_evidence_link(
+                    inputs.path,
+                    guard.guard_id(),
+                    value.value_id(),
+                    R3_TENANT_GUARD_VALUE_RELATION,
+                ) {
                     unknown_filter_semantics = true;
                     continue;
                 }
@@ -472,7 +485,12 @@ fn direct_actor_value_binding(
     );
     kind_matches
         && value.source_actor() == Some(actor.actor_id())
-        && has_link(path, actor.actor_id(), value.value_id())
+        && has_supported_evidence_link(
+            path,
+            actor.actor_id(),
+            value.value_id(),
+            R3_TENANT_ACTOR_VALUE_RELATION,
+        )
 }
 
 fn guard_kind_supports_identity(kind: GuardKind, required_identity: ActorIdentityKind) -> bool {
@@ -506,14 +524,33 @@ fn guard_binds_actor_value(
                 | ComparisonShape::ConjunctionSupported
         )
         && guard.dominance_scope() != DominanceScope::Unknown
-        && has_link(path, actor.actor_id(), guard.guard_id())
-        && has_link(path, guard.guard_id(), value.value_id())
+        && has_supported_evidence_link(
+            path,
+            actor.actor_id(),
+            guard.guard_id(),
+            R3_TENANT_ACTOR_GUARD_RELATION,
+        )
+        && has_supported_evidence_link(
+            path,
+            guard.guard_id(),
+            value.value_id(),
+            R3_TENANT_GUARD_VALUE_RELATION,
+        )
 }
 
-fn has_link(path: &CrossLayerPath, source: &StableSemanticId, target: &StableSemanticId) -> bool {
-    path.links()
-        .iter()
-        .any(|link| link.source_semantic_id() == source && link.target_semantic_id() == target)
+fn has_supported_evidence_link(
+    path: &CrossLayerPath,
+    source: &StableSemanticId,
+    target: &StableSemanticId,
+    relation: &str,
+) -> bool {
+    path.links().iter().any(|link| {
+        link.source_semantic_id() == source
+            && link.target_semantic_id() == target
+            && link.relation() == relation
+            && link.basis() == LinkBasis::ExplicitAdapterLink
+            && link.confidence_basis() == ConfidenceBasis::Extracted
+    })
 }
 
 fn evaluation(
