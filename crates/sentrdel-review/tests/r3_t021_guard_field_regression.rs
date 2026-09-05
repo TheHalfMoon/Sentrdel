@@ -418,13 +418,13 @@ fn satisfied_guard_cannot_hide_another_unresolved_binding_guard() {
 #[test]
 fn one_bound_filter_cannot_hide_another_analyzable_unbound_filter() {
     let state = evaluate_with_guard(
-        GuardKind::OwnershipBinding,
-        vec!["user_id".to_owned()],
+        GuardKind::Authentication,
+        Vec::new(),
+        false,
+        false,
+        false,
         true,
-        false,
-        false,
         true,
-        false,
     );
     assert_eq!(state, InvariantEvaluationState::Violated);
     assert_ne!(state, InvariantEvaluationState::Satisfied);
