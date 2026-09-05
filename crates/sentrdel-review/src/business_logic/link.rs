@@ -345,9 +345,8 @@ impl fmt::Display for LinkingError {
             Self::InvalidScipQualificationId => formatter.write_str(
                 "admitted SCIP qualification id must be non-blank, bounded, and control-free",
             ),
-            Self::InvalidScipArtifactDigest => formatter.write_str(
-                "admitted SCIP artifact digest must be canonical lowercase sha256",
-            ),
+            Self::InvalidScipArtifactDigest => formatter
+                .write_str("admitted SCIP artifact digest must be canonical lowercase sha256"),
             Self::MissingScipProvenance => {
                 formatter.write_str("admitted SCIP reference requires explicit source provenance")
             }
