@@ -11,7 +11,10 @@ use sentrdel_review::{
             PathState, ResourceKind, ResourceRef, RouteObservation, SourceLocation,
             StableSemanticId, TrustBasis, ValueOrigin, ValueOriginKind,
         },
-        tenant_binding::{TenantBindingInputs, evaluate_tenant_binding},
+        tenant_binding::{
+            R3_TENANT_ACTOR_GUARD_RELATION, R3_TENANT_GUARD_VALUE_RELATION,
+            R3_TENANT_VALUE_OPERATION_RELATION, TenantBindingInputs, evaluate_tenant_binding,
+        },
     },
     view::NormalizedRepoPath,
 };
@@ -52,16 +55,21 @@ fn link(
     namespace: &str,
     source: StableSemanticId,
     target: StableSemanticId,
+    relation: &str,
     start: usize,
     basis: LinkBasis,
     confidence: ConfidenceBasis,
 ) -> CrossLayerLink {
     CrossLayerLink::new(
-        StableSemanticId::from_parts(namespace, &[source.as_str(), target.as_str()], limits())
-            .expect("link id"),
+        StableSemanticId::from_parts(
+            namespace,
+            &[source.as_str(), target.as_str(), relation],
+            limits(),
+        )
+        .expect("link id"),
         source,
         target,
-        "r3_t021_authority_regression",
+        relation,
         basis,
         confidence,
         vec![location(start)],
@@ -70,9 +78,13 @@ fn link(
     .expect("link")
 }
 
+#[allow(clippy::too_many_arguments)]
 fn evaluate_guarded_path(
     comparison: ComparisonShape,
     dominance: DominanceScope,
+    actor_guard_relation: &str,
+    guard_value_relation: &str,
+    value_operation_relation: &str,
     guard_value_basis: LinkBasis,
     guard_value_confidence: ConfidenceBasis,
 ) -> InvariantEvaluationState {
@@ -162,6 +174,7 @@ fn evaluate_guarded_path(
                 "r3.t021.authority.actor-guard",
                 actor.actor_id().clone(),
                 guard.guard_id().clone(),
+                actor_guard_relation,
                 120,
                 LinkBasis::ExplicitAdapterLink,
                 ConfidenceBasis::Extracted,
@@ -170,6 +183,7 @@ fn evaluate_guarded_path(
                 "r3.t021.authority.guard-value",
                 guard.guard_id().clone(),
                 value.value_id().clone(),
+                guard_value_relation,
                 140,
                 guard_value_basis,
                 guard_value_confidence,
@@ -178,6 +192,7 @@ fn evaluate_guarded_path(
                 "r3.t021.authority.value-operation",
                 value.value_id().clone(),
                 operation.operation_id().clone(),
+                value_operation_relation,
                 160,
                 LinkBasis::ExplicitAdapterLink,
                 ConfidenceBasis::Extracted,
@@ -228,10 +243,27 @@ fn evaluate_guarded_path(
     .state()
 }
 
+fn supported_guarded_path(
+    comparison: ComparisonShape,
+    dominance: DominanceScope,
+    guard_value_basis: LinkBasis,
+    guard_value_confidence: ConfidenceBasis,
+) -> InvariantEvaluationState {
+    evaluate_guarded_path(
+        comparison,
+        dominance,
+        R3_TENANT_ACTOR_GUARD_RELATION,
+        R3_TENANT_GUARD_VALUE_RELATION,
+        R3_TENANT_VALUE_OPERATION_RELATION,
+        guard_value_basis,
+        guard_value_confidence,
+    )
+}
+
 #[test]
 fn extracted_supported_guard_baseline_is_satisfied() {
     assert_eq!(
-        evaluate_guarded_path(
+        supported_guarded_path(
             ComparisonShape::Equal,
             DominanceScope::SameHandlerPrefix,
             LinkBasis::ExplicitAdapterLink,
@@ -244,7 +276,7 @@ fn extracted_supported_guard_baseline_is_satisfied() {
 #[test]
 fn unsupported_guard_comparison_remains_unknown() {
     assert_eq!(
-        evaluate_guarded_path(
+        supported_guarded_path(
             ComparisonShape::OtherSupported,
             DominanceScope::SameHandlerPrefix,
             LinkBasis::ExplicitAdapterLink,
@@ -257,7 +289,7 @@ fn unsupported_guard_comparison_remains_unknown() {
 #[test]
 fn unknown_guard_dominance_remains_unknown() {
     assert_eq!(
-        evaluate_guarded_path(
+        supported_guarded_path(
             ComparisonShape::Equal,
             DominanceScope::Unknown,
             LinkBasis::ExplicitAdapterLink,
@@ -270,7 +302,7 @@ fn unknown_guard_dominance_remains_unknown() {
 #[test]
 fn inferred_required_link_cannot_upgrade_authority() {
     assert_eq!(
-        evaluate_guarded_path(
+        supported_guarded_path(
             ComparisonShape::Equal,
             DominanceScope::SameHandlerPrefix,
             LinkBasis::ExplicitAdapterLink,
@@ -283,10 +315,58 @@ fn inferred_required_link_cannot_upgrade_authority() {
 #[test]
 fn unknown_basis_required_link_cannot_upgrade_authority() {
     assert_eq!(
-        evaluate_guarded_path(
+        supported_guarded_path(
             ComparisonShape::Equal,
             DominanceScope::SameHandlerPrefix,
             LinkBasis::Unknown,
+            ConfidenceBasis::Extracted,
+        ),
+        InvariantEvaluationState::Unknown
+    );
+}
+
+#[test]
+fn unrelated_actor_guard_relation_cannot_upgrade_authority() {
+    assert_eq!(
+        evaluate_guarded_path(
+            ComparisonShape::Equal,
+            DominanceScope::SameHandlerPrefix,
+            "unrelated_actor_guard_relation",
+            R3_TENANT_GUARD_VALUE_RELATION,
+            R3_TENANT_VALUE_OPERATION_RELATION,
+            LinkBasis::ExplicitAdapterLink,
+            ConfidenceBasis::Extracted,
+        ),
+        InvariantEvaluationState::Unknown
+    );
+}
+
+#[test]
+fn unrelated_guard_value_relation_cannot_upgrade_authority() {
+    assert_eq!(
+        evaluate_guarded_path(
+            ComparisonShape::Equal,
+            DominanceScope::SameHandlerPrefix,
+            R3_TENANT_ACTOR_GUARD_RELATION,
+            "unrelated_guard_value_relation",
+            R3_TENANT_VALUE_OPERATION_RELATION,
+            LinkBasis::ExplicitAdapterLink,
+            ConfidenceBasis::Extracted,
+        ),
+        InvariantEvaluationState::Unknown
+    );
+}
+
+#[test]
+fn unrelated_value_operation_relation_cannot_upgrade_authority() {
+    assert_eq!(
+        evaluate_guarded_path(
+            ComparisonShape::Equal,
+            DominanceScope::SameHandlerPrefix,
+            R3_TENANT_ACTOR_GUARD_RELATION,
+            R3_TENANT_GUARD_VALUE_RELATION,
+            "unrelated_value_operation_relation",
+            LinkBasis::ExplicitAdapterLink,
             ConfidenceBasis::Extracted,
         ),
         InvariantEvaluationState::Unknown
