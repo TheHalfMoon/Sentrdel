@@ -15,8 +15,8 @@ use sentrdel_review::{
         tenant_binding::{
             R3_TENANT_BINDING_CREATES_FINDINGS, R3_TENANT_BINDING_EXECUTES_TARGET_CODE,
             R3_TENANT_BINDING_PERFORMS_NETWORK_ACCESS,
-            R3_TENANT_BINDING_PROVES_RUNTIME_AUTHORIZATION, TenantBindingInputs,
-            evaluate_tenant_binding,
+            R3_TENANT_BINDING_PROVES_RUNTIME_AUTHORIZATION, R3_TENANT_GUARD_VALUE_RELATION,
+            TenantBindingInputs, evaluate_tenant_binding,
         },
     },
     view::NormalizedRepoPath,
@@ -134,14 +134,19 @@ fn explicit_link(
     namespace: &str,
     source: StableSemanticId,
     target: StableSemanticId,
+    relation: &str,
     start: usize,
 ) -> CrossLayerLink {
     CrossLayerLink::new(
-        StableSemanticId::from_parts(namespace, &[source.as_str(), target.as_str()], limits())
-            .expect("link id"),
+        StableSemanticId::from_parts(
+            namespace,
+            &[source.as_str(), target.as_str(), relation],
+            limits(),
+        )
+        .expect("link id"),
         source,
         target,
-        "r3_t021_bridge",
+        relation,
         LinkBasis::ExplicitAdapterLink,
         ConfidenceBasis::Extracted,
         vec![location(start)],
@@ -219,12 +224,14 @@ fn guarded_request_value_binding_is_satisfied_only_on_supported_path() {
             "r3.t021.callback-actor",
             callback,
             actor.actor_id().clone(),
+            "route_reaches_actor",
             160,
         ),
         explicit_link(
             "r3.t021.guard-value",
             guard.guard_id().clone(),
             value.value_id().clone(),
+            R3_TENANT_GUARD_VALUE_RELATION,
             180,
         ),
     ];
@@ -269,12 +276,14 @@ fn covered_request_filter_without_supported_binding_is_violated() {
             "r3.t021.callback-actor-unsafe",
             callback,
             actor.actor_id().clone(),
+            "route_reaches_actor",
             200,
         ),
         explicit_link(
             "r3.t021.actor-value-unsafe",
             actor.actor_id().clone(),
             value.value_id().clone(),
+            "unrelated_request_value",
             220,
         ),
     ];
@@ -323,6 +332,7 @@ fn authenticated_identity_value_can_supply_direct_supported_binding() {
         "r3.t021.callback-actor-direct",
         callback,
         actor.actor_id().clone(),
+        "route_reaches_actor",
         240,
     )];
     let result = correlate(
@@ -417,6 +427,7 @@ fn scope_mismatch_is_not_applicable() {
         "r3.t021.callback-actor-scope",
         callback,
         actor.actor_id().clone(),
+        "route_reaches_actor",
         280,
     )];
     let result = correlate(
