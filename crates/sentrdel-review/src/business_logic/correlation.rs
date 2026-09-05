@@ -86,6 +86,8 @@ pub enum CorrelationDiagnosticReason {
     GraphEdgeLimitExceeded,
     CorrelatedObservationLimitExceeded,
     CandidatePathLimitExceeded,
+    DiagnosticLimitExceeded,
+    PathLinkLimitExceeded,
     TraversalDepthExceeded,
     MissingOperationHandler,
     UnresolvedRouteForOperation,
@@ -197,9 +199,8 @@ struct RouteCandidate<'a> {
     ambiguous_links: bool,
 }
 
-#[derive(Clone)]
 struct LinkTraversal {
-    links: Vec<CrossLayerLink>,
+    links: Option<Vec<CrossLayerLink>>,
     ambiguous: bool,
     depth_exhausted: bool,
 }
@@ -230,7 +231,7 @@ pub fn correlate_cross_layer_paths(
         .saturating_add(inputs.operations.len())
         .saturating_add(inputs.provider_clients.len());
     if observation_count > correlation_limits.max_correlated_observations {
-        push_diagnostic(
+        add_diagnostic(
             &mut diagnostics,
             CorrelationDiagnosticReason::CorrelatedObservationLimitExceeded,
             None,
@@ -239,9 +240,8 @@ pub fn correlate_cross_layer_paths(
         );
         return Ok(partial_result(Vec::new(), diagnostics));
     }
-
     if inputs.links.len() > correlation_limits.max_graph_edges {
-        push_diagnostic(
+        add_diagnostic(
             &mut diagnostics,
             CorrelationDiagnosticReason::GraphEdgeLimitExceeded,
             None,
@@ -250,10 +250,8 @@ pub fn correlate_cross_layer_paths(
         );
         return Ok(partial_result(Vec::new(), diagnostics));
     }
-
-    let graph_nodes = link_graph_nodes(inputs.links);
-    if graph_nodes.len() > correlation_limits.max_graph_nodes {
-        push_diagnostic(
+    if link_graph_nodes(inputs.links).len() > correlation_limits.max_graph_nodes {
+        add_diagnostic(
             &mut diagnostics,
             CorrelationDiagnosticReason::GraphNodeLimitExceeded,
             None,
@@ -268,10 +266,21 @@ pub fn correlate_cross_layer_paths(
     let guards = index_by_id(inputs.guards, GuardObservation::guard_id);
     let values = index_by_id(inputs.values, ValueOrigin::value_id);
     let clients = index_by_id(inputs.provider_clients, ProviderClientAuthority::client_id);
-    let duplicate_ids = duplicate_identity_set(&[&actors, &guards, &values, &clients]);
-    for duplicate in &duplicate_ids {
-        let _ = duplicate;
-        push_diagnostic(
+    let mut duplicate_ids = BTreeSet::new();
+    collect_duplicate_ids(&actors, &mut duplicate_ids);
+    collect_duplicate_ids(&guards, &mut duplicate_ids);
+    collect_duplicate_ids(&values, &mut duplicate_ids);
+    collect_duplicate_ids(&clients, &mut duplicate_ids);
+    collect_sequence_duplicates(
+        inputs.routes.iter().map(RouteObservation::route_id),
+        &mut duplicate_ids,
+    );
+    collect_sequence_duplicates(
+        inputs.operations.iter().map(DataOperation::operation_id),
+        &mut duplicate_ids,
+    );
+    if !duplicate_ids.is_empty() {
+        add_diagnostic(
             &mut diagnostics,
             CorrelationDiagnosticReason::DuplicateObservationIdentity,
             None,
@@ -283,11 +292,15 @@ pub fn correlate_cross_layer_paths(
     let mut paths = Vec::new();
     let mut all_correlated = true;
     let mut all_supported = true;
-
     let mut operations = inputs.operations.iter().collect::<Vec<_>>();
     operations.sort_by(|left, right| left.operation_id().cmp(right.operation_id()));
 
-    for operation in operations {
+    'operations: for operation in operations {
+        if duplicate_ids.contains(operation.operation_id().as_str()) {
+            all_correlated = false;
+            all_supported = false;
+            continue;
+        }
         let mut candidates = route_candidates(
             operation,
             inputs.routes,
@@ -301,7 +314,7 @@ pub fn correlate_cross_layer_paths(
         if candidates.is_empty() {
             all_correlated = false;
             all_supported = false;
-            push_diagnostic(
+            add_diagnostic(
                 &mut diagnostics,
                 if operation.handler_symbol().is_none() {
                     CorrelationDiagnosticReason::MissingOperationHandler
@@ -318,7 +331,7 @@ pub fn correlate_cross_layer_paths(
         let route_ambiguous = candidates.len() > 1;
         if route_ambiguous {
             all_supported = false;
-            push_diagnostic(
+            add_diagnostic(
                 &mut diagnostics,
                 CorrelationDiagnosticReason::AmbiguousRouteForOperation,
                 None,
@@ -331,17 +344,21 @@ pub fn correlate_cross_layer_paths(
             if paths.len() >= correlation_limits.max_candidate_paths {
                 all_correlated = false;
                 all_supported = false;
-                push_diagnostic(
+                add_diagnostic(
                     &mut diagnostics,
                     CorrelationDiagnosticReason::CandidatePathLimitExceeded,
                     None,
                     Some(operation.operation_id().clone()),
                     correlation_limits,
                 );
-                break;
+                break 'operations;
+            }
+            if duplicate_ids.contains(candidate.route.route_id().as_str()) {
+                all_supported = false;
+                continue;
             }
 
-            let assembled = assemble_path(
+            let mut path = assemble_path(
                 &candidate,
                 operation,
                 &actors,
@@ -353,35 +370,27 @@ pub fn correlate_cross_layer_paths(
                 correlation_limits,
                 &mut diagnostics,
             )?;
-            if assembled.path_state() != PathState::Supported {
+            if route_ambiguous && path.path_state() != PathState::BoundedRejection {
+                path = rebuild_path_state(path, PathState::Ambiguous, business_limits)?;
+            }
+            if path.path_state() != PathState::Supported {
                 all_supported = false;
             }
-            if route_ambiguous || candidate.ambiguous_links {
-                all_supported = false;
-            }
-            paths.push(if route_ambiguous && assembled.path_state() == PathState::Supported {
-                rebuild_path_state(assembled, PathState::Ambiguous, business_limits)?
-            } else {
-                assembled
-            });
+            paths.push(path);
         }
     }
 
     paths.sort_by(|left, right| left.path_id().cmp(right.path_id()));
     paths.dedup_by(|left, right| left.path_id() == right.path_id());
-
     let coverage_state = if all_correlated
         && all_supported
-        && diagnostics.iter().all(|diagnostic| {
-            !diagnostic_reduces_coverage(diagnostic.reason)
-        })
+        && diagnostics.is_empty()
         && !paths.is_empty()
     {
         CoverageState::Covered
     } else {
         CoverageState::Partial
     };
-
     Ok(CorrelationResult {
         paths,
         coverage_state,
@@ -414,16 +423,27 @@ where
     indexed
 }
 
-fn duplicate_identity_set<T>(indexes: &[&BTreeMap<String, Vec<&T>>]) -> BTreeSet<String> {
-    let mut duplicates = BTreeSet::new();
-    for index in indexes {
-        for (id, observations) in *index {
-            if observations.len() > 1 {
-                duplicates.insert(id.clone());
-            }
+fn collect_duplicate_ids<T>(
+    index: &BTreeMap<String, Vec<&T>>,
+    duplicates: &mut BTreeSet<String>,
+) {
+    for (id, observations) in index {
+        if observations.len() > 1 {
+            duplicates.insert(id.clone());
         }
     }
-    duplicates
+}
+
+fn collect_sequence_duplicates<'a>(
+    ids: impl Iterator<Item = &'a StableSemanticId>,
+    duplicates: &mut BTreeSet<String>,
+) {
+    let mut seen = BTreeSet::new();
+    for id in ids {
+        if !seen.insert(id.as_str().to_owned()) {
+            duplicates.insert(id.as_str().to_owned());
+        }
+    }
 }
 
 fn link_graph_nodes(links: &[CrossLayerLink]) -> BTreeSet<String> {
@@ -468,7 +488,7 @@ fn route_candidates<'a>(
                 correlation_limits.max_traversal_depth,
             );
             if traversal.depth_exhausted {
-                push_diagnostic(
+                add_diagnostic(
                     diagnostics,
                     CorrelationDiagnosticReason::TraversalDepthExceeded,
                     Some(route.route_id().clone()),
@@ -476,32 +496,32 @@ fn route_candidates<'a>(
                     correlation_limits,
                 );
             }
-            if !traversal.links.is_empty() || route.route_id() == handler {
-                if traversal.ambiguous {
-                    push_diagnostic(
-                        diagnostics,
-                        CorrelationDiagnosticReason::AmbiguousLinkPath,
-                        Some(route.route_id().clone()),
-                        Some(operation.operation_id().clone()),
-                        correlation_limits,
-                    );
-                }
-                let mut links = traversal.links;
-                links.push(correlation_link(
-                    handler.clone(),
-                    operation.operation_id().clone(),
-                    HANDLER_OPERATION_RELATION,
-                    LinkBasis::ExplicitAdapterLink,
-                    ConfidenceBasis::Extracted,
-                    operation.provenance().to_vec(),
-                    business_limits,
-                )?);
-                candidates.push(RouteCandidate {
-                    route,
-                    links,
-                    ambiguous_links: traversal.ambiguous,
-                });
+            let Some(mut links) = traversal.links else {
+                continue;
+            };
+            if traversal.ambiguous {
+                add_diagnostic(
+                    diagnostics,
+                    CorrelationDiagnosticReason::AmbiguousLinkPath,
+                    Some(route.route_id().clone()),
+                    Some(operation.operation_id().clone()),
+                    correlation_limits,
+                );
             }
+            links.push(correlation_link(
+                handler.clone(),
+                operation.operation_id().clone(),
+                HANDLER_OPERATION_RELATION,
+                LinkBasis::ExplicitAdapterLink,
+                ConfidenceBasis::Extracted,
+                operation.provenance().to_vec(),
+                business_limits,
+            )?);
+            candidates.push(RouteCandidate {
+                route,
+                links,
+                ambiguous_links: traversal.ambiguous,
+            });
         }
         return Ok(candidates);
     }
@@ -516,7 +536,7 @@ fn route_candidates<'a>(
                     SAME_HANDLER_RELATION,
                     LinkBasis::SameHandlerStructural,
                     ConfidenceBasis::Inferred,
-                    merged_provenance(route.provenance(), operation.provenance()),
+                    operation.provenance().to_vec(),
                     business_limits,
                 )?],
                 ambiguous_links: false,
@@ -544,16 +564,13 @@ fn traverse_links(
 ) -> LinkTraversal {
     if source == target {
         return LinkTraversal {
-            links: Vec::new(),
+            links: Some(Vec::new()),
             ambiguous: false,
             depth_exhausted: false,
         };
     }
-
-    let mut queue = VecDeque::new();
-    queue.push_back((source.as_str().to_owned(), Vec::<CrossLayerLink>::new()));
-    let mut best_depth = BTreeMap::<String, usize>::new();
-    best_depth.insert(source.as_str().to_owned(), 0);
+    let mut queue = VecDeque::from([(source.as_str().to_owned(), Vec::<CrossLayerLink>::new())]);
+    let mut best_depth = BTreeMap::from([(source.as_str().to_owned(), 0usize)]);
     let mut found: Option<Vec<CrossLayerLink>> = None;
     let mut ambiguous = false;
     let mut depth_exhausted = false;
@@ -584,20 +601,21 @@ fn traverse_links(
                 continue;
             }
             let depth = next_path.len();
-            let should_visit = best_depth.get(&next).is_none_or(|best| depth <= *best);
-            if should_visit {
+            if best_depth.get(&next).is_none_or(|best| depth <= *best) {
                 best_depth.insert(next.clone(), depth);
                 queue.push_back((next, next_path));
             }
         }
     }
 
-    let links = found.unwrap_or_default();
-    ambiguous |= links.iter().any(|link| {
-        link.basis() == LinkBasis::Unknown || link.confidence_basis() == ConfidenceBasis::Ambiguous
-    });
+    if let Some(links) = &found {
+        ambiguous |= links.iter().any(|link| {
+            link.basis() == LinkBasis::Unknown
+                || link.confidence_basis() == ConfidenceBasis::Ambiguous
+        });
+    }
     LinkTraversal {
-        links,
+        links: found,
         ambiguous,
         depth_exhausted,
     }
@@ -627,31 +645,23 @@ fn assemble_path(
     } else {
         PathState::Partial
     };
-
     let mut links = candidate.links.clone();
-    let mut value_ids = direct_operation_value_ids(operation);
+    let direct_value_ids = direct_operation_value_ids(operation);
+    let mut pending_values = direct_value_ids.clone();
     let mut visited_values = BTreeSet::new();
     let mut actor_ids = BTreeSet::<StableSemanticId>::new();
-    let mut attached_value_ids = BTreeSet::<StableSemanticId>::new();
 
-    while let Some(value_id) = value_ids.pop_first() {
+    while let Some(value_id) = pending_values.pop_first() {
         if !visited_values.insert(value_id.clone()) {
             continue;
         }
         if duplicate_ids.contains(&value_id) {
             state = PathState::Ambiguous;
-            push_diagnostic(
-                diagnostics,
-                CorrelationDiagnosticReason::DuplicateObservationIdentity,
-                Some(route.route_id().clone()),
-                Some(operation.operation_id().clone()),
-                correlation_limits,
-            );
             continue;
         }
         let Some(entries) = values.get(&value_id) else {
             state = degrade_to_partial(state);
-            push_diagnostic(
+            add_diagnostic(
                 diagnostics,
                 CorrelationDiagnosticReason::MissingValueOrigin,
                 Some(route.route_id().clone()),
@@ -663,10 +673,9 @@ fn assemble_path(
         let Some(value) = entries.first().copied() else {
             continue;
         };
-        attached_value_ids.insert(value.value_id().clone());
         if value.origin_kind() == ValueOriginKind::Unknown {
             state = degrade_to_partial(state);
-            push_diagnostic(
+            add_diagnostic(
                 diagnostics,
                 CorrelationDiagnosticReason::UnknownValueOrigin,
                 Some(route.route_id().clone()),
@@ -674,15 +683,17 @@ fn assemble_path(
                 correlation_limits,
             );
         }
-        links.push(correlation_link(
-            value.value_id().clone(),
-            operation.operation_id().clone(),
-            VALUE_OPERATION_RELATION,
-            LinkBasis::ExplicitAdapterLink,
-            ConfidenceBasis::Extracted,
-            value.provenance().to_vec(),
-            business_limits,
-        )?);
+        if direct_value_ids.contains(value.value_id().as_str()) {
+            links.push(correlation_link(
+                value.value_id().clone(),
+                operation.operation_id().clone(),
+                VALUE_OPERATION_RELATION,
+                LinkBasis::ExplicitAdapterLink,
+                ConfidenceBasis::Extracted,
+                value.provenance().to_vec(),
+                business_limits,
+            )?);
+        }
         if let Some(actor) = value.source_actor() {
             actor_ids.insert(actor.clone());
             links.push(correlation_link(
@@ -696,7 +707,7 @@ fn assemble_path(
             )?);
         }
         for input in value.derivation_inputs() {
-            value_ids.insert(input.as_str().to_owned());
+            pending_values.insert(input.as_str().to_owned());
             links.push(correlation_link(
                 input.clone(),
                 value.value_id().clone(),
@@ -716,7 +727,7 @@ fn assemble_path(
         }
         let Some(entries) = actors.get(actor_id.as_str()) else {
             state = degrade_to_partial(state);
-            push_diagnostic(
+            add_diagnostic(
                 diagnostics,
                 CorrelationDiagnosticReason::MissingActor,
                 Some(route.route_id().clone()),
@@ -731,7 +742,7 @@ fn assemble_path(
                 || actor.trust_basis() == TrustBasis::Unknown)
         {
             state = degrade_to_partial(state);
-            push_diagnostic(
+            add_diagnostic(
                 diagnostics,
                 CorrelationDiagnosticReason::UnknownActor,
                 Some(route.route_id().clone()),
@@ -749,11 +760,11 @@ fn assemble_path(
             continue;
         }
         let guard = entries[0];
-        let explicit_subject = guard
+        let subject_is_attached = guard
             .subject_actor()
             .is_some_and(|subject| actor_ids.contains(subject));
         let explicitly_reachable = reachable.contains(guard.guard_id().as_str());
-        if explicit_subject || explicitly_reachable {
+        if subject_is_attached || explicitly_reachable {
             guard_ids.insert(guard.guard_id().clone());
             if let Some(subject) = guard.subject_actor() {
                 actor_ids.insert(subject.clone());
@@ -780,7 +791,7 @@ fn assemble_path(
             }
             if guard.dominance_scope() == DominanceScope::Unknown {
                 state = degrade_to_partial(state);
-                push_diagnostic(
+                add_diagnostic(
                     diagnostics,
                     CorrelationDiagnosticReason::UnknownGuardDominance,
                     Some(route.route_id().clone()),
@@ -796,7 +807,7 @@ fn assemble_path(
     }
     if unresolved_guard_scope {
         state = degrade_to_partial(state);
-        push_diagnostic(
+        add_diagnostic(
             diagnostics,
             CorrelationDiagnosticReason::UnresolvedGuardScope,
             Some(route.route_id().clone()),
@@ -826,7 +837,7 @@ fn assemble_path(
                     ProviderAuthorityClass::ServerUnknown | ProviderAuthorityClass::Unknown
                 ) {
                     state = degrade_to_partial(state);
-                    push_diagnostic(
+                    add_diagnostic(
                         diagnostics,
                         CorrelationDiagnosticReason::UnknownProviderAuthority,
                         Some(route.route_id().clone()),
@@ -837,7 +848,7 @@ fn assemble_path(
             }
         } else {
             state = degrade_to_partial(state);
-            push_diagnostic(
+            add_diagnostic(
                 diagnostics,
                 CorrelationDiagnosticReason::MissingProviderClient,
                 Some(route.route_id().clone()),
@@ -851,6 +862,13 @@ fn assemble_path(
     links.dedup();
     if links.len() > business_limits.max_path_links {
         state = PathState::BoundedRejection;
+        add_diagnostic(
+            diagnostics,
+            CorrelationDiagnosticReason::PathLinkLimitExceeded,
+            Some(route.route_id().clone()),
+            Some(operation.operation_id().clone()),
+            correlation_limits,
+        );
         links.truncate(business_limits.max_path_links);
     }
 
@@ -865,7 +883,6 @@ fn assemble_path(
         &links,
         business_limits,
     )?;
-
     CrossLayerPath::new(
         path_id,
         route.route_id().clone(),
@@ -876,7 +893,7 @@ fn assemble_path(
         links,
         Vec::new(),
         state,
-        merged_provenance(route.provenance(), operation.provenance()),
+        minimal_path_provenance(route, operation),
         business_limits,
     )
     .map_err(CorrelationError::from)
@@ -925,8 +942,7 @@ fn reachable_ids(
     max_depth: usize,
 ) -> BTreeSet<String> {
     let adjacency = link_adjacency(links);
-    let mut reached = BTreeSet::new();
-    reached.insert(source.as_str().to_owned());
+    let mut reached = BTreeSet::from([source.as_str().to_owned()]);
     let mut queue = VecDeque::from([(source.as_str().to_owned(), 0usize)]);
     while let Some((node, depth)) = queue.pop_front() {
         if depth >= max_depth {
@@ -953,16 +969,14 @@ fn correlation_link(
     provenance: Vec<SourceLocation>,
     limits: BusinessLogicLimits,
 ) -> Result<CrossLayerLink, CorrelationError> {
-    let basis_text = link_basis_key(basis);
-    let confidence_text = confidence_key(confidence);
     let link_id = StableSemanticId::from_parts(
         "r3-correlation-link",
         &[
             source.as_str(),
             target.as_str(),
             relation,
-            basis_text,
-            confidence_text,
+            link_basis_key(basis),
+            confidence_key(confidence),
         ],
         limits,
     )?;
@@ -1021,18 +1035,20 @@ fn stable_path_id(
     .map_err(CorrelationError::from)
 }
 
-fn merged_provenance(
-    left: &[SourceLocation],
-    right: &[SourceLocation],
+fn minimal_path_provenance(
+    route: &RouteObservation,
+    operation: &DataOperation,
 ) -> Vec<SourceLocation> {
-    let mut values = left
-        .iter()
-        .chain(right.iter())
-        .cloned()
-        .collect::<Vec<_>>();
-    values.sort();
-    values.dedup();
-    values
+    let mut provenance = Vec::new();
+    if let Some(location) = route.provenance().first() {
+        provenance.push(location.clone());
+    }
+    if let Some(location) = operation.provenance().first() {
+        provenance.push(location.clone());
+    }
+    provenance.sort();
+    provenance.dedup();
+    provenance
 }
 
 fn shares_path(left: &[SourceLocation], right: &[SourceLocation]) -> bool {
@@ -1047,34 +1063,38 @@ fn degrade_to_partial(state: PathState) -> PathState {
     }
 }
 
-fn push_diagnostic(
+fn add_diagnostic(
     diagnostics: &mut Vec<CorrelationDiagnostic>,
     reason: CorrelationDiagnosticReason,
     route_id: Option<StableSemanticId>,
     operation_id: Option<StableSemanticId>,
     limits: CorrelationLimits,
 ) {
-    if diagnostics.len() >= limits.max_diagnostics {
-        return;
-    }
-    let diagnostic = CorrelationDiagnostic {
+    let candidate = CorrelationDiagnostic {
         reason,
         route_id,
         operation_id,
     };
-    if !diagnostics.contains(&diagnostic) {
-        diagnostics.push(diagnostic);
-        diagnostics.sort_by(|left, right| {
-            left.reason
-                .cmp(&right.reason)
-                .then_with(|| left.route_id.cmp(&right.route_id))
-                .then_with(|| left.operation_id.cmp(&right.operation_id))
-        });
+    if diagnostics.contains(&candidate) || diagnostics.len() >= limits.max_diagnostics {
+        return;
     }
-}
-
-fn diagnostic_reduces_coverage(reason: CorrelationDiagnosticReason) -> bool {
-    !matches!(reason, CorrelationDiagnosticReason::DuplicateObservationIdentity)
+    if diagnostics.len() + 1 == limits.max_diagnostics
+        && candidate.reason != CorrelationDiagnosticReason::DiagnosticLimitExceeded
+    {
+        diagnostics.push(CorrelationDiagnostic {
+            reason: CorrelationDiagnosticReason::DiagnosticLimitExceeded,
+            route_id: None,
+            operation_id: None,
+        });
+    } else {
+        diagnostics.push(candidate);
+    }
+    diagnostics.sort_by(|left, right| {
+        left.reason
+            .cmp(&right.reason)
+            .then_with(|| left.route_id.cmp(&right.route_id))
+            .then_with(|| left.operation_id.cmp(&right.operation_id))
+    });
 }
 
 const fn link_basis_key(basis: LinkBasis) -> &'static str {
