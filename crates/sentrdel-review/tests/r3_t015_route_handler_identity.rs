@@ -65,13 +65,8 @@ fn identical_raw_handler_names_do_not_merge_distinct_validated_callbacks() {
         CoverageState::Covered,
     );
 
-    let records = map_validated_observations(
-        &[first, second],
-        &[],
-        &[],
-        R3GraphLimits::default(),
-    )
-    .expect("graph records");
+    let records = map_validated_observations(&[first, second], &[], &[], R3GraphLimits::default())
+        .expect("graph records");
 
     assert_eq!(records.nodes().len(), 4);
     assert_eq!(
