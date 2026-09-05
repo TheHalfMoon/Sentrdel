@@ -709,30 +709,31 @@ fn add_scip_links(
             provenance.sort();
             provenance.dedup();
 
-            if ingestion.coverage.capability != SCIP_REFERENCE_CAPABILITY
-                || ingestion.coverage.input_digests.len() != 1
-            {
+            let coverage = ingestion.coverage();
+            if coverage.capability != SCIP_REFERENCE_CAPABILITY || coverage.input_digests.len() != 1 {
                 return Err(LinkingError::InvalidScipIngestion);
             }
-            let artifact_digest = &ingestion.coverage.input_digests[0];
+            let artifact_digest = &coverage.input_digests[0];
+            let scip_provenance_id = format!("scip:{artifact_digest}");
+            let edges = ingestion.edges();
             let scip_cap = MAX_SCIP_REFERENCES.min(limits.max_path_candidates);
-            if ingestion.edges.len() > scip_cap {
+            if edges.len() > scip_cap {
                 return Err(LinkingError::TooManyScipReferences {
-                    count: ingestion.edges.len(),
+                    count: edges.len(),
                     max: scip_cap,
                 });
             }
 
             let mut incomplete = !complete
-                || ingestion.edges.is_empty()
-                || ingestion.coverage.state != CoverageState::Covered;
-            for edge in &ingestion.edges {
+                || edges.is_empty()
+                || coverage.state != CoverageState::Covered;
+            for edge in edges {
                 validate_edge(edge)?;
                 if edge.relation != GraphRelation::Refs
                     || !edge
                         .provenance_ids
                         .iter()
-                        .any(|id| id.as_str() == format!("scip:{artifact_digest}"))
+                        .any(|id| id.as_str() == scip_provenance_id)
                     || !edge.provenance_ids.iter().any(|id| {
                         id.as_str()
                             .strip_prefix("source-qualification:")
@@ -765,11 +766,7 @@ fn add_scip_links(
                 let link = CrossLayerLink::new(
                     StableSemanticId::from_parts(
                         "r3-scip-link",
-                        &[
-                            edge.edge_id.as_str(),
-                            &ingestion.coverage.coverage_id,
-                            artifact_digest,
-                        ],
+                        &[edge.edge_id.as_str(), &coverage.coverage_id, artifact_digest],
                         limits,
                     )?,
                     source_id,
@@ -992,7 +989,6 @@ fn collect_export_statement(
     }
 
     if let Some(named) = export_list_clause(trimmed) {
-        let mut saw_supported_name = false;
         for item in named
             .split(',')
             .map(str::trim)
@@ -1009,10 +1005,9 @@ fn collect_export_statement(
                     .entry(exported.to_owned())
                     .or_default()
                     .push(provenance.clone());
-                saw_supported_name = true;
             }
         }
-        return Ok(false && saw_supported_name);
+        return Ok(false);
     }
 
     Ok(false)
