@@ -79,6 +79,13 @@ impl From<ModelError> for TenantBindingError {
     }
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum EvidenceLinkState {
+    Supported,
+    Absent,
+    Unresolved,
+}
+
 pub fn evaluate_tenant_binding(
     inputs: TenantBindingInputs<'_>,
     limits: BusinessLogicLimits,
@@ -285,18 +292,29 @@ pub fn evaluate_tenant_binding(
             .copied()
             .filter(|actor| supported_authenticated_actor(actor))
         {
-            if direct_actor_value_binding(inputs.path, actor, value, *required_actor_identity) {
-                if satisfied.is_none() {
-                    satisfied = Some((
-                        vec![
-                            actor.actor_id().clone(),
-                            value.value_id().clone(),
-                            inputs.operation.operation_id().clone(),
-                        ],
-                        "supported_authenticated_actor_filter_binding",
-                    ));
+            match direct_actor_value_binding_state(
+                inputs.path,
+                actor,
+                value,
+                *required_actor_identity,
+            ) {
+                EvidenceLinkState::Supported => {
+                    if satisfied.is_none() {
+                        satisfied = Some((
+                            vec![
+                                actor.actor_id().clone(),
+                                value.value_id().clone(),
+                                inputs.operation.operation_id().clone(),
+                            ],
+                            "supported_authenticated_actor_filter_binding",
+                        ));
+                    }
+                    filter_satisfied = true;
                 }
-                filter_satisfied = true;
+                EvidenceLinkState::Unresolved => {
+                    unknown_filter_semantics = true;
+                }
+                EvidenceLinkState::Absent => {}
             }
 
             for guard_id in inputs.path.guard_ids() {
@@ -467,12 +485,12 @@ fn supported_authenticated_actor(actor: &ActorContext) -> bool {
     )
 }
 
-fn direct_actor_value_binding(
+fn direct_actor_value_binding_state(
     path: &CrossLayerPath,
     actor: &ActorContext,
     value: &ValueOrigin,
     required_identity: ActorIdentityKind,
-) -> bool {
+) -> EvidenceLinkState {
     let kind_matches = matches!(
         (required_identity, value.origin_kind()),
         (
@@ -483,14 +501,16 @@ fn direct_actor_value_binding(
             ValueOriginKind::AuthenticatedTenantId
         )
     );
-    kind_matches
-        && value.source_actor() == Some(actor.actor_id())
-        && has_supported_evidence_link(
-            path,
-            actor.actor_id(),
-            value.value_id(),
-            R3_TENANT_ACTOR_VALUE_RELATION,
-        )
+    if !kind_matches || value.source_actor() != Some(actor.actor_id()) {
+        return EvidenceLinkState::Absent;
+    }
+
+    qualify_evidence_link(
+        path,
+        actor.actor_id(),
+        value.value_id(),
+        R3_TENANT_ACTOR_VALUE_RELATION,
+    )
 }
 
 fn guard_kind_supports_identity(kind: GuardKind, required_identity: ActorIdentityKind) -> bool {
@@ -538,19 +558,39 @@ fn guard_binds_actor_value(
         )
 }
 
+fn qualify_evidence_link(
+    path: &CrossLayerPath,
+    source: &StableSemanticId,
+    target: &StableSemanticId,
+    relation: &str,
+) -> EvidenceLinkState {
+    let mut endpoint_match = false;
+    for link in path.links() {
+        if link.source_semantic_id() != source || link.target_semantic_id() != target {
+            continue;
+        }
+        endpoint_match = true;
+        if link.relation() == relation
+            && link.basis() == LinkBasis::ExplicitAdapterLink
+            && link.confidence_basis() == ConfidenceBasis::Extracted
+        {
+            return EvidenceLinkState::Supported;
+        }
+    }
+    if endpoint_match {
+        EvidenceLinkState::Unresolved
+    } else {
+        EvidenceLinkState::Absent
+    }
+}
+
 fn has_supported_evidence_link(
     path: &CrossLayerPath,
     source: &StableSemanticId,
     target: &StableSemanticId,
     relation: &str,
 ) -> bool {
-    path.links().iter().any(|link| {
-        link.source_semantic_id() == source
-            && link.target_semantic_id() == target
-            && link.relation() == relation
-            && link.basis() == LinkBasis::ExplicitAdapterLink
-            && link.confidence_basis() == ConfidenceBasis::Extracted
-    })
+    qualify_evidence_link(path, source, target, relation) == EvidenceLinkState::Supported
 }
 
 fn evaluation(
