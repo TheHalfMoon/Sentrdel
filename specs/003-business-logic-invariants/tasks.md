@@ -48,7 +48,7 @@
 
 ## Phase 3 — Graph, semantic links, and cross-layer correlation
 
-- [ ] **R3-T015** Map validated R3 observations onto the existing thin `sentrdel-graph` only where existing stable node/relation vocabulary is semantically valid; preserve provenance/confidence separation and graph/path caps; do not create a second graph runtime or universal CPG.
+- [x] **R3-T015** Map validated R3 observations onto the existing thin `sentrdel-graph` only where existing stable node/relation vocabulary is semantically valid; preserve provenance/confidence separation and graph/path caps; do not create a second graph runtime or universal CPG.
 - [ ] **R3-T016** Add bounded inter-file linking using safe local import/callback relationships and optional already-qualified SCIP references; semantic-index absence/ambiguity remains explicit linking coverage and never a clean fallback.
 - [ ] **R3-T017** Implement deterministic bounded route → actor/guard/value → data-operation/provider-client correlation with stable path identities, link basis/confidence metadata and UNKNOWN/PARTIAL propagation; cap graph nodes/edges/depth/candidate paths/diagnostics.
 - [ ] **R3-T018** Integrate canonical R2 Supabase Evidence/Coverage as supporting inputs for RLS/policy/grant/key/client/static-context correlation while preserving R2 identities, provenance, static-vs-live limitations and the fact that elevated authority can bypass ordinary RLS semantics.
