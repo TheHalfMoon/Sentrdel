@@ -293,11 +293,7 @@ pub fn correlate_cross_layer_paths(
     let mut clients = BTreeMap::new();
 
     for value in inputs.routes {
-        if !admit_node(
-            &mut nodes,
-            value.route_id(),
-            correlation_limits.max_nodes,
-        ) {
+        if !admit_node(&mut nodes, value.route_id(), correlation_limits.max_nodes) {
             return bounded_result(
                 &mut diagnostics,
                 PathCorrelationDiagnosticReason::NodeLimitExceeded,
@@ -318,11 +314,7 @@ pub fn correlate_cross_layer_paths(
         );
     }
     for value in inputs.actors {
-        if !admit_node(
-            &mut nodes,
-            value.actor_id(),
-            correlation_limits.max_nodes,
-        ) {
+        if !admit_node(&mut nodes, value.actor_id(), correlation_limits.max_nodes) {
             return bounded_result(
                 &mut diagnostics,
                 PathCorrelationDiagnosticReason::NodeLimitExceeded,
@@ -343,11 +335,7 @@ pub fn correlate_cross_layer_paths(
         );
     }
     for value in inputs.guards {
-        if !admit_node(
-            &mut nodes,
-            value.guard_id(),
-            correlation_limits.max_nodes,
-        ) {
+        if !admit_node(&mut nodes, value.guard_id(), correlation_limits.max_nodes) {
             return bounded_result(
                 &mut diagnostics,
                 PathCorrelationDiagnosticReason::NodeLimitExceeded,
@@ -368,11 +356,7 @@ pub fn correlate_cross_layer_paths(
         );
     }
     for value in inputs.values {
-        if !admit_node(
-            &mut nodes,
-            value.value_id(),
-            correlation_limits.max_nodes,
-        ) {
+        if !admit_node(&mut nodes, value.value_id(), correlation_limits.max_nodes) {
             return bounded_result(
                 &mut diagnostics,
                 PathCorrelationDiagnosticReason::NodeLimitExceeded,
@@ -418,11 +402,7 @@ pub fn correlate_cross_layer_paths(
         );
     }
     for value in inputs.provider_clients {
-        if !admit_node(
-            &mut nodes,
-            value.client_id(),
-            correlation_limits.max_nodes,
-        ) {
+        if !admit_node(&mut nodes, value.client_id(), correlation_limits.max_nodes) {
             return bounded_result(
                 &mut diagnostics,
                 PathCorrelationDiagnosticReason::NodeLimitExceeded,
@@ -714,10 +694,7 @@ pub fn correlate_cross_layer_paths(
                 ) {
                     return bounded_result(&mut diagnostics, reason, correlation_limits);
                 }
-                provider_link_ids.insert(
-                    operation.operation_id().as_str().to_owned(),
-                    link_id,
-                );
+                provider_link_ids.insert(operation.operation_id().as_str().to_owned(), link_id);
             } else {
                 partial_operation_ids.insert(operation.operation_id().as_str().to_owned());
                 push_diagnostic(
