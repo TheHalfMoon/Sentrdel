@@ -11,7 +11,11 @@ use sentrdel_review::{
             PathState, ResourceKind, ResourceRef, RouteObservation, SourceLocation,
             StableSemanticId, TrustBasis, ValueOrigin, ValueOriginKind,
         },
-        tenant_binding::{TenantBindingInputs, evaluate_tenant_binding},
+        tenant_binding::{
+            R3_TENANT_ACTOR_GUARD_RELATION, R3_TENANT_ACTOR_VALUE_RELATION,
+            R3_TENANT_GUARD_VALUE_RELATION, R3_TENANT_VALUE_OPERATION_RELATION,
+            TenantBindingInputs, evaluate_tenant_binding,
+        },
     },
     view::NormalizedRepoPath,
 };
@@ -52,14 +56,19 @@ fn link(
     namespace: &str,
     source: StableSemanticId,
     target: StableSemanticId,
+    relation: &str,
     start: usize,
 ) -> CrossLayerLink {
     CrossLayerLink::new(
-        StableSemanticId::from_parts(namespace, &[source.as_str(), target.as_str()], limits())
-            .expect("link id"),
+        StableSemanticId::from_parts(
+            namespace,
+            &[source.as_str(), target.as_str(), relation],
+            limits(),
+        )
+        .expect("link id"),
         source,
         target,
-        "r3_t021_field_regression",
+        relation,
         LinkBasis::ExplicitAdapterLink,
         ConfidenceBasis::Extracted,
         vec![location(start)],
@@ -218,12 +227,14 @@ fn evaluate_with_guard(
             "r3.t021.regression.actor-guard",
             actor.actor_id().clone(),
             primary_guard_id.clone(),
+            R3_TENANT_ACTOR_GUARD_RELATION,
             120,
         ),
         link(
             "r3.t021.regression.value-operation",
             value.value_id().clone(),
             operation.operation_id().clone(),
+            R3_TENANT_VALUE_OPERATION_RELATION,
             160,
         ),
     ];
@@ -232,6 +243,7 @@ fn evaluate_with_guard(
             "r3.t021.regression.actor-value",
             actor.actor_id().clone(),
             value.value_id().clone(),
+            R3_TENANT_ACTOR_VALUE_RELATION,
             130,
         ));
     }
@@ -240,6 +252,7 @@ fn evaluate_with_guard(
             "r3.t021.regression.guard-value",
             primary_guard_id,
             value.value_id().clone(),
+            R3_TENANT_GUARD_VALUE_RELATION,
             140,
         ));
     }
@@ -248,6 +261,7 @@ fn evaluate_with_guard(
             "r3.t021.regression.actor-unresolved-guard",
             actor.actor_id().clone(),
             unresolved_guard.guard_id().clone(),
+            R3_TENANT_ACTOR_GUARD_RELATION,
             150,
         ));
     }
@@ -256,6 +270,7 @@ fn evaluate_with_guard(
             "r3.t021.regression.unbound-value-operation",
             unbound_value.value_id().clone(),
             operation.operation_id().clone(),
+            R3_TENANT_VALUE_OPERATION_RELATION,
             170,
         ));
     }
