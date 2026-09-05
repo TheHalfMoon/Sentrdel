@@ -24,9 +24,8 @@ pub use projection::{
 pub use scip::{
     MAX_SCIP_DOCUMENTS, MAX_SCIP_METADATA_BYTES, MAX_SCIP_OCCURRENCES, MAX_SCIP_PATH_BYTES,
     MAX_SCIP_SYMBOL_BYTES, SCIP_REFERENCE_CAPABILITY, ScipArtifact, ScipCoverageGap, ScipDocument,
-    ScipIngestionError, ScipIngestionRequest, ScipIngestionResult, ScipOccurrence,
-    ScipOccurrenceRole, ScipPosition, ScipProducerQualification, ScipRange, ingest_scip,
-    scip_coverage_gap,
+    ScipIngestionError, ScipIngestionRequest, ScipOccurrence, ScipOccurrenceRole, ScipPosition,
+    ScipProducerQualification, ScipRange, scip_coverage_gap,
 };
 pub use sentrdel_schema::graph::{
     GraphConfidenceBasis, GraphConfidenceSource, GraphContractError, GraphEdge, GraphEdgeId,
@@ -36,6 +35,38 @@ pub use subtree::{
     MAX_PROVENANCE_SUBTREE_DEPTH, MAX_PROVENANCE_SUBTREE_NODES, ProvenanceSubtree,
     ProvenanceSubtreeError, ProvenanceSubtreeNode,
 };
+
+/// Opaque proof that a SCIP artifact passed the canonical bounded ingestion path.
+///
+/// External crates can inspect the validated graph and coverage records but cannot construct this
+/// value directly. This prevents downstream consumers from manufacturing compiler-backed semantic
+/// facts by supplying qualification-shaped strings or hand-built graph records.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ScipIngestionResult(scip::ScipIngestionResult);
+
+impl ScipIngestionResult {
+    #[must_use]
+    pub fn nodes(&self) -> &[GraphNode] {
+        &self.0.nodes
+    }
+
+    #[must_use]
+    pub fn edges(&self) -> &[GraphEdge] {
+        &self.0.edges
+    }
+
+    #[must_use]
+    pub fn coverage(&self) -> &sentrdel_schema::coverage::CoverageRecord {
+        &self.0.coverage
+    }
+}
+
+/// Run canonical bounded SCIP ingestion and return an opaque validated result.
+pub fn ingest_scip(
+    request: ScipIngestionRequest,
+) -> Result<ScipIngestionResult, ScipIngestionError> {
+    scip::ingest_scip(request).map(ScipIngestionResult)
+}
 
 /// Sentrdel intentionally owns a thin security/evidence graph rather than a
 /// universal code property graph.
