@@ -17,6 +17,7 @@ pub mod link;
 pub mod model;
 pub mod ordering;
 pub mod path;
+pub mod r2_support;
 #[path = "route_gate.rs"]
 pub mod route;
 #[path = "value_final.rs"]
