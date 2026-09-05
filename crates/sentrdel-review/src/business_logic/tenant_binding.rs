@@ -283,6 +283,17 @@ pub fn evaluate_tenant_binding(
                     unknown_filter_semantics = true;
                     continue;
                 };
+                if guard.required_values().is_empty() {
+                    unknown_filter_semantics = true;
+                    continue;
+                }
+                if !guard
+                    .required_values()
+                    .iter()
+                    .any(|field| field == resource_tenant_field)
+                {
+                    continue;
+                }
                 if guard_binds_actor_value(
                     inputs.path,
                     actor,
