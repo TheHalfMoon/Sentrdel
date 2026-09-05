@@ -12,10 +12,10 @@ use sentrdel_schema::coverage::CoverageState;
 
 use super::model::{
     ActorContext, ActorIdentityKind, ActorSourceKind, BusinessLogicLimits, ComparisonShape,
-    CrossLayerPath, DataOperation, DominanceScope, FilterOperator, GuardKind, GuardObservation,
-    InvariantDefinition, InvariantEvaluation, InvariantEvaluationState, InvariantKind,
-    InvariantRequirement, ModelError, PathState, RouteObservation, StableSemanticId, TrustBasis,
-    ValueOrigin, ValueOriginKind,
+    ConfidenceBasis, CrossLayerPath, DataOperation, DominanceScope, FilterOperator, GuardKind,
+    GuardObservation, InvariantDefinition, InvariantEvaluation, InvariantEvaluationState,
+    InvariantKind, InvariantRequirement, LinkBasis, ModelError, PathState, RouteObservation,
+    StableSemanticId, TrustBasis, ValueOrigin, ValueOriginKind,
 };
 
 pub const R3_TENANT_BINDING_CREATES_FINDINGS: bool = false;
@@ -141,6 +141,20 @@ pub fn evaluate_tenant_binding(
             Vec::new(),
             Vec::new(),
             vec!["tenant_binding_path_or_operation_not_fully_supported".to_owned()],
+            limits,
+        );
+    }
+
+    if inputs.path.links().iter().any(|link| {
+        link.confidence_basis() != ConfidenceBasis::Extracted || link.basis() == LinkBasis::Unknown
+    }) {
+        return evaluation(
+            inputs.invariant,
+            inputs.path,
+            InvariantEvaluationState::Unknown,
+            Vec::new(),
+            Vec::new(),
+            vec!["tenant_binding_path_contains_non_authoritative_link".to_owned()],
             limits,
         );
     }
@@ -297,6 +311,16 @@ pub fn evaluate_tenant_binding(
                     .iter()
                     .any(|field| field == resource_tenant_field)
                 {
+                    continue;
+                }
+                if !matches!(
+                    guard.comparison_shape(),
+                    ComparisonShape::Equal
+                        | ComparisonShape::Membership
+                        | ComparisonShape::ConjunctionSupported
+                ) || guard.dominance_scope() == DominanceScope::Unknown
+                {
+                    unknown_filter_semantics = true;
                     continue;
                 }
                 if !has_link(inputs.path, actor.actor_id(), guard.guard_id())
