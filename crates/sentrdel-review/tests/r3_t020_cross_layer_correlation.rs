@@ -4,14 +4,14 @@ use sentrdel_review::{
     business_logic::{
         graph_map::R3_GRAPH_CONFIDENCE_GRANTS_EVIDENCE_AUTHORITY,
         model::{
-            BusinessLogicLimits, ConfidenceBasis, CrossLayerLink, DataOperation,
-            DataOperationKind, FrameworkFamily, HttpMethod, LinkBasis, PathState, ResourceKind,
-            ResourceRef, RouteObservation, SourceLocation, StableSemanticId,
+            BusinessLogicLimits, ConfidenceBasis, CrossLayerLink, DataOperation, DataOperationKind,
+            FrameworkFamily, HttpMethod, LinkBasis, PathState, ResourceKind, ResourceRef,
+            RouteObservation, SourceLocation, StableSemanticId,
         },
         path::{
             PathCorrelationDiagnosticReason, PathCorrelationInputs, PathCorrelationLimits,
-            R3_PATH_CONFIDENCE_GRANTS_EVIDENCE_AUTHORITY,
-            R3_PATH_CORRELATION_CONSUMES_R2_EVIDENCE, correlate_cross_layer_paths,
+            R3_PATH_CONFIDENCE_GRANTS_EVIDENCE_AUTHORITY, R3_PATH_CORRELATION_CONSUMES_R2_EVIDENCE,
+            correlate_cross_layer_paths,
         },
         r2_support::{R2_SUPPORT_CONFIDENCE_GRANTS_AUTHORITY, R2_SUPPORT_PROVES_LIVE_POSTURE},
     },
@@ -64,11 +64,7 @@ fn resource(name: &str) -> ResourceRef {
     .expect("resource")
 }
 
-fn operation(
-    name: &str,
-    handler: Option<StableSemanticId>,
-    start: usize,
-) -> DataOperation {
+fn operation(name: &str, handler: Option<StableSemanticId>, start: usize) -> DataOperation {
     DataOperation::new(
         id("r3.t020.operation", name),
         DataOperationKind::Read,
@@ -184,7 +180,10 @@ fn ambiguous_links_cannot_meet_the_supported_path_prerequisite_for_invariants() 
     )
     .expect("ambiguous correlation");
 
-    let path = result.paths().first().expect("ambiguous path remains visible");
+    let path = result
+        .paths()
+        .first()
+        .expect("ambiguous path remains visible");
     assert_eq!(path.path_state(), PathState::Ambiguous);
     assert_ne!(path.path_state(), PathState::Supported);
     assert_eq!(result.coverage_state(), &CoverageState::Partial);
