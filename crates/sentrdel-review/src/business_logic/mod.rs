@@ -4,6 +4,7 @@
 //! policy, target-execution, provider-credential, network, or runtime authority.
 
 pub mod actor;
+pub mod coverage;
 #[path = "data_final.rs"]
 pub mod data;
 #[path = "data_gate.rs"]
