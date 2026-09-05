@@ -213,7 +213,13 @@ pub fn map_validated_observations(
         insert_node(&mut nodes, handler_node, limits)?;
         insert_edge(
             &mut edges,
-            edge(handler_id, resource_id, relation, confidence.clone(), provenance)?,
+            edge(
+                handler_id,
+                resource_id,
+                relation,
+                confidence.clone(),
+                provenance,
+            )?,
             limits,
         )?;
     }
