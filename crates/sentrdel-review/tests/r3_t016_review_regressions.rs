@@ -61,13 +61,16 @@ fn route_with_provenance(paths: &[&str]) -> RouteObservation {
     .expect("route observation")
 }
 
+fn document_with_language(
+    value: &str,
+    language: StructuralLanguage,
+    source: &str,
+) -> LinkDocument {
+    LinkDocument::new(path(value), language, source.as_bytes().to_vec()).expect("link document")
+}
+
 fn document(value: &str, source: &str) -> LinkDocument {
-    LinkDocument::new(
-        path(value),
-        StructuralLanguage::TypeScript,
-        source.as_bytes().to_vec(),
-    )
-    .expect("link document")
+    document_with_language(value, StructuralLanguage::TypeScript, source)
 }
 
 fn has_import_link(result: &sentrdel_review::business_logic::link::LinkingResult) -> bool {
@@ -152,6 +155,42 @@ fn callback_shadowing_forms_never_resolve_to_top_level_import() {
             BusinessLogicLimits::default(),
         )
         .expect("shadowed callback linking");
+
+        assert_eq!(result.coverage().local_state(), &CoverageState::Partial);
+        assert!(!has_import_link(&result));
+        assert!(result.diagnostics().iter().any(|diagnostic| {
+            diagnostic.reason() == LinkingDiagnosticReason::ShadowedImportBinding
+        }));
+    }
+}
+
+#[test]
+fn bare_arrow_parameters_never_resolve_to_top_level_imports() {
+    let cases = [
+        (
+            StructuralLanguage::JavaScript,
+            "src/routes.js",
+            "src/handlers.js",
+            "import { handler } from './handlers.js';\nconst register = handler => app.get('/fixture', handler);",
+        ),
+        (
+            StructuralLanguage::TypeScript,
+            "src/routes.ts",
+            "src/handlers.ts",
+            "import { handler } from './handlers.ts';\nconst register = handler => app.get('/fixture', handler);",
+        ),
+    ];
+
+    for (language, importer, target, source) in cases {
+        let result = link_inter_file_semantics(
+            &[route(importer)],
+            &[
+                document_with_language(importer, language, source),
+                document_with_language(target, language, "export function handler() {}"),
+            ],
+            BusinessLogicLimits::default(),
+        )
+        .expect("bare arrow shadowing must remain visible");
 
         assert_eq!(result.coverage().local_state(), &CoverageState::Partial);
         assert!(!has_import_link(&result));
