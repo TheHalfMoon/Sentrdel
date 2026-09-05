@@ -1,8 +1,6 @@
 use sentrdel_review::{
     business_logic::{
-        link::{
-            LinkDocument, LinkingDiagnosticReason, LinkingError, link_inter_file_semantics,
-        },
+        link::{LinkDocument, LinkingDiagnosticReason, LinkingError, link_inter_file_semantics},
         model::{
             BusinessLogicLimits, ConfidenceBasis, FrameworkFamily, HttpMethod, LinkBasis,
             RouteObservation, SourceLocation, StableSemanticId,
@@ -185,8 +183,8 @@ fn deterministic_replay_and_resource_caps_fail_closed() {
         vec![id("callback", "one"), id("callback", "two")],
         CoverageState::Covered,
     );
-    let link_error = link_inter_file_semantics(&[two_callbacks], &[], tiny)
-        .expect_err("link cap must fail");
+    let link_error =
+        link_inter_file_semantics(&[two_callbacks], &[], tiny).expect_err("link cap must fail");
     assert!(matches!(
         link_error,
         LinkingError::TooManyLinks { count: 2, max: 1 }
