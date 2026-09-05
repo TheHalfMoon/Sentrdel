@@ -239,6 +239,8 @@ pub fn evaluate_tenant_binding(
 
     let mut unknown_filter_semantics = false;
     let mut contradicting = BTreeSet::new();
+    let mut satisfied: Option<(Vec<StableSemanticId>, &'static str)> = None;
+
     for filter in relevant_filters {
         if !matches!(filter.operator(), FilterOperator::Eq | FilterOperator::In) {
             unknown_filter_semantics = true;
@@ -257,25 +259,25 @@ pub fn evaluate_tenant_binding(
             continue;
         }
 
+        let mut filter_satisfied = false;
         for actor in candidate_actors
             .iter()
             .copied()
             .filter(|actor| supported_authenticated_actor(actor))
         {
             if direct_actor_value_binding(inputs.path, actor, value, *required_actor_identity) {
-                return evaluation(
-                    inputs.invariant,
-                    inputs.path,
-                    InvariantEvaluationState::Satisfied,
-                    vec![
-                        actor.actor_id().clone(),
-                        value.value_id().clone(),
-                        inputs.operation.operation_id().clone(),
-                    ],
-                    Vec::new(),
-                    vec!["supported_authenticated_actor_filter_binding".to_owned()],
-                    limits,
-                );
+                if satisfied.is_none() {
+                    satisfied = Some((
+                        vec![
+                            actor.actor_id().clone(),
+                            value.value_id().clone(),
+                            inputs.operation.operation_id().clone(),
+                        ],
+                        "supported_authenticated_actor_filter_binding",
+                    ));
+                }
+                filter_satisfied = true;
+                break;
             }
 
             for guard_id in inputs.path.guard_ids() {
@@ -311,24 +313,24 @@ pub fn evaluate_tenant_binding(
                     inputs.operation,
                     *required_actor_identity,
                 ) {
-                    return evaluation(
-                        inputs.invariant,
-                        inputs.path,
-                        InvariantEvaluationState::Satisfied,
-                        vec![
-                            actor.actor_id().clone(),
-                            guard.guard_id().clone(),
-                            value.value_id().clone(),
-                            inputs.operation.operation_id().clone(),
-                        ],
-                        Vec::new(),
-                        vec!["supported_guarded_tenant_or_owner_binding".to_owned()],
-                        limits,
-                    );
+                    if satisfied.is_none() {
+                        satisfied = Some((
+                            vec![
+                                actor.actor_id().clone(),
+                                guard.guard_id().clone(),
+                                value.value_id().clone(),
+                                inputs.operation.operation_id().clone(),
+                            ],
+                            "supported_guarded_tenant_or_owner_binding",
+                        ));
+                    }
+                    filter_satisfied = true;
                 }
             }
         }
-        contradicting.insert(value.value_id().clone());
+        if !filter_satisfied {
+            contradicting.insert(value.value_id().clone());
+        }
     }
 
     if unknown_filter_semantics {
@@ -339,6 +341,18 @@ pub fn evaluate_tenant_binding(
             Vec::new(),
             contradicting.into_iter().collect(),
             vec!["tenant_binding_filter_or_link_semantics_unresolved".to_owned()],
+            limits,
+        );
+    }
+
+    if let Some((supporting_observation_ids, reason)) = satisfied {
+        return evaluation(
+            inputs.invariant,
+            inputs.path,
+            InvariantEvaluationState::Satisfied,
+            supporting_observation_ids,
+            Vec::new(),
+            vec![reason.to_owned()],
             limits,
         );
     }
