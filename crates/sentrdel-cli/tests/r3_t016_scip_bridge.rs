@@ -57,7 +57,9 @@ fn request(qualification: ScipProducerQualification) -> ScipIngestionRequest {
 
 fn admitted(qualification: ScipProducerQualification, complete: bool) -> ScipSemanticInput {
     ScipSemanticInput::Admitted {
-        ingestion: ingest_scip(request(qualification)).expect("canonical SCIP ingestion"),
+        ingestion: Box::new(
+            ingest_scip(request(qualification)).expect("canonical SCIP ingestion"),
+        ),
         provenance: vec![provenance()],
         complete,
     }
@@ -171,7 +173,7 @@ fn provenance_caps_fail_closed() {
     };
     let error = link_scip_semantics(
         ScipSemanticInput::Admitted {
-            ingestion,
+            ingestion: Box::new(ingestion),
             provenance: vec![
                 provenance(),
                 SourceLocation::new(
