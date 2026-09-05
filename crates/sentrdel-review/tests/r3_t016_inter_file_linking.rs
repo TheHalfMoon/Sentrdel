@@ -4,8 +4,8 @@ use sentrdel_review::{
             INTER_FILE_LINKING_EXECUTES_TARGET, INTER_FILE_LINKING_REQUIRES_SCIP,
             LEXICAL_EQUALITY_PROVES_LINK_EQUIVALENCE, LinkingCoverageGapReason,
             QualifiedScipReference, REL_CALLBACK_IMPORT_BINDING, REL_CALLBACK_PRECEDES,
-            REL_SCIP_REFERENCE, SCIP_QUALIFICATION_IS_INFERRED_FROM_REPOSITORY,
-            SemanticIndexInput, SourceModule, link_inter_file,
+            REL_SCIP_REFERENCE, SCIP_QUALIFICATION_IS_INFERRED_FROM_REPOSITORY, SemanticIndexInput,
+            SourceModule, link_inter_file,
         },
         model::{
             BusinessLogicLimits, ConfidenceBasis, FrameworkFamily, HttpMethod, LinkBasis,
@@ -118,9 +118,12 @@ fn unique_local_import_and_callback_order_produce_bounded_links() {
             && link.basis() == LinkBasis::SupportedImportBinding
             && link.confidence_basis() == ConfidenceBasis::Extracted
     }));
-    assert!(result.gaps().iter().any(|gap| {
-        gap.reason() == LinkingCoverageGapReason::SemanticIndexUnavailable
-    }));
+    assert!(
+        result
+            .gaps()
+            .iter()
+            .any(|gap| { gap.reason() == LinkingCoverageGapReason::SemanticIndexUnavailable })
+    );
 }
 
 #[test]
@@ -157,13 +160,18 @@ fn ambiguous_extension_resolution_is_partial_and_never_links() {
     .expect("linking");
 
     assert_eq!(result.local_coverage(), &CoverageState::Partial);
-    assert!(!result
-        .links()
-        .iter()
-        .any(|link| link.relation() == REL_CALLBACK_IMPORT_BINDING));
-    assert!(result.gaps().iter().any(|gap| {
-        gap.reason() == LinkingCoverageGapReason::AmbiguousLocalImport
-    }));
+    assert!(
+        !result
+            .links()
+            .iter()
+            .any(|link| link.relation() == REL_CALLBACK_IMPORT_BINDING)
+    );
+    assert!(
+        result
+            .gaps()
+            .iter()
+            .any(|gap| { gap.reason() == LinkingCoverageGapReason::AmbiguousLocalImport })
+    );
 }
 
 #[test]
@@ -275,9 +283,12 @@ fn qualified_scip_references_preserve_confidence_and_qualification() {
     )
     .expect("linking");
     assert_eq!(partial.semantic_coverage(), &CoverageState::Partial);
-    assert!(partial.gaps().iter().any(|gap| {
-        gap.reason() == LinkingCoverageGapReason::SemanticIndexInferred
-    }));
+    assert!(
+        partial
+            .gaps()
+            .iter()
+            .any(|gap| { gap.reason() == LinkingCoverageGapReason::SemanticIndexInferred })
+    );
 }
 
 #[test]
@@ -311,9 +322,12 @@ fn semantic_absence_partial_ambiguity_and_empty_index_never_become_clean() {
     )
     .expect("empty index");
     assert_eq!(empty.semantic_coverage(), &CoverageState::Partial);
-    assert!(empty.gaps().iter().any(|gap| {
-        gap.reason() == LinkingCoverageGapReason::SemanticIndexEmpty
-    }));
+    assert!(
+        empty
+            .gaps()
+            .iter()
+            .any(|gap| { gap.reason() == LinkingCoverageGapReason::SemanticIndexEmpty })
+    );
 
     let ambiguous = QualifiedScipReference::new(
         id("r3-scip-source", &["ambiguous-reference"]),
@@ -335,10 +349,16 @@ fn semantic_absence_partial_ambiguity_and_empty_index_never_become_clean() {
         BusinessLogicLimits::default(),
     )
     .expect("ambiguous linking");
-    assert_eq!(ambiguous_result.semantic_coverage(), &CoverageState::Partial);
-    assert!(ambiguous_result.gaps().iter().any(|gap| {
-        gap.reason() == LinkingCoverageGapReason::SemanticReferenceAmbiguous
-    }));
+    assert_eq!(
+        ambiguous_result.semantic_coverage(),
+        &CoverageState::Partial
+    );
+    assert!(
+        ambiguous_result
+            .gaps()
+            .iter()
+            .any(|gap| { gap.reason() == LinkingCoverageGapReason::SemanticReferenceAmbiguous })
+    );
 }
 
 #[test]
@@ -356,8 +376,16 @@ fn replay_is_deterministic_and_caps_fail_visible() {
         express_route("src/routes/b.ts", &["auth"]),
     ];
     let modules_forward = [
-        SourceModule::new(path("src/routes/a.ts"), StructuralLanguage::TypeScript, source_a),
-        SourceModule::new(path("src/routes/b.ts"), StructuralLanguage::TypeScript, source_b),
+        SourceModule::new(
+            path("src/routes/a.ts"),
+            StructuralLanguage::TypeScript,
+            source_a,
+        ),
+        SourceModule::new(
+            path("src/routes/b.ts"),
+            StructuralLanguage::TypeScript,
+            source_b,
+        ),
         SourceModule::new(
             path("src/auth.ts"),
             StructuralLanguage::TypeScript,
@@ -370,8 +398,16 @@ fn replay_is_deterministic_and_caps_fail_visible() {
             StructuralLanguage::TypeScript,
             b"export function authorize() {}",
         ),
-        SourceModule::new(path("src/routes/b.ts"), StructuralLanguage::TypeScript, source_b),
-        SourceModule::new(path("src/routes/a.ts"), StructuralLanguage::TypeScript, source_a),
+        SourceModule::new(
+            path("src/routes/b.ts"),
+            StructuralLanguage::TypeScript,
+            source_b,
+        ),
+        SourceModule::new(
+            path("src/routes/a.ts"),
+            StructuralLanguage::TypeScript,
+            source_a,
+        ),
     ];
     let forward = link_inter_file(
         &routes,
