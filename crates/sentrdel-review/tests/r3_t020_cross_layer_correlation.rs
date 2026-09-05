@@ -197,7 +197,11 @@ fn supported_and_ambiguous_cross_layer_paths_remain_distinguishable() {
     assert_eq!(safe.coverage_state(), &CoverageState::Covered);
     assert_eq!(safe.paths().len(), 1);
     assert_eq!(safe.paths()[0].path_state(), PathState::Supported);
-    assert!(safe.paths().iter().all(|path| path.r2_evidence_ids().is_empty()));
+    assert!(
+        safe.paths()
+            .iter()
+            .all(|path| path.r2_evidence_ids().is_empty())
+    );
 
     let ambiguous_operations = vec![operation("profiles", None, 200)];
     let ambiguous_links = vec![explicit_link(
@@ -272,13 +276,9 @@ fn r2_static_support_cannot_become_hosted_truth_through_path_correlation() {
 
     let provider = SupabaseR2ProviderOutput::new(vec![static_r2_evidence()], Vec::new())
         .expect("validated R2 fixture output");
-    let result = correlate_supabase_r2_support(
-        &provider,
-        &[r2_resource()],
-        &[],
-        R2SupportLimits::default(),
-    )
-    .expect("R2 support correlation");
+    let result =
+        correlate_supabase_r2_support(&provider, &[r2_resource()], &[], R2SupportLimits::default())
+            .expect("R2 support correlation");
 
     assert_eq!(result.matches().len(), 1);
     assert!(result.diagnostics().iter().any(|diagnostic| {
