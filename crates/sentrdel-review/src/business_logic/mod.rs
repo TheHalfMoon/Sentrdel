@@ -8,6 +8,7 @@ pub mod actor;
 pub mod data;
 #[path = "data_gate.rs"]
 mod data_candidate;
+#[path = "graph_map.rs"]
 pub mod graph;
 #[path = "guard_tdz_scope.rs"]
 pub mod guard;
