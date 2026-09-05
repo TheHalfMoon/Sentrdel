@@ -72,6 +72,8 @@ fn evaluate_with_guard(
     guard_kind: GuardKind,
     required_values: Vec<String>,
     include_guard_value_link: bool,
+    include_unresolved_filter: bool,
+    include_unresolved_binding_guard: bool,
 ) -> InvariantEvaluationState {
     let callback_id = id("r3.t021.regression.callback", "handler");
     let route = RouteObservation::new(
@@ -123,20 +125,53 @@ fn evaluate_with_guard(
     )
     .expect("guard");
 
-    let filter = FilterPredicate::new(
-        "user_id",
-        FilterOperator::Eq,
-        value.value_id().clone(),
-        location(80),
-        limits(),
-    )
-    .expect("filter");
+    let mut guards = vec![guard];
+    if include_unresolved_binding_guard {
+        guards.push(
+            GuardObservation::new(
+                id("r3.t021.regression.guard", "unresolved-binding"),
+                GuardKind::OwnershipBinding,
+                Some(actor.actor_id().clone()),
+                None,
+                Vec::new(),
+                ComparisonShape::Equal,
+                DominanceScope::SameHandlerPrefix,
+                vec![location(70)],
+                limits(),
+            )
+            .expect("unresolved guard"),
+        );
+    }
+
+    let mut filters = vec![
+        FilterPredicate::new(
+            "user_id",
+            FilterOperator::Eq,
+            value.value_id().clone(),
+            location(80),
+            limits(),
+        )
+        .expect("filter"),
+    ];
+    if include_unresolved_filter {
+        filters.push(
+            FilterPredicate::new(
+                "user_id",
+                FilterOperator::OtherSupported,
+                value.value_id().clone(),
+                location(90),
+                limits(),
+            )
+            .expect("unresolved filter"),
+        );
+    }
+
     let operation = DataOperation::new(
         id("r3.t021.regression.operation", "read-account"),
         DataOperationKind::Read,
         resource(),
         None,
-        vec![filter],
+        filters,
         None,
         None,
         None,
@@ -147,11 +182,12 @@ fn evaluate_with_guard(
     )
     .expect("operation");
 
+    let primary_guard_id = guards[0].guard_id().clone();
     let mut links = vec![
         link(
             "r3.t021.regression.actor-guard",
             actor.actor_id().clone(),
-            guard.guard_id().clone(),
+            primary_guard_id.clone(),
             120,
         ),
         link(
@@ -164,16 +200,29 @@ fn evaluate_with_guard(
     if include_guard_value_link {
         links.push(link(
             "r3.t021.regression.guard-value",
-            guard.guard_id().clone(),
+            primary_guard_id,
             value.value_id().clone(),
             140,
         ));
     }
+    if let Some(unresolved_guard) = guards.get(1) {
+        links.push(link(
+            "r3.t021.regression.actor-unresolved-guard",
+            actor.actor_id().clone(),
+            unresolved_guard.guard_id().clone(),
+            150,
+        ));
+    }
+
+    let guard_ids = guards
+        .iter()
+        .map(|candidate| candidate.guard_id().clone())
+        .collect();
     let path = CrossLayerPath::new(
         id("r3.t021.regression.path", "account"),
         route.route_id().clone(),
         vec![actor.actor_id().clone()],
-        vec![guard.guard_id().clone()],
+        guard_ids,
         operation.operation_id().clone(),
         None,
         links,
@@ -215,7 +264,7 @@ fn evaluate_with_guard(
             path: &path,
             route: &route,
             actors: std::slice::from_ref(&actor),
-            guards: std::slice::from_ref(&guard),
+            guards: &guards,
             values: std::slice::from_ref(&value),
             operation: &operation,
         },
@@ -231,6 +280,8 @@ fn guard_for_different_field_cannot_satisfy_tenant_binding() {
         GuardKind::OwnershipBinding,
         vec!["different_field".to_owned()],
         true,
+        false,
+        false,
     );
     assert_eq!(state, InvariantEvaluationState::Violated);
     assert_ne!(state, InvariantEvaluationState::Satisfied);
@@ -238,14 +289,26 @@ fn guard_for_different_field_cannot_satisfy_tenant_binding() {
 
 #[test]
 fn binding_guard_without_field_semantics_remains_unknown() {
-    let state = evaluate_with_guard(GuardKind::OwnershipBinding, Vec::new(), true);
+    let state = evaluate_with_guard(
+        GuardKind::OwnershipBinding,
+        Vec::new(),
+        true,
+        false,
+        false,
+    );
     assert_eq!(state, InvariantEvaluationState::Unknown);
     assert_ne!(state, InvariantEvaluationState::Satisfied);
 }
 
 #[test]
 fn unrelated_guard_without_field_semantics_does_not_mask_violation() {
-    let state = evaluate_with_guard(GuardKind::Authentication, Vec::new(), true);
+    let state = evaluate_with_guard(
+        GuardKind::Authentication,
+        Vec::new(),
+        true,
+        false,
+        false,
+    );
     assert_eq!(state, InvariantEvaluationState::Violated);
     assert_ne!(state, InvariantEvaluationState::Satisfied);
 }
@@ -256,6 +319,34 @@ fn binding_guard_with_unresolved_value_link_remains_unknown() {
         GuardKind::OwnershipBinding,
         vec!["user_id".to_owned()],
         false,
+        false,
+        false,
+    );
+    assert_eq!(state, InvariantEvaluationState::Unknown);
+    assert_ne!(state, InvariantEvaluationState::Satisfied);
+}
+
+#[test]
+fn satisfied_filter_cannot_hide_another_unresolved_tenant_filter() {
+    let state = evaluate_with_guard(
+        GuardKind::OwnershipBinding,
+        vec!["user_id".to_owned()],
+        true,
+        true,
+        false,
+    );
+    assert_eq!(state, InvariantEvaluationState::Unknown);
+    assert_ne!(state, InvariantEvaluationState::Satisfied);
+}
+
+#[test]
+fn satisfied_guard_cannot_hide_another_unresolved_binding_guard() {
+    let state = evaluate_with_guard(
+        GuardKind::OwnershipBinding,
+        vec!["user_id".to_owned()],
+        true,
+        false,
+        true,
     );
     assert_eq!(state, InvariantEvaluationState::Unknown);
     assert_ne!(state, InvariantEvaluationState::Satisfied);
