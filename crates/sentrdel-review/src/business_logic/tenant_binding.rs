@@ -372,7 +372,15 @@ pub fn evaluate_tenant_binding(
         );
     }
 
-    unreachable!("non-empty fully analyzed tenant filters must be satisfied or violated")
+    evaluation(
+        inputs.invariant,
+        inputs.path,
+        InvariantEvaluationState::Unknown,
+        Vec::new(),
+        Vec::new(),
+        vec!["tenant_binding_evaluation_incomplete".to_owned()],
+        limits,
+    )
 }
 
 fn scope_applies(
