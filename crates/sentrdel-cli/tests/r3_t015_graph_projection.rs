@@ -34,7 +34,7 @@ fn r3_t015_records_use_existing_thin_graph_projection() {
         HttpMethod::Get,
         "/profiles/:id",
         Some("src/routes/profiles.js::handler".to_owned()),
-        Vec::new(),
+        vec![id("r3.route-callback", "profile-handler")],
         vec![location("src/routes/profiles.js", 0)],
         CoverageState::Covered,
         BusinessLogicLimits::default(),
