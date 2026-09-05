@@ -181,6 +181,11 @@ pub enum LinkingError {
         count: usize,
         max: usize,
     },
+    DocumentTooLarge {
+        path: NormalizedRepoPath,
+        bytes: usize,
+        max: usize,
+    },
     AstNodeLimitExceeded {
         path: NormalizedRepoPath,
         count: usize,
@@ -189,11 +194,6 @@ pub enum LinkingError {
     AstDepthLimitExceeded {
         path: NormalizedRepoPath,
         depth: usize,
-        max: usize,
-    },
-    DocumentTooLarge {
-        path: NormalizedRepoPath,
-        bytes: usize,
         max: usize,
     },
     DuplicateDocumentPath(NormalizedRepoPath),
@@ -228,17 +228,17 @@ impl fmt::Display for LinkingError {
                 formatter,
                 "R3 linking diagnostic count {count} exceeds cap {max}"
             ),
-            Self::AstNodeLimitExceeded { path, count, max } => write!(
-                formatter,
-                "R3 linking AST node count {count} for {path} exceeds cap {max}"
-            ),
-            Self::AstDepthLimitExceeded { path, depth, max } => write!(
-                formatter,
-                "R3 linking AST depth {depth} for {path} exceeds cap {max}"
-            ),
             Self::DocumentTooLarge { path, bytes, max } => write!(
                 formatter,
                 "R3 linking document {path} size {bytes} exceeds cap {max}"
+            ),
+            Self::AstNodeLimitExceeded { path, count, max } => write!(
+                formatter,
+                "R3 linking document {path} AST node count {count} exceeds cap {max}"
+            ),
+            Self::AstDepthLimitExceeded { path, depth, max } => write!(
+                formatter,
+                "R3 linking document {path} AST depth {depth} exceeds cap {max}"
             ),
             Self::DuplicateDocumentPath(path) => {
                 write!(formatter, "duplicate R3 linking document path: {path}")
@@ -340,6 +340,7 @@ pub fn link_inter_file_semantics(
         let digest = content_id("r3-link-source", &(document.path.as_str(), source))
             .map_err(ModelError::from)?;
         let tree = parse_tree(document.language, source, &document.path)?;
+        validate_ast_bounds(&document.path, tree.root_node())?;
         let facts = collect_module_facts(document, source, &digest, tree.root_node())?;
         total_imports = total_imports.saturating_add(facts.imports.len());
         let import_cap = MAX_LOCAL_IMPORT_BINDINGS.min(limits.max_path_candidates);
@@ -646,14 +647,43 @@ pub fn link_inter_file_semantics(
     })
 }
 
+fn validate_ast_bounds(
+    path: &NormalizedRepoPath,
+    root: tree_sitter::Node<'_>,
+) -> Result<(), LinkingError> {
+    let mut stack = vec![(root, 1usize)];
+    let mut count = 0usize;
+    while let Some((node, depth)) = stack.pop() {
+        count = count.saturating_add(1);
+        if count > MAX_LINK_AST_NODES {
+            return Err(LinkingError::AstNodeLimitExceeded {
+                path: path.clone(),
+                count,
+                max: MAX_LINK_AST_NODES,
+            });
+        }
+        if depth > MAX_LINK_AST_DEPTH {
+            return Err(LinkingError::AstDepthLimitExceeded {
+                path: path.clone(),
+                depth,
+                max: MAX_LINK_AST_DEPTH,
+            });
+        }
+        let mut cursor = node.walk();
+        stack.extend(
+            node.named_children(&mut cursor)
+                .map(|child| (child, depth.saturating_add(1))),
+        );
+    }
+    Ok(())
+}
+
 fn collect_module_facts(
     document: &LinkDocument,
     source: &str,
     digest: &str,
     root: tree_sitter::Node<'_>,
 ) -> Result<ParsedDocument, LinkingError> {
-    validate_ast_bounds(root, &document.path)?;
-
     let mut imports = Vec::new();
     let mut direct_exports = BTreeMap::<String, Vec<SourceLocation>>::new();
     let mut unsupported_exports = BTreeMap::<String, Vec<SourceLocation>>::new();
@@ -726,47 +756,6 @@ fn collect_module_facts(
         has_dynamic_import,
         has_unsupported_export,
     })
-}
-
-fn validate_ast_bounds(
-    root: tree_sitter::Node<'_>,
-    path: &NormalizedRepoPath,
-) -> Result<(), LinkingError> {
-    let mut stack = vec![(root, 1usize)];
-    let mut count = 0usize;
-
-    while let Some((node, depth)) = stack.pop() {
-        count = count.saturating_add(1);
-        if count > MAX_LINK_AST_NODES {
-            return Err(LinkingError::AstNodeLimitExceeded {
-                path: path.clone(),
-                count,
-                max: MAX_LINK_AST_NODES,
-            });
-        }
-        if depth > MAX_LINK_AST_DEPTH {
-            return Err(LinkingError::AstDepthLimitExceeded {
-                path: path.clone(),
-                depth,
-                max: MAX_LINK_AST_DEPTH,
-            });
-        }
-
-        let child_depth = depth.saturating_add(1);
-        let mut cursor = node.walk();
-        for child in node.named_children(&mut cursor) {
-            if child_depth > MAX_LINK_AST_DEPTH {
-                return Err(LinkingError::AstDepthLimitExceeded {
-                    path: path.clone(),
-                    depth: child_depth,
-                    max: MAX_LINK_AST_DEPTH,
-                });
-            }
-            stack.push((child, child_depth));
-        }
-    }
-
-    Ok(())
 }
 
 fn collect_import_statement(
@@ -943,6 +932,11 @@ fn collect_declared_bindings(
             "catch_clause" => {
                 if let Some(parameter) = node.child_by_field_name("parameter") {
                     collect_pattern_identifiers(document, source, digest, parameter, declared)?;
+                }
+            }
+            "for_in_statement" => {
+                if let Some(left) = node.child_by_field_name("left") {
+                    collect_pattern_identifiers(document, source, digest, left, declared)?;
                 }
             }
             _ => {}
