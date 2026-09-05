@@ -99,6 +99,7 @@ export function register(app) {
         limits,
     )
     .expect("extract supported value-origin baseline");
+    assert!(values.gaps().is_empty());
     assert!(
         values
             .values()
@@ -129,10 +130,15 @@ export function register(app) {
         limits,
     )
     .expect("extract supported Supabase data-operation baseline");
+    assert!(data.gaps().is_empty());
     assert_eq!(data.operations().len(), 1);
     assert_eq!(
         data.operations()[0].operation_kind(),
         DataOperationKind::Read
+    );
+    assert_eq!(
+        data.operations()[0].coverage_state(),
+        &CoverageState::Covered
     );
     assert_eq!(data.operations()[0].resource().resource_name(), "profiles");
 }
