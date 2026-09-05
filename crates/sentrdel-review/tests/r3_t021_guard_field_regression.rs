@@ -74,6 +74,7 @@ fn evaluate_with_guard(
     include_guard_value_link: bool,
     include_unresolved_filter: bool,
     include_unresolved_binding_guard: bool,
+    include_unbound_filter: bool,
 ) -> InvariantEvaluationState {
     let callback_id = id("r3.t021.regression.callback", "handler");
     let route = RouteObservation::new(
@@ -111,6 +112,17 @@ fn evaluate_with_guard(
         limits(),
     )
     .expect("value");
+    let unbound_value = ValueOrigin::new(
+        id("r3.t021.regression.value", "unbound-user-id"),
+        ValueOriginKind::RequestQuery,
+        "req.query.user_id",
+        None,
+        Vec::new(),
+        0,
+        vec![location(50)],
+        limits(),
+    )
+    .expect("unbound value");
 
     let guard = GuardObservation::new(
         id("r3.t021.regression.guard", "candidate"),
@@ -165,6 +177,18 @@ fn evaluate_with_guard(
             .expect("unresolved filter"),
         );
     }
+    if include_unbound_filter {
+        filters.push(
+            FilterPredicate::new(
+                "user_id",
+                FilterOperator::Eq,
+                unbound_value.value_id().clone(),
+                location(95),
+                limits(),
+            )
+            .expect("unbound filter"),
+        );
+    }
 
     let operation = DataOperation::new(
         id("r3.t021.regression.operation", "read-account"),
@@ -213,6 +237,14 @@ fn evaluate_with_guard(
             150,
         ));
     }
+    if include_unbound_filter {
+        links.push(link(
+            "r3.t021.regression.unbound-value-operation",
+            unbound_value.value_id().clone(),
+            operation.operation_id().clone(),
+            170,
+        ));
+    }
 
     let guard_ids = guards
         .iter()
@@ -258,6 +290,11 @@ fn evaluate_with_guard(
     )
     .expect("invariant");
 
+    let mut values = vec![value];
+    if include_unbound_filter {
+        values.push(unbound_value);
+    }
+
     evaluate_tenant_binding(
         TenantBindingInputs {
             invariant: &invariant,
@@ -265,7 +302,7 @@ fn evaluate_with_guard(
             route: &route,
             actors: std::slice::from_ref(&actor),
             guards: &guards,
-            values: std::slice::from_ref(&value),
+            values: &values,
             operation: &operation,
         },
         limits(),
@@ -282,6 +319,7 @@ fn guard_for_different_field_cannot_satisfy_tenant_binding() {
         true,
         false,
         false,
+        false,
     );
     assert_eq!(state, InvariantEvaluationState::Violated);
     assert_ne!(state, InvariantEvaluationState::Satisfied);
@@ -289,14 +327,28 @@ fn guard_for_different_field_cannot_satisfy_tenant_binding() {
 
 #[test]
 fn binding_guard_without_field_semantics_remains_unknown() {
-    let state = evaluate_with_guard(GuardKind::OwnershipBinding, Vec::new(), true, false, false);
+    let state = evaluate_with_guard(
+        GuardKind::OwnershipBinding,
+        Vec::new(),
+        true,
+        false,
+        false,
+        false,
+    );
     assert_eq!(state, InvariantEvaluationState::Unknown);
     assert_ne!(state, InvariantEvaluationState::Satisfied);
 }
 
 #[test]
 fn unrelated_guard_without_field_semantics_does_not_mask_violation() {
-    let state = evaluate_with_guard(GuardKind::Authentication, Vec::new(), true, false, false);
+    let state = evaluate_with_guard(
+        GuardKind::Authentication,
+        Vec::new(),
+        true,
+        false,
+        false,
+        false,
+    );
     assert_eq!(state, InvariantEvaluationState::Violated);
     assert_ne!(state, InvariantEvaluationState::Satisfied);
 }
@@ -306,6 +358,7 @@ fn binding_guard_with_unresolved_value_link_remains_unknown() {
     let state = evaluate_with_guard(
         GuardKind::OwnershipBinding,
         vec!["user_id".to_owned()],
+        false,
         false,
         false,
         false,
@@ -322,6 +375,7 @@ fn satisfied_filter_cannot_hide_another_unresolved_tenant_filter() {
         true,
         true,
         false,
+        false,
     );
     assert_eq!(state, InvariantEvaluationState::Unknown);
     assert_ne!(state, InvariantEvaluationState::Satisfied);
@@ -335,7 +389,22 @@ fn satisfied_guard_cannot_hide_another_unresolved_binding_guard() {
         true,
         false,
         true,
+        false,
     );
     assert_eq!(state, InvariantEvaluationState::Unknown);
+    assert_ne!(state, InvariantEvaluationState::Satisfied);
+}
+
+#[test]
+fn one_bound_filter_cannot_hide_another_analyzable_unbound_filter() {
+    let state = evaluate_with_guard(
+        GuardKind::OwnershipBinding,
+        vec!["user_id".to_owned()],
+        true,
+        false,
+        false,
+        true,
+    );
+    assert_eq!(state, InvariantEvaluationState::Violated);
     assert_ne!(state, InvariantEvaluationState::Satisfied);
 }
