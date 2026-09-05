@@ -928,12 +928,12 @@ fn collect_export_statement(
 }
 
 fn contains_dynamic_import(root: tree_sitter::Node<'_>, source: &str) -> bool {
-    if root.kind() == "call_expression" {
-        if let Some(text) = node_text(root, source) {
-            let compact = text.trim_start();
-            if compact.starts_with("import(") || compact.starts_with("import (") {
-                return true;
-            }
+    if root.kind() == "call_expression"
+        && let Some(text) = node_text(root, source)
+    {
+        let compact = text.trim_start();
+        if compact.starts_with("import(") || compact.starts_with("import (") {
+            return true;
         }
     }
     let mut cursor = root.walk();
