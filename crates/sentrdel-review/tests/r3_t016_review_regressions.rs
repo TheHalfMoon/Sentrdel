@@ -1,15 +1,16 @@
 use sentrdel_review::{
     business_logic::{
         link::{
-            AdmittedScipReference, LinkingDiagnosticReason, LinkingError, ScipProducerBasis,
-            ScipSemanticInput, link_inter_file_semantics,
+            AdmittedScipReference, LinkDocument, LinkingDiagnosticReason, LinkingError,
+            ScipProducerBasis, ScipSemanticInput, link_inter_file_semantics,
         },
         model::{
-            BusinessLogicLimits, FrameworkFamily, HttpMethod, RouteObservation, SourceLocation,
-            StableSemanticId,
+            BusinessLogicLimits, FrameworkFamily, HttpMethod, LinkBasis, RouteObservation,
+            SourceLocation, StableSemanticId,
         },
         route::MAX_ROUTE_OBSERVATIONS,
     },
+    structural::StructuralLanguage,
     view::{DEFAULT_MAX_REPO_PATH_BYTES, NormalizedRepoPath},
 };
 use sentrdel_schema::coverage::CoverageState;
@@ -48,6 +49,15 @@ fn route(importer: &str) -> RouteObservation {
     .expect("route observation")
 }
 
+fn document(value: &str, source: &str) -> LinkDocument {
+    LinkDocument::new(
+        path(value),
+        StructuralLanguage::TypeScript,
+        source.as_bytes().to_vec(),
+    )
+    .expect("link document")
+}
+
 fn canonical_digest() -> String {
     format!("sha256:{}", "a".repeat(64))
 }
@@ -66,6 +76,47 @@ fn missing_route_source_document_is_partial_and_explicit() {
     assert!(result.diagnostics().iter().any(|diagnostic| {
         diagnostic.reason() == LinkingDiagnosticReason::MissingRouteDocument
     }));
+}
+
+#[test]
+fn multiple_route_provenance_documents_are_ambiguous_not_first_path_join() {
+    let ambiguous_route = RouteObservation::new(
+        semantic_id("route", "ambiguous-source"),
+        FrameworkFamily::Express,
+        HttpMethod::Get,
+        "/fixture",
+        Some("handler".to_owned()),
+        vec![semantic_id("callback", "ambiguous-source")],
+        vec![provenance("src/routes.ts"), provenance("src/a.ts")],
+        CoverageState::Covered,
+        BusinessLogicLimits::default(),
+    )
+    .expect("ambiguous route observation");
+    let result = link_inter_file_semantics(
+        &[ambiguous_route],
+        &[
+            document(
+                "src/a.ts",
+                "import { handler } from './handlers.ts';\nexport const unrelated = handler;",
+            ),
+            document("src/routes.ts", "app.get('/fixture', handler);"),
+            document("src/handlers.ts", "export function handler() {}"),
+        ],
+        ScipSemanticInput::Unavailable,
+        BusinessLogicLimits::default(),
+    )
+    .expect("ambiguous route document linking");
+
+    assert_eq!(result.coverage().local_state(), &CoverageState::Partial);
+    assert!(result.diagnostics().iter().any(|diagnostic| {
+        diagnostic.reason() == LinkingDiagnosticReason::AmbiguousRouteDocument
+    }));
+    assert!(
+        !result
+            .links()
+            .iter()
+            .any(|link| link.basis() == LinkBasis::SupportedImportBinding)
+    );
 }
 
 #[test]
