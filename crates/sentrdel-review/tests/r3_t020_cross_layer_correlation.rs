@@ -1,5 +1,7 @@
 #![forbid(unsafe_code)]
 
+use std::collections::BTreeMap;
+
 use sentrdel_review::{
     business_logic::{
         graph::R3_GRAPH_CONFIDENCE_GRANTS_EVIDENCE_AUTHORITY,
@@ -13,11 +15,22 @@ use sentrdel_review::{
             R3_PATH_CONFIDENCE_GRANTS_EVIDENCE_AUTHORITY, R3_PATH_CORRELATION_CONSUMES_R2_EVIDENCE,
             correlate_cross_layer_paths,
         },
-        r2_support::{R2_SUPPORT_CONFIDENCE_GRANTS_AUTHORITY, R2_SUPPORT_PROVES_LIVE_POSTURE},
+        r2_support::{
+            R2_SUPPORT_CONFIDENCE_GRANTS_AUTHORITY, R2_SUPPORT_PROVES_LIVE_POSTURE,
+            R2SupportDiagnosticReason, R2SupportLimits, correlate_supabase_r2_support,
+        },
     },
+    supabase_integration::SupabaseR2ProviderOutput,
     view::NormalizedRepoPath,
 };
-use sentrdel_schema::coverage::CoverageState;
+use sentrdel_schema::{
+    SCHEMA_V1,
+    coverage::CoverageState,
+    evidence::{
+        EpistemicClass, Evidence, EvidenceAuthority, EvidenceClaim, EvidenceLocation,
+        EvidenceSubject, ProducerKind,
+    },
+};
 
 fn limits() -> BusinessLogicLimits {
     BusinessLogicLimits::default()
@@ -62,6 +75,18 @@ fn resource(name: &str) -> ResourceRef {
         limits(),
     )
     .expect("resource")
+}
+
+fn r2_resource() -> ResourceRef {
+    ResourceRef::new(
+        Some("supabase".to_owned()),
+        Some("public".to_owned()),
+        "accounts",
+        ResourceKind::Table,
+        Some("relation:public.accounts".to_owned()),
+        limits(),
+    )
+    .expect("R2-correlated resource")
 }
 
 fn operation(name: &str, handler: Option<StableSemanticId>, start: usize) -> DataOperation {
@@ -120,6 +145,42 @@ fn inputs<'a>(
     }
 }
 
+fn static_r2_evidence() -> Evidence {
+    let authority = EvidenceAuthority::from_runtime(
+        "sentrdel.supabase.r3-t020-fixture",
+        "1",
+        ProducerKind::NativeRule,
+    )
+    .expect("fixture authority");
+    authority
+        .seal(EvidenceClaim {
+            schema_version: SCHEMA_V1.to_owned(),
+            input_digests: vec!["sha256:r3-t020-r2-input".to_owned()],
+            observation: "repository-derived RLS posture".to_owned(),
+            security_interpretation: None,
+            category: "supabase_rls_posture".to_owned(),
+            epistemic_class: EpistemicClass::Fact,
+            confidence_band: None,
+            subjects: vec![EvidenceSubject {
+                kind: "relation".to_owned(),
+                id: "relation:public.accounts".to_owned(),
+            }],
+            locations: vec![EvidenceLocation {
+                repo_relative_path: "supabase/migrations/fixture.sql".to_owned(),
+                start_line: Some(1),
+                start_column: Some(1),
+                end_line: Some(1),
+                end_column: Some(12),
+                symbol: None,
+                content_digest: Some("sha256:r3-t020-r2-input".to_owned()),
+            }],
+            attributes: BTreeMap::new(),
+            reproduction: None,
+            captured_at: "2026-09-05T19:00:00Z".to_owned(),
+        })
+        .expect("sealed R2 fixture Evidence")
+}
+
 #[test]
 fn supported_and_ambiguous_cross_layer_paths_remain_distinguishable() {
     let callback = id("r3.t020.callback", "handler");
@@ -136,6 +197,7 @@ fn supported_and_ambiguous_cross_layer_paths_remain_distinguishable() {
     assert_eq!(safe.coverage_state(), &CoverageState::Covered);
     assert_eq!(safe.paths().len(), 1);
     assert_eq!(safe.paths()[0].path_state(), PathState::Supported);
+    assert!(safe.paths().iter().all(|path| path.r2_evidence_ids().is_empty()));
 
     let ambiguous_operations = vec![operation("profiles", None, 200)];
     let ambiguous_links = vec![explicit_link(
@@ -157,6 +219,12 @@ fn supported_and_ambiguous_cross_layer_paths_remain_distinguishable() {
     assert_eq!(ambiguous.paths().len(), 1);
     assert_eq!(ambiguous.paths()[0].path_state(), PathState::Ambiguous);
     assert_ne!(ambiguous.paths()[0].path_state(), PathState::Supported);
+    assert!(
+        ambiguous
+            .paths()
+            .iter()
+            .all(|path| path.r2_evidence_ids().is_empty())
+    );
 }
 
 #[test]
@@ -186,6 +254,7 @@ fn ambiguous_links_cannot_meet_the_supported_path_prerequisite_for_invariants() 
         .expect("ambiguous path remains visible");
     assert_eq!(path.path_state(), PathState::Ambiguous);
     assert_ne!(path.path_state(), PathState::Supported);
+    assert!(path.r2_evidence_ids().is_empty());
     assert_eq!(result.coverage_state(), &CoverageState::Partial);
 }
 
@@ -200,6 +269,21 @@ fn graph_and_path_confidence_never_upgrade_epistemic_authority() {
 fn r2_static_support_cannot_become_hosted_truth_through_path_correlation() {
     const { assert!(!R2_SUPPORT_PROVES_LIVE_POSTURE) };
     const { assert!(!R3_PATH_CORRELATION_CONSUMES_R2_EVIDENCE) };
+
+    let provider = SupabaseR2ProviderOutput::new(vec![static_r2_evidence()], Vec::new())
+        .expect("validated R2 fixture output");
+    let result = correlate_supabase_r2_support(
+        &provider,
+        &[r2_resource()],
+        &[],
+        R2SupportLimits::default(),
+    )
+    .expect("R2 support correlation");
+
+    assert_eq!(result.matches().len(), 1);
+    assert!(result.diagnostics().iter().any(|diagnostic| {
+        diagnostic.reason() == R2SupportDiagnosticReason::StaticEvidenceDoesNotProveLivePosture
+    }));
 }
 
 #[test]
