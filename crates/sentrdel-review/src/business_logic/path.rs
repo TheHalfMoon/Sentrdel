@@ -170,9 +170,15 @@ impl fmt::Display for PathCorrelationError {
         match self {
             Self::InvalidLimits => formatter.write_str("path correlation limits must be non-zero"),
             Self::TooManyDiagnostics { count, max } => {
-                write!(formatter, "path correlation diagnostic count {count} exceeds cap {max}")
+                write!(
+                    formatter,
+                    "path correlation diagnostic count {count} exceeds cap {max}"
+                )
             }
-            Self::Model(source) => write!(formatter, "path correlation model validation failed: {source}"),
+            Self::Model(source) => write!(
+                formatter,
+                "path correlation model validation failed: {source}"
+            ),
         }
     }
 }
@@ -341,6 +347,7 @@ pub fn correlate_cross_layer_paths(
 
     let mut edges = BTreeMap::<String, CrossLayerLink>::new();
     let mut ambiguous_link_ids = BTreeSet::new();
+    let mut partial_reference_ids = BTreeSet::new();
     for link in inputs.links {
         insert_unique_link(&mut edges, &mut ambiguous_link_ids, link.clone());
     }
@@ -389,6 +396,7 @@ pub fn correlate_cross_layer_paths(
                     model_limits,
                 )?;
             } else {
+                partial_reference_ids.insert(value.value_id().as_str().to_owned());
                 push_diagnostic(
                     &mut diagnostics,
                     PathCorrelationDiagnosticReason::DanglingActorReference,
@@ -414,6 +422,7 @@ pub fn correlate_cross_layer_paths(
                     model_limits,
                 )?;
             } else {
+                partial_reference_ids.insert(value.value_id().as_str().to_owned());
                 push_diagnostic(
                     &mut diagnostics,
                     PathCorrelationDiagnosticReason::DanglingValueReference,
@@ -445,6 +454,7 @@ pub fn correlate_cross_layer_paths(
                     model_limits,
                 )?;
             } else {
+                partial_reference_ids.insert(guard.guard_id().as_str().to_owned());
                 push_diagnostic(
                     &mut diagnostics,
                     PathCorrelationDiagnosticReason::DanglingActorReference,
@@ -629,6 +639,7 @@ pub fn correlate_cross_layer_paths(
         }
     }
     partial_ids.extend(partial_operation_ids);
+    partial_ids.extend(partial_reference_ids);
 
     let mut adjacency = BTreeMap::<String, Vec<CrossLayerLink>>::new();
     for link in edges.values() {
@@ -682,6 +693,29 @@ pub fn correlate_cross_layer_paths(
                 if item.ordered_links.is_empty() {
                     continue;
                 }
+
+                let mut ordered_links = item.ordered_links.clone();
+                if let Some(provider_link_id) =
+                    provider_link_ids.get(operation.operation_id().as_str())
+                    && let Some(provider_link) = edges.get(provider_link_id)
+                {
+                    if ordered_links.len() >= correlation_limits.max_depth {
+                        if !depth_reported {
+                            push_diagnostic(
+                                &mut diagnostics,
+                                PathCorrelationDiagnosticReason::DepthLimitExceeded,
+                                Some(route.route_id()),
+                                Some(operation.operation_id()),
+                                route.provenance().to_vec(),
+                                correlation_limits,
+                            )?;
+                            depth_reported = true;
+                        }
+                        continue;
+                    }
+                    ordered_links.push(provider_link.clone());
+                }
+
                 if paths.len() >= correlation_limits.max_candidate_paths {
                     push_diagnostic(
                         &mut diagnostics,
@@ -695,13 +729,6 @@ pub fn correlate_cross_layer_paths(
                     break 'routes;
                 }
 
-                let mut ordered_links = item.ordered_links.clone();
-                if let Some(provider_link_id) =
-                    provider_link_ids.get(operation.operation_id().as_str())
-                    && let Some(provider_link) = edges.get(provider_link_id)
-                {
-                    ordered_links.push(provider_link.clone());
-                }
                 let path = build_path(
                     route,
                     operation,
@@ -897,7 +924,10 @@ fn build_path(
     if let Some(client_id) = provider_client_id.as_ref() {
         identity_parts.push(format!("client:{}", client_id.as_str()));
     }
-    let identity_refs = identity_parts.iter().map(String::as_str).collect::<Vec<_>>();
+    let identity_refs = identity_parts
+        .iter()
+        .map(String::as_str)
+        .collect::<Vec<_>>();
     let path_id = StableSemanticId::from_parts("r3-cross-layer-path", &identity_refs, limits)?;
 
     Ok(CrossLayerPath::new(
@@ -945,7 +975,11 @@ fn intrinsic_link(
     limits: BusinessLogicLimits,
 ) -> Result<CrossLayerLink, PathCorrelationError> {
     Ok(CrossLayerLink::new(
-        StableSemanticId::from_parts(namespace, &[source.as_str(), target.as_str(), relation], limits)?,
+        StableSemanticId::from_parts(
+            namespace,
+            &[source.as_str(), target.as_str(), relation],
+            limits,
+        )?,
         source.clone(),
         target.clone(),
         relation,
