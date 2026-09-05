@@ -283,6 +283,9 @@ pub fn evaluate_tenant_binding(
                     unknown_filter_semantics = true;
                     continue;
                 };
+                if !guard_kind_supports_identity(guard.guard_kind(), *required_actor_identity) {
+                    continue;
+                }
                 if guard.required_values().is_empty() {
                     unknown_filter_semantics = true;
                     continue;
@@ -415,6 +418,17 @@ fn direct_actor_value_binding(
         && has_link(path, actor.actor_id(), value.value_id())
 }
 
+fn guard_kind_supports_identity(kind: GuardKind, required_identity: ActorIdentityKind) -> bool {
+    match required_identity {
+        ActorIdentityKind::AuthenticatedUser => matches!(
+            kind,
+            GuardKind::OwnershipBinding | GuardKind::TenantBinding | GuardKind::ObjectMembership
+        ),
+        ActorIdentityKind::Tenant => kind == GuardKind::TenantBinding,
+        _ => false,
+    }
+}
+
 fn guard_binds_actor_value(
     path: &CrossLayerPath,
     actor: &ActorContext,
@@ -423,15 +437,7 @@ fn guard_binds_actor_value(
     operation: &DataOperation,
     required_identity: ActorIdentityKind,
 ) -> bool {
-    let guard_kind_supported = match required_identity {
-        ActorIdentityKind::AuthenticatedUser => matches!(
-            guard.guard_kind(),
-            GuardKind::OwnershipBinding | GuardKind::TenantBinding | GuardKind::ObjectMembership
-        ),
-        ActorIdentityKind::Tenant => guard.guard_kind() == GuardKind::TenantBinding,
-        _ => false,
-    };
-    guard_kind_supported
+    guard_kind_supports_identity(guard.guard_kind(), required_identity)
         && guard.subject_actor() == Some(actor.actor_id())
         && guard
             .resource()
