@@ -68,7 +68,10 @@ fn link(
     .expect("link")
 }
 
-fn evaluate_with_guard_fields(required_values: Vec<String>) -> InvariantEvaluationState {
+fn evaluate_with_guard(
+    guard_kind: GuardKind,
+    required_values: Vec<String>,
+) -> InvariantEvaluationState {
     let callback_id = id("r3.t021.regression.callback", "handler");
     let route = RouteObservation::new(
         id("r3.t021.regression.route", "account"),
@@ -107,8 +110,8 @@ fn evaluate_with_guard_fields(required_values: Vec<String>) -> InvariantEvaluati
     .expect("value");
 
     let guard = GuardObservation::new(
-        id("r3.t021.regression.guard", "ownership"),
-        GuardKind::OwnershipBinding,
+        id("r3.t021.regression.guard", "candidate"),
+        guard_kind,
         Some(actor.actor_id().clone()),
         None,
         required_values,
@@ -221,14 +224,24 @@ fn evaluate_with_guard_fields(required_values: Vec<String>) -> InvariantEvaluati
 
 #[test]
 fn guard_for_different_field_cannot_satisfy_tenant_binding() {
-    let state = evaluate_with_guard_fields(vec!["different_field".to_owned()]);
+    let state = evaluate_with_guard(
+        GuardKind::OwnershipBinding,
+        vec!["different_field".to_owned()],
+    );
     assert_eq!(state, InvariantEvaluationState::Violated);
     assert_ne!(state, InvariantEvaluationState::Satisfied);
 }
 
 #[test]
-fn guard_without_field_semantics_remains_unknown() {
-    let state = evaluate_with_guard_fields(Vec::new());
+fn binding_guard_without_field_semantics_remains_unknown() {
+    let state = evaluate_with_guard(GuardKind::OwnershipBinding, Vec::new());
     assert_eq!(state, InvariantEvaluationState::Unknown);
+    assert_ne!(state, InvariantEvaluationState::Satisfied);
+}
+
+#[test]
+fn unrelated_guard_without_field_semantics_does_not_mask_violation() {
+    let state = evaluate_with_guard(GuardKind::Authentication, Vec::new());
+    assert_eq!(state, InvariantEvaluationState::Violated);
     assert_ne!(state, InvariantEvaluationState::Satisfied);
 }
