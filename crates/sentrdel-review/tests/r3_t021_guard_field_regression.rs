@@ -289,26 +289,14 @@ fn guard_for_different_field_cannot_satisfy_tenant_binding() {
 
 #[test]
 fn binding_guard_without_field_semantics_remains_unknown() {
-    let state = evaluate_with_guard(
-        GuardKind::OwnershipBinding,
-        Vec::new(),
-        true,
-        false,
-        false,
-    );
+    let state = evaluate_with_guard(GuardKind::OwnershipBinding, Vec::new(), true, false, false);
     assert_eq!(state, InvariantEvaluationState::Unknown);
     assert_ne!(state, InvariantEvaluationState::Satisfied);
 }
 
 #[test]
 fn unrelated_guard_without_field_semantics_does_not_mask_violation() {
-    let state = evaluate_with_guard(
-        GuardKind::Authentication,
-        Vec::new(),
-        true,
-        false,
-        false,
-    );
+    let state = evaluate_with_guard(GuardKind::Authentication, Vec::new(), true, false, false);
     assert_eq!(state, InvariantEvaluationState::Violated);
     assert_ne!(state, InvariantEvaluationState::Satisfied);
 }
