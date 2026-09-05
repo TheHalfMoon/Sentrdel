@@ -618,10 +618,111 @@ fn candidate_path_cap_is_deterministic_and_fail_visible() {
     )
     .expect("candidate-limited correlation");
 
-    assert_eq!(result.paths().len(), 1);
+    assert!(result.paths().is_empty());
     assert_eq!(result.coverage_state(), &CoverageState::Partial);
     assert!(result.diagnostics().iter().any(|diagnostic| {
         diagnostic.reason() == PathCorrelationDiagnosticReason::CandidatePathLimitExceeded
+    }));
+}
+
+#[test]
+fn observation_cap_rejects_before_correlation_state_is_built() {
+    let callback = id("r3.callback", "handler");
+    let routes = vec![route(callback.clone(), CoverageState::Covered)];
+    let operations = vec![operation(
+        Some(callback),
+        None,
+        Vec::new(),
+        CoverageState::Covered,
+    )];
+
+    let result = correlate_cross_layer_paths(
+        inputs(&routes, &[], &[], &[], &operations, &[], &[]),
+        limits(),
+        PathCorrelationLimits {
+            max_observations: 1,
+            ..PathCorrelationLimits::default()
+        },
+    )
+    .expect("observation-limited correlation");
+
+    assert!(result.paths().is_empty());
+    assert_eq!(result.coverage_state(), &CoverageState::Partial);
+    assert!(result.diagnostics().iter().any(|diagnostic| {
+        diagnostic.reason() == PathCorrelationDiagnosticReason::ObservationLimitExceeded
+    }));
+}
+
+#[test]
+fn traversal_work_cap_rejects_without_retaining_clean_paths() {
+    let callback = id("r3.callback", "handler");
+    let routes = vec![route(callback.clone(), CoverageState::Covered)];
+    let operations = vec![operation(
+        Some(callback),
+        None,
+        Vec::new(),
+        CoverageState::Covered,
+    )];
+
+    let result = correlate_cross_layer_paths(
+        inputs(&routes, &[], &[], &[], &operations, &[], &[]),
+        limits(),
+        PathCorrelationLimits {
+            max_work_items: 1,
+            ..PathCorrelationLimits::default()
+        },
+    )
+    .expect("work-limited correlation");
+
+    assert!(result.paths().is_empty());
+    assert_eq!(result.coverage_state(), &CoverageState::Partial);
+    assert!(result.diagnostics().iter().any(|diagnostic| {
+        diagnostic.reason() == PathCorrelationDiagnosticReason::TraversalWorkLimitExceeded
+    }));
+}
+
+#[test]
+fn frontier_cap_rejects_branch_explosion_without_clean_paths() {
+    let callback = id("r3.callback", "handler");
+    let bridge_a = id("r3.bridge", "frontier-a");
+    let bridge_b = id("r3.bridge", "frontier-b");
+    let routes = vec![route(callback.clone(), CoverageState::Covered)];
+    let operations = vec![operation(None, None, Vec::new(), CoverageState::Covered)];
+    let links = vec![
+        explicit_link(
+            "r3.test.frontier-a",
+            callback.clone(),
+            bridge_a,
+            "branch",
+            LinkBasis::ExplicitAdapterLink,
+            ConfidenceBasis::Extracted,
+            980,
+        ),
+        explicit_link(
+            "r3.test.frontier-b",
+            callback,
+            bridge_b,
+            "branch",
+            LinkBasis::ExplicitAdapterLink,
+            ConfidenceBasis::Extracted,
+            1_000,
+        ),
+    ];
+
+    let result = correlate_cross_layer_paths(
+        inputs(&routes, &[], &[], &[], &operations, &[], &links),
+        limits(),
+        PathCorrelationLimits {
+            max_frontier: 1,
+            ..PathCorrelationLimits::default()
+        },
+    )
+    .expect("frontier-limited correlation");
+
+    assert!(result.paths().is_empty());
+    assert_eq!(result.coverage_state(), &CoverageState::Partial);
+    assert!(result.diagnostics().iter().any(|diagnostic| {
+        diagnostic.reason() == PathCorrelationDiagnosticReason::FrontierLimitExceeded
     }));
 }
 
