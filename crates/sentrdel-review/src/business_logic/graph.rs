@@ -56,10 +56,7 @@ impl Default for R3GraphLimits {
 
 impl R3GraphLimits {
     fn validate(self) -> Result<Self, R3GraphMappingError> {
-        if self.max_nodes == 0
-            || self.max_edges == 0
-            || self.max_provenance_ids_per_record == 0
-        {
+        if self.max_nodes == 0 || self.max_edges == 0 || self.max_provenance_ids_per_record == 0 {
             return Err(R3GraphMappingError::InvalidLimits);
         }
         Ok(self)
@@ -426,15 +423,18 @@ mod tests {
 
     fn operation(kind: DataOperationKind, provenance: Vec<SourceLocation>) -> DataOperation {
         DataOperation::new(
-            id("r3.operation", match kind {
-                DataOperationKind::Read => "read",
-                DataOperationKind::Insert => "insert",
-                DataOperationKind::Update => "update",
-                DataOperationKind::Upsert => "upsert",
-                DataOperationKind::Delete => "delete",
-                DataOperationKind::Rpc => "rpc",
-                DataOperationKind::OtherSupported => "other",
-            }),
+            id(
+                "r3.operation",
+                match kind {
+                    DataOperationKind::Read => "read",
+                    DataOperationKind::Insert => "insert",
+                    DataOperationKind::Update => "update",
+                    DataOperationKind::Upsert => "upsert",
+                    DataOperationKind::Delete => "delete",
+                    DataOperationKind::Rpc => "rpc",
+                    DataOperationKind::OtherSupported => "other",
+                },
+            ),
             kind,
             ResourceRef::new(
                 Some("supabase".to_owned()),
@@ -486,24 +486,62 @@ mod tests {
         let records = map_validated_observations(
             &[route(vec![location("src/routes/users.js", 0)])],
             &[
-                operation(DataOperationKind::Read, vec![location("src/data/users.js", 10)]),
-                operation(DataOperationKind::Update, vec![location("src/data/users.js", 20)]),
+                operation(
+                    DataOperationKind::Read,
+                    vec![location("src/data/users.js", 10)],
+                ),
+                operation(
+                    DataOperationKind::Update,
+                    vec![location("src/data/users.js", 20)],
+                ),
             ],
             &[invariant(vec![location("src/security/invariants.rs", 30)])],
             R3GraphLimits::default(),
         )
         .expect("graph records");
 
-        assert!(records.nodes().iter().any(|node| node.node_kind == GraphNodeKind::Symbol));
-        assert!(records.nodes().iter().any(|node| node.node_kind == GraphNodeKind::Resource));
-        assert!(records.nodes().iter().any(|node| node.node_kind == GraphNodeKind::Invariant));
-        assert!(records.edges().iter().any(|edge| edge.relation == GraphRelation::Refs));
-        assert!(records.edges().iter().any(|edge| edge.relation == GraphRelation::ReadsFrom));
-        assert!(records.edges().iter().any(|edge| edge.relation == GraphRelation::WritesTo));
-        assert!(records
-            .edges()
-            .iter()
-            .all(|edge| edge.confidence_source.basis == GraphConfidenceBasis::Extracted));
+        assert!(
+            records
+                .nodes()
+                .iter()
+                .any(|node| node.node_kind == GraphNodeKind::Symbol)
+        );
+        assert!(
+            records
+                .nodes()
+                .iter()
+                .any(|node| node.node_kind == GraphNodeKind::Resource)
+        );
+        assert!(
+            records
+                .nodes()
+                .iter()
+                .any(|node| node.node_kind == GraphNodeKind::Invariant)
+        );
+        assert!(
+            records
+                .edges()
+                .iter()
+                .any(|edge| edge.relation == GraphRelation::Refs)
+        );
+        assert!(
+            records
+                .edges()
+                .iter()
+                .any(|edge| edge.relation == GraphRelation::ReadsFrom)
+        );
+        assert!(
+            records
+                .edges()
+                .iter()
+                .any(|edge| edge.relation == GraphRelation::WritesTo)
+        );
+        assert!(
+            records
+                .edges()
+                .iter()
+                .all(|edge| edge.confidence_source.basis == GraphConfidenceBasis::Extracted)
+        );
     }
 
     #[test]
@@ -533,13 +571,9 @@ mod tests {
             R3GraphLimits::default(),
         )
         .expect("forward mapping");
-        let reverse = map_validated_observations(
-            &[second, first],
-            &[],
-            &[],
-            R3GraphLimits::default(),
-        )
-        .expect("reverse mapping");
+        let reverse =
+            map_validated_observations(&[second, first], &[], &[], R3GraphLimits::default())
+                .expect("reverse mapping");
         assert_eq!(forward, reverse);
         assert_eq!(forward.nodes().len(), 2);
         assert_eq!(forward.edges().len(), 1);
