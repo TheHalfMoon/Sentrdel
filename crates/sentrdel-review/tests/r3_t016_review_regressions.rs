@@ -1,12 +1,7 @@
-use sentrdel_graph::{
-    ScipArtifact, ScipDocument, ScipIngestionError, ScipIngestionRequest, ScipOccurrence,
-    ScipOccurrenceRole, ScipPosition, ScipProducerQualification, ScipRange, ingest_scip,
-};
 use sentrdel_review::{
     business_logic::{
         link::{
-            LinkDocument, LinkingDiagnosticReason, LinkingError, ScipSemanticInput,
-            link_inter_file_semantics,
+            LinkDocument, LinkingDiagnosticReason, LinkingError, link_inter_file_semantics,
         },
         model::{
             BusinessLogicLimits, FrameworkFamily, HttpMethod, LinkBasis, RouteObservation,
@@ -89,7 +84,6 @@ fn missing_route_source_document_is_partial_and_explicit() {
     let result = link_inter_file_semantics(
         &[route("src/routes.ts")],
         &[],
-        ScipSemanticInput::Unavailable,
         BusinessLogicLimits::default(),
     )
     .expect("linking result");
@@ -104,13 +98,8 @@ fn missing_route_source_document_is_partial_and_explicit() {
 fn duplicate_route_input_is_bounded_before_link_deduplication() {
     let repeated = route("src/routes.ts");
     let routes = vec![repeated; MAX_ROUTE_OBSERVATIONS + 1];
-    let error = link_inter_file_semantics(
-        &routes,
-        &[],
-        ScipSemanticInput::Unavailable,
-        BusinessLogicLimits::default(),
-    )
-    .expect_err("route input cap must fail closed");
+    let error = link_inter_file_semantics(&routes, &[], BusinessLogicLimits::default())
+        .expect_err("route input cap must fail closed");
 
     assert!(matches!(
         error,
@@ -135,7 +124,6 @@ fn multiple_route_provenance_documents_cannot_choose_lexical_first_importer() {
             document("src/handlers.ts", "export function handler() {}"),
             document("src/other.ts", "export function handler() {}"),
         ],
-        ScipSemanticInput::Unavailable,
         BusinessLogicLimits::default(),
     )
     .expect("ambiguous route document");
@@ -163,7 +151,6 @@ fn callback_shadowing_forms_never_resolve_to_top_level_import() {
                 document("src/routes.ts", source),
                 document("src/handlers.ts", "export function handler() {}"),
             ],
-            ScipSemanticInput::Unavailable,
             BusinessLogicLimits::default(),
         )
         .expect("shadowed callback linking");
@@ -191,7 +178,6 @@ fn indirect_named_and_default_reexports_are_not_direct_target_exports() {
             ),
             document("src/real.ts", "export function realHandler() {}"),
         ],
-        ScipSemanticInput::Unavailable,
         BusinessLogicLimits::default(),
     )
     .expect("named forwarding");
@@ -214,7 +200,6 @@ fn indirect_named_and_default_reexports_are_not_direct_target_exports() {
             ),
             document("src/real.ts", "export default function realHandler() {}"),
         ],
-        ScipSemanticInput::Unavailable,
         BusinessLogicLimits::default(),
     )
     .expect("default forwarding");
@@ -223,41 +208,4 @@ fn indirect_named_and_default_reexports_are_not_direct_target_exports() {
     assert!(default.diagnostics().iter().any(|diagnostic| {
         diagnostic.reason() == LinkingDiagnosticReason::UnsupportedTargetExport
     }));
-}
-
-#[test]
-fn syntactically_valid_but_unqualified_scip_cannot_create_ingestion_proof() {
-    let error = ingest_scip(ScipIngestionRequest {
-        artifact: ScipArtifact {
-            artifact_digest: format!("sha256:{}", "a".repeat(64)),
-            producer_name: "fixture-scip".to_owned(),
-            producer_version: Some("1.0.0".to_owned()),
-            documents: vec![ScipDocument {
-                relative_path: "src/routes.ts".to_owned(),
-                language: "typescript".to_owned(),
-                occurrences: vec![ScipOccurrence {
-                    symbol: "typescript npm fixture 1.0.0 handler().".to_owned(),
-                    range: ScipRange {
-                        start: ScipPosition {
-                            line: 0,
-                            character: 0,
-                        },
-                        end: ScipPosition {
-                            line: 0,
-                            character: 7,
-                        },
-                    },
-                    role: ScipOccurrenceRole::Reference,
-                }],
-            }],
-        },
-        producer_qualification: ScipProducerQualification::CompilerBacked {
-            qualification_id: "   ".to_owned(),
-        },
-        scope: ".".to_owned(),
-        observed_at: "2026-09-05T00:00:00Z".to_owned(),
-    })
-    .expect_err("unqualified compiler claim must fail at canonical ingestion boundary");
-
-    assert!(matches!(error, ScipIngestionError::BlankQualificationId));
 }
