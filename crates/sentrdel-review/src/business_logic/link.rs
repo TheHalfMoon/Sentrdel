@@ -1,17 +1,23 @@
 //! Bounded local/inter-file semantic linking for canonical R3-T016.
 //!
-//! Target repository source remains data only. This module never loads modules, executes target
-//! code, runs package managers, reads repository configuration, uses provider credentials, or
-//! performs network access. Local resolution supports only explicit repository-relative ESM paths
-//! with an explicit JavaScript/TypeScript extension and an exact provided target document.
+//! Repository source remains attacker-controlled data. This module never executes target code,
+//! package tools, repository configuration, provider clients, credentials, or network access.
+//! Local linking is deliberately narrower than JavaScript/TypeScript module semantics: only an
+//! explicit repository-relative static import, an unshadowed callback identifier, and a direct
+//! export in an exact provided target document can produce `SupportedImportBinding`.
 //!
-//! SCIP inputs are downstream facts only. This module does not qualify SCIP producers or artifacts;
-//! callers may provide `AdmittedScipReference` values only for facts already admitted by the
-//! existing bounded SCIP ingestion/producer-qualification boundary. Missing, ambiguous, heuristic,
-//! or incomplete semantic-index coverage never becomes a clean fallback.
+//! SCIP is optional. R3-T016 accepts only the existing `sentrdel-graph` ingestion result instead
+//! of accepting qualification strings or allowing callers to select compiler-backed confidence.
+//! The graph records, qualification provenance, artifact digest provenance, and coverage contract
+//! are revalidated before a SCIP link is mapped into the R3 internal IR. Missing, ambiguous,
+//! incomplete, or heuristic semantic coverage never becomes clean.
 
 use std::{collections::BTreeMap, error::Error, fmt};
 
+use sentrdel_graph::{
+    GraphConfidenceBasis, GraphContractError, GraphRelation, SCIP_REFERENCE_CAPABILITY,
+    ScipIngestionResult, validate_edge,
+};
 use sentrdel_schema::{canonical::content_id, coverage::CoverageState};
 
 use super::{
@@ -40,7 +46,6 @@ pub const R3_LINK_PERFORMS_NETWORK_ACCESS: bool = false;
 pub const R3_LINK_QUALIFIES_SCIP_PRODUCERS: bool = false;
 pub const R3_LINK_CREATES_FINDINGS: bool = false;
 
-const MAX_SCIP_METADATA_BYTES: usize = 1_024;
 const SUPPORTED_MODULE_EXTENSIONS: &[&str] =
     &[".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx", ".mts", ".cts"];
 
@@ -97,8 +102,10 @@ pub enum LinkingDiagnosticReason {
     UnsupportedModuleSpecifier,
     UnsupportedImportBinding,
     DynamicImportBinding,
+    ShadowedImportBinding,
     MissingTargetDocument,
     MissingTargetExport,
+    UnsupportedTargetExport,
     AmbiguousImportBinding,
     AmbiguousTargetExport,
     ScipUnavailable,
@@ -142,85 +149,6 @@ impl LinkingCoverage {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum ScipProducerBasis {
-    CompilerBacked,
-    Heuristic,
-}
-
-impl ScipProducerBasis {
-    const fn confidence(self) -> ConfidenceBasis {
-        match self {
-            Self::CompilerBacked => ConfidenceBasis::Extracted,
-            Self::Heuristic => ConfidenceBasis::Inferred,
-        }
-    }
-
-    const fn identity_key(self) -> &'static str {
-        match self {
-            Self::CompilerBacked => "compiler-backed",
-            Self::Heuristic => "heuristic",
-        }
-    }
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct AdmittedScipReference {
-    source_semantic_id: StableSemanticId,
-    target_semantic_id: StableSemanticId,
-    qualification_id: String,
-    artifact_digest: String,
-    producer_basis: ScipProducerBasis,
-    provenance: Vec<SourceLocation>,
-}
-
-impl AdmittedScipReference {
-    #[allow(clippy::too_many_arguments)]
-    pub fn new(
-        source_semantic_id: StableSemanticId,
-        target_semantic_id: StableSemanticId,
-        qualification_id: impl Into<String>,
-        artifact_digest: impl Into<String>,
-        producer_basis: ScipProducerBasis,
-        provenance: Vec<SourceLocation>,
-        limits: BusinessLogicLimits,
-    ) -> Result<Self, LinkingError> {
-        let limits = limits.validate()?;
-        let qualification_id = qualification_id.into();
-        let artifact_digest = artifact_digest.into();
-        validate_scip_admission_metadata(&qualification_id, &artifact_digest)?;
-        let _admission_identity = StableSemanticId::from_parts(
-            "r3-scip-admission",
-            &[
-                &qualification_id,
-                &artifact_digest,
-                producer_basis.identity_key(),
-            ],
-            limits,
-        )?;
-        if provenance.is_empty() {
-            return Err(LinkingError::MissingScipProvenance);
-        }
-        if provenance.len() > limits.max_provenance_per_record {
-            return Err(LinkingError::TooManyScipProvenance {
-                count: provenance.len(),
-                max: limits.max_provenance_per_record,
-            });
-        }
-        let mut provenance = provenance;
-        provenance.sort();
-        provenance.dedup();
-        Ok(Self {
-            source_semantic_id,
-            target_semantic_id,
-            qualification_id,
-            artifact_digest,
-            producer_basis,
-            provenance,
-        })
-    }
-}
-
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ScipSemanticInput {
     Unavailable,
@@ -228,7 +156,8 @@ pub enum ScipSemanticInput {
         provenance: Vec<SourceLocation>,
     },
     Admitted {
-        references: Vec<AdmittedScipReference>,
+        ingestion: ScipIngestionResult,
+        provenance: Vec<SourceLocation>,
         complete: bool,
     },
 }
@@ -260,30 +189,12 @@ impl LinkingResult {
 #[derive(Debug)]
 pub enum LinkingError {
     InvalidLimits,
-    TooManyRoutes {
-        count: usize,
-        max: usize,
-    },
-    TooManyDocuments {
-        count: usize,
-        max: usize,
-    },
-    TooManyImportBindings {
-        count: usize,
-        max: usize,
-    },
-    TooManyLinks {
-        count: usize,
-        max: usize,
-    },
-    TooManyScipReferences {
-        count: usize,
-        max: usize,
-    },
-    TooManyDiagnostics {
-        count: usize,
-        max: usize,
-    },
+    TooManyRoutes { count: usize, max: usize },
+    TooManyDocuments { count: usize, max: usize },
+    TooManyImportBindings { count: usize, max: usize },
+    TooManyLinks { count: usize, max: usize },
+    TooManyScipReferences { count: usize, max: usize },
+    TooManyDiagnostics { count: usize, max: usize },
     DocumentTooLarge {
         path: NormalizedRepoPath,
         bytes: usize,
@@ -292,14 +203,11 @@ pub enum LinkingError {
     DuplicateDocumentPath(NormalizedRepoPath),
     NonUtf8Document(NormalizedRepoPath),
     ParseFailed(NormalizedRepoPath),
-    InvalidScipQualificationId,
-    InvalidScipArtifactDigest,
+    InvalidScipIngestion,
     MissingScipProvenance,
-    TooManyScipProvenance {
-        count: usize,
-        max: usize,
-    },
+    TooManyScipProvenance { count: usize, max: usize },
     Structural(StructuralError),
+    Graph(GraphContractError),
     Model(ModelError),
     Path(RepoViewError),
 }
@@ -308,34 +216,27 @@ impl fmt::Display for LinkingError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::InvalidLimits => formatter.write_str("R3 linking limits must be non-zero"),
-            Self::TooManyRoutes { count, max } => write!(
-                formatter,
-                "R3 route observation count {count} exceeds linking cap {max}"
-            ),
-            Self::TooManyDocuments { count, max } => write!(
-                formatter,
-                "R3 linking document count {count} exceeds cap {max}"
-            ),
-            Self::TooManyImportBindings { count, max } => write!(
-                formatter,
-                "R3 local import binding count {count} exceeds cap {max}"
-            ),
-            Self::TooManyLinks { count, max } => write!(
-                formatter,
-                "R3 semantic link count {count} exceeds cap {max}"
-            ),
-            Self::TooManyScipReferences { count, max } => write!(
-                formatter,
-                "R3 admitted SCIP reference count {count} exceeds cap {max}"
-            ),
-            Self::TooManyDiagnostics { count, max } => write!(
-                formatter,
-                "R3 linking diagnostic count {count} exceeds cap {max}"
-            ),
-            Self::DocumentTooLarge { path, bytes, max } => write!(
-                formatter,
-                "R3 linking document {path} size {bytes} exceeds cap {max}"
-            ),
+            Self::TooManyRoutes { count, max } => {
+                write!(formatter, "R3 route observation count {count} exceeds linking cap {max}")
+            }
+            Self::TooManyDocuments { count, max } => {
+                write!(formatter, "R3 linking document count {count} exceeds cap {max}")
+            }
+            Self::TooManyImportBindings { count, max } => {
+                write!(formatter, "R3 local import binding count {count} exceeds cap {max}")
+            }
+            Self::TooManyLinks { count, max } => {
+                write!(formatter, "R3 semantic link count {count} exceeds cap {max}")
+            }
+            Self::TooManyScipReferences { count, max } => {
+                write!(formatter, "R3 admitted SCIP reference count {count} exceeds cap {max}")
+            }
+            Self::TooManyDiagnostics { count, max } => {
+                write!(formatter, "R3 linking diagnostic count {count} exceeds cap {max}")
+            }
+            Self::DocumentTooLarge { path, bytes, max } => {
+                write!(formatter, "R3 linking document {path} size {bytes} exceeds cap {max}")
+            }
             Self::DuplicateDocumentPath(path) => {
                 write!(formatter, "duplicate R3 linking document path: {path}")
             }
@@ -343,19 +244,17 @@ impl fmt::Display for LinkingError {
                 write!(formatter, "R3 linking document is not UTF-8: {path}")
             }
             Self::ParseFailed(path) => write!(formatter, "R3 linking parse failed for {path}"),
-            Self::InvalidScipQualificationId => formatter.write_str(
-                "admitted SCIP qualification id must be non-blank, bounded, and control-free",
+            Self::InvalidScipIngestion => formatter.write_str(
+                "R3 SCIP linking requires a canonical validated sentrdel-graph ingestion result",
             ),
-            Self::InvalidScipArtifactDigest => formatter
-                .write_str("admitted SCIP artifact digest must be canonical lowercase sha256"),
             Self::MissingScipProvenance => {
-                formatter.write_str("admitted SCIP reference requires explicit source provenance")
+                formatter.write_str("R3 SCIP linking requires explicit source provenance")
             }
-            Self::TooManyScipProvenance { count, max } => write!(
-                formatter,
-                "admitted SCIP provenance count {count} exceeds cap {max}"
-            ),
+            Self::TooManyScipProvenance { count, max } => {
+                write!(formatter, "R3 SCIP provenance count {count} exceeds cap {max}")
+            }
             Self::Structural(source) => write!(formatter, "R3 linking structural error: {source}"),
+            Self::Graph(source) => write!(formatter, "R3 SCIP graph validation failed: {source}"),
             Self::Model(source) => write!(formatter, "R3 linking model error: {source}"),
             Self::Path(source) => write!(formatter, "R3 linking path error: {source}"),
         }
@@ -366,6 +265,7 @@ impl Error for LinkingError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
             Self::Structural(source) => Some(source),
+            Self::Graph(source) => Some(source),
             Self::Model(source) => Some(source),
             Self::Path(source) => Some(source),
             _ => None,
@@ -376,6 +276,12 @@ impl Error for LinkingError {
 impl From<StructuralError> for LinkingError {
     fn from(value: StructuralError) -> Self {
         Self::Structural(value)
+    }
+}
+
+impl From<GraphContractError> for LinkingError {
+    fn from(value: GraphContractError) -> Self {
+        Self::Graph(value)
     }
 }
 
@@ -403,9 +309,12 @@ struct ImportBinding {
 #[derive(Clone, Debug)]
 struct ParsedDocument {
     imports: Vec<ImportBinding>,
-    exports: BTreeMap<String, Vec<SourceLocation>>,
+    direct_exports: BTreeMap<String, Vec<SourceLocation>>,
+    unsupported_exports: BTreeMap<String, Vec<SourceLocation>>,
+    declared_names: BTreeMap<String, Vec<SourceLocation>>,
     has_unsupported_import: bool,
     has_dynamic_import: bool,
+    has_unsupported_export: bool,
 }
 
 pub fn link_inter_file_semantics(
@@ -509,6 +418,7 @@ pub fn link_inter_file_semantics(
         }
 
         let Some(route_location) = route.provenance().first() else {
+            local_partial = true;
             continue;
         };
         if route
@@ -606,6 +516,19 @@ pub fn link_inter_file_semantics(
             continue;
         }
 
+        if let Some(shadows) = importer.declared_names.get(handler) {
+            local_partial = true;
+            let mut provenance = route.provenance().to_vec();
+            provenance.extend(shadows.iter().cloned());
+            push_diagnostic(
+                &mut diagnostics,
+                LinkingDiagnosticReason::ShadowedImportBinding,
+                provenance,
+                limits,
+            )?;
+            continue;
+        }
+
         let binding = matching[0];
         if let Some(reason) = binding.reason {
             local_partial = true;
@@ -637,14 +560,28 @@ pub fn link_inter_file_semantics(
             )?;
             continue;
         };
-        let Some(target_exports) = target.exports.get(&binding.imported_name) else {
+        let Some(target_exports) = target.direct_exports.get(&binding.imported_name) else {
             local_partial = true;
-            push_diagnostic(
-                &mut diagnostics,
-                LinkingDiagnosticReason::MissingTargetExport,
-                vec![binding.provenance.clone()],
-                limits,
-            )?;
+            let (reason, mut provenance) = if let Some(records) =
+                target.unsupported_exports.get(&binding.imported_name)
+            {
+                (
+                    LinkingDiagnosticReason::UnsupportedTargetExport,
+                    records.clone(),
+                )
+            } else if target.has_unsupported_export {
+                (
+                    LinkingDiagnosticReason::UnsupportedTargetExport,
+                    vec![binding.provenance.clone()],
+                )
+            } else {
+                (
+                    LinkingDiagnosticReason::MissingTargetExport,
+                    vec![binding.provenance.clone()],
+                )
+            };
+            provenance.push(binding.provenance.clone());
+            push_diagnostic(&mut diagnostics, reason, provenance, limits)?;
             continue;
         };
         if target_exports.len() != 1 {
@@ -756,50 +693,101 @@ fn add_scip_links(
             Ok(CoverageState::Partial)
         }
         ScipSemanticInput::Admitted {
-            references,
+            ingestion,
+            mut provenance,
             complete,
         } => {
+            if provenance.is_empty() {
+                return Err(LinkingError::MissingScipProvenance);
+            }
+            if provenance.len() > limits.max_provenance_per_record {
+                return Err(LinkingError::TooManyScipProvenance {
+                    count: provenance.len(),
+                    max: limits.max_provenance_per_record,
+                });
+            }
+            provenance.sort();
+            provenance.dedup();
+
+            if ingestion.coverage.capability != SCIP_REFERENCE_CAPABILITY
+                || ingestion.coverage.input_digests.len() != 1
+            {
+                return Err(LinkingError::InvalidScipIngestion);
+            }
+            let artifact_digest = &ingestion.coverage.input_digests[0];
             let scip_cap = MAX_SCIP_REFERENCES.min(limits.max_path_candidates);
-            if references.len() > scip_cap {
+            if ingestion.edges.len() > scip_cap {
                 return Err(LinkingError::TooManyScipReferences {
-                    count: references.len(),
+                    count: ingestion.edges.len(),
                     max: scip_cap,
                 });
             }
-            let heuristic = references
-                .iter()
-                .any(|reference| reference.producer_basis == ScipProducerBasis::Heuristic);
-            for reference in &references {
+
+            let mut incomplete = !complete
+                || ingestion.edges.is_empty()
+                || ingestion.coverage.state != CoverageState::Covered;
+            for edge in &ingestion.edges {
+                validate_edge(edge)?;
+                if edge.relation != GraphRelation::Refs
+                    || !edge
+                        .provenance_ids
+                        .iter()
+                        .any(|id| id.as_str() == format!("scip:{artifact_digest}"))
+                    || !edge.provenance_ids.iter().any(|id| {
+                        id.as_str()
+                            .strip_prefix("source-qualification:")
+                            .is_some_and(|value| !value.trim().is_empty())
+                    })
+                {
+                    return Err(LinkingError::InvalidScipIngestion);
+                }
+                let confidence_basis = match edge.confidence_source.basis {
+                    GraphConfidenceBasis::Extracted => ConfidenceBasis::Extracted,
+                    GraphConfidenceBasis::Inferred => {
+                        incomplete = true;
+                        ConfidenceBasis::Inferred
+                    }
+                    GraphConfidenceBasis::Ambiguous => {
+                        incomplete = true;
+                        ConfidenceBasis::Ambiguous
+                    }
+                };
+                let source_id = StableSemanticId::from_parts(
+                    "r3-scip-node",
+                    &[edge.source.as_str()],
+                    limits,
+                )?;
+                let target_id = StableSemanticId::from_parts(
+                    "r3-scip-node",
+                    &[edge.target.as_str()],
+                    limits,
+                )?;
                 let link = CrossLayerLink::new(
                     StableSemanticId::from_parts(
                         "r3-scip-link",
                         &[
-                            reference.source_semantic_id.as_str(),
-                            reference.target_semantic_id.as_str(),
-                            &reference.qualification_id,
-                            &reference.artifact_digest,
-                            reference.producer_basis.identity_key(),
+                            edge.edge_id.as_str(),
+                            &ingestion.coverage.coverage_id,
+                            artifact_digest,
                         ],
                         limits,
                     )?,
-                    reference.source_semantic_id.clone(),
-                    reference.target_semantic_id.clone(),
+                    source_id,
+                    target_id,
                     SCIP_LINK_RELATION,
                     LinkBasis::ScipReference,
-                    reference.producer_basis.confidence(),
-                    reference.provenance.clone(),
+                    confidence_basis,
+                    provenance.clone(),
                     limits,
                 )?;
                 insert_link(links, link, max_links)?;
             }
-            if !complete || references.is_empty() || heuristic {
+
+            if incomplete {
                 push_diagnostic(
                     diagnostics,
                     LinkingDiagnosticReason::ScipIncomplete,
-                    references
-                        .iter()
-                        .flat_map(|reference| reference.provenance.iter().cloned())
-                        .collect(),
+                    provenance,
                     limits,
                 )?;
                 Ok(CoverageState::Partial)
@@ -817,8 +805,11 @@ fn collect_module_facts(
     root: tree_sitter::Node<'_>,
 ) -> Result<ParsedDocument, LinkingError> {
     let mut imports = Vec::new();
-    let mut exports = BTreeMap::<String, Vec<SourceLocation>>::new();
+    let mut direct_exports = BTreeMap::<String, Vec<SourceLocation>>::new();
+    let mut unsupported_exports = BTreeMap::<String, Vec<SourceLocation>>::new();
+    let mut declared_names = BTreeMap::<String, Vec<SourceLocation>>::new();
     let mut has_unsupported_import = false;
+    let mut has_unsupported_export = false;
     let has_dynamic_import = contains_dynamic_import(root, source);
 
     let mut cursor = root.walk();
@@ -833,17 +824,57 @@ fn collect_module_facts(
                 }
             }
             "export_statement" => {
-                collect_export_statement(document, text, statement, digest, &mut exports)?;
+                if !collect_export_statement(
+                    document,
+                    text,
+                    statement,
+                    digest,
+                    &mut direct_exports,
+                    &mut unsupported_exports,
+                )? {
+                    has_unsupported_export = true;
+                }
+                collect_declared_bindings(
+                    document,
+                    source,
+                    digest,
+                    statement,
+                    &mut declared_names,
+                )?;
             }
-            _ => {}
+            _ => {
+                collect_declared_bindings(
+                    document,
+                    source,
+                    digest,
+                    statement,
+                    &mut declared_names,
+                )?;
+            }
         }
+    }
+
+    for records in direct_exports.values_mut() {
+        records.sort();
+        records.dedup();
+    }
+    for records in unsupported_exports.values_mut() {
+        records.sort();
+        records.dedup();
+    }
+    for records in declared_names.values_mut() {
+        records.sort();
+        records.dedup();
     }
 
     Ok(ParsedDocument {
         imports,
-        exports,
+        direct_exports,
+        unsupported_exports,
+        declared_names,
         has_unsupported_import,
         has_dynamic_import,
+        has_unsupported_export,
     })
 }
 
@@ -928,29 +959,40 @@ fn collect_export_statement(
     text: &str,
     statement: tree_sitter::Node<'_>,
     digest: &str,
-    exports: &mut BTreeMap<String, Vec<SourceLocation>>,
-) -> Result<(), LinkingError> {
+    direct_exports: &mut BTreeMap<String, Vec<SourceLocation>>,
+    unsupported_exports: &mut BTreeMap<String, Vec<SourceLocation>>,
+) -> Result<bool, LinkingError> {
     let trimmed = text.trim();
-    if trimmed.contains(" from ") {
-        return Ok(());
-    }
     let provenance = location(
         &document.path,
         statement.start_byte(),
         statement.end_byte(),
         digest,
     )?;
-    if trimmed.starts_with("export default") {
-        exports
+
+    if let Some(rest) = trimmed.strip_prefix("export default ") {
+        let direct = rest.starts_with("function ")
+            || rest.starts_with("async function ")
+            || rest.starts_with("class ");
+        let target = if direct {
+            direct_exports
+        } else {
+            unsupported_exports
+        };
+        target
             .entry("default".to_owned())
             .or_default()
             .push(provenance);
-        return Ok(());
+        return Ok(direct);
     }
-    if let Some(named) = trimmed
-        .strip_prefix("export {")
-        .and_then(|value| value.trim_end_matches(';').strip_suffix('}'))
-    {
+
+    if let Some(name) = declared_export_name(trimmed) {
+        direct_exports.entry(name).or_default().push(provenance);
+        return Ok(true);
+    }
+
+    if let Some(named) = export_list_clause(trimmed) {
+        let mut saw_supported_name = false;
         for item in named
             .split(',')
             .map(str::trim)
@@ -963,16 +1005,84 @@ fn collect_export_statement(
                 _ => continue,
             };
             if is_identifier(exported) {
-                exports
+                unsupported_exports
                     .entry(exported.to_owned())
                     .or_default()
                     .push(provenance.clone());
+                saw_supported_name = true;
             }
+        }
+        return Ok(false && saw_supported_name);
+    }
+
+    Ok(false)
+}
+
+fn export_list_clause(text: &str) -> Option<&str> {
+    let rest = text.strip_prefix("export {")?;
+    let close = rest.find('}')?;
+    rest.get(..close)
+}
+
+fn collect_declared_bindings(
+    document: &LinkDocument,
+    source: &str,
+    digest: &str,
+    node: tree_sitter::Node<'_>,
+    declared: &mut BTreeMap<String, Vec<SourceLocation>>,
+) -> Result<(), LinkingError> {
+    if node.kind() == "import_statement" {
+        return Ok(());
+    }
+
+    match node.kind() {
+        "variable_declarator" | "function_declaration" | "class_declaration" => {
+            if let Some(name) = node.child_by_field_name("name") {
+                collect_pattern_identifiers(document, source, digest, name, declared)?;
+            }
+        }
+        "formal_parameters" => {
+            collect_pattern_identifiers(document, source, digest, node, declared)?;
+        }
+        "catch_clause" => {
+            if let Some(parameter) = node.child_by_field_name("parameter") {
+                collect_pattern_identifiers(document, source, digest, parameter, declared)?;
+            }
+        }
+        _ => {}
+    }
+
+    let mut cursor = node.walk();
+    for child in node.named_children(&mut cursor) {
+        collect_declared_bindings(document, source, digest, child, declared)?;
+    }
+    Ok(())
+}
+
+fn collect_pattern_identifiers(
+    document: &LinkDocument,
+    source: &str,
+    digest: &str,
+    node: tree_sitter::Node<'_>,
+    declared: &mut BTreeMap<String, Vec<SourceLocation>>,
+) -> Result<(), LinkingError> {
+    if matches!(
+        node.kind(),
+        "identifier" | "shorthand_property_identifier_pattern"
+    ) {
+        if let Some(name) = node_text(node, source).filter(|name| is_identifier(name)) {
+            declared.entry(name.to_owned()).or_default().push(location(
+                &document.path,
+                node.start_byte(),
+                node.end_byte(),
+                digest,
+            )?);
         }
         return Ok(());
     }
-    if let Some(name) = declared_export_name(trimmed) {
-        exports.entry(name).or_default().push(provenance);
+    let mut cursor = node.walk();
+    for child in node.named_children(&mut cursor) {
+        collect_pattern_identifiers(document, source, digest, child, declared)?;
     }
     Ok(())
 }
@@ -1077,32 +1187,6 @@ fn resolve_explicit_local_import(
         )?),
         None,
     ))
-}
-
-fn validate_scip_admission_metadata(
-    qualification_id: &str,
-    artifact_digest: &str,
-) -> Result<(), LinkingError> {
-    if qualification_id.trim().is_empty()
-        || qualification_id.len() > MAX_SCIP_METADATA_BYTES
-        || qualification_id.chars().any(char::is_control)
-    {
-        return Err(LinkingError::InvalidScipQualificationId);
-    }
-    if !is_canonical_sha256_id(artifact_digest) {
-        return Err(LinkingError::InvalidScipArtifactDigest);
-    }
-    Ok(())
-}
-
-fn is_canonical_sha256_id(value: &str) -> bool {
-    let Some(hex) = value.strip_prefix("sha256:") else {
-        return false;
-    };
-    hex.len() == 64
-        && hex
-            .bytes()
-            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
 }
 
 fn parse_tree(
