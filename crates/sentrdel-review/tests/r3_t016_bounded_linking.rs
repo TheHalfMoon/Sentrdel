@@ -1,6 +1,9 @@
 use sentrdel_review::{
     business_logic::{
-        link::{LinkDocument, LinkingDiagnosticReason, LinkingError, link_inter_file_semantics},
+        link::{
+            LinkDocument, LinkingDiagnosticReason, LinkingError, MAX_LINK_AST_DEPTH,
+            MAX_LINK_AST_NODES, link_inter_file_semantics,
+        },
         model::{
             BusinessLogicLimits, ConfidenceBasis, FrameworkFamily, HttpMethod, LinkBasis,
             RouteObservation, SourceLocation, StableSemanticId,
@@ -188,6 +191,45 @@ fn deterministic_replay_and_resource_caps_fail_closed() {
     assert!(matches!(
         link_error,
         LinkingError::TooManyLinks { count: 2, max: 1 }
+    ));
+}
+
+#[test]
+fn ast_node_count_cap_fails_closed_before_semantic_walks() {
+    let source = "x;\n".repeat(MAX_LINK_AST_NODES + 1);
+    let error = link_inter_file_semantics(
+        &[],
+        &[document("src/routes.ts", &source)],
+        BusinessLogicLimits::default(),
+    )
+    .expect_err("AST node cap must fail closed");
+
+    assert!(matches!(
+        error,
+        LinkingError::AstNodeLimitExceeded { count, max, .. }
+            if count == MAX_LINK_AST_NODES + 1 && max == MAX_LINK_AST_NODES
+    ));
+}
+
+#[test]
+fn ast_depth_cap_fails_closed_before_semantic_walks() {
+    let nesting = MAX_LINK_AST_DEPTH + 1;
+    let source = format!(
+        "{}const leaf = 1;{}",
+        "{".repeat(nesting),
+        "}".repeat(nesting)
+    );
+    let error = link_inter_file_semantics(
+        &[],
+        &[document("src/routes.ts", &source)],
+        BusinessLogicLimits::default(),
+    )
+    .expect_err("AST depth cap must fail closed");
+
+    assert!(matches!(
+        error,
+        LinkingError::AstDepthLimitExceeded { depth, max, .. }
+            if depth == MAX_LINK_AST_DEPTH + 1 && max == MAX_LINK_AST_DEPTH
     ));
 }
 
