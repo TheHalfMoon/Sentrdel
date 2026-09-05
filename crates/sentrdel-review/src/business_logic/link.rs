@@ -674,8 +674,8 @@ fn extract_local_imports(
     let tree = parser.parse(source, None).ok_or_else(|| {
         InterFileLinkError::ParseFailed("inter-file parser returned no syntax tree".to_owned())
     })?;
-    let digest = content_id("r3-link-source", &(module.path.as_str(), source))
-        .map_err(ModelError::from)?;
+    let digest =
+        content_id("r3-link-source", &(module.path.as_str(), source)).map_err(ModelError::from)?;
 
     let mut imports = Vec::new();
     let mut stack = vec![tree.root_node()];
