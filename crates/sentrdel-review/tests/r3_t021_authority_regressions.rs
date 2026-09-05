@@ -12,8 +12,9 @@ use sentrdel_review::{
             StableSemanticId, TrustBasis, ValueOrigin, ValueOriginKind,
         },
         tenant_binding::{
-            R3_TENANT_ACTOR_GUARD_RELATION, R3_TENANT_GUARD_VALUE_RELATION,
-            R3_TENANT_VALUE_OPERATION_RELATION, TenantBindingInputs, evaluate_tenant_binding,
+            R3_TENANT_ACTOR_GUARD_RELATION, R3_TENANT_ACTOR_VALUE_RELATION,
+            R3_TENANT_GUARD_VALUE_RELATION, R3_TENANT_VALUE_OPERATION_RELATION,
+            TenantBindingInputs, evaluate_tenant_binding,
         },
     },
     view::NormalizedRepoPath,
@@ -76,6 +77,30 @@ fn link(
         limits(),
     )
     .expect("link")
+}
+
+fn invariant() -> InvariantDefinition {
+    InvariantDefinition::new(
+        id("sentrdel.r3.builtin-invariant", "tenant-binding-authority"),
+        InvariantKind::TenantBinding,
+        InvariantSource::BuiltIn,
+        InvariantScope::new(
+            Some("/accounts/:id".to_owned()),
+            vec![HttpMethod::Get],
+            Some(resource()),
+            vec![DataOperationKind::Read],
+            Vec::new(),
+            limits(),
+        )
+        .expect("scope"),
+        InvariantRequirement::TenantBinding {
+            resource_tenant_field: "user_id".to_owned(),
+            required_actor_identity: ActorIdentityKind::AuthenticatedUser,
+        },
+        vec![location(200)],
+        limits(),
+    )
+    .expect("invariant")
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -205,28 +230,7 @@ fn evaluate_guarded_path(
     )
     .expect("path");
 
-    let invariant = InvariantDefinition::new(
-        id("sentrdel.r3.builtin-invariant", "tenant-binding-authority"),
-        InvariantKind::TenantBinding,
-        InvariantSource::BuiltIn,
-        InvariantScope::new(
-            Some("/accounts/:id".to_owned()),
-            vec![HttpMethod::Get],
-            Some(resource()),
-            vec![DataOperationKind::Read],
-            Vec::new(),
-            limits(),
-        )
-        .expect("scope"),
-        InvariantRequirement::TenantBinding {
-            resource_tenant_field: "user_id".to_owned(),
-            required_actor_identity: ActorIdentityKind::AuthenticatedUser,
-        },
-        vec![location(200)],
-        limits(),
-    )
-    .expect("invariant");
-
+    let invariant = invariant();
     evaluate_tenant_binding(
         TenantBindingInputs {
             invariant: &invariant,
@@ -234,6 +238,115 @@ fn evaluate_guarded_path(
             route: &route,
             actors: std::slice::from_ref(&actor),
             guards: std::slice::from_ref(&guard),
+            values: std::slice::from_ref(&value),
+            operation: &operation,
+        },
+        limits(),
+    )
+    .expect("evaluation")
+    .state()
+}
+
+fn evaluate_direct_path(actor_value_relation: &str) -> InvariantEvaluationState {
+    let route = RouteObservation::new(
+        id("r3.t021.authority.route", "direct-account"),
+        FrameworkFamily::Express,
+        HttpMethod::Get,
+        "/accounts/:id",
+        Some("handler".to_owned()),
+        Vec::new(),
+        vec![location(220)],
+        CoverageState::Covered,
+        limits(),
+    )
+    .expect("route");
+    let actor = ActorContext::new(
+        id("r3.t021.authority.actor", "direct-user"),
+        ActorIdentityKind::AuthenticatedUser,
+        ActorSourceKind::VerifiedAuthAdapter,
+        "req.user.id",
+        TrustBasis::DirectObservation,
+        vec![location(240)],
+        limits(),
+    )
+    .expect("actor");
+    let value = ValueOrigin::new(
+        id("r3.t021.authority.value", "authenticated-user-id"),
+        ValueOriginKind::AuthenticatedUserId,
+        "req.user.id",
+        Some(actor.actor_id().clone()),
+        Vec::new(),
+        0,
+        vec![location(260)],
+        limits(),
+    )
+    .expect("value");
+    let operation = DataOperation::new(
+        id("r3.t021.authority.operation", "direct-read-account"),
+        DataOperationKind::Read,
+        resource(),
+        None,
+        vec![
+            FilterPredicate::new(
+                "user_id",
+                FilterOperator::Eq,
+                value.value_id().clone(),
+                location(280),
+                limits(),
+            )
+            .expect("filter"),
+        ],
+        None,
+        None,
+        None,
+        None,
+        vec![location(300)],
+        CoverageState::Covered,
+        limits(),
+    )
+    .expect("operation");
+    let path = CrossLayerPath::new(
+        id("r3.t021.authority.path", "direct-account"),
+        route.route_id().clone(),
+        vec![actor.actor_id().clone()],
+        Vec::new(),
+        operation.operation_id().clone(),
+        None,
+        vec![
+            link(
+                "r3.t021.authority.actor-value",
+                actor.actor_id().clone(),
+                value.value_id().clone(),
+                actor_value_relation,
+                320,
+                LinkBasis::ExplicitAdapterLink,
+                ConfidenceBasis::Extracted,
+            ),
+            link(
+                "r3.t021.authority.direct-value-operation",
+                value.value_id().clone(),
+                operation.operation_id().clone(),
+                R3_TENANT_VALUE_OPERATION_RELATION,
+                340,
+                LinkBasis::ExplicitAdapterLink,
+                ConfidenceBasis::Extracted,
+            ),
+        ],
+        Vec::new(),
+        PathState::Supported,
+        vec![location(360)],
+        limits(),
+    )
+    .expect("path");
+
+    let invariant = invariant();
+    evaluate_tenant_binding(
+        TenantBindingInputs {
+            invariant: &invariant,
+            path: &path,
+            route: &route,
+            actors: std::slice::from_ref(&actor),
+            guards: &[],
             values: std::slice::from_ref(&value),
             operation: &operation,
         },
@@ -269,6 +382,14 @@ fn extracted_supported_guard_baseline_is_satisfied() {
             LinkBasis::ExplicitAdapterLink,
             ConfidenceBasis::Extracted,
         ),
+        InvariantEvaluationState::Satisfied
+    );
+}
+
+#[test]
+fn extracted_supported_direct_binding_baseline_is_satisfied() {
+    assert_eq!(
+        evaluate_direct_path(R3_TENANT_ACTOR_VALUE_RELATION),
         InvariantEvaluationState::Satisfied
     );
 }
@@ -321,6 +442,14 @@ fn unknown_basis_required_link_cannot_upgrade_authority() {
             LinkBasis::Unknown,
             ConfidenceBasis::Extracted,
         ),
+        InvariantEvaluationState::Unknown
+    );
+}
+
+#[test]
+fn unrelated_actor_value_relation_cannot_upgrade_authority() {
+    assert_eq!(
+        evaluate_direct_path("unrelated_actor_value_relation"),
         InvariantEvaluationState::Unknown
     );
 }
