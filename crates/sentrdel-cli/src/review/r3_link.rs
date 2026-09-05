@@ -94,18 +94,9 @@ pub enum ScipLinkingError {
     InvalidLimits,
     InvalidIngestion,
     MissingProvenance,
-    TooManyProvenance {
-        count: usize,
-        max: usize,
-    },
-    TooManyReferences {
-        count: usize,
-        max: usize,
-    },
-    TooManyLinks {
-        count: usize,
-        max: usize,
-    },
+    TooManyProvenance { count: usize, max: usize },
+    TooManyReferences { count: usize, max: usize },
+    TooManyLinks { count: usize, max: usize },
     Graph(GraphContractError),
     Model(ModelError),
 }
@@ -121,10 +112,16 @@ impl fmt::Display for ScipLinkingError {
                 formatter.write_str("R3 SCIP linking requires explicit source provenance")
             }
             Self::TooManyProvenance { count, max } => {
-                write!(formatter, "R3 SCIP provenance count {count} exceeds cap {max}")
+                write!(
+                    formatter,
+                    "R3 SCIP provenance count {count} exceeds cap {max}"
+                )
             }
             Self::TooManyReferences { count, max } => {
-                write!(formatter, "R3 SCIP reference count {count} exceeds cap {max}")
+                write!(
+                    formatter,
+                    "R3 SCIP reference count {count} exceeds cap {max}"
+                )
             }
             Self::TooManyLinks { count, max } => {
                 write!(formatter, "R3 SCIP link count {count} exceeds cap {max}")
@@ -197,7 +194,8 @@ pub fn link_scip_semantics(
             normalize_optional_provenance(&mut provenance, limits)?;
 
             let coverage = ingestion.coverage();
-            if coverage.capability != SCIP_REFERENCE_CAPABILITY || coverage.input_digests.len() != 1 {
+            if coverage.capability != SCIP_REFERENCE_CAPABILITY || coverage.input_digests.len() != 1
+            {
                 return Err(ScipLinkingError::InvalidIngestion);
             }
             let artifact_digest = &coverage.input_digests[0];
@@ -216,9 +214,8 @@ pub fn link_scip_semantics(
 
             let max_links = MAX_INTER_FILE_LINKS.min(limits.max_path_candidates);
             let mut links = BTreeMap::<String, CrossLayerLink>::new();
-            let mut incomplete = !complete
-                || edges.is_empty()
-                || coverage.state != CoverageState::Covered;
+            let mut incomplete =
+                !complete || edges.is_empty() || coverage.state != CoverageState::Covered;
 
             for edge in edges {
                 validate_edge(edge)?;
@@ -247,16 +244,10 @@ pub fn link_scip_semantics(
                         ConfidenceBasis::Ambiguous
                     }
                 };
-                let source_id = StableSemanticId::from_parts(
-                    "r3-scip-node",
-                    &[edge.source.as_str()],
-                    limits,
-                )?;
-                let target_id = StableSemanticId::from_parts(
-                    "r3-scip-node",
-                    &[edge.target.as_str()],
-                    limits,
-                )?;
+                let source_id =
+                    StableSemanticId::from_parts("r3-scip-node", &[edge.source.as_str()], limits)?;
+                let target_id =
+                    StableSemanticId::from_parts("r3-scip-node", &[edge.target.as_str()], limits)?;
                 let link = CrossLayerLink::new(
                     StableSemanticId::from_parts(
                         "r3-scip-link",
