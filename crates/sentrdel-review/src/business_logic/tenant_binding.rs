@@ -368,7 +368,7 @@ fn scope_applies(
         || path
             .provenance()
             .iter()
-            .any(|location| scope.target_paths().contains(&location.path()))
+            .any(|location| scope.target_paths().contains(location.path()))
 }
 
 fn supported_authenticated_actor(actor: &ActorContext) -> bool {
