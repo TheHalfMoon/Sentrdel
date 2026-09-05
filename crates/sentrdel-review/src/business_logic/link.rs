@@ -935,6 +935,11 @@ fn collect_declared_bindings(
             "formal_parameters" => {
                 collect_pattern_identifiers(document, source, digest, node, declared)?;
             }
+            "arrow_function" => {
+                if let Some(parameter) = node.child_by_field_name("parameter") {
+                    collect_pattern_identifiers(document, source, digest, parameter, declared)?;
+                }
+            }
             "catch_clause" => {
                 if let Some(parameter) = node.child_by_field_name("parameter") {
                     collect_pattern_identifiers(document, source, digest, parameter, declared)?;
