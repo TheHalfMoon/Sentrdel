@@ -1,8 +1,12 @@
+use sentrdel_graph::{
+    ScipArtifact, ScipDocument, ScipIngestionError, ScipIngestionRequest, ScipOccurrence,
+    ScipOccurrenceRole, ScipPosition, ScipProducerQualification, ScipRange, ingest_scip,
+};
 use sentrdel_review::{
     business_logic::{
         link::{
-            AdmittedScipReference, LinkDocument, LinkingDiagnosticReason, LinkingError,
-            ScipProducerBasis, ScipSemanticInput, link_inter_file_semantics,
+            LinkDocument, LinkingDiagnosticReason, LinkingError, ScipSemanticInput,
+            link_inter_file_semantics,
         },
         model::{
             BusinessLogicLimits, FrameworkFamily, HttpMethod, LinkBasis, RouteObservation,
@@ -19,7 +23,7 @@ fn path(value: &str) -> NormalizedRepoPath {
     NormalizedRepoPath::parse(value, DEFAULT_MAX_REPO_PATH_BYTES).expect("normalized path")
 }
 
-fn semantic_id(namespace: &str, value: &str) -> StableSemanticId {
+fn id(namespace: &str, value: &str) -> StableSemanticId {
     StableSemanticId::from_parts(namespace, &[value], BusinessLogicLimits::default())
         .expect("stable semantic id")
 }
@@ -36,13 +40,28 @@ fn provenance(value: &str) -> SourceLocation {
 
 fn route(importer: &str) -> RouteObservation {
     RouteObservation::new(
-        semantic_id("route", importer),
+        id("route", importer),
         FrameworkFamily::Express,
         HttpMethod::Get,
         "/fixture",
         Some("handler".to_owned()),
-        vec![semantic_id("callback", importer)],
+        vec![id("callback", importer)],
         vec![provenance(importer)],
+        CoverageState::Covered,
+        BusinessLogicLimits::default(),
+    )
+    .expect("route observation")
+}
+
+fn route_with_provenance(paths: &[&str]) -> RouteObservation {
+    RouteObservation::new(
+        id("route", "multi-provenance"),
+        FrameworkFamily::Express,
+        HttpMethod::Get,
+        "/fixture",
+        Some("handler".to_owned()),
+        vec![id("callback", "multi-provenance")],
+        paths.iter().map(|value| provenance(value)).collect(),
         CoverageState::Covered,
         BusinessLogicLimits::default(),
     )
@@ -58,8 +77,11 @@ fn document(value: &str, source: &str) -> LinkDocument {
     .expect("link document")
 }
 
-fn canonical_digest() -> String {
-    format!("sha256:{}", "a".repeat(64))
+fn has_import_link(result: &sentrdel_review::business_logic::link::LinkingResult) -> bool {
+    result
+        .links()
+        .iter()
+        .any(|link| link.basis() == LinkBasis::SupportedImportBinding)
 }
 
 #[test]
@@ -76,47 +98,6 @@ fn missing_route_source_document_is_partial_and_explicit() {
     assert!(result.diagnostics().iter().any(|diagnostic| {
         diagnostic.reason() == LinkingDiagnosticReason::MissingRouteDocument
     }));
-}
-
-#[test]
-fn multiple_route_provenance_documents_are_ambiguous_not_first_path_join() {
-    let ambiguous_route = RouteObservation::new(
-        semantic_id("route", "ambiguous-source"),
-        FrameworkFamily::Express,
-        HttpMethod::Get,
-        "/fixture",
-        Some("handler".to_owned()),
-        vec![semantic_id("callback", "ambiguous-source")],
-        vec![provenance("src/routes.ts"), provenance("src/a.ts")],
-        CoverageState::Covered,
-        BusinessLogicLimits::default(),
-    )
-    .expect("ambiguous route observation");
-    let result = link_inter_file_semantics(
-        &[ambiguous_route],
-        &[
-            document(
-                "src/a.ts",
-                "import { handler } from './handlers.ts';\nexport const unrelated = handler;",
-            ),
-            document("src/routes.ts", "app.get('/fixture', handler);"),
-            document("src/handlers.ts", "export function handler() {}"),
-        ],
-        ScipSemanticInput::Unavailable,
-        BusinessLogicLimits::default(),
-    )
-    .expect("ambiguous route document linking");
-
-    assert_eq!(result.coverage().local_state(), &CoverageState::Partial);
-    assert!(result.diagnostics().iter().any(|diagnostic| {
-        diagnostic.reason() == LinkingDiagnosticReason::AmbiguousRouteDocument
-    }));
-    assert!(
-        !result
-            .links()
-            .iter()
-            .any(|link| link.basis() == LinkBasis::SupportedImportBinding)
-    );
 }
 
 #[test]
@@ -139,51 +120,144 @@ fn duplicate_route_input_is_bounded_before_link_deduplication() {
 }
 
 #[test]
-fn admitted_scip_metadata_matches_existing_canonical_boundary() {
-    let source = semantic_id("scip-source", "source");
-    let target = semantic_id("scip-target", "target");
-    let source_provenance = vec![provenance("src/routes.ts")];
-
-    for qualification_id in ["", "   ", "SCIPQ-invalid\ncontrol"] {
-        let error = AdmittedScipReference::new(
-            source.clone(),
-            target.clone(),
-            qualification_id,
-            canonical_digest(),
-            ScipProducerBasis::CompilerBacked,
-            source_provenance.clone(),
-            BusinessLogicLimits::default(),
-        )
-        .expect_err("invalid qualification metadata must fail closed");
-        assert!(matches!(error, LinkingError::InvalidScipQualificationId));
-    }
-
-    for digest in [
-        "sha256:abc".to_owned(),
-        format!("sha256:{}", "A".repeat(64)),
-        format!("sha512:{}", "a".repeat(64)),
-    ] {
-        let error = AdmittedScipReference::new(
-            source.clone(),
-            target.clone(),
-            "SCIPQ-qualified-compiler",
-            digest,
-            ScipProducerBasis::CompilerBacked,
-            source_provenance.clone(),
-            BusinessLogicLimits::default(),
-        )
-        .expect_err("malformed artifact digest must fail closed");
-        assert!(matches!(error, LinkingError::InvalidScipArtifactDigest));
-    }
-
-    AdmittedScipReference::new(
-        source,
-        target,
-        "SCIPQ-qualified-compiler",
-        canonical_digest(),
-        ScipProducerBasis::CompilerBacked,
-        source_provenance,
+fn multiple_route_provenance_documents_cannot_choose_lexical_first_importer() {
+    let result = link_inter_file_semantics(
+        &[route_with_provenance(&["src/a.ts", "src/routes.ts"])],
+        &[
+            document(
+                "src/a.ts",
+                "import { handler } from './handlers.ts';\napp.get('/fixture', handler);",
+            ),
+            document(
+                "src/routes.ts",
+                "import { handler } from './other.ts';\napp.get('/fixture', handler);",
+            ),
+            document("src/handlers.ts", "export function handler() {}"),
+            document("src/other.ts", "export function handler() {}"),
+        ],
+        ScipSemanticInput::Unavailable,
         BusinessLogicLimits::default(),
     )
-    .expect("canonical admitted SCIP metadata remains accepted");
+    .expect("ambiguous route document");
+
+    assert_eq!(result.coverage().local_state(), &CoverageState::Partial);
+    assert!(!has_import_link(&result));
+    assert!(result.diagnostics().iter().any(|diagnostic| {
+        diagnostic.reason() == LinkingDiagnosticReason::AmbiguousRouteDocument
+    }));
+}
+
+#[test]
+fn callback_shadowing_forms_never_resolve_to_top_level_import() {
+    let cases = [
+        "import { handler } from './handlers.ts';\nfunction register(handler) { app.get('/fixture', handler); }",
+        "import { handler } from './handlers.ts';\n{ const handler = () => {}; app.get('/fixture', handler); }",
+        "import { handler } from './handlers.ts';\ntry { throw 1; } catch (handler) { app.get('/fixture', handler); }",
+        "import { handler } from './handlers.ts';\napp.get('/fixture', handler);\nfunction handler() {}",
+    ];
+
+    for source in cases {
+        let result = link_inter_file_semantics(
+            &[route("src/routes.ts")],
+            &[
+                document("src/routes.ts", source),
+                document("src/handlers.ts", "export function handler() {}"),
+            ],
+            ScipSemanticInput::Unavailable,
+            BusinessLogicLimits::default(),
+        )
+        .expect("shadowed callback linking");
+
+        assert_eq!(result.coverage().local_state(), &CoverageState::Partial);
+        assert!(!has_import_link(&result));
+        assert!(result.diagnostics().iter().any(|diagnostic| {
+            diagnostic.reason() == LinkingDiagnosticReason::ShadowedImportBinding
+        }));
+    }
+}
+
+#[test]
+fn indirect_named_and_default_reexports_are_not_direct_target_exports() {
+    let named = link_inter_file_semantics(
+        &[route("src/routes.ts")],
+        &[
+            document(
+                "src/routes.ts",
+                "import { handler } from './middle.ts';\napp.get('/fixture', handler);",
+            ),
+            document(
+                "src/middle.ts",
+                "import { realHandler } from './real.ts';\nexport { realHandler as handler };",
+            ),
+            document("src/real.ts", "export function realHandler() {}"),
+        ],
+        ScipSemanticInput::Unavailable,
+        BusinessLogicLimits::default(),
+    )
+    .expect("named forwarding");
+    assert_eq!(named.coverage().local_state(), &CoverageState::Partial);
+    assert!(!has_import_link(&named));
+    assert!(named.diagnostics().iter().any(|diagnostic| {
+        diagnostic.reason() == LinkingDiagnosticReason::UnsupportedTargetExport
+    }));
+
+    let default = link_inter_file_semantics(
+        &[route("src/routes.ts")],
+        &[
+            document(
+                "src/routes.ts",
+                "import handler from './middle.ts';\napp.get('/fixture', handler);",
+            ),
+            document(
+                "src/middle.ts",
+                "import realHandler from './real.ts';\nexport default realHandler;",
+            ),
+            document("src/real.ts", "export default function realHandler() {}"),
+        ],
+        ScipSemanticInput::Unavailable,
+        BusinessLogicLimits::default(),
+    )
+    .expect("default forwarding");
+    assert_eq!(default.coverage().local_state(), &CoverageState::Partial);
+    assert!(!has_import_link(&default));
+    assert!(default.diagnostics().iter().any(|diagnostic| {
+        diagnostic.reason() == LinkingDiagnosticReason::UnsupportedTargetExport
+    }));
+}
+
+#[test]
+fn syntactically_valid_but_unqualified_scip_cannot_create_ingestion_proof() {
+    let error = ingest_scip(ScipIngestionRequest {
+        artifact: ScipArtifact {
+            artifact_digest: format!("sha256:{}", "a".repeat(64)),
+            producer_name: "fixture-scip".to_owned(),
+            producer_version: Some("1.0.0".to_owned()),
+            documents: vec![ScipDocument {
+                relative_path: "src/routes.ts".to_owned(),
+                language: "typescript".to_owned(),
+                occurrences: vec![ScipOccurrence {
+                    symbol: "typescript npm fixture 1.0.0 handler().".to_owned(),
+                    range: ScipRange {
+                        start: ScipPosition {
+                            line: 0,
+                            character: 0,
+                        },
+                        end: ScipPosition {
+                            line: 0,
+                            character: 7,
+                        },
+                    },
+                    role: ScipOccurrenceRole::Reference,
+                }],
+            }],
+        },
+        producer_qualification: ScipProducerQualification::CompilerBacked {
+            qualification_id: "   ".to_owned(),
+        },
+        scope: ".".to_owned(),
+        observed_at: "2026-09-05T00:00:00Z".to_owned(),
+    })
+    .expect_err("unqualified compiler claim must fail at canonical ingestion boundary");
+
+    assert!(matches!(error, ScipIngestionError::BlankQualificationId));
 }
