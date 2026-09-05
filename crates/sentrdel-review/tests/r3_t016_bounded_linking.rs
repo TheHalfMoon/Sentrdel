@@ -71,10 +71,7 @@ fn document(value: &str, source: &str) -> LinkDocument {
     .expect("link document")
 }
 
-fn scip_reference(
-    suffix: &str,
-    producer_basis: ScipProducerBasis,
-) -> AdmittedScipReference {
+fn scip_reference(suffix: &str, producer_basis: ScipProducerBasis) -> AdmittedScipReference {
     AdmittedScipReference::new(
         id("scip-source", suffix),
         id("scip-target", suffix),
@@ -140,10 +137,12 @@ fn package_extensionless_and_repository_escape_imports_are_partial_not_guessed()
         assert!(result.diagnostics().iter().any(|diagnostic| {
             diagnostic.reason() == LinkingDiagnosticReason::UnsupportedModuleSpecifier
         }));
-        assert!(!result
-            .links()
-            .iter()
-            .any(|link| link.basis() == LinkBasis::SupportedImportBinding));
+        assert!(
+            !result
+                .links()
+                .iter()
+                .any(|link| link.basis() == LinkBasis::SupportedImportBinding)
+        );
     }
 }
 
@@ -229,10 +228,12 @@ fn missing_and_ambiguous_targets_never_mint_import_links() {
     assert!(ambiguous_export.diagnostics().iter().any(|diagnostic| {
         diagnostic.reason() == LinkingDiagnosticReason::AmbiguousTargetExport
     }));
-    assert!(!ambiguous_export
-        .links()
-        .iter()
-        .any(|link| link.basis() == LinkBasis::SupportedImportBinding));
+    assert!(
+        !ambiguous_export
+            .links()
+            .iter()
+            .any(|link| link.basis() == LinkBasis::SupportedImportBinding)
+    );
 }
 
 #[test]
@@ -251,10 +252,12 @@ fn same_raw_handler_name_without_import_never_creates_cross_file_false_join() {
     )
     .expect("bounded linking");
 
-    assert!(!result
-        .links()
-        .iter()
-        .any(|link| link.basis() == LinkBasis::SupportedImportBinding));
+    assert!(
+        !result
+            .links()
+            .iter()
+            .any(|link| link.basis() == LinkBasis::SupportedImportBinding)
+    );
 }
 
 #[test]
@@ -333,10 +336,12 @@ fn compiler_backed_scip_is_extracted_while_heuristic_or_absent_is_not_clean() {
         unavailable.coverage().semantic_state(),
         &CoverageState::Unavailable
     );
-    assert!(!unavailable
-        .links()
-        .iter()
-        .any(|link| link.basis() == LinkBasis::ScipReference));
+    assert!(
+        !unavailable
+            .links()
+            .iter()
+            .any(|link| link.basis() == LinkBasis::ScipReference)
+    );
 }
 
 #[test]
@@ -394,13 +399,9 @@ fn path_candidate_and_link_caps_fail_closed() {
         vec![id("callback", "one"), id("callback", "two")],
         CoverageState::Covered,
     );
-    let link_error = link_inter_file_semantics(
-        &[two_callbacks],
-        &[],
-        ScipSemanticInput::Unavailable,
-        tiny,
-    )
-    .expect_err("link cap must fail");
+    let link_error =
+        link_inter_file_semantics(&[two_callbacks], &[], ScipSemanticInput::Unavailable, tiny)
+            .expect_err("link cap must fail");
     assert!(matches!(
         link_error,
         LinkingError::TooManyLinks { count: 2, max: 1 }
@@ -413,12 +414,7 @@ fn diagnostic_and_scip_caps_fail_closed() {
         max_diagnostics: 1,
         ..BusinessLogicLimits::default()
     };
-    let incomplete = route_with(
-        "src/routes.ts",
-        None,
-        Vec::new(),
-        CoverageState::Partial,
-    );
+    let incomplete = route_with("src/routes.ts", None, Vec::new(), CoverageState::Partial);
     let diagnostic_error = link_inter_file_semantics(
         &[incomplete],
         &[],
