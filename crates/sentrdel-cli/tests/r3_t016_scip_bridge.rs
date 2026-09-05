@@ -57,9 +57,7 @@ fn request(qualification: ScipProducerQualification) -> ScipIngestionRequest {
 
 fn admitted(qualification: ScipProducerQualification, complete: bool) -> ScipSemanticInput {
     ScipSemanticInput::Admitted {
-        ingestion: Box::new(
-            ingest_scip(request(qualification)).expect("canonical SCIP ingestion"),
-        ),
+        ingestion: Box::new(ingest_scip(request(qualification)).expect("canonical SCIP ingestion")),
         provenance: vec![provenance()],
         complete,
     }
