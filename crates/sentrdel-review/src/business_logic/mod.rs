@@ -16,6 +16,7 @@ pub mod invariant;
 pub mod link;
 pub mod model;
 pub mod ordering;
+pub mod path;
 #[path = "route_gate.rs"]
 pub mod route;
 #[path = "value_final.rs"]
