@@ -13,6 +13,7 @@ pub mod graph;
 #[path = "guard_tdz_scope.rs"]
 pub mod guard;
 pub mod invariant;
+pub mod link;
 pub mod model;
 pub mod ordering;
 #[path = "route_gate.rs"]
