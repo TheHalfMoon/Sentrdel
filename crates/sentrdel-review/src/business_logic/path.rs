@@ -1,20 +1,25 @@
-//! Deterministic bounded R3 path correlation with T022 required-role link qualification.
+//! Deterministic bounded R3 path correlation with authorization link qualification.
 //!
 //! The canonical T017 correlator remains unchanged in `path_base.rs`. This wrapper may add
-//! authorization-specific links only when an already-supported correlated route-to-operation path
-//! contains a supported required-role guard with proven non-UNKNOWN dominance and extracted
-//! directed connectivity. It never reparses source, uses route naming or lexical role strings as
-//! proof, executes target code, performs network access, or creates Findings.
+//! T022 required-role and T024 elevated-client authorization links only when an already-supported
+//! correlated route-to-operation path proves the relevant guard dominance, resource applicability,
+//! provider-client authority, and extracted directed connectivity. It never reparses source, uses
+//! route naming or lexical role strings as proof, executes target code, performs network access,
+//! receives provider credentials, or creates Findings.
 
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 use sentrdel_schema::coverage::CoverageState;
 
+use super::elevated_client::{
+    R3_ELEVATED_CLIENT_GUARD_OPERATION_RELATION, R3_ELEVATED_CLIENT_OPERATION_CLIENT_RELATION,
+    R3_ELEVATED_CLIENT_ROUTE_GUARD_RELATION,
+};
 use super::model::{
     ActorContext, BusinessLogicLimits, ComparisonShape, ConfidenceBasis, CrossLayerLink,
     CrossLayerPath, DataOperation, DominanceScope, GuardKind, GuardObservation, LinkBasis,
-    PathState, ProviderClientAuthority, RouteObservation, SourceLocation, StableSemanticId,
-    ValueOrigin,
+    PathState, ProviderAuthorityClass, ProviderClientAuthority, RouteObservation, SourceLocation,
+    StableSemanticId, ValueOrigin,
 };
 use super::required_role::{
     R3_REQUIRED_ROLE_GUARD_OPERATION_RELATION, R3_REQUIRED_ROLE_ROUTE_GUARD_RELATION,
@@ -105,6 +110,11 @@ pub fn correlate_cross_layer_paths(
         .iter()
         .map(|operation| (operation.operation_id().as_str(), operation))
         .collect::<BTreeMap<_, _>>();
+    let clients = inputs
+        .provider_clients
+        .iter()
+        .map(|client| (client.client_id().as_str(), client))
+        .collect::<BTreeMap<_, _>>();
 
     let mut paths = Vec::with_capacity(base_result.paths().len());
     for path in base_result.paths() {
@@ -116,11 +126,19 @@ pub fn correlate_cross_layer_paths(
             paths.push(path.clone());
             continue;
         };
-        paths.push(qualify_required_role_links(
+        let role_qualified = qualify_required_role_links(
             path,
             route,
             operation,
             &guards,
+            model_limits,
+        )?;
+        paths.push(qualify_elevated_client_links(
+            &role_qualified,
+            route,
+            operation,
+            &guards,
+            &clients,
             model_limits,
         )?);
     }
@@ -159,6 +177,7 @@ fn qualify_required_role_links(
 
         let provenance = qualification_provenance(route, guard, operation);
         authorization_links.push(authorization_link(
+            "r3-required-role-correlation-link",
             path.route_id(),
             guard.guard_id(),
             R3_REQUIRED_ROLE_ROUTE_GUARD_RELATION,
@@ -166,6 +185,7 @@ fn qualify_required_role_links(
             limits,
         )?);
         authorization_links.push(authorization_link(
+            "r3-required-role-correlation-link",
             guard.guard_id(),
             path.data_operation_id(),
             R3_REQUIRED_ROLE_GUARD_OPERATION_RELATION,
@@ -174,6 +194,91 @@ fn qualify_required_role_links(
         )?);
     }
 
+    qualify_path_with_links(
+        path,
+        authorization_links,
+        "r3-required-role-qualified-path",
+        "authorization",
+        limits,
+    )
+}
+
+fn qualify_elevated_client_links(
+    path: &CrossLayerPath,
+    route: &RouteObservation,
+    operation: &DataOperation,
+    guards: &BTreeMap<&str, &GuardObservation>,
+    clients: &BTreeMap<&str, &ProviderClientAuthority>,
+    limits: BusinessLogicLimits,
+) -> Result<CrossLayerPath, PathCorrelationError> {
+    if path.path_state() != PathState::Supported {
+        return Ok(path.clone());
+    }
+    let Some(client_id) = path.provider_client_id() else {
+        return Ok(path.clone());
+    };
+    if operation.provider_client() != Some(client_id) {
+        return Ok(path.clone());
+    }
+    let Some(client) = clients.get(client_id.as_str()).copied() else {
+        return Ok(path.clone());
+    };
+    if client.authority_class() != ProviderAuthorityClass::ElevatedSecretOrServiceRole {
+        return Ok(path.clone());
+    }
+    if !supported_reachable(path, operation.operation_id(), client.client_id()) {
+        return Ok(path.clone());
+    }
+
+    let mut authorization_links = Vec::new();
+    for guard_id in path.guard_ids() {
+        let Some(guard) = guards.get(guard_id.as_str()).copied() else {
+            continue;
+        };
+        if !elevated_guard_is_qualifiable(guard, operation) {
+            continue;
+        }
+        if !supported_reachable(path, path.route_id(), guard.guard_id())
+            || !supported_reachable(path, guard.guard_id(), path.data_operation_id())
+        {
+            continue;
+        }
+
+        let provenance = qualification_provenance(route, guard, operation);
+        authorization_links.push(authorization_link(
+            "r3-elevated-client-correlation-link",
+            path.route_id(),
+            guard.guard_id(),
+            R3_ELEVATED_CLIENT_ROUTE_GUARD_RELATION,
+            provenance.clone(),
+            limits,
+        )?);
+        authorization_links.push(authorization_link(
+            "r3-elevated-client-correlation-link",
+            guard.guard_id(),
+            path.data_operation_id(),
+            R3_ELEVATED_CLIENT_GUARD_OPERATION_RELATION,
+            provenance,
+            limits,
+        )?);
+    }
+
+    qualify_path_with_links(
+        path,
+        authorization_links,
+        "r3-elevated-client-qualified-path",
+        "elevated-authorization",
+        limits,
+    )
+}
+
+fn qualify_path_with_links(
+    path: &CrossLayerPath,
+    mut authorization_links: Vec<CrossLayerLink>,
+    path_namespace: &str,
+    identity_label: &str,
+    limits: BusinessLogicLimits,
+) -> Result<CrossLayerPath, PathCorrelationError> {
     if authorization_links.is_empty() {
         return Ok(path.clone());
     }
@@ -186,14 +291,13 @@ fn qualify_required_role_links(
     let mut identity_parts = Vec::with_capacity(authorization_links.len().saturating_add(1));
     identity_parts.push(format!("base:{}", path.path_id().as_str()));
     for link in &authorization_links {
-        identity_parts.push(format!("authorization:{}", link.link_id().as_str()));
+        identity_parts.push(format!("{identity_label}:{}", link.link_id().as_str()));
     }
     let identity_refs = identity_parts
         .iter()
         .map(String::as_str)
         .collect::<Vec<_>>();
-    let path_id =
-        StableSemanticId::from_parts("r3-required-role-qualified-path", &identity_refs, limits)?;
+    let path_id = StableSemanticId::from_parts(path_namespace, &identity_refs, limits)?;
 
     Ok(CrossLayerPath::new(
         path_id,
@@ -225,6 +329,30 @@ fn role_guard_is_qualifiable(guard: &GuardObservation, operation: &DataOperation
             .is_none_or(|resource| resource == operation.resource())
 }
 
+fn elevated_guard_is_qualifiable(guard: &GuardObservation, operation: &DataOperation) -> bool {
+    let supported_semantics = match guard.guard_kind() {
+        GuardKind::RequiredRole => {
+            !guard.required_values().is_empty()
+                && matches!(
+                    guard.comparison_shape(),
+                    ComparisonShape::Equal
+                        | ComparisonShape::Membership
+                        | ComparisonShape::ConjunctionSupported
+                )
+        }
+        GuardKind::ElevatedClientBoundary => {
+            guard.comparison_shape() == ComparisonShape::OtherSupported
+        }
+        _ => false,
+    };
+
+    supported_semantics
+        && guard.dominance_scope() != DominanceScope::Unknown
+        && guard
+            .resource()
+            .is_none_or(|resource| resource == operation.resource())
+}
+
 fn supported_reachable(
     path: &CrossLayerPath,
     source: &StableSemanticId,
@@ -238,7 +366,7 @@ fn supported_reachable(
     for link in path.links() {
         if link.confidence_basis() != ConfidenceBasis::Extracted
             || link.basis() == LinkBasis::Unknown
-            || is_required_role_authorization_relation(link.relation())
+            || is_authorization_qualification_relation(link.relation())
         {
             continue;
         }
@@ -268,10 +396,13 @@ fn supported_reachable(
     false
 }
 
-fn is_required_role_authorization_relation(relation: &str) -> bool {
+fn is_authorization_qualification_relation(relation: &str) -> bool {
     matches!(
         relation,
-        R3_REQUIRED_ROLE_ROUTE_GUARD_RELATION | R3_REQUIRED_ROLE_GUARD_OPERATION_RELATION
+        R3_REQUIRED_ROLE_ROUTE_GUARD_RELATION
+            | R3_REQUIRED_ROLE_GUARD_OPERATION_RELATION
+            | R3_ELEVATED_CLIENT_ROUTE_GUARD_RELATION
+            | R3_ELEVATED_CLIENT_GUARD_OPERATION_RELATION
     )
 }
 
@@ -288,6 +419,7 @@ fn qualification_provenance(
 }
 
 fn authorization_link(
+    identity_namespace: &str,
     source: &StableSemanticId,
     target: &StableSemanticId,
     relation: &str,
@@ -296,7 +428,7 @@ fn authorization_link(
 ) -> Result<CrossLayerLink, PathCorrelationError> {
     Ok(CrossLayerLink::new(
         StableSemanticId::from_parts(
-            "r3-required-role-correlation-link",
+            identity_namespace,
             &[source.as_str(), target.as_str(), relation],
             limits,
         )?,
