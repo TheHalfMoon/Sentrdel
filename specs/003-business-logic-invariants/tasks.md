@@ -74,7 +74,7 @@
 
 ## Phase 5 — Developer-facing integration
 
-- [ ] **R3-T027** Integrate R3 Evidence/Coverage into `sentrdel review` with deterministic changed-path prioritization and route/guard/data/invariant context without changing reconciler or policy authority.
+- [x] **R3-T027** Integrate R3 Evidence/Coverage into `sentrdel review` with deterministic changed-path prioritization and route/guard/data/invariant context without changing reconciler or policy authority.
 - [ ] **R3-T028** Integrate R3 capability/profile/coverage discovery into `sentrdel init` or the existing project profile surface without representing unsupported frameworks as covered.
 - [ ] **R3-T029** Extend `sentrdel explain` so R3 Findings can show the bounded supported route → guard/actor → data/client → invariant chain, R2 supporting Evidence and explicit static/coverage limitations; graph metadata is explanation context, not verdict authority.
 - [ ] **R3-T030** Add E2E fixture repositories proving deterministic review/init/explain behavior across safe, vulnerable, contradictory/unknown, unsupported framework/semantic-link and hostile repository/project-invariant cases.
