@@ -309,11 +309,40 @@ fn scope_applies(
 }
 
 fn guard_is_linked_on_path(path: &CrossLayerPath, guard_id: &StableSemanticId) -> bool {
-    path.links().iter().any(|link| {
-        (link.source_semantic_id() == guard_id || link.target_semantic_id() == guard_id)
-            && link.confidence_basis() == ConfidenceBasis::Extracted
-            && link.basis() != LinkBasis::Unknown
-    })
+    has_supported_directed_path(path, path.route_id(), guard_id)
+        && has_supported_directed_path(path, guard_id, path.data_operation_id())
+}
+
+fn has_supported_directed_path(
+    path: &CrossLayerPath,
+    start: &StableSemanticId,
+    target: &StableSemanticId,
+) -> bool {
+    if start == target {
+        return true;
+    }
+
+    let mut frontier = vec![start.as_str().to_owned()];
+    let mut visited = BTreeSet::new();
+    while let Some(current) = frontier.pop() {
+        if !visited.insert(current.clone()) {
+            continue;
+        }
+        for link in path.links() {
+            if link.confidence_basis() != ConfidenceBasis::Extracted
+                || link.basis() == LinkBasis::Unknown
+                || link.source_semantic_id().as_str() != current
+            {
+                continue;
+            }
+            if link.target_semantic_id() == target {
+                return true;
+            }
+            frontier.push(link.target_semantic_id().as_str().to_owned());
+        }
+    }
+
+    false
 }
 
 fn evaluation(
