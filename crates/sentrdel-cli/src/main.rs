@@ -5,8 +5,6 @@ pub mod bootstrap;
 // keep feature modules compiled and tested without weakening lints anywhere
 // else in the workspace.
 #[allow(dead_code)]
-mod business_logic_review;
-#[allow(dead_code)]
 mod explain;
 #[allow(dead_code)]
 mod explain_provider;
