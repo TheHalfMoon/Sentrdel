@@ -3,8 +3,7 @@
 use sentrdel_review::{
     business_logic::{
         elevated_client::{
-            R3_ELEVATED_CLIENT_GUARD_OPERATION_RELATION,
-            R3_ELEVATED_CLIENT_ROUTE_GUARD_RELATION,
+            R3_ELEVATED_CLIENT_GUARD_OPERATION_RELATION, R3_ELEVATED_CLIENT_ROUTE_GUARD_RELATION,
         },
         model::{
             BusinessLogicLimits, ComparisonShape, ConfidenceBasis, CrossLayerLink, DataOperation,
@@ -244,7 +243,10 @@ fn unknown_guard_dominance_never_mints_elevated_authorization_links() {
     ];
 
     let result = correlate(&route, &guard, &operation, &client, &links);
-    let path = result.paths().first().expect("correlated path remains visible");
+    let path = result
+        .paths()
+        .first()
+        .expect("correlated path remains visible");
     assert!(path.links().iter().all(|link| {
         link.relation() != R3_ELEVATED_CLIENT_ROUTE_GUARD_RELATION
             && link.relation() != R3_ELEVATED_CLIENT_GUARD_OPERATION_RELATION
@@ -273,7 +275,10 @@ fn ambiguous_connectivity_never_mints_elevated_authorization_links() {
     ];
 
     let result = correlate(&route, &guard, &operation, &client, &links);
-    let path = result.paths().first().expect("ambiguous path remains visible");
+    let path = result
+        .paths()
+        .first()
+        .expect("ambiguous path remains visible");
     assert_ne!(path.path_state(), PathState::Supported);
     assert!(path.links().iter().all(|link| {
         link.relation() != R3_ELEVATED_CLIENT_ROUTE_GUARD_RELATION
