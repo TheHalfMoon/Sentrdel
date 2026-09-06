@@ -1,8 +1,8 @@
 # Contract: R3 Project Security Invariants
 
 **Version:** 1  
-**Status:** DESIGN_CONTRACT_ONLY  
-**Planning target:** a bounded repository declaration such as `.sentrdel/invariants.toml`; exact path/loader is not implemented or authorized by this document.
+**Status:** IMPLEMENTED_FOR_R3_T025  
+**Implemented surface:** `.sentrdel/invariants.toml`, loaded by `crates/sentrdel-review/src/business_logic/project_invariant.rs` under the bounded version-1 grammar and authority ceiling frozen by this contract. Persistent Evidence/Coverage mapping remains separately governed by R3-T026.
 
 ## Purpose
 
@@ -37,9 +37,9 @@ A project invariant MUST NOT:
 
 Unknown fields cannot create permissive behavior.
 
-## Proposed bounded document shape
+## Implemented bounded document shape
 
-The following is a planning contract, not an implemented parser format:
+R3-T025 implements an exact Sentrdel-owned version-1 grammar at `.sentrdel/invariants.toml`: an exact integer `version = 1`, `[[invariant]]` records, lowercase-ASCII/underscore keys, quoted non-empty strings without escapes/control characters, and flat arrays of quoted strings. Blank lines and full-line `#` comments are inert. Unknown structure, keys, value syntax, versions, unsupported classes, or malformed records reject the whole project declaration.
 
 ```toml
 version = 1
@@ -72,10 +72,10 @@ id = "service-role-request-boundary"
 type = "elevated_client_context"
 route = "/api/internal/*"
 required_guards = ["required_role"]
-allowed_contexts = ["server"]
+allowed_contexts = ["express-server"]
 ```
 
-Examples illustrate shape only. They do not authorize these exact field names until the implementation task freezes parser tests and canonical schema behavior.
+The field vocabulary and parser behavior above are frozen by R3-T025 and its implementation tests. Changing the version, admitting new value syntax, adding inert metadata, or widening any authority-bearing field requires ordinary reviewed spec/contract evolution.
 
 ## Version contract
 
@@ -184,11 +184,11 @@ At minimum, validation rejects:
 - suppression/waiver/severity/risk-acceptance fields;
 - oversized content or collections.
 
-Implementation may choose whole-document rejection or per-record rejection only after tests prove the behavior cannot create permissive ambiguity. In either case, invalid content cannot suppress built-ins.
+R3-T025 uses whole-document rejection: any invalid retained record rejects the project declaration and yields no project definitions. Invalid content cannot suppress built-ins.
 
 ## Unknown-key policy
 
-The safest default is fail-closed validation for unknown fields within the invariant contract. If implementation intentionally permits forward-compatible inert metadata, the exact metadata keys must be allowlisted and provably incapable of affecting invariant semantics or authority.
+R3-T025 uses fail-closed validation for unknown fields. No forward-compatible inert metadata keys are currently admitted. Any future metadata field must be explicitly allowlisted through reviewed contract evolution and remain provably incapable of affecting invariant semantics or authority.
 
 ## Evaluation contract
 
@@ -228,6 +228,8 @@ Persistent project-invariant Evidence may contain only:
 - explicit coverage diagnostics.
 
 It MUST NOT persist discovered secret values or introduce unkeyed secret-value-only hashes.
+
+R3-T025 does not itself add persistent Evidence/Coverage producer integration; that runtime-owned mapping remains R3-T026 authority.
 
 ## Determinism
 
