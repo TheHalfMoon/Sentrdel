@@ -356,7 +356,12 @@ fn lexical_or_unlinked_role_text_elsewhere_does_not_authorize_privileged_path() 
 fn matching_role_with_unknown_dominance_remains_unknown() {
     let route = route("/admin/accounts/:id");
     let operation = operation("accounts");
-    let guard = role_guard("admin", &["admin"], DominanceScope::Unknown, Some("accounts"));
+    let guard = role_guard(
+        "admin",
+        &["admin"],
+        DominanceScope::Unknown,
+        Some("accounts"),
+    );
     let path = path(&route, &operation, Some(&guard), PathState::Supported, true);
     let invariant = invariant("/admin/accounts/:id", "accounts", &["admin"]);
 
@@ -382,7 +387,13 @@ fn ambiguous_linkage_remains_unknown_and_never_becomes_secure() {
         DominanceScope::LinkedHelper,
         Some("accounts"),
     );
-    let path = path(&route, &operation, Some(&guard), PathState::Ambiguous, false);
+    let path = path(
+        &route,
+        &operation,
+        Some(&guard),
+        PathState::Ambiguous,
+        false,
+    );
     let invariant = invariant("/admin/accounts/:id", "accounts", &["admin"]);
 
     let state = evaluate(
