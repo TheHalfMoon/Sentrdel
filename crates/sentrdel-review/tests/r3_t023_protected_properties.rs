@@ -392,14 +392,14 @@ fn wrong_invariant_kind_is_rejected() {
 
 #[test]
 fn mismatched_path_route_is_rejected() {
-    let route = route("/profiles/:id", CoverageState::Covered);
+    let primary_route = route("/profiles/:id", CoverageState::Covered);
     let other_route = route("/other/:id", CoverageState::Covered);
     let operation = operation(
         DataOperationKind::Update,
         Some(field_set(FieldSetMode::Explicit, &["display_name"])),
         CoverageState::Covered,
     );
-    let path = path(&route, &operation, PathState::Supported);
+    let path = path(&primary_route, &operation, PathState::Supported);
     let invariant = invariant("/profiles/:id", &["role"]);
 
     let error = evaluate_protected_properties(
