@@ -25,6 +25,8 @@ pub const R3_REQUIRED_ROLE_PERFORMS_NETWORK_ACCESS: bool = false;
 pub const R3_REQUIRED_ROLE_PROVES_RUNTIME_AUTHORIZATION: bool = false;
 pub const R3_REQUIRED_ROLE_USES_ROUTE_NAMING_AS_PRIVILEGE_PROOF: bool = false;
 pub const R3_REQUIRED_ROLE_USES_UNLINKED_ROLE_TEXT_AS_AUTHORIZATION_PROOF: bool = false;
+pub const R3_REQUIRED_ROLE_ROUTE_GUARD_RELATION: &str = "route_authorized_by_role_guard";
+pub const R3_REQUIRED_ROLE_GUARD_OPERATION_RELATION: &str = "role_guard_authorizes_operation";
 
 pub struct RequiredRoleInputs<'a> {
     pub invariant: &'a InvariantDefinition,
@@ -220,7 +222,7 @@ pub fn evaluate_required_role(
                     | ComparisonShape::ConjunctionSupported
             )
             || guard.dominance_scope() == DominanceScope::Unknown
-            || !guard_is_linked_on_path(inputs.path, guard.guard_id())
+            || !guard_is_authoritatively_linked(inputs.path, guard.guard_id())
         {
             unresolved_semantics = true;
             continue;
@@ -308,41 +310,33 @@ fn scope_applies(
             .any(|location| scope.target_paths().contains(location.path()))
 }
 
-fn guard_is_linked_on_path(path: &CrossLayerPath, guard_id: &StableSemanticId) -> bool {
-    has_supported_directed_path(path, path.route_id(), guard_id)
-        && has_supported_directed_path(path, guard_id, path.data_operation_id())
+fn guard_is_authoritatively_linked(path: &CrossLayerPath, guard_id: &StableSemanticId) -> bool {
+    has_authorization_link(
+        path,
+        path.route_id(),
+        guard_id,
+        R3_REQUIRED_ROLE_ROUTE_GUARD_RELATION,
+    ) && has_authorization_link(
+        path,
+        guard_id,
+        path.data_operation_id(),
+        R3_REQUIRED_ROLE_GUARD_OPERATION_RELATION,
+    )
 }
 
-fn has_supported_directed_path(
+fn has_authorization_link(
     path: &CrossLayerPath,
-    start: &StableSemanticId,
+    source: &StableSemanticId,
     target: &StableSemanticId,
+    relation: &str,
 ) -> bool {
-    if start == target {
-        return true;
-    }
-
-    let mut frontier = vec![start.as_str().to_owned()];
-    let mut visited = BTreeSet::new();
-    while let Some(current) = frontier.pop() {
-        if !visited.insert(current.clone()) {
-            continue;
-        }
-        for link in path.links() {
-            if link.confidence_basis() != ConfidenceBasis::Extracted
-                || link.basis() == LinkBasis::Unknown
-                || link.source_semantic_id().as_str() != current
-            {
-                continue;
-            }
-            if link.target_semantic_id() == target {
-                return true;
-            }
-            frontier.push(link.target_semantic_id().as_str().to_owned());
-        }
-    }
-
-    false
+    path.links().iter().any(|link| {
+        link.source_semantic_id() == source
+            && link.target_semantic_id() == target
+            && link.relation() == relation
+            && link.basis() == LinkBasis::ExplicitAdapterLink
+            && link.confidence_basis() == ConfidenceBasis::Extracted
+    })
 }
 
 fn evaluation(
