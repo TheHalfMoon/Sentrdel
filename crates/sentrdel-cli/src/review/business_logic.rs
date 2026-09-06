@@ -167,7 +167,10 @@ impl fmt::Display for BusinessLogicReviewRegistrationError {
                 "R3 review changed-path count {observed} exceeds cap {max}"
             ),
             Self::TooManyRoutes { observed, max } => {
-                write!(formatter, "R3 review route count {observed} exceeds cap {max}")
+                write!(
+                    formatter,
+                    "R3 review route count {observed} exceeds cap {max}"
+                )
             }
             Self::TooManyContexts { observed, max } => write!(
                 formatter,
@@ -178,10 +181,16 @@ impl fmt::Display for BusinessLogicReviewRegistrationError {
                 "R3 review invariant-evaluation count {observed} exceeds cap {max}"
             ),
             Self::DuplicateRouteId(value) => {
-                write!(formatter, "R3 review context contains duplicate route id {value:?}")
+                write!(
+                    formatter,
+                    "R3 review context contains duplicate route id {value:?}"
+                )
             }
             Self::DuplicatePathId(value) => {
-                write!(formatter, "R3 review context contains duplicate path id {value:?}")
+                write!(
+                    formatter,
+                    "R3 review context contains duplicate path id {value:?}"
+                )
             }
             Self::DuplicateEvaluationId(value) => write!(
                 formatter,
@@ -592,11 +601,10 @@ mod tests {
         let registered = baseline()
             .integrate_r3_business_logic(
                 &producer,
-                &[NormalizedRepoPath::parse(
-                    "src/changed.ts",
-                    DEFAULT_MAX_REPO_PATH_BYTES,
-                )
-                .unwrap()],
+                &[
+                    NormalizedRepoPath::parse("src/changed.ts", DEFAULT_MAX_REPO_PATH_BYTES)
+                        .unwrap(),
+                ],
                 &[route("changed", "src/changed.ts")],
                 &[cross_layer_path("changed", "src/changed.ts")],
                 &evaluations,
@@ -619,11 +627,7 @@ mod tests {
         let registered = baseline()
             .integrate_r3_business_logic(
                 &producer,
-                &[NormalizedRepoPath::parse(
-                    "src/admin.ts",
-                    DEFAULT_MAX_REPO_PATH_BYTES,
-                )
-                .unwrap()],
+                &[NormalizedRepoPath::parse("src/admin.ts", DEFAULT_MAX_REPO_PATH_BYTES).unwrap()],
                 &[route("admin", "src/admin.ts")],
                 &[cross_layer_path("admin", "src/admin.ts")],
                 &evaluations,
