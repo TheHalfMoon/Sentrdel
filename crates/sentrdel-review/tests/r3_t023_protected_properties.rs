@@ -375,7 +375,10 @@ fn non_property_mutation_operation_is_not_applicable() {
 #[test]
 fn invalid_empty_protected_property_requirement_is_rejected_by_model() {
     let result = InvariantDefinition::new(
-        id("sentrdel.r3.builtin-invariant", "empty-protected-properties"),
+        id(
+            "sentrdel.r3.builtin-invariant",
+            "empty-protected-properties",
+        ),
         InvariantKind::ProtectedProperties,
         InvariantSource::BuiltIn,
         InvariantScope::new(
