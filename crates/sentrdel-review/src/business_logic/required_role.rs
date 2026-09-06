@@ -30,6 +30,7 @@ pub struct RequiredRoleInputs<'a> {
     pub invariant: &'a InvariantDefinition,
     pub path: &'a CrossLayerPath,
     pub route: &'a RouteObservation,
+    pub guard_coverage_state: &'a CoverageState,
     pub guards: &'a [GuardObservation],
     pub operation: &'a DataOperation,
 }
@@ -127,6 +128,7 @@ pub fn evaluate_required_role(
 
     if inputs.path.path_state() != PathState::Supported
         || inputs.route.coverage_state() != &CoverageState::Covered
+        || inputs.guard_coverage_state != &CoverageState::Covered
         || inputs.operation.coverage_state() != &CoverageState::Covered
     {
         return evaluation(
@@ -135,7 +137,7 @@ pub fn evaluate_required_role(
             InvariantEvaluationState::Unknown,
             Vec::new(),
             Vec::new(),
-            vec!["required_role_path_or_operation_not_fully_supported".to_owned()],
+            vec!["required_role_path_guard_or_operation_not_fully_supported".to_owned()],
             limits,
         );
     }
@@ -201,7 +203,10 @@ pub fn evaluate_required_role(
     let mut contradicting = BTreeSet::new();
 
     for guard in role_guards {
-        if guard.resource().is_some_and(|resource| resource != inputs.operation.resource()) {
+        if guard
+            .resource()
+            .is_some_and(|resource| resource != inputs.operation.resource())
+        {
             contradicting.insert(guard.guard_id().clone());
             continue;
         }
