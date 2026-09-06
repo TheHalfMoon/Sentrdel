@@ -3,9 +3,9 @@
 use sentrdel_review::{
     business_logic::{
         elevated_client::{
-            ElevatedClientError, ElevatedClientInputs, R3_ELEVATED_CLIENT_AUTHORITY_ALONE_IS_VIOLATION,
-            R3_ELEVATED_CLIENT_CREATES_FINDINGS, R3_ELEVATED_CLIENT_EXECUTES_TARGET_CODE,
-            R3_ELEVATED_CLIENT_GUARD_OPERATION_RELATION,
+            ElevatedClientError, ElevatedClientInputs,
+            R3_ELEVATED_CLIENT_AUTHORITY_ALONE_IS_VIOLATION, R3_ELEVATED_CLIENT_CREATES_FINDINGS,
+            R3_ELEVATED_CLIENT_EXECUTES_TARGET_CODE, R3_ELEVATED_CLIENT_GUARD_OPERATION_RELATION,
             R3_ELEVATED_CLIENT_OPERATION_CLIENT_RELATION,
             R3_ELEVATED_CLIENT_PERFORMS_NETWORK_ACCESS,
             R3_ELEVATED_CLIENT_PROVES_RUNTIME_AUTHORIZATION,
@@ -13,13 +13,13 @@ use sentrdel_review::{
             R3_ELEVATED_CLIENT_ROUTE_GUARD_RELATION, evaluate_elevated_client,
         },
         model::{
-            ActorContext, ActorIdentityKind, ActorSourceKind, BusinessLogicLimits,
-            ComparisonShape, ConfidenceBasis, CrossLayerLink, CrossLayerPath, DataOperation,
-            DataOperationKind, DominanceScope, FrameworkFamily, GuardKind, GuardObservation,
-            HttpMethod, InvariantDefinition, InvariantEvaluationState, InvariantKind,
-            InvariantRequirement, InvariantScope, InvariantSource, LinkBasis, PathState,
-            ProviderAuthorityClass, ProviderClientAuthority, ResourceKind, ResourceRef,
-            RouteObservation, SourceLocation, StableSemanticId, TrustBasis,
+            ActorContext, ActorIdentityKind, ActorSourceKind, BusinessLogicLimits, ComparisonShape,
+            ConfidenceBasis, CrossLayerLink, CrossLayerPath, DataOperation, DataOperationKind,
+            DominanceScope, FrameworkFamily, GuardKind, GuardObservation, HttpMethod,
+            InvariantDefinition, InvariantEvaluationState, InvariantKind, InvariantRequirement,
+            InvariantScope, InvariantSource, LinkBasis, PathState, ProviderAuthorityClass,
+            ProviderClientAuthority, ResourceKind, ResourceRef, RouteObservation, SourceLocation,
+            StableSemanticId, TrustBasis,
         },
     },
     view::NormalizedRepoPath,
@@ -99,11 +99,14 @@ fn service_actor() -> ActorContext {
 
 fn guard(kind: GuardKind, dominance: DominanceScope) -> GuardObservation {
     GuardObservation::new(
-        id("r3.t024.guard", match kind {
-            GuardKind::RequiredRole => "required-role",
-            GuardKind::ElevatedClientBoundary => "elevated-boundary",
-            _ => "other",
-        }),
+        id(
+            "r3.t024.guard",
+            match kind {
+                GuardKind::RequiredRole => "required-role",
+                GuardKind::ElevatedClientBoundary => "elevated-boundary",
+                _ => "other",
+            },
+        ),
         kind,
         None,
         Some(resource()),
@@ -243,8 +246,14 @@ fn path(
     CrossLayerPath::new(
         id("r3.t024.path", "delete-account"),
         route.route_id().clone(),
-        actors.iter().map(|actor| actor.actor_id().clone()).collect(),
-        guards.iter().map(|guard| guard.guard_id().clone()).collect(),
+        actors
+            .iter()
+            .map(|actor| actor.actor_id().clone())
+            .collect(),
+        guards
+            .iter()
+            .map(|guard| guard.guard_id().clone())
+            .collect(),
         operation.operation_id().clone(),
         client.map(|value| value.client_id().clone()),
         links,
@@ -256,7 +265,11 @@ fn path(
     .expect("path")
 }
 
-fn invariant(pattern: &str, allowed_contexts: &[&str], guards: &[GuardKind]) -> InvariantDefinition {
+fn invariant(
+    pattern: &str,
+    allowed_contexts: &[&str],
+    guards: &[GuardKind],
+) -> InvariantDefinition {
     InvariantDefinition::new(
         id("sentrdel.r3.builtin-invariant", "elevated-client-context"),
         InvariantKind::ElevatedClientContext,
@@ -645,9 +658,9 @@ fn partial_actor_or_guard_coverage_remains_unknown() {
             &route,
             &CoverageState::Partial,
             &CoverageState::Covered,
-            &[actor],
+            &[actor.clone()],
             &[],
-            &[client],
+            &[client.clone()],
             &operation,
         ),
         InvariantEvaluationState::Unknown
