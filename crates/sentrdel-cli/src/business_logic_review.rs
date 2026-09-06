@@ -88,10 +88,16 @@ impl fmt::Display for BusinessLogicReviewRegistrationError {
                 "R3 review context count {observed} exceeds cap {max}"
             ),
             Self::DuplicateRouteId(value) => {
-                write!(formatter, "R3 review context contains duplicate route id {value:?}")
+                write!(
+                    formatter,
+                    "R3 review context contains duplicate route id {value:?}"
+                )
             }
             Self::DuplicatePathId(value) => {
-                write!(formatter, "R3 review context contains duplicate path id {value:?}")
+                write!(
+                    formatter,
+                    "R3 review context contains duplicate path id {value:?}"
+                )
             }
             Self::DuplicateEvaluationId(value) => write!(
                 formatter,
@@ -419,9 +425,8 @@ mod tests {
             evaluation("unchanged", InvariantEvaluationState::Satisfied),
             evaluation("changed", InvariantEvaluationState::Unknown),
         ];
-        let changed_paths = vec![
-            NormalizedRepoPath::parse("src/admin.ts", DEFAULT_MAX_REPO_PATH_BYTES).unwrap(),
-        ];
+        let changed_paths =
+            vec![NormalizedRepoPath::parse("src/admin.ts", DEFAULT_MAX_REPO_PATH_BYTES).unwrap()];
 
         let forward = build_context(
             &changed_paths,
