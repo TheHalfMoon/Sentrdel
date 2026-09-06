@@ -12,13 +12,13 @@ mod data_candidate;
 pub mod elevated_client;
 #[path = "graph_map.rs"]
 pub mod graph;
-#[path = "guard_tdz_scope.rs"]
 pub mod guard;
 pub mod invariant;
 pub mod link;
 pub mod model;
 pub mod ordering;
 pub mod path;
+pub mod project_invariant;
 pub mod protected_properties;
 pub mod r2_support;
 pub mod required_role;
