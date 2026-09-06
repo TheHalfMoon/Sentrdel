@@ -228,6 +228,7 @@ fn evaluate(
             invariant,
             path,
             route,
+            guard_coverage_state: &CoverageState::Covered,
             guards,
             operation,
         },
@@ -273,6 +274,32 @@ fn covered_privileged_path_without_role_guard_is_violated() {
         evaluate(&invariant, &path, &route, &[], &operation),
         InvariantEvaluationState::Violated
     );
+}
+
+#[test]
+fn incomplete_guard_coverage_stays_unknown_instead_of_inventing_a_missing_guard() {
+    let route = route("/admin/accounts/:id");
+    let operation = operation("accounts");
+    let path = path(&route, &operation, None, PathState::Supported, true);
+    let invariant = invariant("/admin/accounts/:id", "accounts", &["admin"]);
+
+    let state = evaluate_required_role(
+        RequiredRoleInputs {
+            invariant: &invariant,
+            path: &path,
+            route: &route,
+            guard_coverage_state: &CoverageState::Partial,
+            guards: &[],
+            operation: &operation,
+        },
+        limits(),
+    )
+    .expect("partial guard coverage evaluation")
+    .state();
+
+    assert_eq!(state, InvariantEvaluationState::Unknown);
+    assert_ne!(state, InvariantEvaluationState::Violated);
+    assert_ne!(state, InvariantEvaluationState::Satisfied);
 }
 
 #[test]
