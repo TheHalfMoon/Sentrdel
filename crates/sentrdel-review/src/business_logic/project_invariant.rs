@@ -418,7 +418,7 @@ fn parse_raw_value(
 }
 
 fn parse_string(value: &str, line_number: usize) -> Result<String, ParseFailure> {
-    if value.len() < 2 || !value.ends_with('"') {
+    if value.len() < 2 || !value.starts_with('"') || !value.ends_with('"') {
         return Err(ParseFailure::new(
             "malformed_string",
             format!("line {line_number}: malformed quoted string"),
@@ -1168,6 +1168,20 @@ mod tests {
             let loaded = load(Some(content));
             assert_eq!(loaded.state(), ProjectInvariantLoadState::Rejected);
             assert!(loaded.definitions().is_empty());
+        }
+    }
+
+    #[test]
+    fn malformed_list_items_are_rejected_without_reinterpretation_or_panic() {
+        for content in [
+            "version = 1\n[[invariant]]\nid = \"a\"\ntype = \"required_role\"\nroute = \"/a\"\nroles = [admin\"]\n",
+            "version = 1\n[[invariant]]\nid = \"a\"\ntype = \"required_role\"\nroute = \"/a\"\nroles = [é\"]\n",
+            "version = 1\n[[invariant]]\nid = \"a\"\ntype = \"required_role\"\nroute = \"/a\"\nroles = [\"admin\", viewer\"]\n",
+        ] {
+            let loaded = load(Some(content));
+            assert_eq!(loaded.state(), ProjectInvariantLoadState::Rejected);
+            assert!(loaded.definitions().is_empty());
+            assert_eq!(loaded.diagnostics()[0].code(), "malformed_string");
         }
     }
 
