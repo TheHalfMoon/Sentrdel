@@ -235,7 +235,7 @@ fn push_inventory(
         code,
         CliDiagnosticLevel::Info,
         format!("{label}: {rendered}"),
-    )?;
+    )?);
     Ok(())
 }
 
