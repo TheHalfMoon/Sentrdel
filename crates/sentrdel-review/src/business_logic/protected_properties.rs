@@ -14,8 +14,8 @@ use sentrdel_schema::coverage::CoverageState;
 
 use super::model::{
     BusinessLogicLimits, ConfidenceBasis, CrossLayerPath, DataOperation, DataOperationKind,
-    FieldSetMode, InvariantDefinition, InvariantEvaluation, InvariantEvaluationState, InvariantKind,
-    InvariantRequirement, LinkBasis, ModelError, PathState, RouteObservation,
+    FieldSetMode, InvariantDefinition, InvariantEvaluation, InvariantEvaluationState,
+    InvariantKind, InvariantRequirement, LinkBasis, ModelError, PathState, RouteObservation,
 };
 
 pub const R3_PROTECTED_PROPERTIES_CREATES_FINDINGS: bool = false;
