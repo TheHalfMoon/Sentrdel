@@ -12,6 +12,7 @@ mod data_candidate;
 pub mod elevated_client;
 #[path = "graph_map.rs"]
 pub mod graph;
+#[path = "guard_tdz_scope.rs"]
 pub mod guard;
 pub mod invariant;
 pub mod link;
