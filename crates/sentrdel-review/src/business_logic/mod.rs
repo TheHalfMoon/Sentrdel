@@ -19,6 +19,7 @@ pub mod model;
 pub mod ordering;
 pub mod path;
 pub mod r2_support;
+pub mod required_role;
 #[path = "route_gate.rs"]
 pub mod route;
 pub mod tenant_binding;
