@@ -5,9 +5,8 @@ use std::collections::BTreeMap;
 use sentrdel_review::{
     business_logic::{
         elevated_client::{
-            ElevatedClientError, ElevatedClientInputs,
-            R3_ELEVATED_CLIENT_CREATES_FINDINGS, R3_ELEVATED_CLIENT_EXECUTES_TARGET_CODE,
-            R3_ELEVATED_CLIENT_GUARD_OPERATION_RELATION,
+            ElevatedClientError, ElevatedClientInputs, R3_ELEVATED_CLIENT_CREATES_FINDINGS,
+            R3_ELEVATED_CLIENT_EXECUTES_TARGET_CODE, R3_ELEVATED_CLIENT_GUARD_OPERATION_RELATION,
             R3_ELEVATED_CLIENT_PERFORMS_NETWORK_ACCESS,
             R3_ELEVATED_CLIENT_PROVES_LIVE_PROVIDER_POSTURE,
             R3_ELEVATED_CLIENT_PROVES_RUNTIME_AUTHORIZATION,
@@ -642,7 +641,10 @@ fn mismatched_provider_client_identity_is_rejected() {
     )
     .expect_err("mismatched provider client must be rejected");
 
-    assert!(matches!(error, ElevatedClientError::OperationClientMismatch));
+    assert!(matches!(
+        error,
+        ElevatedClientError::OperationClientMismatch
+    ));
 }
 
 #[test]
