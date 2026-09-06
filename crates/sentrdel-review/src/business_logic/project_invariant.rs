@@ -23,9 +23,9 @@ use super::invariant::{
 use super::model::{
     ActorContext, ActorIdentityKind, BusinessLogicLimits, CrossLayerPath, DataOperation,
     DataOperationKind, GuardKind, GuardObservation, HttpMethod, InvariantDefinition,
-    InvariantEvaluation, InvariantEvaluationState, InvariantKind, InvariantRequirement,
-    InvariantScope, InvariantSource, ProviderClientAuthority, ResourceKind, ResourceRef,
-    RouteObservation, SourceLocation, StableSemanticId, ValueOrigin,
+    InvariantEvaluation, InvariantKind, InvariantRequirement, InvariantScope, InvariantSource,
+    ProviderClientAuthority, ResourceKind, ResourceRef, RouteObservation, SourceLocation,
+    StableSemanticId, ValueOrigin,
 };
 use super::protected_properties::{ProtectedPropertiesInputs, evaluate_protected_properties};
 use super::r2_support::R2SupportCorrelation;
@@ -1042,6 +1042,7 @@ pub fn evaluate_project_invariant(
 mod tests {
     use super::*;
     use crate::business_logic::invariant::combine_tightening_requirement_states;
+    use crate::business_logic::model::InvariantEvaluationState;
 
     const SAFE: &str = include_str!(
         "../../../../fixtures/repos/r3-business-logic/project-invariants/safe-tightening/.sentrdel/invariants.toml"
@@ -1282,6 +1283,6 @@ allowed_contexts = ["express-server"]
         const { assert!(!PROJECT_INVARIANT_REQUESTS_PROVIDER_CREDENTIALS) };
         const { assert!(!PROJECT_INVARIANT_PARSE_FAILURE_DISABLES_BUILTINS) };
         const { assert!(!PROJECT_INVARIANT_CAN_WEAKEN_BUILTINS) };
-        assert!(DEFAULT_MAX_PROJECT_DIAGNOSTICS > 0);
+        const { assert!(DEFAULT_MAX_PROJECT_DIAGNOSTICS > 0) };
     }
 }
