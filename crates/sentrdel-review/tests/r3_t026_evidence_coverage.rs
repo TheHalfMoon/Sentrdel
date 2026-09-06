@@ -61,7 +61,7 @@ fn coverage_entry(area: BusinessLogicCoverageArea, state: CoverageState) -> Busi
         "R3_T026_FIXTURE",
         ".",
         vec!["sha256:fixture-input".to_owned()],
-        "sentrdel.r3.fixture",
+        R3_BUSINESS_LOGIC_PRODUCER_ID,
         BusinessLogicLimits::default(),
     )
     .unwrap()
@@ -268,14 +268,14 @@ fn repository_or_foreign_coverage_producer_cannot_choose_runtime_authority() {
         "ATTACKER_FIXTURE",
         ".",
         Vec::new(),
-        "repository.attacker",
+        "sentrdel.r3.repository.attacker",
         BusinessLogicLimits::default(),
     )
     .unwrap();
     assert!(matches!(
         produce_business_logic_outputs(&[], &matrix, OBSERVED_AT),
         Err(BusinessLogicProducerError::UnexpectedCoverageProducer(value))
-            if value == "repository.attacker"
+            if value == "sentrdel.r3.repository.attacker"
     ));
 }
 
