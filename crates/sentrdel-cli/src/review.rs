@@ -1,3 +1,4 @@
+pub mod business_logic;
 pub mod r3_link;
 
 use std::{collections::BTreeSet, error::Error, fmt};
@@ -138,6 +139,31 @@ impl ReviewOutput {
 
     pub fn missing_coverage(&self) -> &[ReviewCoverageGap] {
         &self.missing_coverage
+    }
+
+    /// Integrate canonical R3 Evidence/Coverage and bounded developer context
+    /// through the public review-output surface without changing Finding or
+    /// policy authority.
+    #[allow(clippy::too_many_arguments)]
+    pub fn integrate_r3_business_logic(
+        &self,
+        producer: &sentrdel_review::business_logic::producer::BusinessLogicProducerOutput,
+        changed_paths: &[sentrdel_review::view::NormalizedRepoPath],
+        routes: &[sentrdel_review::business_logic::model::RouteObservation],
+        paths: &[sentrdel_review::business_logic::model::CrossLayerPath],
+        evaluations: &[sentrdel_review::business_logic::model::InvariantEvaluation],
+    ) -> Result<
+        business_logic::RegisteredBusinessLogicReviewOutput,
+        business_logic::BusinessLogicReviewRegistrationError,
+    > {
+        business_logic::register_r3_business_logic_review(
+            self,
+            producer,
+            changed_paths,
+            routes,
+            paths,
+            evaluations,
+        )
     }
 
     pub fn render_json(&self) -> Result<String, serde_json::Error> {
