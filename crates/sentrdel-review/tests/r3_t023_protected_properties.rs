@@ -100,18 +100,20 @@ fn operation(
     .expect("operation")
 }
 
-fn path(
+fn path_with_link(
     route: &RouteObservation,
     operation: &DataOperation,
     path_state: PathState,
+    basis: LinkBasis,
+    confidence: ConfidenceBasis,
 ) -> CrossLayerPath {
     let link = CrossLayerLink::new(
         id("r3.t023.link", "route-operation"),
         route.route_id().clone(),
         operation.operation_id().clone(),
         "supported_route_operation",
-        LinkBasis::ExplicitAdapterLink,
-        ConfidenceBasis::Extracted,
+        basis,
+        confidence,
         vec![location(80)],
         limits(),
     )
@@ -130,6 +132,20 @@ fn path(
         limits(),
     )
     .expect("path")
+}
+
+fn path(
+    route: &RouteObservation,
+    operation: &DataOperation,
+    path_state: PathState,
+) -> CrossLayerPath {
+    path_with_link(
+        route,
+        operation,
+        path_state,
+        LinkBasis::ExplicitAdapterLink,
+        ConfidenceBasis::Extracted,
+    )
 }
 
 fn invariant(pattern: &str, properties: &[&str]) -> InvariantDefinition {
@@ -305,6 +321,28 @@ fn partial_path_or_operation_coverage_cannot_be_satisfied_or_violated() {
 }
 
 #[test]
+fn non_authoritative_path_links_cannot_produce_satisfied() {
+    for (basis, confidence) in [
+        (LinkBasis::ExplicitAdapterLink, ConfidenceBasis::Inferred),
+        (LinkBasis::ExplicitAdapterLink, ConfidenceBasis::Ambiguous),
+        (LinkBasis::Unknown, ConfidenceBasis::Extracted),
+    ] {
+        let route = route("/profiles/:id", CoverageState::Covered);
+        let operation = operation(
+            DataOperationKind::Update,
+            Some(field_set(FieldSetMode::Explicit, &["display_name"])),
+            CoverageState::Covered,
+        );
+        let path = path_with_link(&route, &operation, PathState::Supported, basis, confidence);
+        let invariant = invariant("/profiles/:id", &["role"]);
+        let state = evaluate(&invariant, &path, &route, &operation);
+
+        assert_eq!(state, InvariantEvaluationState::Unknown);
+        assert_ne!(state, InvariantEvaluationState::Satisfied);
+    }
+}
+
+#[test]
 fn route_scope_mismatch_is_not_applicable() {
     let route = route("/profiles/:id", CoverageState::Covered);
     let operation = operation(
@@ -335,20 +373,29 @@ fn non_property_mutation_operation_is_not_applicable() {
 }
 
 #[test]
-fn empty_protected_property_requirement_fails_closed_to_unknown() {
-    let route = route("/profiles/:id", CoverageState::Covered);
-    let operation = operation(
-        DataOperationKind::Update,
-        Some(field_set(FieldSetMode::Explicit, &["display_name"])),
-        CoverageState::Covered,
+fn invalid_empty_protected_property_requirement_is_rejected_by_model() {
+    let result = InvariantDefinition::new(
+        id("sentrdel.r3.builtin-invariant", "empty-protected-properties"),
+        InvariantKind::ProtectedProperties,
+        InvariantSource::BuiltIn,
+        InvariantScope::new(
+            Some("/profiles/:id".to_owned()),
+            vec![HttpMethod::Patch],
+            Some(resource("profiles")),
+            Vec::new(),
+            Vec::new(),
+            limits(),
+        )
+        .expect("scope"),
+        InvariantRequirement::ProtectedProperties {
+            protected_properties: Vec::new(),
+            mutation_operations: vec![DataOperationKind::Update],
+        },
+        vec![location(130)],
+        limits(),
     );
-    let path = path(&route, &operation, PathState::Supported);
-    let invariant = invariant("/profiles/:id", &[]);
 
-    assert_eq!(
-        evaluate(&invariant, &path, &route, &operation),
-        InvariantEvaluationState::Unknown
-    );
+    assert!(result.is_err());
 }
 
 #[test]
