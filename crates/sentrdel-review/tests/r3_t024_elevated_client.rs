@@ -615,15 +615,15 @@ fn unsupported_server_context_remains_unknown() {
 
 #[test]
 fn mismatched_provider_client_identity_is_rejected() {
-    let (client, support) = elevated_client_with_support();
+    let (primary_client, support) = elevated_client_with_support();
     let other = client(
         ProviderAuthorityClass::ElevatedSecretOrServiceRole,
-        client.source_evidence_ids().to_vec(),
+        primary_client.source_evidence_ids().to_vec(),
         "other",
     );
     let route = route(FrameworkFamily::Express, CoverageState::Covered);
-    let operation = operation(&client, CoverageState::Covered);
-    let path = unguarded_path(&route, &operation, &client);
+    let operation = operation(&primary_client, CoverageState::Covered);
+    let path = unguarded_path(&route, &operation, &primary_client);
     let invariant = invariant(&[R3_SERVER_CONTEXT_EXPRESS], vec![GuardKind::RequiredRole]);
 
     let error = evaluate_elevated_client(
