@@ -80,10 +80,7 @@ fn route() -> RouteObservation {
     .expect("route")
 }
 
-fn client(
-    authority: ProviderAuthorityClass,
-    evidence_ids: Vec<String>,
-) -> ProviderClientAuthority {
+fn client(authority: ProviderAuthorityClass, evidence_ids: Vec<String>) -> ProviderClientAuthority {
     ProviderClientAuthority::new(
         id("r3.t024.review.client", "supabase"),
         "supabase",
@@ -269,10 +266,19 @@ fn unsupported_guard_kind_comparison_pairs_remain_unknown_even_with_manual_t024_
         (GuardKind::RequiredRole, ComparisonShape::ExplicitAllowlist),
         (GuardKind::RequiredRole, ComparisonShape::OtherSupported),
         (GuardKind::TenantBinding, ComparisonShape::ExplicitAllowlist),
-        (GuardKind::OwnershipBinding, ComparisonShape::ExplicitAllowlist),
-        (GuardKind::ObjectMembership, ComparisonShape::ExplicitAllowlist),
+        (
+            GuardKind::OwnershipBinding,
+            ComparisonShape::ExplicitAllowlist,
+        ),
+        (
+            GuardKind::ObjectMembership,
+            ComparisonShape::ExplicitAllowlist,
+        ),
         (GuardKind::ElevatedClientBoundary, ComparisonShape::Equal),
-        (GuardKind::ElevatedClientBoundary, ComparisonShape::Membership),
+        (
+            GuardKind::ElevatedClientBoundary,
+            ComparisonShape::Membership,
+        ),
         (
             GuardKind::ElevatedClientBoundary,
             ComparisonShape::ConjunctionSupported,
@@ -420,9 +426,12 @@ fn t024_augmentation_preserves_t022_path_and_evaluation_identity() {
         &elevated_links,
     );
 
-    assert!(t022_plus_t024_path.links().iter().any(|link| {
-        link.relation() == R3_ELEVATED_CLIENT_ROUTE_GUARD_RELATION
-    }));
+    assert!(
+        t022_plus_t024_path
+            .links()
+            .iter()
+            .any(|link| { link.relation() == R3_ELEVATED_CLIENT_ROUTE_GUARD_RELATION })
+    );
     assert_eq!(t022_only_path.path_id(), t022_plus_t024_path.path_id());
 
     let invariant = required_role_invariant();
