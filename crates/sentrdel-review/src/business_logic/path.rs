@@ -13,7 +13,7 @@ use sentrdel_schema::coverage::CoverageState;
 
 use super::elevated_client::{
     R3_ELEVATED_CLIENT_GUARD_OPERATION_RELATION, R3_ELEVATED_CLIENT_ROUTE_GUARD_RELATION,
-    supported_application_guard_kind,
+    application_guard_semantics_supported, supported_application_guard_kind,
 };
 use super::model::{
     ActorContext, BusinessLogicLimits, ComparisonShape, ConfidenceBasis, CrossLayerLink,
@@ -285,22 +285,10 @@ fn qualify_elevated_client_links(
     authorization_links.sort();
     authorization_links.dedup();
     let mut links = path.links().to_vec();
-    links.extend(authorization_links.iter().cloned());
-
-    let mut identity_parts = Vec::with_capacity(authorization_links.len().saturating_add(1));
-    identity_parts.push(format!("base:{}", path.path_id().as_str()));
-    for link in &authorization_links {
-        identity_parts.push(format!("authorization:{}", link.link_id().as_str()));
-    }
-    let identity_refs = identity_parts
-        .iter()
-        .map(String::as_str)
-        .collect::<Vec<_>>();
-    let path_id =
-        StableSemanticId::from_parts("r3-elevated-client-qualified-path", &identity_refs, limits)?;
+    links.extend(authorization_links);
 
     Ok(CrossLayerPath::new(
-        path_id,
+        path.path_id().clone(),
         path.route_id().clone(),
         path.actor_ids().to_vec(),
         path.guard_ids().to_vec(),
@@ -330,41 +318,12 @@ fn role_guard_is_qualifiable(guard: &GuardObservation, operation: &DataOperation
 }
 
 fn application_guard_is_qualifiable(guard: &GuardObservation, operation: &DataOperation) -> bool {
-    if !supported_application_guard_kind(guard.guard_kind())
-        || guard.dominance_scope() == DominanceScope::Unknown
-        || guard.comparison_shape() == ComparisonShape::Unknown
-        || guard
+    supported_application_guard_kind(guard.guard_kind())
+        && application_guard_semantics_supported(guard)
+        && guard.dominance_scope() != DominanceScope::Unknown
+        && guard
             .resource()
-            .is_some_and(|resource| resource != operation.resource())
-    {
-        return false;
-    }
-
-    match guard.guard_kind() {
-        GuardKind::RequiredRole => {
-            !guard.required_values().is_empty()
-                && matches!(
-                    guard.comparison_shape(),
-                    ComparisonShape::Equal
-                        | ComparisonShape::Membership
-                        | ComparisonShape::ConjunctionSupported
-                )
-        }
-        GuardKind::TenantBinding | GuardKind::OwnershipBinding | GuardKind::ObjectMembership => {
-            !guard.required_values().is_empty()
-                && matches!(
-                    guard.comparison_shape(),
-                    ComparisonShape::Equal
-                        | ComparisonShape::Membership
-                        | ComparisonShape::ConjunctionSupported
-                        | ComparisonShape::OtherSupported
-                )
-        }
-        GuardKind::ElevatedClientBoundary => {
-            guard.comparison_shape() == ComparisonShape::OtherSupported
-        }
-        _ => false,
-    }
+            .is_none_or(|resource| resource == operation.resource())
 }
 
 fn supported_reachable(
