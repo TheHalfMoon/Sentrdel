@@ -280,7 +280,9 @@ fn parse_project_invariants(
             if value != PROJECT_INVARIANT_VERSION.to_string() {
                 return Err(ParseFailure::new(
                     "unsupported_version",
-                    format!("line {line_number}: only version {PROJECT_INVARIANT_VERSION} is supported"),
+                    format!(
+                        "line {line_number}: only version {PROJECT_INVARIANT_VERSION} is supported"
+                    ),
                 ));
             }
             version = Some(PROJECT_INVARIANT_VERSION);
@@ -368,7 +370,7 @@ fn split_assignment(line: &str, line_number: usize) -> Result<(&str, &str), Pars
     };
     let key = raw_key.trim();
     let value = raw_value.trim();
-    if key.is_empty() || value.is_empty() || key.contains(char::is_whitespace) {
+    if key.is_empty() || value.is_empty() || key.chars().any(char::is_whitespace) {
         return Err(ParseFailure::new(
             "malformed_assignment",
             format!("line {line_number}: malformed key = value assignment"),
@@ -409,7 +411,9 @@ fn parse_raw_value(
     }
     Err(ParseFailure::new(
         "unsupported_value_syntax",
-        format!("line {line_number}: only quoted strings and flat quoted-string arrays are supported"),
+        format!(
+            "line {line_number}: only quoted strings and flat quoted-string arrays are supported"
+        ),
     ))
 }
 
@@ -428,7 +432,9 @@ fn parse_string(value: &str, line_number: usize) -> Result<String, ParseFailure>
     {
         return Err(ParseFailure::new(
             "unsupported_string",
-            format!("line {line_number}: string is empty or uses unsupported escaping/control syntax"),
+            format!(
+                "line {line_number}: string is empty or uses unsupported escaping/control syntax"
+            ),
         ));
     }
     Ok(inner.to_owned())
@@ -562,7 +568,9 @@ fn build_definition(
                 || operations.iter().any(|operation| {
                     !matches!(
                         operation,
-                        DataOperationKind::Insert | DataOperationKind::Update | DataOperationKind::Upsert
+                        DataOperationKind::Insert
+                            | DataOperationKind::Update
+                            | DataOperationKind::Upsert
                     )
                 })
             {
@@ -613,8 +621,9 @@ fn build_definition(
         }
     };
 
-    let invariant_id = StableSemanticId::from_parts(PROJECT_INVARIANT_NAMESPACE, &[id], model_limits)
-        .map_err(|error| ParseFailure::new("invalid_model_identity", error.to_string()))?;
+    let invariant_id =
+        StableSemanticId::from_parts(PROJECT_INVARIANT_NAMESPACE, &[id], model_limits)
+            .map_err(|error| ParseFailure::new("invalid_model_identity", error.to_string()))?;
     let scope = InvariantScope::new(
         route,
         methods,
@@ -645,7 +654,15 @@ fn build_definition(
 }
 
 fn validate_type_keys(invariant_type: &str, record: &RawInvariant) -> Result<(), ParseFailure> {
-    let common = ["id", "type", "resource", "route", "methods", "operations", "paths"];
+    let common = [
+        "id",
+        "type",
+        "resource",
+        "route",
+        "methods",
+        "operations",
+        "paths",
+    ];
     let specific: &[&str] = match invariant_type {
         "tenant_binding" => &["tenant_field", "actor"],
         "required_role" => &["roles"],
@@ -766,7 +783,10 @@ fn validate_symbol(kind: &str, value: &str) -> Result<String, ParseFailure> {
 
 fn parse_methods(values: Vec<String>) -> Result<Vec<HttpMethod>, ParseFailure> {
     if values.len() > DEFAULT_MAX_PROJECT_COLLECTION_ITEMS {
-        return Err(ParseFailure::new("collection_too_large", "too many HTTP methods"));
+        return Err(ParseFailure::new(
+            "collection_too_large",
+            "too many HTTP methods",
+        ));
     }
     values
         .into_iter()
@@ -788,7 +808,10 @@ fn parse_methods(values: Vec<String>) -> Result<Vec<HttpMethod>, ParseFailure> {
 
 fn parse_operations(values: Vec<String>) -> Result<Vec<DataOperationKind>, ParseFailure> {
     if values.len() > DEFAULT_MAX_PROJECT_COLLECTION_ITEMS {
-        return Err(ParseFailure::new("collection_too_large", "too many operation kinds"));
+        return Err(ParseFailure::new(
+            "collection_too_large",
+            "too many operation kinds",
+        ));
     }
     values
         .into_iter()
@@ -809,14 +832,16 @@ fn parse_operations(values: Vec<String>) -> Result<Vec<DataOperationKind>, Parse
 
 fn parse_paths(values: Vec<String>) -> Result<Vec<NormalizedRepoPath>, ParseFailure> {
     if values.len() > DEFAULT_MAX_PROJECT_COLLECTION_ITEMS {
-        return Err(ParseFailure::new("collection_too_large", "too many target paths"));
+        return Err(ParseFailure::new(
+            "collection_too_large",
+            "too many target paths",
+        ));
     }
     values
         .into_iter()
         .map(|value| {
-            NormalizedRepoPath::parse(&value, DEFAULT_MAX_PROJECT_SCOPE_PATH_BYTES).map_err(
-                |error| ParseFailure::new("invalid_target_path", error.to_string()),
-            )
+            NormalizedRepoPath::parse(&value, DEFAULT_MAX_PROJECT_SCOPE_PATH_BYTES)
+                .map_err(|error| ParseFailure::new("invalid_target_path", error.to_string()))
         })
         .collect()
 }
@@ -891,14 +916,14 @@ fn parse_server_context(value: &str) -> Result<String, ParseFailure> {
 
 fn require_non_empty_scope(
     route: Option<&str>,
-    methods: &[HttpMethod],
+    _methods: &[HttpMethod],
     operations: &[DataOperationKind],
     paths: &[NormalizedRepoPath],
 ) -> Result<(), ParseFailure> {
-    if route.is_none() && methods.is_empty() && operations.is_empty() && paths.is_empty() {
+    if route.is_none() && operations.is_empty() && paths.is_empty() {
         return Err(ParseFailure::new(
             "missing_scope",
-            "project invariant type requires a bounded route/method/operation/path scope",
+            "project invariant type requires a bounded route/operation/path scope; methods alone are insufficient",
         ));
     }
     Ok(())
@@ -927,16 +952,17 @@ pub enum ProjectInvariantEvaluationError {
 impl fmt::Display for ProjectInvariantEvaluationError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::NotProjectDeclaration => {
-                formatter.write_str("project invariant evaluator requires ProjectDeclaration source")
-            }
+            Self::NotProjectDeclaration => formatter
+                .write_str("project invariant evaluator requires ProjectDeclaration source"),
             Self::MissingProviderClient => {
                 formatter.write_str("elevated project invariant requires provider-client context")
             }
-            Self::MissingR2Support => {
-                formatter.write_str("elevated project invariant requires canonical R2 support context")
-            }
-            Self::Family(message) => write!(formatter, "project invariant family evaluation failed: {message}"),
+            Self::MissingR2Support => formatter
+                .write_str("elevated project invariant requires canonical R2 support context"),
+            Self::Family(message) => write!(
+                formatter,
+                "project invariant family evaluation failed: {message}"
+            ),
         }
     }
 }
@@ -1015,6 +1041,7 @@ pub fn evaluate_project_invariant(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::business_logic::invariant::combine_tightening_requirement_states;
 
     const SAFE: &str = include_str!(
         "../../../../fixtures/repos/r3-business-logic/project-invariants/safe-tightening/.sentrdel/invariants.toml"
@@ -1054,7 +1081,10 @@ mod tests {
         assert_eq!(invariant.source(), InvariantSource::ProjectDeclaration);
         assert_eq!(invariant.kind(), InvariantKind::TenantBinding);
         assert_eq!(invariant.scope().route_pattern(), Some("/accounts/:id"));
-        assert_eq!(invariant.scope().http_methods(), &[HttpMethod::Get, HttpMethod::Patch]);
+        assert_eq!(
+            invariant.scope().http_methods(),
+            &[HttpMethod::Get, HttpMethod::Patch]
+        );
         let resource = invariant.scope().resource().expect("resource scope");
         assert_eq!(resource.provider(), Some("supabase"));
         assert_eq!(resource.namespace(), Some("public"));
@@ -1104,7 +1134,10 @@ mod tests {
     #[test]
     fn duplicate_ids_and_irrelevant_cross_type_keys_are_rejected() {
         let duplicate = "version = 1\n[[invariant]]\nid = \"a\"\ntype = \"required_role\"\nroute = \"/a\"\nroles = [\"admin\"]\n[[invariant]]\nid = \"a\"\ntype = \"required_role\"\nroute = \"/b\"\nroles = [\"admin\"]\n";
-        assert_eq!(load(Some(duplicate)).state(), ProjectInvariantLoadState::Rejected);
+        assert_eq!(
+            load(Some(duplicate)).state(),
+            ProjectInvariantLoadState::Rejected
+        );
 
         let irrelevant = "version = 1\n[[invariant]]\nid = \"a\"\ntype = \"required_role\"\nroute = \"/a\"\nroles = [\"admin\"]\nproperties = [\"role\"]\n";
         let loaded = load(Some(irrelevant));
@@ -1138,6 +1171,41 @@ mod tests {
     }
 
     #[test]
+    fn privileged_and_elevated_methods_alone_do_not_create_global_scope() {
+        for invariant in [
+            "version = 1\n[[invariant]]\nid = \"role\"\ntype = \"required_role\"\nmethods = [\"DELETE\"]\nroles = [\"admin\"]\n",
+            "version = 1\n[[invariant]]\nid = \"elevated\"\ntype = \"elevated_client_context\"\nmethods = [\"POST\"]\nrequired_guards = [\"required_role\"]\n",
+        ] {
+            let loaded = load(Some(invariant));
+            assert_eq!(loaded.state(), ProjectInvariantLoadState::Rejected);
+            assert_eq!(loaded.diagnostics()[0].code(), "missing_scope");
+        }
+    }
+
+    #[test]
+    fn malformed_project_configuration_cannot_relax_builtin_state() {
+        let loaded = load(Some(
+            "version = 1\n[[invariant]]\nid = \"role\"\ntype = \"required_role\"\nroute = \"/admin\"\nroles = []\n",
+        ));
+        assert_eq!(loaded.state(), ProjectInvariantLoadState::Rejected);
+        assert!(loaded.definitions().is_empty());
+        assert_eq!(
+            combine_tightening_requirement_states(
+                InvariantEvaluationState::Violated,
+                InvariantEvaluationState::NotApplicable
+            ),
+            InvariantEvaluationState::Violated
+        );
+        assert_eq!(
+            combine_tightening_requirement_states(
+                InvariantEvaluationState::Unknown,
+                InvariantEvaluationState::Satisfied
+            ),
+            InvariantEvaluationState::Unknown
+        );
+    }
+
+    #[test]
     fn collection_and_file_caps_fail_closed() {
         let roles = (0..=DEFAULT_MAX_PROJECT_COLLECTION_ITEMS)
             .map(|index| format!("\"role{index}\""))
@@ -1146,10 +1214,16 @@ mod tests {
         let content = format!(
             "version = 1\n[[invariant]]\nid = \"admin-check\"\ntype = \"required_role\"\nroute = \"/a\"\nroles = [{roles}]\n"
         );
-        assert_eq!(load(Some(&content)).state(), ProjectInvariantLoadState::Rejected);
+        assert_eq!(
+            load(Some(&content)).state(),
+            ProjectInvariantLoadState::Rejected
+        );
 
         let oversized = "x".repeat(ProjectInvariantLimits::default().max_file_bytes + 1);
-        assert_eq!(load(Some(&oversized)).state(), ProjectInvariantLoadState::Rejected);
+        assert_eq!(
+            load(Some(&oversized)).state(),
+            ProjectInvariantLoadState::Rejected
+        );
     }
 
     #[test]
@@ -1182,7 +1256,12 @@ allowed_contexts = ["express-server"]
         let loaded = load(Some(content));
         assert_eq!(loaded.state(), ProjectInvariantLoadState::Loaded);
         assert_eq!(loaded.definitions().len(), 4);
-        assert!(loaded.definitions().iter().all(|value| value.source() == InvariantSource::ProjectDeclaration));
+        assert!(
+            loaded
+                .definitions()
+                .iter()
+                .all(|value| value.source() == InvariantSource::ProjectDeclaration)
+        );
         let kinds = loaded
             .definitions()
             .iter()
