@@ -42,12 +42,15 @@ pub enum ProtectedPropertiesError {
 impl fmt::Display for ProtectedPropertiesError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::InvalidInvariantKind => formatter
-                .write_str("protected-properties evaluator requires a protected-properties invariant"),
-            Self::PathRouteMismatch => formatter
-                .write_str("protected-properties path route does not match supplied route"),
-            Self::PathOperationMismatch => formatter
-                .write_str("protected-properties path operation does not match supplied data operation"),
+            Self::InvalidInvariantKind => formatter.write_str(
+                "protected-properties evaluator requires a protected-properties invariant",
+            ),
+            Self::PathRouteMismatch => {
+                formatter.write_str("protected-properties path route does not match supplied route")
+            }
+            Self::PathOperationMismatch => formatter.write_str(
+                "protected-properties path operation does not match supplied data operation",
+            ),
             Self::Model(source) => write!(
                 formatter,
                 "protected-properties model validation failed: {source}"
