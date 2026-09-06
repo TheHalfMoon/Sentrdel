@@ -23,9 +23,9 @@ use super::invariant::{
 use super::model::{
     ActorContext, ActorIdentityKind, BusinessLogicLimits, CrossLayerPath, DataOperation,
     DataOperationKind, GuardKind, GuardObservation, HttpMethod, InvariantDefinition,
-    InvariantEvaluation, InvariantKind, InvariantRequirement, InvariantScope, InvariantSource,
-    ProviderClientAuthority, ResourceKind, ResourceRef, RouteObservation, SourceLocation,
-    StableSemanticId, ValueOrigin,
+    InvariantEvaluation, InvariantEvaluationState, InvariantKind, InvariantRequirement,
+    InvariantScope, InvariantSource, ProviderClientAuthority, ResourceKind, ResourceRef,
+    RouteObservation, SourceLocation, StableSemanticId, ValueOrigin,
 };
 use super::protected_properties::{ProtectedPropertiesInputs, evaluate_protected_properties};
 use super::r2_support::R2SupportCorrelation;
