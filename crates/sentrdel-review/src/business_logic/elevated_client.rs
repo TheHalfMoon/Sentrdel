@@ -73,11 +73,13 @@ impl fmt::Display for ElevatedClientError {
             Self::OperationClientMismatch => formatter.write_str(
                 "elevated-client data operation does not reference the supplied provider client",
             ),
-            Self::PathClientMismatch => formatter.write_str(
-                "elevated-client path does not reference the supplied provider client",
-            ),
+            Self::PathClientMismatch => formatter
+                .write_str("elevated-client path does not reference the supplied provider client"),
             Self::Model(source) => {
-                write!(formatter, "elevated-client model validation failed: {source}")
+                write!(
+                    formatter,
+                    "elevated-client model validation failed: {source}"
+                )
             }
         }
     }
@@ -294,7 +296,10 @@ pub fn evaluate_elevated_client(
         );
     }
 
-    let required = required_guard_kinds.iter().copied().collect::<BTreeSet<_>>();
+    let required = required_guard_kinds
+        .iter()
+        .copied()
+        .collect::<BTreeSet<_>>();
     let candidate_guards = inputs
         .path
         .guard_ids()
