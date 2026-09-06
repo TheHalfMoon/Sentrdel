@@ -14,8 +14,7 @@ use sentrdel_schema::coverage::CoverageState;
 use sentrdel_schema::project::{DetectedFramework, DetectedProvider, PackStatus, ProjectProfile};
 
 use crate::business_logic::{
-    R3_BUSINESS_LOGIC_PACK_ID, R3_BUSINESS_LOGIC_PROVIDER,
-    manifest as r3_business_logic_manifest,
+    R3_BUSINESS_LOGIC_PACK_ID, R3_BUSINESS_LOGIC_PROVIDER, manifest as r3_business_logic_manifest,
 };
 use crate::config_detection::CiMcpConfigDetection;
 use crate::pack_registry::{PackCoverageDimension, SecurityPackRegistry};
