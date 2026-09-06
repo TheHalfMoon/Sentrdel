@@ -19,6 +19,7 @@ pub mod link;
 pub mod model;
 pub mod ordering;
 pub mod path;
+pub mod producer;
 pub mod project_invariant;
 pub mod protected_properties;
 pub mod r2_support;
