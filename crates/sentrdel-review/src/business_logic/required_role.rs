@@ -54,10 +54,9 @@ impl fmt::Display for RequiredRoleError {
             }
             Self::PathOperationMismatch => formatter
                 .write_str("required-role path operation does not match supplied data operation"),
-            Self::Model(source) => write!(
-                formatter,
-                "required-role model validation failed: {source}"
-            ),
+            Self::Model(source) => {
+                write!(formatter, "required-role model validation failed: {source}")
+            }
         }
     }
 }
@@ -178,7 +177,10 @@ pub fn evaluate_required_role(
         );
     }
 
-    let required = required_roles.iter().map(String::as_str).collect::<BTreeSet<_>>();
+    let required = required_roles
+        .iter()
+        .map(String::as_str)
+        .collect::<BTreeSet<_>>();
     let role_guards = inputs
         .path
         .guard_ids()
@@ -233,7 +235,10 @@ pub fn evaluate_required_role(
                 inputs.invariant,
                 inputs.path,
                 InvariantEvaluationState::Satisfied,
-                vec![guard.guard_id().clone(), inputs.operation.operation_id().clone()],
+                vec![
+                    guard.guard_id().clone(),
+                    inputs.operation.operation_id().clone(),
+                ],
                 Vec::new(),
                 vec!["supported_required_role_guard_dominates_privileged_path".to_owned()],
                 limits,
