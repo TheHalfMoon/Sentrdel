@@ -593,6 +593,96 @@ mod tests {
         .unwrap()
     }
 
+    /// Existing authoritative Findings and Coverage survive R3 registration verbatim.
+    #[test]
+    fn integration_preserves_existing_findings_and_coverage_verbatim() {
+        let authority = sentrdel_schema::finding::ReconcilerAuthority::from_runtime(
+            "r3-t027-review-preservation",
+            format!("sha256:{}", "d".repeat(64)),
+        )
+        .unwrap();
+        let prior_finding = sentrdel_schema::finding::Finding::new_reconciled(
+            sentrdel_schema::finding::ReconciledFindingDraft {
+                schema_version: sentrdel_schema::SCHEMA_V1.to_owned(),
+                fingerprint: "fingerprint:r3-t027-prior".to_owned(),
+                title: "Existing authoritative finding".to_owned(),
+                impact_statement: "Existing impact statement must survive R3 registration."
+                    .to_owned(),
+                category: "fixture".to_owned(),
+                severity: sentrdel_schema::finding::Severity::High,
+                epistemic_state: sentrdel_schema::finding::EpistemicState::Corroborated,
+                evidence_ids: vec!["evidence:prior".to_owned()],
+                contradiction_ids: vec!["evidence:prior-contradiction".to_owned()],
+                primary_location: Some("src/prior.ts".to_owned()),
+                affected_subjects: vec!["file:src/prior.ts".to_owned()],
+                first_seen_commit: Some("commit:prior".to_owned()),
+                last_seen_commit: Some("commit:prior".to_owned()),
+                remediation: Some("Preserve this authoritative finding.".to_owned()),
+                updated_at: "2026-09-07T00:00:00Z".to_owned(),
+            },
+            &authority,
+        )
+        .unwrap();
+        let prior_coverage = sentrdel_schema::coverage::CoverageRecord {
+            schema_version: sentrdel_schema::SCHEMA_V1.to_owned(),
+            coverage_id: "coverage:prior-review".to_owned(),
+            capability: "prior-review-capability".to_owned(),
+            scope: ".".to_owned(),
+            producer: Some("prior-review-producer".to_owned()),
+            provider_dimension: None,
+            state: CoverageState::Partial,
+            reason_code: Some("PRIOR_REVIEW_PARTIAL".to_owned()),
+            details: Some("Existing coverage must survive R3 registration.".to_owned()),
+            input_digests: vec![format!("sha256:{}", "e".repeat(64))],
+            observed_at: "2026-09-07T00:00:00Z".to_owned(),
+        };
+        let baseline = ReviewOutput::new(
+            CliRepository::new("repo:r3-t027-prior", ".").unwrap(),
+            CliDecision::Ask,
+            vec![prior_finding],
+            vec![prior_coverage],
+            Vec::new(),
+            CliTiming::default(),
+            Some(vec!["store:prior".to_owned()]),
+        )
+        .unwrap();
+        let prior_decision = baseline.envelope().decision;
+        let prior_findings = baseline.findings().to_vec();
+        let prior_coverage = baseline.envelope().coverage.clone();
+        let prior_store_refs = baseline.envelope().store_refs.clone();
+
+        let evaluations = vec![evaluation("preserve", InvariantEvaluationState::Unknown)];
+        let producer = producer(&evaluations);
+        let registered = baseline
+            .integrate_r3_business_logic(
+                &producer,
+                &[],
+                &[route("preserve", "src/preserve.ts")],
+                &[cross_layer_path("preserve", "src/preserve.ts")],
+                &evaluations,
+            )
+            .unwrap();
+
+        assert_eq!(registered.output().envelope().decision, prior_decision);
+        assert_eq!(registered.output().findings(), prior_findings.as_slice());
+        assert_eq!(registered.output().envelope().store_refs, prior_store_refs);
+        assert_eq!(
+            registered.output().envelope().coverage.len(),
+            prior_coverage.len() + producer.coverage().len()
+        );
+        for expected in &prior_coverage {
+            assert!(
+                registered
+                    .output()
+                    .envelope()
+                    .coverage
+                    .iter()
+                    .any(|actual| actual == expected),
+                "prior authoritative coverage was discarded or replaced: {expected:?}"
+            );
+        }
+    }
+
     /// Public ReviewOutput integration retains Evidence and appends Coverage only.
     #[test]
     fn public_review_surface_integrates_r3_without_minting_findings_or_decision() {
