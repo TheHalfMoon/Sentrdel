@@ -12,8 +12,8 @@ use sentrdel_review::{
         },
         required_role::{
             R3_REQUIRED_ROLE_CREATES_FINDINGS, R3_REQUIRED_ROLE_EXECUTES_TARGET_CODE,
-            R3_REQUIRED_ROLE_PERFORMS_NETWORK_ACCESS,
-            R3_REQUIRED_ROLE_PROVES_RUNTIME_AUTHORIZATION,
+            R3_REQUIRED_ROLE_GUARD_OPERATION_RELATION, R3_REQUIRED_ROLE_PERFORMS_NETWORK_ACCESS,
+            R3_REQUIRED_ROLE_PROVES_RUNTIME_AUTHORIZATION, R3_REQUIRED_ROLE_ROUTE_GUARD_RELATION,
             R3_REQUIRED_ROLE_USES_ROUTE_NAMING_AS_PRIVILEGE_PROOF,
             R3_REQUIRED_ROLE_USES_UNLINKED_ROLE_TEXT_AS_AUTHORIZATION_PROOF, RequiredRoleInputs,
             evaluate_required_role,
@@ -106,10 +106,11 @@ fn role_guard(
     .expect("role guard")
 }
 
-fn link(
+fn link_with_relation(
     name: &str,
     source: StableSemanticId,
     target: StableSemanticId,
+    relation: &str,
     basis: LinkBasis,
     confidence: ConfidenceBasis,
 ) -> CrossLayerLink {
@@ -117,13 +118,30 @@ fn link(
         id("r3.t022.link", name),
         source,
         target,
-        "supported_privileged_path",
+        relation,
         basis,
         confidence,
         vec![location(60)],
         limits(),
     )
     .expect("link")
+}
+
+fn link(
+    name: &str,
+    source: StableSemanticId,
+    target: StableSemanticId,
+    basis: LinkBasis,
+    confidence: ConfidenceBasis,
+) -> CrossLayerLink {
+    link_with_relation(
+        name,
+        source,
+        target,
+        "supported_privileged_path",
+        basis,
+        confidence,
+    )
 }
 
 fn path(
@@ -135,10 +153,11 @@ fn path(
 ) -> CrossLayerPath {
     let mut links = Vec::new();
     let guard_ids = if let Some(guard) = guard {
-        links.push(link(
+        links.push(link_with_relation(
             "route-guard",
             route.route_id().clone(),
             guard.guard_id().clone(),
+            R3_REQUIRED_ROLE_ROUTE_GUARD_RELATION,
             if authoritative {
                 LinkBasis::ExplicitAdapterLink
             } else {
@@ -150,10 +169,11 @@ fn path(
                 ConfidenceBasis::Ambiguous
             },
         ));
-        links.push(link(
+        links.push(link_with_relation(
             "guard-operation",
             guard.guard_id().clone(),
             operation.operation_id().clone(),
+            R3_REQUIRED_ROLE_GUARD_OPERATION_RELATION,
             if authoritative {
                 LinkBasis::ExplicitAdapterLink
             } else {
@@ -391,6 +411,114 @@ fn extracted_but_disconnected_guard_linkage_cannot_satisfy_required_role() {
         limits(),
     )
     .expect("disconnected guard path");
+    let invariant = invariant("/admin/accounts/:id", "accounts", &["admin"]);
+
+    let state = evaluate(
+        &invariant,
+        &path,
+        &route,
+        std::slice::from_ref(&guard),
+        &operation,
+    );
+    assert_eq!(state, InvariantEvaluationState::Unknown);
+    assert_ne!(state, InvariantEvaluationState::Satisfied);
+}
+
+#[test]
+fn unrelated_extracted_relation_cannot_satisfy_required_role() {
+    let route = route("/admin/accounts/:id");
+    let operation = operation("accounts");
+    let guard = role_guard(
+        "admin-unrelated-relation",
+        &["admin"],
+        DominanceScope::SameHandlerPrefix,
+        Some("accounts"),
+    );
+    let path = CrossLayerPath::new(
+        id("r3.t022.path", "unrelated-relation"),
+        route.route_id().clone(),
+        Vec::new(),
+        vec![guard.guard_id().clone()],
+        operation.operation_id().clone(),
+        None,
+        vec![
+            link_with_relation(
+                "route-guard-unrelated-relation",
+                route.route_id().clone(),
+                guard.guard_id().clone(),
+                "unrelated_data_flow",
+                LinkBasis::ExplicitAdapterLink,
+                ConfidenceBasis::Extracted,
+            ),
+            link_with_relation(
+                "guard-operation-supported-relation",
+                guard.guard_id().clone(),
+                operation.operation_id().clone(),
+                R3_REQUIRED_ROLE_GUARD_OPERATION_RELATION,
+                LinkBasis::ExplicitAdapterLink,
+                ConfidenceBasis::Extracted,
+            ),
+        ],
+        Vec::new(),
+        PathState::Supported,
+        vec![location(86)],
+        limits(),
+    )
+    .expect("unrelated-relation path");
+    let invariant = invariant("/admin/accounts/:id", "accounts", &["admin"]);
+
+    let state = evaluate(
+        &invariant,
+        &path,
+        &route,
+        std::slice::from_ref(&guard),
+        &operation,
+    );
+    assert_eq!(state, InvariantEvaluationState::Unknown);
+    assert_ne!(state, InvariantEvaluationState::Satisfied);
+}
+
+#[test]
+fn non_explicit_link_basis_cannot_satisfy_required_role() {
+    let route = route("/admin/accounts/:id");
+    let operation = operation("accounts");
+    let guard = role_guard(
+        "admin-non-explicit-link",
+        &["admin"],
+        DominanceScope::SupportedMiddlewarePrefix,
+        Some("accounts"),
+    );
+    let path = CrossLayerPath::new(
+        id("r3.t022.path", "non-explicit-link"),
+        route.route_id().clone(),
+        Vec::new(),
+        vec![guard.guard_id().clone()],
+        operation.operation_id().clone(),
+        None,
+        vec![
+            link_with_relation(
+                "route-guard-non-explicit",
+                route.route_id().clone(),
+                guard.guard_id().clone(),
+                R3_REQUIRED_ROLE_ROUTE_GUARD_RELATION,
+                LinkBasis::SupportedCallbackChain,
+                ConfidenceBasis::Extracted,
+            ),
+            link_with_relation(
+                "guard-operation-explicit",
+                guard.guard_id().clone(),
+                operation.operation_id().clone(),
+                R3_REQUIRED_ROLE_GUARD_OPERATION_RELATION,
+                LinkBasis::ExplicitAdapterLink,
+                ConfidenceBasis::Extracted,
+            ),
+        ],
+        Vec::new(),
+        PathState::Supported,
+        vec![location(87)],
+        limits(),
+    )
+    .expect("non-explicit-link path");
     let invariant = invariant("/admin/accounts/:id", "accounts", &["admin"]);
 
     let state = evaluate(
