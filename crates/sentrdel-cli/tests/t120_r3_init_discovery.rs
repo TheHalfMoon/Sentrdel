@@ -15,9 +15,11 @@ use sentrdel_schema::coverage::CoverageState;
 use serde_json::Value;
 
 const NEXT_RULES: &[PathMatchRule] = &[PathMatchRule::Basename("next.config.mjs")];
-const STACK_SPECS: &[StackDetectorSpec] = &[
-    StackDetectorSpec::new("nextjs", StackKind::Framework, NEXT_RULES),
-];
+const STACK_SPECS: &[StackDetectorSpec] = &[StackDetectorSpec::new(
+    "nextjs",
+    StackKind::Framework,
+    NEXT_RULES,
+)];
 
 fn snapshot(packs: &SecurityPackRegistry) -> sentrdel_review::profile::ProjectProfileSnapshot {
     let stacks = StackDetectorRegistry::new(STACK_SPECS)
@@ -96,9 +98,11 @@ fn init_surfaces_r3_capability_as_unavailable_until_analysis_runs() {
             .human
             .contains("Security packs: sentrdel.business-logic.static")
     );
-    assert!(output.human.contains(
-        "project cross-layer / BUSINESS_LOGIC: Unavailable (PACK_REGISTERED_NOT_RUN)"
-    ));
+    assert!(
+        output.human.contains(
+            "project cross-layer / BUSINESS_LOGIC: Unavailable (PACK_REGISTERED_NOT_RUN)"
+        )
+    );
 
     let json = output.json_line().unwrap();
     let value: Value = serde_json::from_str(json.trim_end()).unwrap();
