@@ -1,9 +1,9 @@
 //! Tightening-only R3 invariant contract.
 //!
 //! Repository declarations are untrusted data. This module freezes the bounded
-//! key/identifier/authority ceiling for a later loader; it does not parse TOML,
-//! execute repository content, suppress Evidence, waive Findings, or grant
-//! provider/runtime authority.
+//! key/identifier/authority ceiling consumed by the bounded project-invariant
+//! loader. It does not itself parse repository content, execute repository
+//! content, suppress Evidence, waive Findings, or grant provider/runtime authority.
 
 use std::collections::BTreeSet;
 use std::error::Error;
