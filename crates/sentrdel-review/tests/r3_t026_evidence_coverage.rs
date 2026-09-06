@@ -54,10 +54,7 @@ fn evaluation(value: &str, state: InvariantEvaluationState) -> InvariantEvaluati
     .unwrap()
 }
 
-fn coverage_entry(
-    area: BusinessLogicCoverageArea,
-    state: CoverageState,
-) -> BusinessLogicCoverage {
+fn coverage_entry(area: BusinessLogicCoverageArea, state: CoverageState) -> BusinessLogicCoverage {
     BusinessLogicCoverage::new(
         area,
         state,
@@ -162,8 +159,7 @@ fn coverage_maps_all_areas_and_both_canonical_aggregate_capabilities() {
     assert_eq!(output.coverage().len(), 12);
     assert!(output.coverage().iter().all(|record| {
         record.producer.as_deref() == Some(R3_BUSINESS_LOGIC_PRODUCER_ID)
-            && record.provider_dimension
-                == Some(ProviderCoverageDimension::CrossLayerBusinessLogic)
+            && record.provider_dimension == Some(ProviderCoverageDimension::CrossLayerBusinessLogic)
     }));
     assert!(
         output
@@ -234,12 +230,9 @@ fn equivalent_inputs_have_deterministic_evidence_and_coverage_ordering() {
 
     let mut reversed_matrix = first_matrix.clone();
     reversed_matrix.reverse();
-    let second = produce_business_logic_outputs(
-        &[second_eval, first_eval],
-        &reversed_matrix,
-        OBSERVED_AT,
-    )
-    .unwrap();
+    let second =
+        produce_business_logic_outputs(&[second_eval, first_eval], &reversed_matrix, OBSERVED_AT)
+            .unwrap();
 
     let first_evidence_ids: Vec<_> = first
         .evidence()
