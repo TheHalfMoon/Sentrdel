@@ -1,0 +1,75 @@
+name: Temporary R3-T027 test fixture repair
+
+on:
+  push:
+    branches:
+      - feat/r3-t027-review-integration-v2
+
+permissions:
+  contents: write
+
+jobs:
+  repair-test:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: feat/r3-t027-review-integration-v2
+          fetch-depth: 1
+      - name: Repair canonical-ID assertions
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('crates/sentrdel-cli/src/review/business_logic.rs')
+          text = path.read_text()
+          old = '''        for expected in [
+              "Business-logic context:",
+              "changed=true",
+              "route=route:",
+              "pattern=/admin",
+              "guards=guard:",
+              "data_operation=operation:",
+              "state=UNKNOWN",
+              "reasons=STATIC_SCOPE_ONLY",
+          ] {
+              assert!(human.contains(expected), "missing {expected:?}");
+          }
+          '''
+          new = '''        for expected in [
+              "Business-logic context:",
+              "changed=true",
+              "pattern=/admin",
+              "state=UNKNOWN",
+              "reasons=STATIC_SCOPE_ONLY",
+          ] {
+              assert!(human.contains(expected), "missing {expected:?}");
+          }
+          for expected in [
+              format!("route={}", id("route", "admin").as_str()),
+              format!("guards={}", id("guard", "admin").as_str()),
+              format!("data_operation={}", id("operation", "admin").as_str()),
+          ] {
+              assert!(human.contains(&expected), "missing {expected:?}");
+          }
+          '''
+          if old not in text:
+              raise SystemExit('expected assertion block not found')
+          path.write_text(text.replace(old, new, 1))
+          PY
+      - name: Apply canonical rustfmt
+        run: |
+          rustup toolchain install 1.98.0 --profile minimal --component rustfmt
+          cargo +1.98.0 fmt --all
+      - name: Commit repaired test only
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add crates/sentrdel-cli/src/review/business_logic.rs
+          git commit -m "test(r3): assert canonical review context ids"
+          git push origin HEAD:feat/r3-t027-review-integration-v2
