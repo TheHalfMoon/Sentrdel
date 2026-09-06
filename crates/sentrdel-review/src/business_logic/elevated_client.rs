@@ -333,7 +333,7 @@ pub fn evaluate_elevated_client(
             contradicting.insert(guard.guard_id().clone());
             continue;
         }
-        if guard.comparison_shape() == ComparisonShape::Unknown
+        if !application_guard_semantics_supported(guard)
             || guard.dominance_scope() == DominanceScope::Unknown
             || !guard_is_authoritatively_linked(inputs.path, guard.guard_id())
         {
@@ -402,6 +402,35 @@ pub const fn supported_application_guard_kind(kind: GuardKind) -> bool {
             | GuardKind::ObjectMembership
             | GuardKind::ElevatedClientBoundary
     )
+}
+
+#[must_use]
+pub(crate) fn application_guard_semantics_supported(guard: &GuardObservation) -> bool {
+    match guard.guard_kind() {
+        GuardKind::RequiredRole => {
+            !guard.required_values().is_empty()
+                && matches!(
+                    guard.comparison_shape(),
+                    ComparisonShape::Equal
+                        | ComparisonShape::Membership
+                        | ComparisonShape::ConjunctionSupported
+                )
+        }
+        GuardKind::TenantBinding | GuardKind::OwnershipBinding | GuardKind::ObjectMembership => {
+            !guard.required_values().is_empty()
+                && matches!(
+                    guard.comparison_shape(),
+                    ComparisonShape::Equal
+                        | ComparisonShape::Membership
+                        | ComparisonShape::ConjunctionSupported
+                        | ComparisonShape::OtherSupported
+                )
+        }
+        GuardKind::ElevatedClientBoundary => {
+            guard.comparison_shape() == ComparisonShape::OtherSupported
+        }
+        _ => false,
+    }
 }
 
 fn scope_applies(
