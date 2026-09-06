@@ -173,7 +173,7 @@ pub fn produce_business_logic_outputs(
     reject_duplicate_evidence(&evidence)?;
 
     for entry in coverage {
-        if !entry.producer().starts_with("sentrdel.r3.") {
+        if entry.producer() != R3_BUSINESS_LOGIC_PRODUCER_ID {
             return Err(BusinessLogicProducerError::UnexpectedCoverageProducer(
                 entry.producer().to_owned(),
             ));
