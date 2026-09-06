@@ -13,9 +13,9 @@ use std::fmt;
 use sentrdel_schema::coverage::CoverageState;
 
 use super::model::{
-    BusinessLogicLimits, CrossLayerPath, DataOperation, DataOperationKind, FieldSetMode,
-    InvariantDefinition, InvariantEvaluation, InvariantEvaluationState, InvariantKind,
-    InvariantRequirement, ModelError, PathState, RouteObservation,
+    BusinessLogicLimits, ConfidenceBasis, CrossLayerPath, DataOperation, DataOperationKind,
+    FieldSetMode, InvariantDefinition, InvariantEvaluation, InvariantEvaluationState, InvariantKind,
+    InvariantRequirement, LinkBasis, ModelError, PathState, RouteObservation,
 };
 
 pub const R3_PROTECTED_PROPERTIES_CREATES_FINDINGS: bool = false;
@@ -114,18 +114,6 @@ pub fn evaluate_protected_properties(
         );
     }
 
-    if protected_properties.is_empty() || mutation_operations.is_empty() {
-        return evaluation(
-            inputs.invariant,
-            inputs.path,
-            InvariantEvaluationState::Unknown,
-            Vec::new(),
-            Vec::new(),
-            vec!["protected_properties_requirement_is_empty".to_owned()],
-            limits,
-        );
-    }
-
     if !is_supported_property_mutation(inputs.operation.operation_kind())
         || !mutation_operations.contains(&inputs.operation.operation_kind())
     {
@@ -143,6 +131,7 @@ pub fn evaluate_protected_properties(
     if inputs.path.path_state() != PathState::Supported
         || inputs.route.coverage_state() != &CoverageState::Covered
         || inputs.operation.coverage_state() != &CoverageState::Covered
+        || path_has_non_authoritative_link(inputs.path)
     {
         return evaluation(
             inputs.invariant,
@@ -218,6 +207,12 @@ pub fn evaluate_protected_properties(
             }
         }
     }
+}
+
+fn path_has_non_authoritative_link(path: &CrossLayerPath) -> bool {
+    path.links().iter().any(|link| {
+        link.confidence_basis() != ConfidenceBasis::Extracted || link.basis() == LinkBasis::Unknown
+    })
 }
 
 const fn is_supported_property_mutation(kind: DataOperationKind) -> bool {
