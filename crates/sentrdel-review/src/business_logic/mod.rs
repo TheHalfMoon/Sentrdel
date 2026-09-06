@@ -9,6 +9,7 @@ pub mod coverage;
 pub mod data;
 #[path = "data_gate.rs"]
 mod data_candidate;
+pub mod elevated_client;
 #[path = "graph_map.rs"]
 pub mod graph;
 #[path = "guard_tdz_scope.rs"]
