@@ -353,6 +353,58 @@ fn lexical_or_unlinked_role_text_elsewhere_does_not_authorize_privileged_path() 
 }
 
 #[test]
+fn extracted_but_disconnected_guard_linkage_cannot_satisfy_required_role() {
+    let route = route("/admin/accounts/:id");
+    let operation = operation("accounts");
+    let guard = role_guard(
+        "admin",
+        &["admin"],
+        DominanceScope::SameHandlerPrefix,
+        Some("accounts"),
+    );
+    let path = CrossLayerPath::new(
+        id("r3.t022.path", "disconnected-guard"),
+        route.route_id().clone(),
+        Vec::new(),
+        vec![guard.guard_id().clone()],
+        operation.operation_id().clone(),
+        None,
+        vec![
+            link(
+                "route-operation-disconnected-guard",
+                route.route_id().clone(),
+                operation.operation_id().clone(),
+                LinkBasis::ExplicitAdapterLink,
+                ConfidenceBasis::Extracted,
+            ),
+            link(
+                "guard-unrelated-sink",
+                guard.guard_id().clone(),
+                id("r3.t022.unrelated", "sink"),
+                LinkBasis::ExplicitAdapterLink,
+                ConfidenceBasis::Extracted,
+            ),
+        ],
+        Vec::new(),
+        PathState::Supported,
+        vec![location(85)],
+        limits(),
+    )
+    .expect("disconnected guard path");
+    let invariant = invariant("/admin/accounts/:id", "accounts", &["admin"]);
+
+    let state = evaluate(
+        &invariant,
+        &path,
+        &route,
+        std::slice::from_ref(&guard),
+        &operation,
+    );
+    assert_eq!(state, InvariantEvaluationState::Unknown);
+    assert_ne!(state, InvariantEvaluationState::Satisfied);
+}
+
+#[test]
 fn matching_role_with_unknown_dominance_remains_unknown() {
     let route = route("/admin/accounts/:id");
     let operation = operation("accounts");
