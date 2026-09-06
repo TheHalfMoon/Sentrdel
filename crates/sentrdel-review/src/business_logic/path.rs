@@ -126,13 +126,8 @@ pub fn correlate_cross_layer_paths(
             paths.push(path.clone());
             continue;
         };
-        let role_qualified = qualify_required_role_links(
-            path,
-            route,
-            operation,
-            &guards,
-            model_limits,
-        )?;
+        let role_qualified =
+            qualify_required_role_links(path, route, operation, &guards, model_limits)?;
         paths.push(qualify_elevated_client_links(
             &role_qualified,
             route,
