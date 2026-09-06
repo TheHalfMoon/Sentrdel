@@ -322,10 +322,10 @@ fn evaluate(
     route: &RouteObservation,
     guards: &[GuardObservation],
     operation: &DataOperation,
-    client: &ProviderClientAuthority,
-    support: &R2SupportCorrelation,
+    client_support: (&ProviderClientAuthority, &R2SupportCorrelation),
     guard_coverage_state: CoverageState,
 ) -> InvariantEvaluationState {
+    let (client, support) = client_support;
     evaluate_elevated_client(
         ElevatedClientInputs {
             invariant,
@@ -371,8 +371,7 @@ fn supported_elevated_client_with_required_role_guard_is_satisfied() {
             &route,
             std::slice::from_ref(&guard),
             &operation,
-            &client,
-            &support,
+            (&client, &support),
             CoverageState::Covered,
         ),
         InvariantEvaluationState::Satisfied
@@ -394,8 +393,7 @@ fn elevated_client_without_required_application_guard_is_violated() {
             &route,
             &[],
             &operation,
-            &client,
-            &support,
+            (&client, &support),
             CoverageState::Covered,
         ),
         InvariantEvaluationState::Violated
@@ -430,8 +428,7 @@ fn elevated_client_outside_allowed_server_context_is_violated() {
             &route,
             std::slice::from_ref(&guard),
             &operation,
-            &client,
-            &support,
+            (&client, &support),
             CoverageState::Covered,
         ),
         InvariantEvaluationState::Violated
@@ -459,8 +456,7 @@ fn non_elevated_client_is_not_applicable_not_a_false_violation() {
             &route,
             &[],
             &operation,
-            &client,
-            &support,
+            (&client, &support),
             CoverageState::Covered,
         ),
         InvariantEvaluationState::NotApplicable
@@ -487,8 +483,7 @@ fn elevated_client_without_exact_r2_boundary_match_is_unknown() {
             &route,
             &[],
             &operation,
-            &client,
-            &support,
+            (&client, &support),
             CoverageState::Covered,
         ),
         InvariantEvaluationState::Unknown
@@ -523,8 +518,7 @@ fn unknown_guard_dominance_remains_unknown_not_satisfied() {
             &route,
             std::slice::from_ref(&guard),
             &operation,
-            &client,
-            &support,
+            (&client, &support),
             CoverageState::Covered,
         ),
         InvariantEvaluationState::Unknown
@@ -559,8 +553,7 @@ fn non_authoritative_path_link_remains_unknown_not_satisfied() {
             &route,
             std::slice::from_ref(&guard),
             &operation,
-            &client,
-            &support,
+            (&client, &support),
             CoverageState::Covered,
         ),
         InvariantEvaluationState::Unknown
@@ -582,8 +575,7 @@ fn incomplete_guard_coverage_remains_unknown() {
             &route,
             &[],
             &operation,
-            &client,
-            &support,
+            (&client, &support),
             CoverageState::Partial,
         ),
         InvariantEvaluationState::Unknown
@@ -605,8 +597,7 @@ fn unsupported_server_context_remains_unknown() {
             &route,
             &[],
             &operation,
-            &client,
-            &support,
+            (&client, &support),
             CoverageState::Covered,
         ),
         InvariantEvaluationState::Unknown
