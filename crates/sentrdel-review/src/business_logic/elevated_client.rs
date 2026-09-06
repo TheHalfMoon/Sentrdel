@@ -69,7 +69,10 @@ impl fmt::Display for ElevatedClientError {
                 "elevated-client path provider client does not match supplied data operation",
             ),
             Self::Model(source) => {
-                write!(formatter, "elevated-client model validation failed: {source}")
+                write!(
+                    formatter,
+                    "elevated-client model validation failed: {source}"
+                )
             }
         }
     }
@@ -339,7 +342,10 @@ pub fn evaluate_elevated_client(
         );
     }
 
-    let required = required_guard_kinds.iter().copied().collect::<BTreeSet<_>>();
+    let required = required_guard_kinds
+        .iter()
+        .copied()
+        .collect::<BTreeSet<_>>();
     let mut satisfied_guard_ids = BTreeSet::new();
     let mut unresolved_guard_semantics = false;
     let mut missing_guard_kinds = BTreeSet::new();
@@ -394,14 +400,20 @@ pub fn evaluate_elevated_client(
             inputs.path,
             InvariantEvaluationState::Unknown,
             satisfied_guard_ids.into_iter().collect(),
-            vec![client.client_id().clone(), inputs.operation.operation_id().clone()],
+            vec![
+                client.client_id().clone(),
+                inputs.operation.operation_id().clone(),
+            ],
             vec!["required_elevated_client_guard_semantics_unresolved".to_owned()],
             limits,
         );
     }
 
     if !missing_guard_kinds.is_empty() {
-        let mut contradicting = vec![client.client_id().clone(), inputs.operation.operation_id().clone()];
+        let mut contradicting = vec![
+            client.client_id().clone(),
+            inputs.operation.operation_id().clone(),
+        ];
         contradicting.extend(request_actors.iter().map(|actor| actor.actor_id().clone()));
         return evaluation(
             inputs.invariant,
@@ -409,12 +421,18 @@ pub fn evaluate_elevated_client(
             InvariantEvaluationState::Violated,
             satisfied_guard_ids.into_iter().collect(),
             contradicting,
-            vec!["supported_request_controlled_elevated_path_lacks_required_application_guard".to_owned()],
+            vec![
+                "supported_request_controlled_elevated_path_lacks_required_application_guard"
+                    .to_owned(),
+            ],
             limits,
         );
     }
 
-    let mut supporting = vec![client.client_id().clone(), inputs.operation.operation_id().clone()];
+    let mut supporting = vec![
+        client.client_id().clone(),
+        inputs.operation.operation_id().clone(),
+    ];
     supporting.extend(request_actors.iter().map(|actor| actor.actor_id().clone()));
     supporting.extend(satisfied_guard_ids);
     evaluation(
@@ -423,7 +441,10 @@ pub fn evaluate_elevated_client(
         InvariantEvaluationState::Satisfied,
         supporting,
         Vec::new(),
-        vec!["supported_required_application_guards_bound_request_controlled_elevated_path".to_owned()],
+        vec![
+            "supported_required_application_guards_bound_request_controlled_elevated_path"
+                .to_owned(),
+        ],
         limits,
     )
 }
