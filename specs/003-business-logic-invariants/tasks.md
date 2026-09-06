@@ -66,7 +66,7 @@
 - [x] **R3-T023** Implement protected-property mutation invariants for supported broad request-controlled writes and explicit protected properties; safe explicit allowlists and dynamic/unknown field sets remain distinguishable.
 - [x] **R3-T024** Implement elevated provider-client application-boundary invariants for supported service-role/secret client use; elevated authority is contextual and escalates only with a supported risky request/guard/data path.
 - [x] **R3-T025** Implement the bounded project invariant loader/evaluator only under `contracts/project-invariant-contract.md`: versioned structured data, hard size/count/path/field caps, tightening-only semantics, built-in ID namespace separation, no suppressions/waivers/severity/risk acceptance/authority grants/executable content, and built-in analysis continues on malformed config.
-- [ ] **R3-T026** Map invariant/path observations and interpretations to canonical Evidence/Coverage through runtime-owned producer authority; preserve direct-observation versus security-interpretation wording and existing reconciler-only Finding creation.
+- [x] **R3-T026** Map invariant/path observations and interpretations to canonical Evidence/Coverage through runtime-owned producer authority; preserve direct-observation versus security-interpretation wording and existing reconciler-only Finding creation.
 
 **Checkpoint:** initial invariant families are implemented with fail-visible uncertainty and unchanged judgment authority.
 
