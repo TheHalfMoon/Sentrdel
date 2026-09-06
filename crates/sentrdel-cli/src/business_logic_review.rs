@@ -20,7 +20,9 @@ use sentrdel_review::view::NormalizedRepoPath;
 use sentrdel_schema::evidence::Evidence;
 
 pub const DEFAULT_MAX_R3_REVIEW_CHANGED_PATHS: usize = 4_096;
+pub const DEFAULT_MAX_R3_REVIEW_ROUTES: usize = 4_096;
 pub const DEFAULT_MAX_R3_REVIEW_CONTEXTS: usize = 4_096;
+pub const DEFAULT_MAX_R3_REVIEW_EVALUATIONS: usize = 4_096;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct BusinessLogicInvariantContext {
@@ -69,7 +71,9 @@ impl RegisteredBusinessLogicReviewOutput {
 pub enum BusinessLogicReviewRegistrationError {
     Review(ReviewOutputError),
     TooManyChangedPaths { observed: usize, max: usize },
+    TooManyRoutes { observed: usize, max: usize },
     TooManyContexts { observed: usize, max: usize },
+    TooManyEvaluations { observed: usize, max: usize },
     DuplicateRouteId(String),
     DuplicatePathId(String),
     DuplicateEvaluationId(String),
@@ -83,9 +87,17 @@ impl fmt::Display for BusinessLogicReviewRegistrationError {
                 formatter,
                 "R3 review changed-path count {observed} exceeds cap {max}"
             ),
+            Self::TooManyRoutes { observed, max } => write!(
+                formatter,
+                "R3 review route count {observed} exceeds cap {max}"
+            ),
             Self::TooManyContexts { observed, max } => write!(
                 formatter,
                 "R3 review context count {observed} exceeds cap {max}"
+            ),
+            Self::TooManyEvaluations { observed, max } => write!(
+                formatter,
+                "R3 review invariant-evaluation count {observed} exceeds cap {max}"
             ),
             Self::DuplicateRouteId(value) => {
                 write!(
@@ -136,10 +148,22 @@ pub fn register_r3_business_logic_review(
             max: DEFAULT_MAX_R3_REVIEW_CHANGED_PATHS,
         });
     }
+    if routes.len() > DEFAULT_MAX_R3_REVIEW_ROUTES {
+        return Err(BusinessLogicReviewRegistrationError::TooManyRoutes {
+            observed: routes.len(),
+            max: DEFAULT_MAX_R3_REVIEW_ROUTES,
+        });
+    }
     if paths.len() > DEFAULT_MAX_R3_REVIEW_CONTEXTS {
         return Err(BusinessLogicReviewRegistrationError::TooManyContexts {
             observed: paths.len(),
             max: DEFAULT_MAX_R3_REVIEW_CONTEXTS,
+        });
+    }
+    if evaluations.len() > DEFAULT_MAX_R3_REVIEW_EVALUATIONS {
+        return Err(BusinessLogicReviewRegistrationError::TooManyEvaluations {
+            observed: evaluations.len(),
+            max: DEFAULT_MAX_R3_REVIEW_EVALUATIONS,
         });
     }
 
@@ -480,6 +504,48 @@ mod tests {
             Err(BusinessLogicReviewRegistrationError::TooManyContexts {
                 observed: DEFAULT_MAX_R3_REVIEW_CONTEXTS + 1,
                 max: DEFAULT_MAX_R3_REVIEW_CONTEXTS,
+            })
+        );
+    }
+
+    #[test]
+    fn route_cap_fails_visible_before_context_allocation() {
+        let fixture = route("route-cap", "src/route-cap.ts");
+        let too_many = vec![fixture; DEFAULT_MAX_R3_REVIEW_ROUTES + 1];
+        let result = register_r3_business_logic_review(
+            &baseline(),
+            &producer(&[]),
+            &[],
+            &too_many,
+            &[],
+            &[],
+        );
+        assert_eq!(
+            result,
+            Err(BusinessLogicReviewRegistrationError::TooManyRoutes {
+                observed: DEFAULT_MAX_R3_REVIEW_ROUTES + 1,
+                max: DEFAULT_MAX_R3_REVIEW_ROUTES,
+            })
+        );
+    }
+
+    #[test]
+    fn evaluation_cap_fails_visible_before_context_allocation() {
+        let fixture = evaluation("evaluation-cap", InvariantEvaluationState::Unknown);
+        let too_many = vec![fixture; DEFAULT_MAX_R3_REVIEW_EVALUATIONS + 1];
+        let result = register_r3_business_logic_review(
+            &baseline(),
+            &producer(&[]),
+            &[],
+            &[],
+            &[],
+            &too_many,
+        );
+        assert_eq!(
+            result,
+            Err(BusinessLogicReviewRegistrationError::TooManyEvaluations {
+                observed: DEFAULT_MAX_R3_REVIEW_EVALUATIONS + 1,
+                max: DEFAULT_MAX_R3_REVIEW_EVALUATIONS,
             })
         );
     }
