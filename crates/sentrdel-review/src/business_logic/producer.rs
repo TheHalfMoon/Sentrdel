@@ -18,12 +18,10 @@ use sentrdel_schema::evidence::{
 };
 use serde_json::{Value, json};
 
-use super::coverage::{
-    BusinessLogicCoverageAggregationError, aggregate_business_logic_coverage,
-};
+use super::coverage::{BusinessLogicCoverageAggregationError, aggregate_business_logic_coverage};
 use super::model::{
-    BusinessLogicCoverage, BusinessLogicCoverageArea, InvariantEvaluation, InvariantEvaluationState,
-    SourceLocation,
+    BusinessLogicCoverage, BusinessLogicCoverageArea, InvariantEvaluation,
+    InvariantEvaluationState, SourceLocation,
 };
 use super::{COVERAGE_BUSINESS_LOGIC, COVERAGE_CROSS_LAYER_BUSINESS_LOGIC};
 
@@ -76,7 +74,9 @@ pub enum BusinessLogicProducerError {
 impl fmt::Display for BusinessLogicProducerError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::EmptyObservedAt => formatter.write_str("R3 producer observed_at must not be empty"),
+            Self::EmptyObservedAt => {
+                formatter.write_str("R3 producer observed_at must not be empty")
+            }
             Self::DuplicateEvaluationId(value) => {
                 write!(formatter, "duplicate R3 invariant evaluation id {value:?}")
             }
@@ -92,7 +92,10 @@ impl fmt::Display for BusinessLogicProducerError {
             }
             Self::Evidence(error) => write!(formatter, "invalid R3 Evidence: {error}"),
             Self::CoverageAggregation(error) => {
-                write!(formatter, "invalid R3 business-logic coverage matrix: {error}")
+                write!(
+                    formatter,
+                    "invalid R3 business-logic coverage matrix: {error}"
+                )
             }
             Self::Canonical(error) => write!(formatter, "R3 canonical identity failed: {error}"),
         }
