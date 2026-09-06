@@ -13,6 +13,9 @@ use sentrdel_schema::SCHEMA_V1;
 use sentrdel_schema::coverage::CoverageState;
 use sentrdel_schema::project::{DetectedFramework, DetectedProvider, PackStatus, ProjectProfile};
 
+use crate::business_logic::{
+    R3_BUSINESS_LOGIC_PACK_ID, R3_BUSINESS_LOGIC_PROVIDER, manifest as r3_business_logic_manifest,
+};
 use crate::config_detection::CiMcpConfigDetection;
 use crate::pack_registry::{PackCoverageDimension, SecurityPackRegistry};
 use crate::project_detection::LanguageEcosystemDetection;
@@ -27,6 +30,7 @@ const SUPABASE_R2_DIMENSION_NOT_IMPLEMENTED: &str = "SUPABASE_R2_DIMENSION_NOT_I
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum ProjectCoverageSubjectKind {
+    Project,
     Provider,
     Framework,
 }
@@ -178,9 +182,13 @@ pub fn build_project_profile_snapshot(
         .iter()
         .map(|framework| framework.framework_id.as_str())
         .collect();
+    let r3_business_logic_registered = native_r3_business_logic_pack_registered(packs);
     let security_packs: Vec<String> = packs
         .iter()
         .filter_map(|(pack_id, pack)| {
+            if pack_id == R3_BUSINESS_LOGIC_PACK_ID {
+                return r3_business_logic_registered.then(|| pack_id.to_owned());
+            }
             let subject = pack.manifest().provider_or_framework.as_str();
             (provider_ids.contains(subject) || framework_ids.contains(subject))
                 .then(|| pack_id.to_owned())
@@ -212,6 +220,12 @@ fn native_supabase_r2_pack_registered(packs: &SecurityPackRegistry) -> bool {
         .is_some_and(|pack| pack.manifest() == &supabase_r2_manifest())
 }
 
+fn native_r3_business_logic_pack_registered(packs: &SecurityPackRegistry) -> bool {
+    packs
+        .get(R3_BUSINESS_LOGIC_PACK_ID)
+        .is_some_and(|pack| pack.manifest() == &r3_business_logic_manifest())
+}
+
 fn build_project_coverage_matrix(
     profile: &ProjectProfile,
     stacks: &StackDetectionResult,
@@ -230,6 +244,7 @@ fn build_project_coverage_matrix(
             });
 
     let supabase_r2_registered = native_supabase_r2_pack_registered(packs);
+    let r3_business_logic_registered = native_r3_business_logic_pack_registered(packs);
     let mut entries = Vec::new();
     for provider in &profile.detected_providers {
         push_subject_dimensions(
@@ -250,6 +265,17 @@ fn build_project_coverage_matrix(
             false,
             false,
         );
+    }
+    if r3_business_logic_registered {
+        entries.push(ProjectCoverageEntry {
+            key: ProjectCoverageKey {
+                subject_kind: ProjectCoverageSubjectKind::Project,
+                subject_id: R3_BUSINESS_LOGIC_PROVIDER.to_owned(),
+                dimension: PackCoverageDimension::BusinessLogic,
+            },
+            state: CoverageState::Unavailable,
+            reason_code: Some(PACK_REGISTERED_NOT_RUN.to_owned()),
+        });
     }
 
     // Preserve the T063 detection result as the bounded source of generic stack

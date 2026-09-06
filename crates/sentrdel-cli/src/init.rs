@@ -326,6 +326,7 @@ fn human_list(values: &[String]) -> String {
 
 const fn subject_kind(kind: ProjectCoverageSubjectKind) -> &'static str {
     match kind {
+        ProjectCoverageSubjectKind::Project => "project",
         ProjectCoverageSubjectKind::Provider => "provider",
         ProjectCoverageSubjectKind::Framework => "framework",
     }
