@@ -237,7 +237,10 @@ fn unknown_dominance_never_mints_authorization_links() {
     ];
 
     let result = correlate(&route, &guard, &operation, &links);
-    let path = result.paths().first().expect("partial path remains visible");
+    let path = result
+        .paths()
+        .first()
+        .expect("partial path remains visible");
     assert_ne!(path.path_state(), PathState::Supported);
     assert!(path.links().iter().all(|link| {
         link.relation() != R3_REQUIRED_ROLE_ROUTE_GUARD_RELATION
@@ -301,7 +304,10 @@ fn ambiguous_connectivity_never_mints_authorization_links() {
     ];
 
     let result = correlate(&route, &guard, &operation, &links);
-    let path = result.paths().first().expect("ambiguous path remains visible");
+    let path = result
+        .paths()
+        .first()
+        .expect("ambiguous path remains visible");
     assert_eq!(path.path_state(), PathState::Ambiguous);
     assert!(path.links().iter().all(|link| {
         link.relation() != R3_REQUIRED_ROLE_ROUTE_GUARD_RELATION

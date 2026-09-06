@@ -10,7 +10,6 @@ use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 use sentrdel_schema::coverage::CoverageState;
 
-pub(crate) use super::{link, model};
 use super::model::{
     ActorContext, BusinessLogicLimits, ComparisonShape, ConfidenceBasis, CrossLayerLink,
     CrossLayerPath, DataOperation, DominanceScope, GuardKind, GuardObservation, LinkBasis,
@@ -20,6 +19,7 @@ use super::model::{
 use super::required_role::{
     R3_REQUIRED_ROLE_GUARD_OPERATION_RELATION, R3_REQUIRED_ROLE_ROUTE_GUARD_RELATION,
 };
+pub(crate) use super::{link, model};
 
 #[path = "path_base.rs"]
 mod base;
@@ -188,12 +188,12 @@ fn qualify_required_role_links(
     for link in &authorization_links {
         identity_parts.push(format!("authorization:{}", link.link_id().as_str()));
     }
-    let identity_refs = identity_parts.iter().map(String::as_str).collect::<Vec<_>>();
-    let path_id = StableSemanticId::from_parts(
-        "r3-required-role-qualified-path",
-        &identity_refs,
-        limits,
-    )?;
+    let identity_refs = identity_parts
+        .iter()
+        .map(String::as_str)
+        .collect::<Vec<_>>();
+    let path_id =
+        StableSemanticId::from_parts("r3-required-role-qualified-path", &identity_refs, limits)?;
 
     Ok(CrossLayerPath::new(
         path_id,
