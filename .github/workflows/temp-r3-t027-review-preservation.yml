@@ -23,100 +23,13 @@ jobs:
         run: |
           set -euo pipefail
           python3 - <<'PY'
+          import base64
           from pathlib import Path
           path = Path('crates/sentrdel-cli/src/review/business_logic.rs')
           text = path.read_text()
-          marker = '''    /// Public ReviewOutput integration retains Evidence and appends Coverage only.\n    #[test]\n    fn public_review_surface_integrates_r3_without_minting_findings_or_decision() {\n'''
-          test = r'''    /// Existing authoritative Findings and Coverage survive R3 registration verbatim.
-    #[test]
-    fn integration_preserves_existing_findings_and_coverage_verbatim() {
-        let authority = sentrdel_schema::finding::ReconcilerAuthority::from_runtime(
-            "r3-t027-review-preservation",
-            format!("sha256:{}", "d".repeat(64)),
-        )
-        .unwrap();
-        let prior_finding = sentrdel_schema::finding::Finding::new_reconciled(
-            sentrdel_schema::finding::ReconciledFindingDraft {
-                schema_version: sentrdel_schema::SCHEMA_V1.to_owned(),
-                fingerprint: "fingerprint:r3-t027-prior".to_owned(),
-                title: "Existing authoritative finding".to_owned(),
-                impact_statement: "Existing impact statement must survive R3 registration.".to_owned(),
-                category: "fixture".to_owned(),
-                severity: sentrdel_schema::finding::Severity::High,
-                epistemic_state: sentrdel_schema::finding::EpistemicState::Corroborated,
-                evidence_ids: vec!["evidence:prior".to_owned()],
-                contradiction_ids: vec!["evidence:prior-contradiction".to_owned()],
-                primary_location: Some("src/prior.ts".to_owned()),
-                affected_subjects: vec!["file:src/prior.ts".to_owned()],
-                first_seen_commit: Some("commit:prior".to_owned()),
-                last_seen_commit: Some("commit:prior".to_owned()),
-                remediation: Some("Preserve this authoritative finding.".to_owned()),
-                updated_at: "2026-09-07T00:00:00Z".to_owned(),
-            },
-            &authority,
-        )
-        .unwrap();
-        let prior_coverage = sentrdel_schema::coverage::CoverageRecord {
-            schema_version: sentrdel_schema::SCHEMA_V1.to_owned(),
-            coverage_id: "coverage:prior-review".to_owned(),
-            capability: "prior-review-capability".to_owned(),
-            scope: ".".to_owned(),
-            producer: Some("prior-review-producer".to_owned()),
-            provider_dimension: None,
-            state: CoverageState::Partial,
-            reason_code: Some("PRIOR_REVIEW_PARTIAL".to_owned()),
-            details: Some("Existing coverage must survive R3 registration.".to_owned()),
-            input_digests: vec![format!("sha256:{}", "e".repeat(64))],
-            observed_at: "2026-09-07T00:00:00Z".to_owned(),
-        };
-        let baseline = ReviewOutput::new(
-            CliRepository::new("repo:r3-t027-prior", ".").unwrap(),
-            CliDecision::Ask,
-            vec![prior_finding],
-            vec![prior_coverage],
-            Vec::new(),
-            CliTiming::default(),
-            Some(vec!["store:prior".to_owned()]),
-        )
-        .unwrap();
-        let prior_decision = baseline.envelope().decision;
-        let prior_findings = baseline.findings().to_vec();
-        let prior_coverage = baseline.envelope().coverage.clone();
-        let prior_store_refs = baseline.envelope().store_refs.clone();
-
-        let evaluations = vec![evaluation("preserve", InvariantEvaluationState::Unknown)];
-        let producer = producer(&evaluations);
-        let registered = baseline
-            .integrate_r3_business_logic(
-                &producer,
-                &[],
-                &[route("preserve", "src/preserve.ts")],
-                &[cross_layer_path("preserve", "src/preserve.ts")],
-                &evaluations,
-            )
-            .unwrap();
-
-        assert_eq!(registered.output().envelope().decision, prior_decision);
-        assert_eq!(registered.output().findings(), prior_findings.as_slice());
-        assert_eq!(registered.output().envelope().store_refs, prior_store_refs);
-        assert_eq!(
-            registered.output().envelope().coverage.len(),
-            prior_coverage.len() + producer.coverage().len()
-        );
-        for expected in &prior_coverage {
-            assert!(
-                registered
-                    .output()
-                    .envelope()
-                    .coverage
-                    .iter()
-                    .any(|actual| actual == expected),
-                "prior authoritative coverage was discarded or replaced: {expected:?}"
-            );
-        }
-    }
-
-'''
+          marker = '    /// Public ReviewOutput integration retains Evidence and appends Coverage only.\n    #[test]\n    fn public_review_surface_integrates_r3_without_minting_findings_or_decision() {\n'
+          encoded = 'ICAgIC8vLyBFeGlzdGluZyBhdXRob3JpdGF0aXZlIEZpbmRpbmdzIGFuZCBDb3ZlcmFnZSBzdXJ2aXZlIFIzIHJlZ2lzdHJhdGlvbiB2ZXJiYXRpbS4KICAgICNbdGVzdF0KICAgIGZuIGludGVncmF0aW9uX3ByZXNlcnZlc19leGlzdGluZ19maW5kaW5nc19hbmRfY292ZXJhZ2VfdmVyYmF0aW0oKSB7CiAgICAgICAgbGV0IGF1dGhvcml0eSA9IHNlbnRyZGVsX3NjaGVtYTo6ZmluZGluZzo6UmVjb25jaWxlckF1dGhvcml0eTo6ZnJvbV9ydW50aW1lKAogICAgICAgICAgICAicjMtdDAyNy1yZXZpZXctcHJlc2VydmF0aW9uIiwKICAgICAgICAgICAgZm9ybWF0ISgic2hhMjU2Ont9IiwgImQiLnJlcGVhdCg2NCkpLAogICAgICAgICkKICAgICAgICAudW53cmFwKCk7CiAgICAgICAgbGV0IHByaW9yX2ZpbmRpbmcgPSBzZW50cmRlbF9zY2hlbWE6OmZpbmRpbmc6OkZpbmRpbmc6Om5ld19yZWNvbmNpbGVkKAogICAgICAgICAgICBzZW50cmRlbF9zY2hlbWE6OmZpbmRpbmc6OlJlY29uY2lsZWRGaW5kaW5nRHJhZnQgewogICAgICAgICAgICAgICAgc2NoZW1hX3ZlcnNpb246IHNlbnRyZGVsX3NjaGVtYTo6U0NIRU1BX1YxLnRvX293bmVkKCksCiAgICAgICAgICAgICAgICBmaW5nZXJwcmludDogImZpbmdlcnByaW50OnIzLXQwMjctcHJpb3IiLnRvX293bmVkKCksCiAgICAgICAgICAgICAgICB0aXRsZTogIkV4aXN0aW5nIGF1dGhvcml0YXRpdmUgZmluZGluZyIudG9fb3duZWQoKSwKICAgICAgICAgICAgICAgIGltcGFjdF9zdGF0ZW1lbnQ6ICJFeGlzdGluZyBpbXBhY3Qgc3RhdGVtZW50IG11c3Qgc3Vydml2ZSBSMyByZWdpc3RyYXRpb24uIi50b19vd25lZCgpLAogICAgICAgICAgICAgICAgY2F0ZWdvcnk6ICJmaXh0dXJlIi50b19vd25lZCgpLAogICAgICAgICAgICAgICAgc2V2ZXJpdHk6IHNlbnRyZGVsX3NjaGVtYTo6ZmluZGluZzo6U2V2ZXJpdHk6OkhpZ2gsCiAgICAgICAgICAgICAgICBlcGlzdGVtaWNfc3RhdGU6IHNlbnRyZGVsX3NjaGVtYTo6ZmluZGluZzo6RXBpc3RlbWljU3RhdGU6OkNvcnJvYm9yYXRlZCwKICAgICAgICAgICAgICAgIGV2aWRlbmNlX2lkczogdmVjIVsiZXZpZGVuY2U6cHJpb3IiLnRvX293bmVkKCldLAogICAgICAgICAgICAgICAgY29udHJhZGljdGlvbl9pZHM6IHZlYyFbImV2aWRlbmNlOnByaW9yLWNvbnRyYWRpY3Rpb24iLnRvX293bmVkKCldLAogICAgICAgICAgICAgICAgcHJpbWFyeV9sb2NhdGlvbjogU29tZSgic3JjL3ByaW9yLnRzIi50b19vd25lZCgpKSwKICAgICAgICAgICAgICAgIGFmZmVjdGVkX3N1YmplY3RzOiB2ZWMhWyJmaWxlOnNyYy9wcmlvci50cyIudG9fb3duZWQoKV0sCiAgICAgICAgICAgICAgICBmaXJzdF9zZWVuX2NvbW1pdDogU29tZSgiY29tbWl0OnByaW9yIi50b19vd25lZCgpKSwKICAgICAgICAgICAgICAgIGxhc3Rfc2Vlbl9jb21taXQ6IFNvbWUoImNvbW1pdDpwcmlvciIudG9fb3duZWQoKSksCiAgICAgICAgICAgICAgICByZW1lZGlhdGlvbjogU29tZSgiUHJlc2VydmUgdGhpcyBhdXRob3JpdGF0aXZlIGZpbmRpbmcuIi50b19vd25lZCgpKSwKICAgICAgICAgICAgICAgIHVwZGF0ZWRfYXQ6ICIyMDI2LTA5LTA3VDAwOjAwOjAwWiIudG9fb3duZWQoKSwKICAgICAgICAgICAgfSwKICAgICAgICAgICAgJmF1dGhvcml0eSwKICAgICAgICApCiAgICAgICAgLnVud3JhcCgpOwogICAgICAgIGxldCBwcmlvcl9jb3ZlcmFnZSA9IHNlbnRyZGVsX3NjaGVtYTo6Y292ZXJhZ2U6OkNvdmVyYWdlUmVjb3JkIHsKICAgICAgICAgICAgc2NoZW1hX3ZlcnNpb246IHNlbnRyZGVsX3NjaGVtYTo6U0NIRU1BX1YxLnRvX293bmVkKCksCiAgICAgICAgICAgIGNvdmVyYWdlX2lkOiAiY292ZXJhZ2U6cHJpb3ItcmV2aWV3Ii50b19vd25lZCgpLAogICAgICAgICAgICBjYXBhYmlsaXR5OiAicHJpb3ItcmV2aWV3LWNhcGFiaWxpdHkiLnRvX293bmVkKCksCiAgICAgICAgICAgIHNjb3BlOiAiLiIudG9fb3duZWQoKSwKICAgICAgICAgICAgcHJvZHVjZXI6IFNvbWUoInByaW9yLXJldmlldy1wcm9kdWNlciIudG9fb3duZWQoKSksCiAgICAgICAgICAgIHByb3ZpZGVyX2RpbWVuc2lvbjogTm9uZSwKICAgICAgICAgICAgc3RhdGU6IENvdmVyYWdlU3RhdGU6OlBhcnRpYWwsCiAgICAgICAgICAgIHJlYXNvbl9jb2RlOiBTb21lKCJQUklPUl9SRVZJRVdfUEFSVElBTCIudG9fb3duZWQoKSksCiAgICAgICAgICAgIGRldGFpbHM6IFNvbWUoIkV4aXN0aW5nIGNvdmVyYWdlIG11c3Qgc3Vydml2ZSBSMyByZWdpc3RyYXRpb24uIi50b19vd25lZCgpKSwKICAgICAgICAgICAgaW5wdXRfZGlnZXN0czogdmVjIVtmb3JtYXQhKCJzaGEyNTY6e30iLCAiZSIucmVwZWF0KDY0KSldLAogICAgICAgICAgICBvYnNlcnZlZF9hdDogIjIwMjYtMDktMDdUMDA6MDA6MDBaIi50b19vd25lZCgpLAogICAgICAgIH07CiAgICAgICAgbGV0IGJhc2VsaW5lID0gUmV2aWV3T3V0cHV0OjpuZXcoCiAgICAgICAgICAgIENsaVJlcG9zaXRvcnk6Om5ldygicmVwbzpyMy10MDI3LXByaW9yIiwgIi4iKS51bndyYXAoKSwKICAgICAgICAgICAgQ2xpRGVjaXNpb246OkFzaywKICAgICAgICAgICAgdmVjIVtwcmlvcl9maW5kaW5nXSwKICAgICAgICAgICAgdmVjIVtwcmlvcl9jb3ZlcmFnZV0sCiAgICAgICAgICAgIFZlYzo6bmV3KCksCiAgICAgICAgICAgIENsaVRpbWluZzo6ZGVmYXVsdCgpLAogICAgICAgICAgICBTb21lKHZlYyFbInN0b3JlOnByaW9yIi50b19vd25lZCgpXSksCiAgICAgICAgKQogICAgICAgIC51bndyYXAoKTsKICAgICAgICBsZXQgcHJpb3JfZGVjaXNpb24gPSBiYXNlbGluZS5lbnZlbG9wZSgpLmRlY2lzaW9uOwogICAgICAgIGxldCBwcmlvcl9maW5kaW5ncyA9IGJhc2VsaW5lLmZpbmRpbmdzKCkudG9fdmVjKCk7CiAgICAgICAgbGV0IHByaW9yX2NvdmVyYWdlID0gYmFzZWxpbmUuZW52ZWxvcGUoKS5jb3ZlcmFnZS5jbG9uZSgpOwogICAgICAgIGxldCBwcmlvcl9zdG9yZV9yZWZzID0gYmFzZWxpbmUuZW52ZWxvcGUoKS5zdG9yZV9yZWZzLmNsb25lKCk7CgogICAgICAgIGxldCBldmFsdWF0aW9ucyA9IHZlYyFbZXZhbHVhdGlvbigicHJlc2VydmUiLCBJbnZhcmlhbnRFdmFsdWF0aW9uU3RhdGU6OlVua25vd24pXTsKICAgICAgICBsZXQgcHJvZHVjZXIgPSBwcm9kdWNlcigmZXZhbHVhdGlvbnMpOwogICAgICAgIGxldCByZWdpc3RlcmVkID0gYmFzZWxpbmUKICAgICAgICAgICAgLmludGVncmF0ZV9yM19idXNpbmVzc19sb2dpYygKICAgICAgICAgICAgICAgICZwcm9kdWNlciwKICAgICAgICAgICAgICAgICZbXSwKICAgICAgICAgICAgICAgICZbcm91dGUoInByZXNlcnZlIiwgInNyYy9wcmVzZXJ2ZS50cyIpXSwKICAgICAgICAgICAgICAgICZbY3Jvc3NfbGF5ZXJfcGF0aCgicHJlc2VydmUiLCAic3JjL3ByZXNlcnZlLnRzIildLAogICAgICAgICAgICAgICAgJmV2YWx1YXRpb25zLAogICAgICAgICAgICApCiAgICAgICAgICAgIC51bndyYXAoKTsKCiAgICAgICAgYXNzZXJ0X2VxIShyZWdpc3RlcmVkLm91dHB1dCgpLmVudmVsb3BlKCkuZGVjaXNpb24sIHByaW9yX2RlY2lzaW9uKTsKICAgICAgICBhc3NlcnRfZXEhKHJlZ2lzdGVyZWQub3V0cHV0KCkuZmluZGluZ3MoKSwgcHJpb3JfZmluZGluZ3MuYXNfc2xpY2UoKSk7CiAgICAgICAgYXNzZXJ0X2VxIShyZWdpc3RlcmVkLm91dHB1dCgpLmVudmVsb3BlKCkuc3RvcmVfcmVmcywgcHJpb3Jfc3RvcmVfcmVmcyk7CiAgICAgICAgYXNzZXJ0X2VxISgKICAgICAgICAgICAgcmVnaXN0ZXJlZC5vdXRwdXQoKS5lbnZlbG9wZSgpLmNvdmVyYWdlLmxlbigpLAogICAgICAgICAgICBwcmlvcl9jb3ZlcmFnZS5sZW4oKSArIHByb2R1Y2VyLmNvdmVyYWdlKCkubGVuKCkKICAgICAgICApOwogICAgICAgIGZvciBleHBlY3RlZCBpbiAmcHJpb3JfY292ZXJhZ2UgewogICAgICAgICAgICBhc3NlcnQhKAogICAgICAgICAgICAgICAgcmVnaXN0ZXJlZAogICAgICAgICAgICAgICAgICAgIC5vdXRwdXQoKQogICAgICAgICAgICAgICAgICAgIC5lbnZlbG9wZSgpCiAgICAgICAgICAgICAgICAgICAgLmNvdmVyYWdlCiAgICAgICAgICAgICAgICAgICAgLml0ZXIoKQogICAgICAgICAgICAgICAgICAgIC5hbnkofGFjdHVhbHwgYWN0dWFsID09IGV4cGVjdGVkKSwKICAgICAgICAgICAgICAgICJwcmlvciBhdXRob3JpdGF0aXZlIGNvdmVyYWdlIHdhcyBkaXNjYXJkZWQgb3IgcmVwbGFjZWQ6IHtleHBlY3RlZDo/fSIKICAgICAgICAgICAgKTsKICAgICAgICB9CiAgICB9Cgo='
+          test = base64.b64decode(encoded).decode('utf-8')
           if marker not in text:
               raise SystemExit('T027 insertion marker not found')
           path.write_text(text.replace(marker, test + marker, 1))
