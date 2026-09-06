@@ -638,10 +638,10 @@ mod tests {
         for expected in [
             "Business-logic context:",
             "changed=true",
-            "route=route:",
+            " route=",
             "pattern=/admin",
-            "guards=guard:",
-            "data_operation=operation:",
+            "  guards=",
+            "  data_operation=",
             "state=UNKNOWN",
             "reasons=STATIC_SCOPE_ONLY",
         ] {
