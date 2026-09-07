@@ -1,14 +1,14 @@
-# Sentrdel R1/R2 Threat Model
+# Sentrdel R1/R2/R3 Threat Model
 
-**Task:** T083 / R2-T032  
-**Scope:** v0.1 Evidence + Guard Foundation plus Spec 002 Supabase static posture  
+**Tasks:** T083 / R2-T032 / R3-T035  
+**Scope:** v0.1 Evidence + Guard Foundation, Spec 002 Supabase static posture, and Spec 003 bounded cross-layer business-logic analysis  
 **Authority:** descriptive security documentation subordinate to the Constitution and active Spec Kit contracts
 
 ## 1. Security objective
 
 Sentrdel is a local-first security evidence and control plane for software development. Its security objective is to inspect attacker-controlled development inputs, produce provenance-bearing evidence, and enforce only explicitly owned guard boundaries without allowing those inputs to become execution, policy, credential, epistemic, or release authority.
 
-R1 establishes the evidence/control plane and guard boundaries. R2 extends that plane with a bounded offline Supabase static posture pack. This document describes the implemented trust boundaries and non-claims. It does not create new product authority.
+R1 establishes the evidence/control plane and guard boundaries. R2 extends that plane with a bounded offline Supabase static posture pack. R3 extends it with bounded static cross-layer business-logic analysis and tightening-only security invariants. This document describes implemented trust boundaries and non-claims. It does not create new product authority.
 
 ## 2. Trusted computing base
 
@@ -19,10 +19,12 @@ The trusted computing base includes:
 - Rust-owned policy kernel invariants and monotonic policy composition;
 - bounded repository/Git readers and native producer framework;
 - the reconciler as the only canonical Finding creation path;
+- the bounded Sentrdel Semantic Security Graph substrate and its provenance/resource limits;
 - bounded external-engine process orchestration and adapters;
 - bounded stdio MCP gateway framing, policy, approval, forwarding, and ASEL path;
 - trusted bootstrap/configuration code that constructs non-deserializable authority capabilities;
-- the R2 Rust-owned Supabase static posture producers and their bounded parser/state/config/source-context substrate;
+- the R2 Rust-owned Supabase static-posture producers and their bounded parser/state/config/source-context substrate;
+- the R3 Rust-owned route/actor/guard/value/data/link/path/invariant analysis substrate and runtime-owned Evidence/Coverage producer authority;
 - release/self-security governance for Sentrdel's own trusted workspace.
 
 Third-party dependencies are not assumed safe merely because they are inside the build graph. They remain governed supply-chain inputs and are admitted through dependency/source qualification policy.
@@ -34,6 +36,7 @@ Unless an explicit higher-authority contract says otherwise, treat these as atta
 - target repository files, file names, symlinks, Git metadata/config/history, diffs, and commit messages;
 - repository documentation, comments, generated files, instructions, policy/configuration text, and hidden tool configuration;
 - Supabase migrations, SQL, `supabase/config.toml`, Edge Function source, application source, and key-shaped literals found in a target repository;
+- R3 route/application source, dynamic registration/dispatch patterns, project invariant declarations, semantic-link inputs, and unsupported framework/language constructs;
 - issue, pull-request, review, CI-log, chat, ticket, browser, and retrieved-document content;
 - external-engine executable behavior, stdout, stderr, SARIF, JSON, locations, and self-reported severity;
 - MCP server/tool names, descriptions, schemas, arguments, results, resources, prompts, protocol behavior, and child-process output;
@@ -53,6 +56,8 @@ stored context != FACT
 model agreement != policy authority
 scanner severity != canonical severity authority
 repository configuration != capability widening
+project invariant declaration != suppression or execution authority
+graph confidence != epistemic upgrade
 ```
 
 Authority capabilities are constructed only by trusted Sentrdel paths. Untrusted serialized content cannot mint or deserialize filesystem, process, network, credential, policy, Evidence, reconciler, workflow, verification, benchmark, or release authority.
@@ -119,6 +124,8 @@ The binding context/learning authority ceiling is defined in `specs/001-v0-1-evi
 
 **Controls:** exact direct dependency requirements, committed lockfile, crates.io-only third-party sources, privileged dependency declarations/qualification, checksum-pinned cargo-audit/cargo-deny tools, release malicious-package defense-in-depth denylist, recurring advisory refresh, protected-main CI.
 
+R3's TypeScript grammar admission remains governed by its exact source/dependency qualification record rather than by language-support demand.
+
 **Non-claim:** advisory/denylist PASS is not proof that every dependency is behaviorally safe.
 
 ### 5.9 Supabase repository state -> R2 static posture
@@ -129,7 +136,19 @@ The binding context/learning authority ceiling is defined in `specs/001-v0-1-evi
 
 **Authority boundary:** R2 Supabase producers emit Evidence and Coverage only. They cannot create canonical Findings directly, weaken policy, grant network/provider credentials, or execute target code.
 
-**Non-claims:** R2 does not inspect hosted Supabase state, connect to a database/dashboard/API, run the Supabase CLI or SQL/migrations/Edge Functions, or implement R3 cross-layer business-logic reasoning. `LIVE_POSTURE`, `BUSINESS_LOGIC`, and `RUNTIME` remain explicit unimplemented/not-executed dimensions.
+**Non-claims:** R2 does not inspect hosted Supabase state, connect to a database/dashboard/API, run the Supabase CLI or SQL/migrations/Edge Functions, or prove runtime provider behavior. `LIVE_POSTURE` and `RUNTIME` remain explicit unimplemented/not-executed dimensions.
+
+### 5.10 Repository application semantics -> R3 business logic
+
+**Threats:** lexical names masquerading as identity proof, guards elsewhere in code being treated as dominating an operation, unsupported middleware/dynamic dispatch being treated as safe, ambiguous semantic links becoming authoritative, static R2 posture being upgraded to hosted truth, project declarations becoming a suppression channel, graph confidence becoming verdict authority, hostile instruction-shaped source gaining execution/network/credential/Finding authority, and resource-limit exhaustion disappearing into a clean result.
+
+**Controls:** explicitly allowlisted adapters, typed route/actor/guard/value/data observations, bounded derivation and path/link semantics, explicit UNKNOWN/PARTIAL/unsupported coverage, hard parser/graph/path/invariant caps, provenance-bearing SSG projection, R2 evidence retained as static supporting input, tightening-only project invariants, runtime-owned R3 producer authority, and reconciler-only Finding creation.
+
+**Implemented scope:** bounded supported JavaScript/TypeScript Express, Next.js App Router, Next.js Pages API, Supabase Edge Function, and Supabase JavaScript data-operation patterns frozen by Spec 003. Built-in invariant families cover tenant/object binding, privileged function/role authorization, protected-property mutation, and elevated provider-client application boundaries.
+
+**Authority boundary:** ordinary R3 analysis performs no target application/build/package-manager/test/migration/database/provider-tool execution, requires no provider-admin credential or hosted-provider connection, performs no provider-network interrogation, and does not create Findings directly. Project invariant declarations may add requirements only; they cannot suppress Evidence, waive Findings, lower severity, accept risk, widen process/network/credential authority, impersonate built-ins, or execute content.
+
+**Non-claims:** R3 does not prove runtime exploitability, actual cross-tenant access, hosted provider truth, production authorization behavior, universal CPG/compiler semantics, or support for every framework/language/middleware/ORM/auth pattern. Unsupported or dynamic semantics reduce coverage rather than imply security.
 
 ## 6. MCP credential inheritance boundary
 
@@ -151,6 +170,7 @@ Untrusted context can be parsed, displayed, correlated, summarized, or converted
 - suppress/delete canonical Evidence or Findings;
 - mint authority tokens or create Findings outside the reconciler;
 - promote model/context output to FACT/OBSERVATION/VERIFIED outside its producer contract;
+- make a project invariant weaken a built-in invariant or authorize execution;
 - alter evaluator/holdout/release authority for a candidate it is helping generate.
 
 Future memory/feedback/learning features remain deferred and inherit this authority ceiling.
@@ -162,6 +182,7 @@ Discovered secret material is handled under a minimize-before-persist rule:
 - secret plaintext must not enter durable Evidence/store/export/log/snapshot fixtures;
 - stable unkeyed hashes derived only from the secret value are also prohibited because they create reusable cross-context identifiers;
 - changed-secret and R2 Supabase key Evidence retain only allowed rule/type/location/redacted display and sanitized non-secret fingerprints/provenance;
+- R3 hostile/project-invariant fixtures cannot grant secret/provider credential authority;
 - engine/MCP child environments deny ambient credentials by default.
 
 Sentrdel does not claim to prevent a compromised operating system or already-compromised Sentrdel process from observing in-memory values.
@@ -173,7 +194,8 @@ Sentrdel reports enforcement fidelity rather than flattening every integration i
 - proxied bounded stdio MCP actions can be `ENFORCED` at the Sentrdel gateway seam;
 - installed local Git hooks are bypassable and therefore `PARTIAL`/advisory;
 - R2 Supabase static posture is repository-derived evidence, not a live provider enforcement seam;
-- unsupported remote MCP/provider/runtime surfaces are explicit coverage gaps, not implicit security.
+- R3 business-logic analysis is bounded static Evidence/Coverage, not a runtime enforcement seam;
+- unsupported remote MCP/provider/runtime/framework/language semantics are explicit coverage gaps, not implicit security.
 
 No documentation or UI should present a coverage gap as a clean verdict.
 
@@ -181,15 +203,15 @@ No documentation or UI should present a coverage gap as a clean verdict.
 
 Local-first operation is the default. Network use is explicit and bounded:
 
-- ordinary deterministic review, including R2 Supabase static posture, must not depend on a model or provider network service;
-- R2 static posture has no provider-network authority and does not use Supabase credentials;
+- ordinary deterministic review, including R2 Supabase static posture and R3 business-logic analysis, must not depend on a model or provider network service;
+- R2/R3 have no provider-network authority and do not use Supabase provider-admin credentials;
 - optional OSV/model HTTP paths obey explicit configuration and `--no-network` behavior;
 - R1 MCP forwarding is stdio-only;
 - self-security CI may access pinned release/advisory sources for Sentrdel's trusted workspace and does not analyze arbitrary target repositories through Cargo tooling.
 
 ## 11. Denial of service and resource exhaustion
 
-Sentrdel applies bounded reads, frame sizes, metadata/argument/result caps, output caps, process timeouts, policy depth/byte limits, and R2 migration/SQL/config/source caps at exposed seams. Resource-bound failure must be explicit and must not become silent success.
+Sentrdel applies bounded reads, frame sizes, metadata/argument/result caps, output caps, process timeouts, policy depth/byte limits, R2 migration/SQL/config/source caps, and R3 parser/observation/derivation/graph/path/invariant limits at exposed seams. Resource-bound failure must be explicit and must not become silent success.
 
 Sentrdel does not claim protection against every host-level resource exhaustion scenario or a hostile administrator controlling the machine.
 
@@ -200,19 +222,27 @@ Cryptographic identity is scoped to what it actually proves:
 - content IDs bind canonical bytes to a domain-separated digest;
 - Evidence producer identity is runtime-owned and validated;
 - R2 static posture keeps repository statement/config/source provenance separate across independent controls before reconciliation;
+- R3 cross-layer observations and paths preserve repository-relative provenance and link basis; graph/path confidence cannot upgrade epistemic authority;
 - ASEL links recorded events but requires an external trusted checkpoint/signature for stronger replacement/truncation detection;
 - a signature, if introduced later, proves only the statement/key relationship it actually verifies and does not automatically grant instruction authority.
 
 Unknown/failed provenance or integrity cannot be upgraded because contradictory evidence is absent.
 
-## 13. Explicit non-goals
+## 13. Cross-platform qualification boundary
 
-R1/R2 do not implement or claim:
+Supported R3 static paths and adversarial authority canaries are exercised in the canonical Linux/macOS/Windows matrix. This proves that the tested bounded Rust paths and canaries pass on those runners.
+
+It does **not** prove identical operating-system interception semantics, hostile-code sandboxing, universal process/network containment, hosted-provider behavior, or runtime authorization equivalence across operating systems.
+
+## 14. Explicit non-goals
+
+R1/R2/R3 do not implement or claim:
 
 - autonomous exploitation or production probing;
 - remote/Streamable HTTP MCP enforcement;
 - OS sandboxing/eBPF runtime enforcement;
 - sandboxed exploit-condition verification;
+- runtime proof that a static R3 path is exploitable or actually crosses tenant boundaries;
 - universal compiler/CPG semantic certainty;
 - automatic fix application;
 - general-purpose Security Memory or memory-driven suppression;
@@ -220,26 +250,27 @@ R1/R2 do not implement or claim:
 - signed community-pack distribution;
 - IDE/forge enforcement integrations;
 - credentialed/live Supabase posture, hosted provider interrogation, or runtime Supabase verification;
-- R3 cross-layer tenant/business-logic invariants;
+- complete framework/language/middleware/ORM/auth semantics beyond declared bounded adapters;
 - deep Firebase/payment/cloud posture or provider packs outside explicitly implemented scopes.
 
-## 14. Security regression expectations
+## 15. Security regression expectations
 
 Changes affecting a trust boundary must preserve tests that prove, as applicable:
 
 - no target build/install/package-manager execution during analysis;
 - no shell-string target/external command execution;
 - no ambient engine/MCP credential inheritance;
-- no provider network or target execution authority in R2 static posture;
-- malformed/oversized input fails boundedly;
+- no provider network or target execution authority in R2 static posture or ordinary R3 business-logic analysis;
+- malformed/oversized/dynamic/unsupported input fails boundedly or degrades coverage visibly;
 - kernel DENY remains absorbing;
-- model/context/repository comments cannot gain FACT/VERIFIED/policy/reconciler/execution authority;
+- model/context/repository comments/project invariants cannot gain FACT/VERIFIED/policy/reconciler/execution/network/credential authority;
 - secret plaintext and stable secret-only digests are absent from persistence/export/log fixtures;
 - missing/failed/unsupported producers remain visible in coverage;
 - canonical Findings remain reconciler-owned;
+- graph confidence and R2 static posture cannot become stronger epistemic/live truth through R3 correlation;
 - protected-main and self-security gates are not weakened to make a change pass.
 
-## 15. Reporting and triage
+## 16. Reporting and triage
 
 A Sentrdel vulnerability is a defect that crosses these documented boundaries or violates a security invariant in Sentrdel itself. A weakness found only in an analyzed target is a target Finding unless malicious target input can compromise Sentrdel or escape its declared analysis boundary.
 
