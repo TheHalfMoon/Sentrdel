@@ -77,7 +77,7 @@ Sentrdel should prefer qualified mature infrastructure for capabilities that do 
 - forge/IDE integration primitives;
 - optional probabilistic artifact classifiers where they improve safe routing without becoming judgment authority.
 
-External output remains untrusted evidence and never becomes canonical judgment merely because the upstream tool reports severity, confidence, reachability, exploitability, or a high benchmark score.
+External output remains untrusted evidence and never becomes canonical judgment merely because the upstream tool reports severity, confidence, reachability, exploitability, identity, or a high benchmark score.
 
 ## Post-R3 bounded sequence
 
@@ -114,6 +114,7 @@ The study of `Tencent/AI-Infra-Guard`, `google/magika`, `Tencent/AICGSecEval`, `
 5. **Treat knowledge/rule sources as candidate supply-chain inputs.** Preserve exact provenance, license, freshness, transformation, qualification, promotion, retirement and revalidation state; never auto-promote external rules into trusted judgment.
 6. **Keep standards-first external evidence, but support bounded generic producer adapters.** Tool-specific XML/JSON/SARIF remains untrusted input subject to parser caps, path validation, truncation diagnostics and authority ceilings.
 7. **Do not chase language or scanner count before the regression moat is proven.** External breadth informs benchmarks and future adapter selection; it does not reorder S1-S5.
+8. **Separate claimed model/provider identity from stronger attested identity.** Agent/model/relay provenance can improve reproducibility and later posture, but ordinary static review must not perform network model fingerprinting or treat an unverified identity as proof of compromise.
 
 The detailed gaps, entry/exit gates, source dispositions and non-goals are in `source-driven-security-expansion-2026-09-08.md`.
 
@@ -139,7 +140,7 @@ Before approving a major future feature, ask:
 3. Can Sentrdel import or consume the result behind an explicit untrusted-evidence boundary instead of rebuilding the engine?
 4. Does building/adopting it introduce new credential, network, process, native runtime, model artifact, execution, or supply-chain authority?
 5. Would the feature make the proof-of-category demos or protected conformance materially better?
-6. Can a probabilistic result be kept structurally incapable of becoming FACT/VERIFIED merely because of confidence or benchmark performance?
+6. Can a probabilistic result or claimed identity be kept structurally incapable of becoming FACT/VERIFIED merely because of confidence, naming, or benchmark performance?
 
 If the answer is mostly "no," defer the feature.
 
