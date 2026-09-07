@@ -16,7 +16,7 @@ The five sources do **not** justify turning Sentrdel into another scanner bundle
 2. **Agent / MCP / Skill Security** — treat tool descriptions, skill instructions, packaged code, permissions, dependencies, credential boundaries, and agent actions as first-class security artifacts that can be correlated with ASEL and the Sentrdel Semantic Security Graph (SSG).
 3. **AI-Generated / Agentic Code Security Conformance** — evaluate repository-level changes produced by coding models/agents using invariant-regression, coverage, provenance, static evidence, and separately authorized dynamic verification rather than only counting CWE detections.
 
-These additions must reinforce, not displace, the current post-R3 priority: **Security Invariant Regression first**. S1-S5 remain the shortest path to product differentiation. The source-driven capabilities enter as bounded cross-cutting gates around S4/S6 and later R7/R9 work.
+These additions must reinforce, not displace, the current post-R3 priority: **Security Invariant Regression first**. S1-S5 remain the shortest path to product differentiation. Gate A may become research/conformance-eligible after S4, but it is explicitly **non-blocking for S5** and must not delay bounded verification. The source-driven capabilities otherwise enter as bounded cross-cutting gates around S6 and later R7/R9 work.
 
 ## What the source study changes
 
@@ -241,14 +241,14 @@ This gap primarily strengthens reproducibility, agent-action provenance, and lat
 
 ## Refined post-R3 execution sequence
 
-Canonical S1-S11 identities remain unchanged. The labels below are **planning gates**, not new authorized slice IDs.
+Canonical S1-S11 identities remain unchanged. The labels below are **planning gates**, not new authorized slice IDs. S1-S5 remain the first product path; no source-driven gate is a prerequisite for S5.
 
 1. **S1 — Security Invariant Regression Core** — unchanged.
 2. **S2 — Security Regression Developer Contract** — unchanged.
 3. **S3 — GitHub / Forge Delivery** — unchanged.
 4. **S4 — Open Regression Conformance** — unchanged.
-5. **Gate A — Agentic Code Security Conformance Profile (R9)** — extend SentrdelBench with repository-level AI/agent-generated change pairs and protected holdouts before broad agent-specific detector growth.
-6. **S5 — Bounded Verification of High-Value Invariants** — unchanged; this remains the only path toward execution-backed `FIX_VERIFIED` claims.
+5. **S5 — Bounded Verification of High-Value Invariants** — unchanged; this remains the only path toward execution-backed `FIX_VERIFIED` claims.
+6. **Gate A — Agentic Code Security Conformance Profile (R9; non-blocking for S5)** — research/conformance work may become eligible after S4, but it must not delay S5. It constrains broad agent-specific detector growth by requiring repository-level AI/agent-generated change pairs and protected holdouts first.
 7. **Gate B — Artifact Identity + Evasion-Resistant Routing (R7/R9)** — freeze content/extension/classifier disagreement semantics and analyzer routing before broad external-producer expansion.
 8. **S6 — External Evidence Import Protocol** — retain standards-first imports, then generic bounded producer adapters.
 9. **Gate C — Agent/MCP/Skill Static Security Domain (R7/R9, later R10 correlation)** — static/local artifact and capability analysis, with ASEL/SSG linkage; no dynamic red-team authority by default.
@@ -259,6 +259,8 @@ Canonical S1-S11 identities remain unchanged. The labels below are **planning ga
 14. **S11 — Open Intelligence / Controlled Learning** — add the provenance/freshness/license/revalidation pipeline defined above; candidate generation still cannot self-promote.
 
 ## Gate A — Agentic Code Security Conformance
+
+**Sequencing rule:** Gate A is **non-blocking for S5**. Its entry after S4 means only that its research/conformance prerequisites can be satisfied from the S4 substrate. S5 remains the next product-priority slice after S4. Gate A must be in place before broad agent-specific detector expansion, not before bounded verification.
 
 ### Entry conditions
 
@@ -412,8 +414,8 @@ This supplement does **not** propose:
 
 This supplement **strengthens** rather than replaces the 2026-09-02 blueprint:
 
-- S1-S5 remain the first post-R3 product path.
-- S4 gains an explicit agentic-code benchmark profile.
+- S1-S5 remain the first post-R3 product path, without a new Gate A prerequisite between S4 and S5.
+- S4 makes Gate A research/conformance-eligible, while Gate A remains non-blocking for S5 and constrains broad agent-specific detector expansion only.
 - S6 gains an artifact-identity prerequisite and a generic external-producer adapter contract.
 - R7 gains a future static Agent/MCP/Skill domain and stronger source/knowledge provenance.
 - R9 gains routing-evasion, probabilistic-producer, importer, and agentic-code conformance.
