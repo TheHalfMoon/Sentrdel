@@ -15,9 +15,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout candidate branch
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
-          ref: test/r3-t031-release-benchmark
+          ref: ${{ github.sha }}
           fetch-depth: 0
 
       - name: Require exact pre-helper parent and bounded delta
@@ -25,11 +25,11 @@ jobs:
         run: |
           set -euo pipefail
           base="63c8b7eafc5f25446a0310f77b75e59989d3019d"
-          expected_parent="789b4d19060d7cdfa415ed2753fd614967d38d9e"
+          expected_parent="541cca23c635482fa66b09e7cc37f5fdcf668dbc"
           test "$(git rev-parse HEAD^)" = "$expected_parent"
           git merge-base --is-ancestor "$base" HEAD
           actual="$(git diff --name-only "$base"...HEAD | sort | tr '\n' ' ')"
-          expected=".github/workflows/temp-r3-t031-replay-record-repair.yml crates/sentrdel-review/tests/r3_t031_release_benchmark.rs tests/benchmark/r3-release-suite.json "
+          expected=".github/workflows/r3-t031-final-replay-fix.yml .github/workflows/temp-r3-t031-replay-record-repair.yml crates/sentrdel-review/tests/r3_t031_release_benchmark.rs tests/benchmark/r3-release-suite.json "
           test "$actual" = "$expected"
 
       - name: Install pinned Rust toolchain
@@ -80,20 +80,25 @@ jobs:
 
       - name: Format candidate
         shell: bash
-        run: cargo fmt --all
+        run: cargo +1.98.0 fmt --all
 
       - name: Run focused R3-T031 release benchmark
         shell: bash
-        run: cargo test -p sentrdel-review --test r3_t031_release_benchmark
+        run: cargo +1.98.0 test -p sentrdel-review --test r3_t031_release_benchmark --locked
 
       - name: Check workspace
         shell: bash
-        run: cargo check --workspace --all-targets
+        run: cargo +1.98.0 check --workspace --all-targets --locked
 
-      - name: Commit repair and remove helper
+      - name: Require clean patch shape
+        shell: bash
+        run: git diff --check
+
+      - name: Commit repair, remove helpers, and push
         shell: bash
         run: |
           set -euo pipefail
+          git rm .github/workflows/r3-t031-final-replay-fix.yml
           git rm .github/workflows/temp-r3-t031-replay-record-repair.yml
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
