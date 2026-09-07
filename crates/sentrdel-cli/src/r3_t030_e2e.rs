@@ -450,19 +450,24 @@ fn admitted_surface_semantics(
     let actor = admitted_actor(case);
     let value = admitted_value(case, &actor);
     let operation = admitted_operation(case, &value);
+    let callback = route
+        .callback_chain()
+        .last()
+        .expect("supported surface callback")
+        .clone();
     let mut links = vec![admitted_link(
         case,
-        route.route_id().clone(),
+        callback,
         actor.actor_id().clone(),
-        "surface_route_reaches_actor",
+        "surface_callback_reaches_actor",
         160,
     )];
     if case == FixtureCase::Vulnerable {
         links.push(admitted_link(
             case,
             actor.actor_id().clone(),
-            operation.operation_id().clone(),
-            "surface_actor_reaches_operation",
+            value.value_id().clone(),
+            "unrelated_request_value",
             180,
         ));
     }
