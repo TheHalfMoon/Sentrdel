@@ -843,30 +843,79 @@ fn protected_label_isolation(suite: &ReleaseSuite) -> bool {
             .contains("NO_QUALIFICATION_RECEIPT")
 }
 
-fn explanation_correct(evidence: &[Evidence], expected_evaluations: usize) -> (u64, bool) {
+fn evaluation_state_name(state: InvariantEvaluationState) -> &'static str {
+    match state {
+        InvariantEvaluationState::Satisfied => "SATISFIED",
+        InvariantEvaluationState::Violated => "VIOLATED",
+        InvariantEvaluationState::Unknown => "UNKNOWN",
+        InvariantEvaluationState::NotApplicable => "NOT_APPLICABLE",
+    }
+}
+
+fn expected_provenance_ranges(evaluation: &InvariantEvaluation) -> Value {
+    Value::Array(
+        evaluation
+            .provenance()
+            .iter()
+            .map(|location| {
+                serde_json::json!({
+                    "path": location.path().as_str(),
+                    "start_byte": location.start_byte(),
+                    "end_byte": location.end_byte(),
+                    "content_digest": location.content_digest(),
+                })
+            })
+            .collect(),
+    )
+}
+
+fn explanation_correct(evidence: &[Evidence], evaluations: &[InvariantEvaluation]) -> (u64, bool) {
     let interpretations = evidence
         .iter()
         .filter(|item| item.claim().category == "business_logic_invariant_interpretation")
         .collect::<Vec<_>>();
-    let passed = interpretations.len() == expected_evaluations
-        && interpretations.iter().all(|item| {
-            item.claim()
-                .attributes
-                .get("path_id")
-                .and_then(Value::as_str)
-                .is_some_and(|value| value.starts_with("sha256:"))
-                && item
-                    .claim()
-                    .attributes
-                    .get("evaluation_state")
-                    .and_then(Value::as_str)
-                    .is_some()
-                && item
-                    .claim()
-                    .attributes
-                    .get("provenance_byte_ranges")
-                    .and_then(Value::as_array)
-                    .is_some_and(|ranges| !ranges.is_empty())
+    let record_count = interpretations.len() as u64;
+    if interpretations.len() != evaluations.len() {
+        return (record_count, false);
+    }
+
+    let expected = evaluations
+        .iter()
+        .map(|evaluation| (evaluation.evaluation_id().as_str().to_owned(), evaluation))
+        .collect::<BTreeMap<_, _>>();
+    let mut observed = BTreeMap::new();
+    for item in interpretations {
+        let Some(evaluation_id) = item
+            .claim()
+            .attributes
+            .get("evaluation_id")
+            .and_then(Value::as_str)
+        else {
+            return (record_count, false);
+        };
+        if observed.insert(evaluation_id.to_owned(), item).is_some() {
+            return (record_count, false);
+        }
+    }
+
+    let passed = observed.len() == expected.len()
+        && expected.iter().all(|(evaluation_id, evaluation)| {
+            let Some(item) = observed.get(evaluation_id) else {
+                return false;
+            };
+            let attributes = &item.claim().attributes;
+            let expected_ranges = expected_provenance_ranges(evaluation);
+            let path_matches = match evaluation.path_id() {
+                Some(path_id) => {
+                    attributes.get("path_id").and_then(Value::as_str) == Some(path_id.as_str())
+                }
+                None => !attributes.contains_key("path_id"),
+            };
+
+            path_matches
+                && attributes.get("evaluation_state").and_then(Value::as_str)
+                    == Some(evaluation_state_name(evaluation.state()))
+                && attributes.get("provenance_byte_ranges") == Some(&expected_ranges)
                 && item
                     .claim()
                     .security_interpretation
@@ -876,7 +925,7 @@ fn explanation_correct(evidence: &[Evidence], expected_evaluations: usize) -> (u
                             && !text.contains("runtime exploitability is proven")
                     })
         });
-    (interpretations.len() as u64, passed)
+    (record_count, passed)
 }
 
 fn evaluate_once() -> R3ReleaseRun {
@@ -1032,7 +1081,7 @@ fn evaluate_once() -> R3ReleaseRun {
         .filter(|item| !item.verify_identity().unwrap_or(false))
         .count() as u64;
     let (explanation_records, explanation_correctness_passed) =
-        explanation_correct(output.evidence(), evaluations.len());
+        explanation_correct(output.evidence(), &evaluations);
 
     const { assert!(!TARGET_BUILD_EXECUTION_ALLOWED) };
     const { assert!(!R3_TARGET_EXECUTION_ALLOWED) };
