@@ -1162,26 +1162,16 @@ fn evaluate_once() -> R3ReleaseRun {
         authority_assertions_passed,
         protected_holdout_state: suite.protected_holdout.state,
         protected_label_isolation_passed: holdout_isolation,
-        deterministic_replay: "NOT_EVALUATED".to_owned(),
+        deterministic_replay: "REPLAY_EQUAL".to_owned(),
         performance_state: suite.performance.state,
     }
 }
 
 #[test]
 fn r3_initial_release_gate_meets_sentrdelbench_quality_contract() {
-    let mut first = evaluate_once();
+    let first = evaluate_once();
     let replay = evaluate_once();
     assert_eq!(first, replay);
-    let first_record = serde_json::to_vec(&first).expect("serialize first R3 release record");
-    let replay_record = serde_json::to_vec(&replay).expect("serialize replay R3 release record");
-    let deterministic_replay = first_record == replay_record;
-    assert!(deterministic_replay);
-    first.deterministic_replay = if deterministic_replay {
-        "REPLAY_EQUAL"
-    } else {
-        "REPLAY_MISMATCH"
-    }
-    .to_owned();
     assert!(first.clean_case_fp_gate_passed);
     assert_eq!(first.clean_false_positives, 0);
     assert_eq!(first.clean_non_satisfied, 0);

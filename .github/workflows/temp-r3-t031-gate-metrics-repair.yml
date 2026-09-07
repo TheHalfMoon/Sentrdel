@@ -1,0 +1,211 @@
+name: Temporary R3-T031 gate-metrics repair
+
+on:
+  push:
+    branches:
+      - test/r3-t031-release-benchmark
+    paths:
+      - .github/workflows/temp-r3-t031-gate-metrics-repair.yml
+
+permissions:
+  contents: write
+
+jobs:
+  repair-and-qualify:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact helper head
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Require exact parent and bounded helper delta
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="63c8b7eafc5f25446a0310f77b75e59989d3019d"
+          expected_parent="cac20501e530bb2da9b241bf600a38006c3e1b00"
+          test "$(git rev-parse HEAD^)" = "$expected_parent"
+          git merge-base --is-ancestor "$base" HEAD
+          actual="$(git diff --name-only "$base"...HEAD | sort | tr '\n' ' ')"
+          expected=".github/workflows/temp-r3-t031-gate-metrics-repair.yml crates/sentrdel-review/tests/r3_t031_release_benchmark.rs tests/benchmark/r3-release-suite.json "
+          test "$actual" = "$expected"
+
+      - name: Install pinned Rust toolchain
+        shell: bash
+        run: rustup toolchain install 1.98.0 --profile minimal --component rustfmt
+
+      - name: Convert early case assertions into machine-recorded gates
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path("crates/sentrdel-review/tests/r3_t031_release_benchmark.rs")
+          text = path.read_text()
+
+          old_struct = '''    clean_non_satisfied: u64,
+              clean_case_fp_gate_passed: bool,
+              required_violated_invariant_groups: Vec<String>,
+          '''
+          new_struct = '''    clean_non_satisfied: u64,
+              clean_case_policy_contract_passed: bool,
+              clean_case_fp_gate_passed: bool,
+              unexpected_case_states: Vec<String>,
+              required_violated_invariant_groups: Vec<String>,
+          '''
+          if text.count(old_struct) != 1:
+              raise SystemExit("R3ReleaseRun gate field anchor not found exactly once")
+          text = text.replace(old_struct, new_struct)
+
+          old_case_assert = '''    for case in &cases {
+              let expected = if case.clean {
+                  InvariantEvaluationState::Satisfied
+              } else {
+                  InvariantEvaluationState::Violated
+              };
+              assert_eq!(
+                  case.evaluation.state(),
+                  expected,
+                  "unexpected release-gate state for {} clean={}",
+                  case.group,
+                  case.clean
+              );
+          }
+
+          '''
+          new_case_metric = '''    let unexpected_case_states = cases
+              .iter()
+              .filter_map(|case| {
+                  let expected = if case.clean {
+                      InvariantEvaluationState::Satisfied
+                  } else {
+                      InvariantEvaluationState::Violated
+                  };
+                  (case.evaluation.state() != expected)
+                      .then(|| format!("{}:clean={}", case.group, case.clean))
+              })
+              .collect::<Vec<_>>();
+
+          '''
+          if text.count(old_case_assert) != 1:
+              raise SystemExit("early per-case assertion block not found exactly once")
+          text = text.replace(old_case_assert, new_case_metric)
+
+          old_policy = '''    assert_eq!(
+              suite.clean_case_false_positive_gate.sample_state,
+              "INITIAL_FOUR_CASE_STRICT_ZERO"
+          );
+              assert_eq!(
+                  suite
+                      .clean_case_false_positive_gate
+                      .max_false_positive_clean_cases,
+                  1
+              );
+              assert_eq!(suite.clean_case_false_positive_gate.per_clean_cases, 5);
+              let clean_case_fp_gate_passed =
+                  if clean_cases_evaluated < suite.clean_case_false_positive_gate.per_clean_cases {
+                      clean_false_positives == 0 && clean_non_satisfied == 0
+                  } else {
+                      clean_non_satisfied == 0
+                          && clean_false_positives
+                              .checked_mul(suite.clean_case_false_positive_gate.per_clean_cases)
+                              .is_some_and(|scaled| {
+                                  scaled
+                                      <= suite
+                                          .clean_case_false_positive_gate
+                                          .max_false_positive_clean_cases
+                                          .saturating_mul(clean_cases_evaluated)
+                              })
+                  };
+          '''
+          new_policy = '''    let clean_case_policy_contract_passed = suite.clean_case_false_positive_gate.sample_state
+              == "INITIAL_FOUR_CASE_STRICT_ZERO"
+              && suite
+                  .clean_case_false_positive_gate
+                  .max_false_positive_clean_cases
+                  == 1
+              && suite.clean_case_false_positive_gate.per_clean_cases == 5;
+              let clean_case_fp_gate_passed = clean_case_policy_contract_passed
+                  && if clean_cases_evaluated < suite.clean_case_false_positive_gate.per_clean_cases {
+                      clean_false_positives == 0 && clean_non_satisfied == 0
+                  } else {
+                      clean_non_satisfied == 0
+                          && clean_false_positives
+                              .checked_mul(suite.clean_case_false_positive_gate.per_clean_cases)
+                              .is_some_and(|scaled| {
+                                  scaled
+                                      <= suite
+                                          .clean_case_false_positive_gate
+                                          .max_false_positive_clean_cases
+                                          .saturating_mul(clean_cases_evaluated)
+                              })
+                  };
+          '''
+          if text.count(old_policy) != 1:
+              raise SystemExit("clean-case policy block not found exactly once")
+          text = text.replace(old_policy, new_policy)
+
+          old_init = '''        clean_false_positives,
+                  clean_non_satisfied,
+                  clean_case_fp_gate_passed,
+                  required_violated_invariant_groups: required.into_iter().collect(),
+          '''
+          new_init = '''        clean_false_positives,
+                  clean_non_satisfied,
+                  clean_case_policy_contract_passed,
+                  clean_case_fp_gate_passed,
+                  unexpected_case_states,
+                  required_violated_invariant_groups: required.into_iter().collect(),
+          '''
+          if text.count(old_init) != 1:
+              raise SystemExit("R3ReleaseRun initialization anchor not found exactly once")
+          text = text.replace(old_init, new_init)
+
+          old_test = '''    assert!(first.clean_case_fp_gate_passed);
+              assert_eq!(first.clean_false_positives, 0);
+              assert_eq!(first.clean_non_satisfied, 0);
+          '''
+          new_test = '''    assert!(first.clean_case_policy_contract_passed);
+              assert!(first.clean_case_fp_gate_passed);
+              assert!(first.unexpected_case_states.is_empty());
+              assert_eq!(first.clean_false_positives, 0);
+              assert_eq!(first.clean_non_satisfied, 0);
+          '''
+          if text.count(old_test) != 1:
+              raise SystemExit("release-gate assertion anchor not found exactly once")
+          path.write_text(text.replace(old_test, new_test))
+
+      - name: Format candidate
+        shell: bash
+        run: cargo +1.98.0 fmt --all
+
+      - name: Run focused R3-T031 release benchmark
+        shell: bash
+        run: cargo +1.98.0 test -p sentrdel-review --test r3_t031_release_benchmark --locked
+
+      - name: Check workspace
+        shell: bash
+        run: cargo +1.98.0 check --workspace --all-targets --locked
+
+      - name: Require clean patch shape
+        shell: bash
+        run: git diff --check
+
+      - name: Commit repair, remove helper, and push
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rm .github/workflows/temp-r3-t031-gate-metrics-repair.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add crates/sentrdel-review/tests/r3_t031_release_benchmark.rs
+          git commit -m "test(r3): make release gate metrics fail-visible"
+          base="63c8b7eafc5f25446a0310f77b75e59989d3019d"
+          actual="$(git diff --name-only "$base"...HEAD | sort | tr '\n' ' ')"
+          expected="crates/sentrdel-review/tests/r3_t031_release_benchmark.rs tests/benchmark/r3-release-suite.json "
+          test "$actual" = "$expected"
+          git push origin HEAD:test/r3-t031-release-benchmark
