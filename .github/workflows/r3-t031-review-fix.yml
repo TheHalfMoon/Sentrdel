@@ -1,0 +1,198 @@
+name: R3-T031 Review Fix Qualification
+
+on:
+  push:
+    branches:
+      - test/r3-t031-release-benchmark
+
+permissions:
+  contents: write
+
+jobs:
+  repair-and-qualify:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout candidate branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: test/r3-t031-release-benchmark
+          fetch-depth: 0
+
+      - name: Install pinned Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.98.0
+          components: rustfmt
+
+      - name: Apply exact explanation-metadata review fix
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("crates/sentrdel-review/tests/r3_t031_release_benchmark.rs")
+          text = path.read_text()
+
+          old = '''fn explanation_correct(evidence: &[Evidence], expected_evaluations: usize) -> (u64, bool) {
+              let interpretations = evidence
+                  .iter()
+                  .filter(|item| item.claim().category == "business_logic_invariant_interpretation")
+                  .collect::<Vec<_>>();
+              let passed = interpretations.len() == expected_evaluations
+                  && interpretations.iter().all(|item| {
+                      item.claim()
+                          .attributes
+                          .get("path_id")
+                          .and_then(Value::as_str)
+                          .is_some_and(|value| value.starts_with("sha256:"))
+                          && item
+                              .claim()
+                              .attributes
+                              .get("evaluation_state")
+                              .and_then(Value::as_str)
+                              .is_some()
+                          && item
+                              .claim()
+                              .attributes
+                              .get("provenance_byte_ranges")
+                              .and_then(Value::as_array)
+                              .is_some_and(|ranges| !ranges.is_empty())
+                          && item
+                              .claim()
+                              .security_interpretation
+                              .as_ref()
+                              .is_some_and(|text| {
+                                  text.contains("bounded static scope")
+                                      && !text.contains("runtime exploitability is proven")
+                              })
+                  });
+              (interpretations.len() as u64, passed)
+          }
+          '''
+
+          new = '''fn evaluation_state_name(state: InvariantEvaluationState) -> &'static str {
+              match state {
+                  InvariantEvaluationState::Satisfied => "SATISFIED",
+                  InvariantEvaluationState::Violated => "VIOLATED",
+                  InvariantEvaluationState::Unknown => "UNKNOWN",
+                  InvariantEvaluationState::NotApplicable => "NOT_APPLICABLE",
+              }
+          }
+
+          fn expected_provenance_ranges(evaluation: &InvariantEvaluation) -> Value {
+              Value::Array(
+                  evaluation
+                      .provenance()
+                      .iter()
+                      .map(|location| {
+                          serde_json::json!({
+                              "path": location.path().as_str(),
+                              "start_byte": location.start_byte(),
+                              "end_byte": location.end_byte(),
+                              "content_digest": location.content_digest(),
+                          })
+                      })
+                      .collect(),
+              )
+          }
+
+          fn explanation_correct(evidence: &[Evidence], evaluations: &[InvariantEvaluation]) -> (u64, bool) {
+              let interpretations = evidence
+                  .iter()
+                  .filter(|item| item.claim().category == "business_logic_invariant_interpretation")
+                  .collect::<Vec<_>>();
+              let record_count = interpretations.len() as u64;
+              if interpretations.len() != evaluations.len() {
+                  return (record_count, false);
+              }
+
+              let expected = evaluations
+                  .iter()
+                  .map(|evaluation| (evaluation.evaluation_id().as_str().to_owned(), evaluation))
+                  .collect::<BTreeMap<_, _>>();
+              let mut observed = BTreeMap::new();
+              for item in interpretations {
+                  let Some(evaluation_id) = item
+                      .claim()
+                      .attributes
+                      .get("evaluation_id")
+                      .and_then(Value::as_str)
+                  else {
+                      return (record_count, false);
+                  };
+                  if observed.insert(evaluation_id.to_owned(), item).is_some() {
+                      return (record_count, false);
+                  }
+              }
+
+              let passed = observed.len() == expected.len()
+                  && expected.iter().all(|(evaluation_id, evaluation)| {
+                      let Some(item) = observed.get(evaluation_id) else {
+                          return false;
+                      };
+                      let attributes = &item.claim().attributes;
+                      let expected_ranges = expected_provenance_ranges(evaluation);
+                      let path_matches = match evaluation.path_id() {
+                          Some(path_id) => {
+                              attributes.get("path_id").and_then(Value::as_str) == Some(path_id.as_str())
+                          }
+                          None => !attributes.contains_key("path_id"),
+                      };
+
+                      path_matches
+                          && attributes
+                              .get("evaluation_state")
+                              .and_then(Value::as_str)
+                              == Some(evaluation_state_name(evaluation.state()))
+                          && attributes.get("provenance_byte_ranges") == Some(&expected_ranges)
+                          && item
+                              .claim()
+                              .security_interpretation
+                              .as_ref()
+                              .is_some_and(|text| {
+                                  text.contains("bounded static scope")
+                                      && !text.contains("runtime exploitability is proven")
+                              })
+                  });
+              (record_count, passed)
+          }
+          '''
+
+          if text.count(old) != 1:
+              raise SystemExit(f"expected exactly one explanation_correct block, found {text.count(old)}")
+          text = text.replace(old, new)
+
+          old_call = '''    let (explanation_records, explanation_correctness_passed) =
+                  explanation_correct(output.evidence(), evaluations.len());
+          '''
+          new_call = '''    let (explanation_records, explanation_correctness_passed) =
+                  explanation_correct(output.evidence(), &evaluations);
+          '''
+          if text.count(old_call) != 1:
+              raise SystemExit(f"expected exactly one explanation_correct call, found {text.count(old_call)}")
+          path.write_text(text.replace(old_call, new_call))
+          PY
+
+      - name: Format candidate
+        run: cargo +1.98.0 fmt --all
+
+      - name: Run focused R3-T031 release benchmark
+        run: cargo +1.98.0 test -p sentrdel-review --test r3_t031_release_benchmark --locked
+
+      - name: Check workspace
+        run: cargo +1.98.0 check --workspace --all-targets --locked
+
+      - name: Require clean patch shape
+        run: git diff --check
+
+      - name: Remove temporary workflow and commit review fix
+        shell: bash
+        run: |
+          rm .github/workflows/r3-t031-review-fix.yml
+          git add crates/sentrdel-review/tests/r3_t031_release_benchmark.rs .github/workflows/r3-t031-review-fix.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "test(r3): bind explanation metadata to evaluations"
+          git push origin HEAD:test/r3-t031-release-benchmark
