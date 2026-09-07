@@ -25,107 +25,22 @@ jobs:
           set -euo pipefail
           rustup toolchain install 1.98.0 --profile minimal --component rustfmt
           python3 - <<'PY'
+          import base64
           from pathlib import Path
           path = Path('crates/sentrdel-review/src/business_logic/path.rs')
           text = path.read_text()
-
-          anchor = "pub struct PathCorrelationInputs<'a> {\n"
-          replacement = "pub const INLINE_ROUTE_OPERATION_RELATION: &str = \"inline_route_contains_operation\";\n\n" + anchor
-          if text.count(anchor) != 1:
-              raise SystemExit('PathCorrelationInputs anchor not found exactly once')
+          def d(value):
+              return base64.b64decode(value).decode()
+          anchor = d('cHViIHN0cnVjdCBQYXRoQ29ycmVsYXRpb25JbnB1dHM8J2E+IHsK')
+          replacement = d('cHViIGNvbnN0IElOTElORV9ST1VURV9PUEVSQVRJT05fUkVMQVRJT046ICZzdHIgPSAiaW5saW5lX3JvdXRlX2NvbnRhaW5zX29wZXJhdGlvbiI7CgpwdWIgc3RydWN0IFBhdGhDb3JyZWxhdGlvbklucHV0czwnYT4gewo=')
+          old = d('ICAgIGxldCBtb2RlbF9saW1pdHMgPSBtb2RlbF9saW1pdHMudmFsaWRhdGUoKT87CiAgICBsZXQgYmFzZV9yZXN1bHQgPSBiYXNlOjpjb3JyZWxhdGVfY3Jvc3NfbGF5ZXJfcGF0aHMoCiAgICAgICAgYmFzZTo6UGF0aENvcnJlbGF0aW9uSW5wdXRzIHsKICAgICAgICAgICAgcm91dGVzOiBpbnB1dHMucm91dGVzLAogICAgICAgICAgICBhY3RvcnM6IGlucHV0cy5hY3RvcnMsCiAgICAgICAgICAgIGd1YXJkczogaW5wdXRzLmd1YXJkcywKICAgICAgICAgICAgdmFsdWVzOiBpbnB1dHMudmFsdWVzLAogICAgICAgICAgICBkYXRhX29wZXJhdGlvbnM6IGlucHV0cy5kYXRhX29wZXJhdGlvbnMsCiAgICAgICAgICAgIHByb3ZpZGVyX2NsaWVudHM6IGlucHV0cy5wcm92aWRlcl9jbGllbnRzLAogICAgICAgICAgICBsaW5rczogaW5wdXRzLmxpbmtzLAogICAgICAgIH0sCiAgICAgICAgbW9kZWxfbGltaXRzLAogICAgICAgIGNvcnJlbGF0aW9uX2xpbWl0cywKICAgICk/Owo=')
+          new = d('ICAgIGxldCBtb2RlbF9saW1pdHMgPSBtb2RlbF9saW1pdHMudmFsaWRhdGUoKT87CiAgICBsZXQgY29ycmVsYXRpb25fbGltaXRzID0gY29ycmVsYXRpb25fbGltaXRzLnZhbGlkYXRlKCk/OwogICAgbGV0IG11dCBlZmZlY3RpdmVfbGlua3MgPSBpbnB1dHMubGlua3MudG9fdmVjKCk7CiAgICBlZmZlY3RpdmVfbGlua3MuZXh0ZW5kKGRlcml2ZV9pbmxpbmVfcm91dGVfb3BlcmF0aW9uX2xpbmtzKAogICAgICAgIGlucHV0cy5yb3V0ZXMsCiAgICAgICAgaW5wdXRzLmRhdGFfb3BlcmF0aW9ucywKICAgICAgICBtb2RlbF9saW1pdHMsCiAgICAgICAgY29ycmVsYXRpb25fbGltaXRzLAogICAgKT8pOwogICAgZWZmZWN0aXZlX2xpbmtzLnNvcnQoKTsKICAgIGVmZmVjdGl2ZV9saW5rcy5kZWR1cCgpOwogICAgbGV0IGJhc2VfcmVzdWx0ID0gYmFzZTo6Y29yZWxhdGVfY3Jvc3NfbGF5ZXJfcGF0aHMoCiAgICAgICAgYmFzZTo6UGF0aENvcnJlbGF0aW9uSW5wdXRzIHsKICAgICAgICAgICAgcm91dGVzOiBpbnB1dHMucm91dGVzLAogICAgICAgICAgICBhY3RvcnM6IGlucHV0cy5hY3RvcnMsCiAgICAgICAgICAgIGd1YXJkczogaW5wdXRzLmd1YXJkcywKICAgICAgICAgICAgdmFsdWVzOiBpbnB1dHMudmFsdWVzLAogICAgICAgICAgICBkYXRhX29wZXJhdGlvbnM6IGlucHV0cy5kYXRhX29wZXJhdGlvbnMsCiAgICAgICAgICAgIHByb3ZpZGVyX2NsaWVudHM6IGlucHV0cy5wcm92aWRlcl9jbGllbnRzLAogICAgICAgICAgICBsaW5rczogJmVmZmVjdGl2ZV9saW5rcywKICAgICAgICB9LAogICAgICAgIG1vZGVsX2xpbWl0cywKICAgICAgICBjb3JyZWxhdGlvbl9saW1pdHMsCiAgICApPzsK')
+          marker = d('Zm4gcXVhbGlmeV9yZXF1aXJlZF9yb2xlX2xpbmtzKAo=')
+          helper = d('Zm4gZGVyaXZlX2lubGluZV9yb3V0ZV9vcGVyYXRpb25fbGlua3MoCiAgICByb3V0ZXM6ICZbUm91dGVPYnNlcnZhdGlvbl0sCiAgICBvcGVyYXRpb25zOiAmW0RhdGFPcGVyYXRpb25dLAogICAgbGltaXRzOiBCdXNpbmVzc0xvZ2ljTGltaXRzLAogICAgY29ycmVsYXRpb25fbGltaXRzOiBQYXRoQ29ycmVsYXRpb25MaW1pdHMsCikgLT4gUmVzdWx0PFZlYzxDcm9zc0xheWVyTGluaz4sIFBhdGhDb3JyZWxhdGlvbkVycm9yPiB7CiAgICBpZiByb3V0ZXMubGVuKCkuc2F0dXJhdGluZ19tdWwob3BlcmF0aW9ucy5sZW4oKSkgPiBjb3JyZWxhdGlvbl9saW1pdHMubWF4X3dvcmtfaXRlbXMgewogICAgICAgIHJldHVybiBPayhWZWM6Om5ldygpKTsKICAgIH0KCiAgICBsZXQgbXV0IHJvdXRlc19ieV9wYXRoID0gQlRyZWVNYXA6Ojwmc3RyLCBWZWM8JlJvdXRlT2JzZXJ2YXRpb24+Pjo6bmV3KCk7CiAgICBmb3Igcm91dGUgaW4gcm91dGVzIHsKICAgICAgICBpZiByb3V0ZS5jb3ZlcmFnZV9zdGF0ZSgpICE9ICZDb3ZlcmFnZVN0YXRlOjpDb3ZlcmVkCiAgICAgICAgICAgIHx8ICFyb3V0ZQogICAgICAgICAgICAgICAgLmhhbmRsZXJfc2VtYW50aWNfa2V5KCkKICAgICAgICAgICAgICAgIC5pc19zb21lX2FuZCh8aGFuZGxlcnwgaGFuZGxlci5zdGFydHNfd2l0aCgiaW5saW5lQCIpKQogICAgICAgICAgICB8fCByb3V0ZS5wcm92ZW5hbmNlKCkubGVuKCkgIT0gMQogICAgICAgIHsKICAgICAgICAgICAgY29udGludWU7CiAgICAgICAgfQogICAgICAgIGxldCBsb2NhdGlvbiA9ICZyb3V0ZS5wcm92ZW5hbmNlKClbMF07CiAgICAgICAgcm91dGVzX2J5X3BhdGgKICAgICAgICAgICAgLmVudHJ5KGxvY2F0aW9uLnBhdGgoKS5hc19zdHIoKSkKICAgICAgICAgICAgLm9yX2RlZmF1bHQoKQogICAgICAgICAgICAucHVzaChyb3V0ZSk7CiAgICB9CgogICAgbGV0IG11dCBsaW5rcyA9IFZlYzo6bmV3KCk7CiAgICBmb3Igb3BlcmF0aW9uIGluIG9wZXJhdGlvbnMgewogICAgICAgIGlmIG9wZXJhdGlvbi5jb3ZlcmFnZV9zdGF0ZSgpICE9ICZDb3ZlcmFnZVN0YXRlOjpDb3ZlcmVkIHx8IG9wZXJhdGlvbi5wcm92ZW5hbmNlKCkubGVuKCkgIT0gMQogICAgICAgIHsKICAgICAgICAgICAgY29udGludWU7CiAgICAgICAgfQogICAgICAgIGxldCBvcGVyYXRpb25fbG9jYXRpb24gPSAmb3BlcmF0aW9uLnByb3ZlbmFuY2UoKVswXTsKICAgICAgICBsZXQgU29tZShjYW5kaWRhdGVzKSA9IHJvdXRlc19ieV9wYXRoLmdldChvcGVyYXRpb25fbG9jYXRpb24ucGF0aCgpLmFzX3N0cigpKSBlbHNlIHsKICAgICAgICAgICAgY29udGludWU7CiAgICAgICAgfTsKICAgICAgICBsZXQgbXV0IG93bmVyID0gTm9uZTsKICAgICAgICBsZXQgbXV0IGFtYmlndW91cyA9IGZhbHNlOwogICAgICAgIGZvciByb3V0ZSBpbiBjYW5kaWRhdGVzIHsKICAgICAgICAgICAgbGV0IHJvdXRlX2xvY2F0aW9uID0gJnJvdXRlLnByb3ZlbmFuY2UoKVswXTsKICAgICAgICAgICAgaWYgcm91dGVfbG9jYXRpb24uc3RhcnRfYnl0ZSgpIDw9IG9wZXJhdGlvbl9sb2NhdGlvbi5zdGFydF9ieXRlKCkKICAgICAgICAgICAgICAgICYmIG9wZXJhdGlvbl9sb2NhdGlvbi5lbmRfYnl0ZSgpIDw9IHJvdXRlX2xvY2F0aW9uLmVuZF9ieXRlKCkKICAgICAgICAgICAgewogICAgICAgICAgICAgICAgaWYgb3duZXIuaXNfc29tZSgpIHsKICAgICAgICAgICAgICAgICAgICBhbWJpZ3VvdXMgPSB0cnVlOwogICAgICAgICAgICAgICAgICAgIGJyZWFrOwogICAgICAgICAgICAgICAgfQogICAgICAgICAgICAgICAgb3duZXIgPSBTb21lKCpyb3V0ZSk7CiAgICAgICAgICAgIH0KICAgICAgICB9CiAgICAgICAgbGV0IFNvbWUocm91dGUpID0gb3duZXIuZmlsdGVyKHxffCAhYW1iaWd1b3VzKSBlbHNlIHsKICAgICAgICAgICAgY29udGludWU7CiAgICAgICAgfTsKICAgICAgICBsZXQgbXV0IHByb3ZlbmFuY2UgPSBCVHJlZVNldDo6bmV3KCk7CiAgICAgICAgcHJvdmVuYW5jZS5leHRlbmQocm91dGUucHJvdmVuYW5jZSgpLml0ZXIoKS5jbG9uZWQoKSk7CiAgICAgICAgcHJvdmVuYW5jZS5leHRlbmQob3BlcmF0aW9uLnByb3ZlbmFuY2UoKS5pdGVyKCkuY2xvbmVkKCkpOwogICAgICAgIGxpbmtzLnB1c2goQ3Jvc3NMYXllckxpbms6Om5ldygKICAgICAgICAgICAgU3RhYmxlU2VtYW50aWNJZDo6ZnJvbV9wYXJ0cygKICAgICAgICAgICAgICAgICJyMy1pbmxpbmUtcm91dGUtb3BlcmF0aW9uLWxpbmsiLAogICAgICAgICAgICAgICAgJlsKICAgICAgICAgICAgICAgICAgICByb3V0ZS5yb3V0ZV9pZCgpLmFzX3N0cigpLAogICAgICAgICAgICAgICAgICAgIG9wZXJhdGlvbi5vcGVyYXRpb25faWQoKS5hc19zdHIoKSwKICAgICAgICAgICAgICAgICAgICBJTkxJTkVfUk9VVEVfT1BFUkFUSU9OX1JFTEFUSU9OLAogICAgICAgICAgICAgICAgXSwKICAgICAgICAgICAgICAgIGxpbWl0cywKICAgICAgICAgICAgKT8sCiAgICAgICAgICAgIHJvdXRlLnJvdXRlX2lkKCkuY2xvbmUoKSwKICAgICAgICAgICAgb3BlcmF0aW9uLm9wZXJhdGlvbl9pZCgpLmNsb25lKCksCiAgICAgICAgICAgIElOTElORV9ST1VURV9PUEVSQVRJT05fUkVMQVRJT04sCiAgICAgICAgICAgIExpbmtCYXNpczo6RXhwbGljaXRBZGFwdGVyTGluaywKICAgICAgICAgICAgQ29uZmlkZW5jZUJhc2lzOjpFeHRyYWN0ZWQsCiAgICAgICAgICAgIHByb3ZlbmFuY2UuaW50b19pdGVyKCkuY29sbGVjdCgpLAogICAgICAgICAgICBsaW1pdHMsCiAgICAgICAgKT8pOwogICAgfQogICAgbGlua3Muc29ydCgpOwogICAgbGlua3MuZGVkdXAoKTsKICAgIE9rKGxpbmtzKQp9Cgo=')
+          if text.count(anchor) != 1 or text.count(old) != 1 or text.count(marker) != 1:
+              raise SystemExit('path repair anchors do not match canonical source exactly once')
           text = text.replace(anchor, replacement, 1)
-
-          old = '''    let model_limits = model_limits.validate()?;\n    let base_result = base::correlate_cross_layer_paths(\n        base::PathCorrelationInputs {\n            routes: inputs.routes,\n            actors: inputs.actors,\n            guards: inputs.guards,\n            values: inputs.values,\n            data_operations: inputs.data_operations,\n            provider_clients: inputs.provider_clients,\n            links: inputs.links,\n        },\n        model_limits,\n        correlation_limits,\n    )?;\n'''
-          new = '''    let model_limits = model_limits.validate()?;\n    let correlation_limits = correlation_limits.validate()?;\n    let mut effective_links = inputs.links.to_vec();\n    effective_links.extend(derive_inline_route_operation_links(\n        inputs.routes,\n        inputs.data_operations,\n        model_limits,\n        correlation_limits,\n    )?);\n    effective_links.sort();\n    effective_links.dedup();\n    let base_result = base::correlate_cross_layer_paths(\n        base::PathCorrelationInputs {\n            routes: inputs.routes,\n            actors: inputs.actors,\n            guards: inputs.guards,\n            values: inputs.values,\n            data_operations: inputs.data_operations,\n            provider_clients: inputs.provider_clients,\n            links: &effective_links,\n        },\n        model_limits,\n        correlation_limits,\n    )?;\n'''
-          if text.count(old) != 1:
-              raise SystemExit('correlator delegation block not found exactly once')
           text = text.replace(old, new, 1)
-
-          marker = 'fn qualify_required_role_links(\n'
-          helper = r'''fn derive_inline_route_operation_links(
-    routes: &[RouteObservation],
-    operations: &[DataOperation],
-    limits: BusinessLogicLimits,
-    correlation_limits: PathCorrelationLimits,
-) -> Result<Vec<CrossLayerLink>, PathCorrelationError> {
-    if routes.len().saturating_mul(operations.len()) > correlation_limits.max_work_items {
-        return Ok(Vec::new());
-    }
-
-    let mut routes_by_path = BTreeMap::<&str, Vec<&RouteObservation>>::new();
-    for route in routes {
-        if route.coverage_state() != &CoverageState::Covered
-            || !route
-                .handler_semantic_key()
-                .is_some_and(|handler| handler.starts_with("inline@"))
-            || route.provenance().len() != 1
-        {
-            continue;
-        }
-        let location = &route.provenance()[0];
-        routes_by_path
-            .entry(location.path().as_str())
-            .or_default()
-            .push(route);
-    }
-
-    let mut links = Vec::new();
-    for operation in operations {
-        if operation.coverage_state() != &CoverageState::Covered || operation.provenance().len() != 1
-        {
-            continue;
-        }
-        let operation_location = &operation.provenance()[0];
-        let Some(candidates) = routes_by_path.get(operation_location.path().as_str()) else {
-            continue;
-        };
-        let mut owner = None;
-        let mut ambiguous = false;
-        for route in candidates {
-            let route_location = &route.provenance()[0];
-            if route_location.start_byte() <= operation_location.start_byte()
-                && operation_location.end_byte() <= route_location.end_byte()
-            {
-                if owner.is_some() {
-                    ambiguous = true;
-                    break;
-                }
-                owner = Some(*route);
-            }
-        }
-        let Some(route) = owner.filter(|_| !ambiguous) else {
-            continue;
-        };
-        let mut provenance = BTreeSet::new();
-        provenance.extend(route.provenance().iter().cloned());
-        provenance.extend(operation.provenance().iter().cloned());
-        links.push(CrossLayerLink::new(
-            StableSemanticId::from_parts(
-                "r3-inline-route-operation-link",
-                &[
-                    route.route_id().as_str(),
-                    operation.operation_id().as_str(),
-                    INLINE_ROUTE_OPERATION_RELATION,
-                ],
-                limits,
-            )?,
-            route.route_id().clone(),
-            operation.operation_id().clone(),
-            INLINE_ROUTE_OPERATION_RELATION,
-            LinkBasis::ExplicitAdapterLink,
-            ConfidenceBasis::Extracted,
-            provenance.into_iter().collect(),
-            limits,
-        )?);
-    }
-    links.sort();
-    links.dedup();
-    Ok(links)
-}
-
-'''
-          if text.count(marker) != 1:
-              raise SystemExit('qualification helper insertion marker not found exactly once')
           text = text.replace(marker, helper + marker, 1)
           path.write_text(text)
           PY
