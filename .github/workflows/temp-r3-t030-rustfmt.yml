@@ -1,0 +1,43 @@
+name: Temporary R3-T030 rustfmt
+
+on:
+  push:
+    branches:
+      - test/r3-t030-e2e-fixtures
+
+permissions:
+  contents: write
+
+jobs:
+  rustfmt:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: test/r3-t030-e2e-fixtures
+          persist-credentials: true
+          fetch-depth: 1
+
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.98.0 --profile minimal --component rustfmt
+
+      - name: Apply canonical rustfmt only
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo +1.98.0 fmt --all
+          git diff --check
+          changed="$(git diff --name-only)"
+          if [[ -z "${changed}" ]]; then
+            exit 0
+          fi
+          if [[ "${changed}" != 'crates/sentrdel-cli/src/r3_t030_e2e.rs' ]]; then
+            printf 'unexpected rustfmt paths:\n%s\n' "${changed}" >&2
+            exit 1
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add crates/sentrdel-cli/src/r3_t030_e2e.rs
+          git commit -m 'fix(r3): apply canonical rustfmt to T030 E2E'
+          git push origin HEAD:test/r3-t030-e2e-fixtures
