@@ -311,9 +311,7 @@ mod tests {
     use sentrdel_cli::{CliRepository, CliTiming};
     use sentrdel_schema::{
         SCHEMA_V1,
-        finding::{
-            EpistemicState, Finding, ReconciledFindingDraft, ReconcilerAuthority, Severity,
-        },
+        finding::{EpistemicState, Finding, ReconciledFindingDraft, ReconcilerAuthority, Severity},
     };
 
     fn finding(affected_subjects: Vec<String>) -> Finding {
@@ -393,7 +391,8 @@ mod tests {
         let explanation = BusinessLogicExplainContext::from_output(&output, &contexts)
             .unwrap()
             .expect("matching R3 context");
-        let rendered = render_explain_human_with_business_logic_context(&output, Some(&explanation));
+        let rendered =
+            render_explain_human_with_business_logic_context(&output, Some(&explanation));
 
         for expected in [
             "route:update (PATCH /items/:id)",
@@ -419,13 +418,17 @@ mod tests {
         let explanation = BusinessLogicExplainContext::from_output(&output, &contexts)
             .unwrap()
             .expect("matching R3 context");
-        let rendered = render_explain_human_with_business_logic_context(&output, Some(&explanation));
+        let rendered =
+            render_explain_human_with_business_logic_context(&output, Some(&explanation));
         let after = output.render_json().unwrap();
 
         assert!(rendered.contains("[UNKNOWN]"));
         assert!(rendered.contains("bounded repository-derived static context only"));
         assert_eq!(before, after);
-        assert_eq!(output.finding().draft().epistemic_state, EpistemicState::Detected);
+        assert_eq!(
+            output.finding().draft().epistemic_state,
+            EpistemicState::Detected
+        );
     }
 
     #[test]
