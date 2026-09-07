@@ -20,11 +20,15 @@ jobs:
           ref: test/r3-t031-release-benchmark
           fetch-depth: 0
 
-      - name: Require expected pre-repair head
+      - name: Require bounded pre-repair delta
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD)" = "566d855d052f0f0fa64239a96065d83ec6e8b8f9"
+          base="63c8b7eafc5f25446a0310f77b75e59989d3019d"
+          git merge-base --is-ancestor "$base" HEAD
+          actual="$(git diff --name-only "$base"...HEAD | sort | tr '\n' ' ')"
+          expected=".github/workflows/temp-r3-t031-explanation-repair.yml crates/sentrdel-review/tests/r3_t031_release_benchmark.rs tests/benchmark/r3-release-suite.json "
+          test "$actual" = "$expected"
 
       - name: Install pinned Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -176,19 +180,22 @@ jobs:
         shell: bash
         run: cargo check --workspace --all-targets
 
-      - name: Remove helper and require final diff shape
+      - name: Commit repaired benchmark and remove helper
         shell: bash
         run: |
           set -euo pipefail
           rm .github/workflows/temp-r3-t031-explanation-repair.yml
-          test "$(git diff --name-only 63c8b7eafc5f25446a0310f77b75e59989d3019d...HEAD | sort | tr '\n' ' ')" = "crates/sentrdel-review/tests/r3_t031_release_benchmark.rs tests/benchmark/r3-release-suite.json "
-
-      - name: Commit repaired benchmark
-        shell: bash
-        run: |
-          set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add crates/sentrdel-review/tests/r3_t031_release_benchmark.rs .github/workflows/temp-r3-t031-explanation-repair.yml
           git commit -m "test(r3): verify exact explanation metadata"
+
+      - name: Require final diff shape and push
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="63c8b7eafc5f25446a0310f77b75e59989d3019d"
+          actual="$(git diff --name-only "$base"...HEAD | sort | tr '\n' ' ')"
+          expected="crates/sentrdel-review/tests/r3_t031_release_benchmark.rs tests/benchmark/r3-release-suite.json "
+          test "$actual" = "$expected"
           git push origin HEAD:test/r3-t031-release-benchmark
