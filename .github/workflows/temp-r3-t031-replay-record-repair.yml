@@ -1,0 +1,88 @@
+name: Temporary R3-T031 machine-record replay repair
+
+on:
+  push:
+    branches:
+      - test/r3-t031-release-benchmark
+    paths:
+      - .github/workflows/temp-r3-t031-replay-record-repair.yml
+
+permissions:
+  contents: write
+
+jobs:
+  repair-and-qualify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout candidate branch
+        uses: actions/checkout@v4
+        with:
+          ref: test/r3-t031-release-benchmark
+          fetch-depth: 0
+
+      - name: Require exact pre-helper parent and bounded delta
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="63c8b7eafc5f25446a0310f77b75e59989d3019d"
+          expected_parent="b1764fe0d6b4d1ddba6986c0bc597cea385c30b8"
+          test "$(git rev-parse HEAD^)" = "$expected_parent"
+          git merge-base --is-ancestor "$base" HEAD
+          actual="$(git diff --name-only "$base"...HEAD | sort | tr '\n' ' ')"
+          expected=".github/workflows/temp-r3-t031-replay-record-repair.yml crates/sentrdel-review/tests/r3_t031_release_benchmark.rs tests/benchmark/r3-release-suite.json "
+          test "$actual" = "$expected"
+
+      - name: Install pinned Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.98.0
+          components: rustfmt
+
+      - name: Add byte-for-byte machine-record replay assertion
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path("crates/sentrdel-review/tests/r3_t031_release_benchmark.rs")
+          text = path.read_text()
+          old = '''    let first = evaluate_once();
+              let replay = evaluate_once();
+              assert_eq!(first, replay);
+          '''
+          new = '''    let first = evaluate_once();
+              let replay = evaluate_once();
+              assert_eq!(first, replay);
+              let first_record = serde_json::to_vec(&first).expect("serialize first R3 release record");
+              let replay_record = serde_json::to_vec(&replay).expect("serialize replay R3 release record");
+              assert_eq!(first_record, replay_record);
+          '''
+          if text.count(old) != 1:
+              raise SystemExit("exact replay assertion anchor not found exactly once")
+          path.write_text(text.replace(old, new))
+
+      - name: Format candidate
+        shell: bash
+        run: cargo fmt --all
+
+      - name: Run focused R3-T031 release benchmark
+        shell: bash
+        run: cargo test -p sentrdel-review --test r3_t031_release_benchmark
+
+      - name: Check workspace
+        shell: bash
+        run: cargo check --workspace --all-targets
+
+      - name: Commit repair and remove helper
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rm .github/workflows/temp-r3-t031-replay-record-repair.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add crates/sentrdel-review/tests/r3_t031_release_benchmark.rs
+          git commit -m "test(r3): verify serialized replay record"
+          base="63c8b7eafc5f25446a0310f77b75e59989d3019d"
+          actual="$(git diff --name-only "$base"...HEAD | sort | tr '\n' ' ')"
+          expected="crates/sentrdel-review/tests/r3_t031_release_benchmark.rs tests/benchmark/r3-release-suite.json "
+          test "$actual" = "$expected"
+          git push origin HEAD:test/r3-t031-release-benchmark
