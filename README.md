@@ -2,7 +2,7 @@
 
 **Open-source security evidence and control plane for software development.**
 
-Sentrdel is a Rust-first, local-first, vendor-neutral security layer for AI-assisted and ordinary software development. R1 provides the trustworthy evidence, diff review, explicit coverage, monotonic guardrail, stdio MCP, profiling, explanation, and lower-authority reasoning substrate. R2 adds the first provider-specific pack: bounded offline Supabase static posture.
+Sentrdel is a Rust-first, local-first, vendor-neutral security layer for AI-assisted and ordinary software development. R1 provides the trustworthy evidence, diff review, explicit coverage, monotonic guardrail, stdio MCP, profiling, explanation, and lower-authority reasoning substrate. R2 adds the first provider-specific pack: bounded offline Supabase static posture. R3 adds bounded static cross-layer business-logic analysis and security invariants over the declared JavaScript/TypeScript adapter scope.
 
 ## North Star
 
@@ -42,9 +42,21 @@ R2 extends the R1 pack/evidence substrate with a Rust-owned, offline, determinis
 
 R2 producers emit canonical Evidence and Coverage only; the existing R1 reconciler remains the only canonical Finding creation path. Unsupported, malformed, ambiguous, dynamic, oversized, missing, or hosted-only state remains explicit coverage rather than becoming a clean result by absence.
 
-R2 does **not** connect to Supabase, use provider-admin credentials, run the Supabase CLI, execute SQL/migrations/Edge Functions, or claim hosted/runtime state. `LIVE_POSTURE`, `BUSINESS_LOGIC`, and `RUNTIME` remain unimplemented/not-executed dimensions. Cross-layer tenant/business-logic reasoning remains R3 work.
+R2 does **not** connect to Supabase, use provider-admin credentials, run the Supabase CLI, execute SQL/migrations/Edge Functions, or claim hosted/runtime state. `LIVE_POSTURE` and `RUNTIME` remain unimplemented/not-executed dimensions. R3 may consume compatible R2 static Evidence as supporting input, but it does not upgrade repository-derived posture into hosted truth.
 
 See `docs/architecture/r2-supabase-static-posture.md` for the implemented architecture, coverage matrix, qualification boundaries, and explicit non-claims.
+
+## R3 implemented business-logic substrate and invariants
+
+R3 adds a bounded, static cross-layer business-logic substrate over the existing evidence, coverage, reconciliation, and Sentrdel Semantic Security Graph foundations. Within the declared JavaScript/TypeScript adapter scope, it can correlate supported route entry points, actor/auth identity observations, authorization guards, bounded value origins, Supabase data operations, provider-client authority, and explicit security invariants.
+
+The implemented initial adapter scope is deliberately narrow: supported Express-style routes, Next.js App Router Route Handlers, Next.js Pages API routes, supported Supabase Edge Function patterns, and the bounded Supabase JavaScript data-operation subset frozen by Spec 003. Built-in invariant families cover tenant/object binding, privileged function/role authorization, protected-property mutation, and elevated provider-client application boundaries. Project-declared invariants are structured, bounded, and tightening-only.
+
+R3 producers emit canonical Evidence and Coverage only. The reconciler remains the sole canonical Finding creation path. `BUSINESS_LOGIC` / `CROSS_LAYER_BUSINESS_LOGIC` coverage remains distinct from provider `STATIC_POSTURE`, credentialed `LIVE_POSTURE`, and runtime/verification evidence. Unsupported frameworks, dynamic registration or dispatch, unresolved semantic links, ambiguous identity/guard/data flow, unsupported data operations, and resource-cap exhaustion remain explicit coverage gaps or UNKNOWN/PARTIAL state rather than implicit security.
+
+R3 remains local-first and non-executing. Ordinary R3 analysis does not execute target builds, package managers, application routes, tests, migrations, database queries, provider tooling, or repository helpers; it does not connect to hosted providers or request provider-admin credentials; and it does not prove runtime exploitability, actual cross-tenant access, or production authorization behavior. It reuses the bounded existing SSG/graph substrate and does not claim universal CPG/compiler semantics.
+
+See `docs/architecture/r3-business-logic-invariants.md` and `docs/security/threat-model.md` for the implemented R3 architecture, coverage boundaries, authority ceilings, and explicit non-claims.
 
 ## Security invariants
 
@@ -55,6 +67,7 @@ See `docs/architecture/r2-supabase-static-posture.md` for the implemented archit
 - Secret plaintext and stable unkeyed value-only secret hashes are not persisted.
 - Target repository content is data, not execution authority.
 - External processes use explicit argv and bounded/scrubbed environments; shell-built target commands are not part of the trusted path.
+- Project-declared R3 invariants may tighten analysis only; they cannot suppress Evidence, waive Findings, reduce severity, widen execution/network/credential authority, or bypass the reconciler.
 - Enforcement is labeled `ENFORCED`, `PARTIAL`, or `ADVISORY` according to the seam Sentrdel actually controls.
 - A local ASEL hash chain demonstrates internal consistency relative to the checked state/head; it is not described as independently tamper-proof or non-repudiable.
 
@@ -63,14 +76,16 @@ See `docs/architecture/r2-supabase-static-posture.md` for the implemented archit
 The following are **not implemented capabilities** unless a later specification explicitly authorizes them:
 
 - live/credentialed Supabase posture, hosted database/dashboard interrogation, or runtime Supabase verification;
-- R3 cross-layer tenant/business-logic invariants;
-- broad provider/cloud/payment/database packs beyond the implemented bounded R2 Supabase static posture scope;
+- runtime proof that an R3 business-logic path is exploitable or that cross-tenant access actually occurs;
+- complete support for every framework, language, middleware pattern, ORM, database SDK, auth library, or dynamic JavaScript/TypeScript semantic;
+- broad provider/cloud/payment/database packs beyond the implemented bounded R2/R3 Supabase-related scope;
 - remote/Streamable HTTP MCP enforcement;
-- a general verification sandbox, autonomous exploit generation, production pentesting, or ordinary R1/R2 `VERIFIED` producer;
+- a general verification sandbox, autonomous exploit generation, production pentesting, or ordinary R1/R2/R3 `VERIFIED` producer;
 - general-purpose Security Memory;
 - autonomous Research/Learning that mutates trusted production rules or self-promotes candidates;
 - universal CPG/compiler semantics;
 - universal interception of every coding agent or development environment;
+- identical operating-system interception semantics merely because supported static paths are qualified on Linux, macOS, and Windows;
 - proof that a repository is secure merely because CI is green or a producer emits no finding.
 
 Future learning/research work is candidate-only under the frozen authority contract; it cannot create canonical Findings, alter verification semantics, weaken kernel policy, mutate the evaluator judging its current candidate, or self-promote to trusted authority.
@@ -81,4 +96,4 @@ Planning and implementation are governed by Spec Kit artifacts in `.specify/` an
 
 Sentrdel's own dependency graph is part of the trusted computing base. Dependency admission, privileged build/proc-macro/native surfaces, advisory checks, source policy, and release gates are documented under `docs/security/` and `docs/third-party/`.
 
-R1/R2 remain local-useful without a cloud account, model provider, or external scanner. Optional integrations may improve coverage without acquiring independent judgment authority.
+R1/R2/R3 remain local-useful without a cloud account, model provider, or external scanner. Optional integrations may improve coverage without acquiring independent judgment authority.
