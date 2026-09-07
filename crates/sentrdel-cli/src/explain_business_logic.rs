@@ -32,7 +32,7 @@ pub struct BusinessLogicExplainInvariant {
 pub struct BusinessLogicExplainChain {
     pub source_paths: Vec<String>,
     pub route_id: String,
-    pub route_pattern: Option<String>,
+    pub route_pattern: String,
     pub path_id: String,
     pub actor_ids: Vec<String>,
     pub guard_ids: Vec<String>,
@@ -166,9 +166,9 @@ impl BusinessLogicExplainContext {
         for chain in &self.chains {
             rendered.push_str("- route: ");
             rendered.push_str(&chain.route_id);
-            if let Some(pattern) = &chain.route_pattern {
+            if !chain.route_pattern.is_empty() {
                 rendered.push_str(" (");
-                rendered.push_str(pattern);
+                rendered.push_str(&chain.route_pattern);
                 rendered.push(')');
             }
             rendered.push('\n');
@@ -363,7 +363,7 @@ mod tests {
                 "src/data/update.ts".to_owned(),
             ],
             route_id: "route:update".to_owned(),
-            route_pattern: Some("PATCH /items/:id".to_owned()),
+            route_pattern: "PATCH /items/:id".to_owned(),
             path_id: path_id.to_owned(),
             actor_ids: vec!["actor:session-user".to_owned()],
             guard_ids: vec!["guard:tenant".to_owned(), "guard:auth".to_owned()],
