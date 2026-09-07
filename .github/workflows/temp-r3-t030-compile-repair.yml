@@ -1,0 +1,51 @@
+name: Temporary R3-T030 compile repair
+
+on:
+  push:
+    branches:
+      - test/r3-t030-e2e-fixtures
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: test/r3-t030-e2e-fixtures
+          persist-credentials: true
+          fetch-depth: 1
+
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.98.0 --profile minimal --component rustfmt
+
+      - name: Apply bounded compile repair and qualify
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('crates/sentrdel-cli/src/r3_t030_e2e.rs')
+          text = path.read_text()
+          old = '''    let snapshot = build_project_profile_snapshot(\n        format!("fixture:r3-t030:{}", case.slug()),\n        format!("sha256:{}", "a".repeat(64)),\n'''
+          new = '''    let repository_id = format!("fixture:r3-t030:{}", case.slug());\n    let repository_root_digest = format!("sha256:{}", "a".repeat(64));\n    let snapshot = build_project_profile_snapshot(\n        &repository_id,\n        &repository_root_digest,\n'''
+          if text.count(old) != 1:
+              raise SystemExit('expected exact T030 snapshot call not found once')
+          path.write_text(text.replace(old, new, 1))
+          PY
+          cargo +1.98.0 fmt --all
+          cargo +1.98.0 check --workspace --all-targets --locked
+          git diff --check
+          changed="$(git diff --name-only)"
+          if [[ "${changed}" != 'crates/sentrdel-cli/src/r3_t030_e2e.rs' ]]; then
+            printf 'unexpected repair paths:\n%s\n' "${changed}" >&2
+            exit 1
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add crates/sentrdel-cli/src/r3_t030_e2e.rs
+          git commit -m 'fix(r3): pass borrowed profile snapshot identities'
+          git push origin HEAD:test/r3-t030-e2e-fixtures
