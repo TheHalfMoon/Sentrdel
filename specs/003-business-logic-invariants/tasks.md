@@ -83,7 +83,7 @@
 
 ## Phase 6 — Evaluation, self-security, and canonical closeout
 
-- [ ] **R3-T031** Run/promote the initial release-gating R3 invariant set through SentrdelBench: active clean-case FP threshold, declared-scope known-miss/recall gate, deterministic replay, explicit coverage/provenance, authority assertions, protected-holdout rules where applicable and cross-layer explanation correctness.
+- [x] **R3-T031** Run/promote the initial release-gating R3 invariant set through SentrdelBench: active clean-case FP threshold, declared-scope known-miss/recall gate, deterministic replay, explicit coverage/provenance, authority assertions, protected-holdout rules where applicable and cross-layer explanation correctness.
 - [ ] **R3-T032** Add R3 latency/resource qualification with machine metadata and hard path/parser/graph/invariant caps; regressions cannot weaken existing review ceilings without an explicit spec amendment.
 - [ ] **R3-T033** Run final dependency/source governance: prove unchanged qualified graph if no dependency was added, or exact qualification/privileged-surface/lockfile records for any adopted TypeScript grammar or other dependency; Self Security must pass on the exact candidate head.
 - [ ] **R3-T034** Run Linux/macOS/Windows supported-path qualification and adversarial no-network/no-target-execution/project-invariant-authority/secret canaries; platform/language/framework limitations remain explicit coverage.
