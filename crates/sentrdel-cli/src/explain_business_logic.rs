@@ -68,10 +68,6 @@ impl BusinessLogicExplainContext {
             .map(String::as_str)
             .collect();
 
-        let has_invariant_subject = affected.iter().any(|subject| {
-            subject.starts_with("invariant:") || subject.starts_with("invariant_evaluation:")
-        });
-
         let mut seen_paths = BTreeSet::new();
         let mut chains = Vec::new();
         for context in contexts {
@@ -83,6 +79,13 @@ impl BusinessLogicExplainContext {
 
             let path_subject = format!("cross_layer_path:{}", context.path_id);
             let path_matches = affected.contains(path_subject.as_str());
+            let has_matching_invariant_subject = context.invariants.iter().any(|invariant| {
+                let invariant_subject = format!("invariant:{}", invariant.invariant_id);
+                let evaluation_subject =
+                    format!("invariant_evaluation:{}", invariant.evaluation_id);
+                affected.contains(invariant_subject.as_str())
+                    || affected.contains(evaluation_subject.as_str())
+            });
 
             let mut invariants = Vec::new();
             for invariant in &context.invariants {
@@ -91,7 +94,7 @@ impl BusinessLogicExplainContext {
                     format!("invariant_evaluation:{}", invariant.evaluation_id);
                 let invariant_matches = affected.contains(invariant_subject.as_str())
                     || affected.contains(evaluation_subject.as_str());
-                if invariant_matches || (path_matches && !has_invariant_subject) {
+                if invariant_matches || (path_matches && !has_matching_invariant_subject) {
                     invariants.push(explain_invariant(invariant));
                 }
             }
@@ -99,7 +102,7 @@ impl BusinessLogicExplainContext {
             if !path_matches && invariants.is_empty() {
                 continue;
             }
-            if path_matches && has_invariant_subject && invariants.is_empty() {
+            if path_matches && has_matching_invariant_subject && invariants.is_empty() {
                 continue;
             }
 
@@ -442,6 +445,27 @@ mod tests {
             BusinessLogicExplainContext::from_output(&output, &contexts)
                 .unwrap()
                 .is_none()
+        );
+    }
+
+    #[test]
+    fn exact_path_match_is_not_suppressed_by_unrelated_invariant_subject() {
+        let output = output(vec![
+            "cross_layer_path:path:update".to_owned(),
+            "invariant:invariant:unrelated".to_owned(),
+            "invariant_evaluation:eval:unrelated".to_owned(),
+        ]);
+        let contexts = vec![context("path:update", InvariantEvaluationState::Violated)];
+        let explanation = BusinessLogicExplainContext::from_output(&output, &contexts)
+            .unwrap()
+            .expect("exact path match must retain its bounded chain");
+
+        assert_eq!(explanation.chains().len(), 1);
+        assert_eq!(explanation.chains()[0].path_id, "path:update");
+        assert_eq!(explanation.chains()[0].invariants.len(), 1);
+        assert_eq!(
+            explanation.chains()[0].invariants[0].invariant_id,
+            "invariant:tenant-binding"
         );
     }
 
