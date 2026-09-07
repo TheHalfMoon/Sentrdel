@@ -969,7 +969,7 @@ fn evaluate_once() -> R3ReleaseRun {
         "tests/benchmark/protected-holdout/manifest.json"
     );
 
-    let cases = vec![
+    let cases = [
         tenant_case(true),
         tenant_case(false),
         role_case(true),
