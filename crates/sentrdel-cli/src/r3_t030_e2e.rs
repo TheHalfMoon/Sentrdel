@@ -383,7 +383,7 @@ fn admitted_operation(case: FixtureCase, value: &ValueOrigin) -> DataOperation {
 
 fn admitted_link(
     case: FixtureCase,
-    route: &RouteObservation,
+    source: StableSemanticId,
     target: StableSemanticId,
     relation: &str,
     start: usize,
@@ -391,11 +391,11 @@ fn admitted_link(
     CrossLayerLink::new(
         StableSemanticId::from_parts(
             "r3.t030.surface.link",
-            &[route.route_id().as_str(), target.as_str(), relation],
+            &[source.as_str(), target.as_str(), relation],
             BusinessLogicLimits::default(),
         )
         .unwrap(),
-        route.route_id().clone(),
+        source,
         target,
         relation,
         LinkBasis::ExplicitAdapterLink,
@@ -450,22 +450,22 @@ fn admitted_surface_semantics(
     let actor = admitted_actor(case);
     let value = admitted_value(case, &actor);
     let operation = admitted_operation(case, &value);
-    let links = vec![
-        admitted_link(
+    let mut links = vec![admitted_link(
+        case,
+        route.route_id().clone(),
+        actor.actor_id().clone(),
+        "surface_route_reaches_actor",
+        160,
+    )];
+    if case == FixtureCase::Vulnerable {
+        links.push(admitted_link(
             case,
-            route,
             actor.actor_id().clone(),
-            "surface_route_reaches_actor",
-            160,
-        ),
-        admitted_link(
-            case,
-            route,
             operation.operation_id().clone(),
-            "surface_route_reaches_operation",
+            "surface_actor_reaches_operation",
             180,
-        ),
-    ];
+        ));
+    }
     let correlated = correlate_cross_layer_paths(
         PathCorrelationInputs {
             routes: std::slice::from_ref(route),
