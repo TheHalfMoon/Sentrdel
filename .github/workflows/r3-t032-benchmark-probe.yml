@@ -1,0 +1,36 @@
+name: R3-T032 Benchmark Probe
+
+on:
+  push:
+    branches:
+      - probe/r3-t032-benchmark-f2746bc
+
+permissions:
+  contents: read
+
+jobs:
+  benchmark:
+    name: R3-T032 exact-candidate benchmark evidence
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout without persisted credentials
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+          fetch-depth: 2
+
+      - name: Require exact candidate parent
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD^)" = "f2746bc0b9006d35fa4f1897b9fb11dc999061e5"
+          test "$(git diff --name-only HEAD^ HEAD)" = ".github/workflows/r3-t032-benchmark-probe.yml"
+
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.98.0 --profile minimal
+
+      - name: Run R3-T032 benchmark with evidence output
+        env:
+          RUST_BACKTRACE: "1"
+        run: cargo +1.98.0 test -p sentrdel-review --test r3_t032_latency_resource_benchmark r3_t032_warm_static_pipeline_has_machine_metadata_and_preserves_review_latency_ceilings -- --nocapture
