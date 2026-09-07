@@ -18,13 +18,14 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           persist-credentials: false
+          fetch-depth: 3
 
-      - name: Require exact implementation merge parent
+      - name: Require exact implementation merge ancestry
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD^)" = "bf50d14ef3747b028069d148f23c1696e9e67a42"
-          test "$(git diff --name-only HEAD^ HEAD)" = ".github/workflows/r3-t032-postmerge-governance-probe.yml"
+          test "$(git rev-parse HEAD^^)" = "bf50d14ef3747b028069d148f23c1696e9e67a42"
+          test "$(git diff --name-only HEAD^^ HEAD)" = ".github/workflows/r3-t032-postmerge-governance-probe.yml"
 
       - name: Detect bounded governance credential
         id: credential
