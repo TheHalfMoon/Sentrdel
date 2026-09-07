@@ -50,6 +50,11 @@ jobs:
       - name: Test R2 static authority canaries
         run: cargo +1.98.0 test -p sentrdel-review --test r2_phase4_adversarial --locked
 
+      - name: Qualify R3 supported paths and authority canaries
+        run: |
+          cargo +1.98.0 test -p sentrdel-cli --locked r3_t030_e2e::r3_fixture_matrix_has_deterministic_review_init_and_explain_behavior -- --exact --nocapture
+          cargo +1.98.0 test -p sentrdel-cli --locked r3_t030_e2e::hostile_repository_and_project_invariant_authority_attempts_remain_inert -- --exact --nocapture
+
       - name: Qualify T027 macOS process-tree lifecycle containment
         if: matrix.platform == 'macos'
         run: |
@@ -70,8 +75,15 @@ jobs:
 
 # T081 scope: this matrix compiles the Rust workspace/base contracts and proves
 # supported CLI/guard test and lint paths on Linux, macOS, and Windows.
-# R2-T031 additionally runs the bounded R2 Phase 4 secret-persistence,
-# no-provider-network, and no-target-execution canaries on all three platforms.
+# R2-T031 runs the bounded R2 Phase 4 secret-persistence, no-provider-network,
+# and no-target-execution canaries on all three platforms. R3-T034 additionally
+# pins the bounded R3 deterministic safe/vulnerable/unknown/unsupported/hostile
+# developer-path matrix plus project-invariant/no-network/no-target-execution/
+# no-provider-credential/no-direct-Finding authority canaries on all three OSes.
+# These R3 checks prove only the frozen JavaScript/TypeScript-oriented supported
+# adapters and explicit fail-visible unsupported cases. They do not claim all
+# languages/frameworks/dynamic semantics, live provider or runtime truth,
+# universal CPG/compiler semantics, identical OS interception, or sandboxing.
 # Issue #138 adds owning-seam macOS T027 deterministic recovery ordering,
 # signal-zero classification, live-group fail-closed, and runner lifecycle
 # regressions plus Windows sentrdel-review lint qualification. The macOS checks
