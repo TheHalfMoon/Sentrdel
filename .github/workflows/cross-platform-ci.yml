@@ -50,6 +50,12 @@ jobs:
       - name: Test R2 static authority canaries
         run: cargo +1.98.0 test -p sentrdel-review --test r2_phase4_adversarial --locked
 
+      - name: Test R3 supported-path and authority canaries
+        run: cargo +1.98.0 test -p sentrdel-cli r3_t030_e2e --locked
+
+      - name: Test R3 adversarial extraction canaries
+        run: cargo +1.98.0 test -p sentrdel-review --test r3_t014_extraction_adversarial --locked
+
       - name: Qualify T027 macOS process-tree lifecycle containment
         if: matrix.platform == 'macos'
         run: |
@@ -72,6 +78,10 @@ jobs:
 # supported CLI/guard test and lint paths on Linux, macOS, and Windows.
 # R2-T031 additionally runs the bounded R2 Phase 4 secret-persistence,
 # no-provider-network, and no-target-execution canaries on all three platforms.
+# R3-T034 explicitly runs the existing R3 E2E supported-path/authority canaries
+# and adversarial extraction suite on all three supported platforms. This proves
+# those bounded static paths under each runner; it does not claim identical OS
+# interception semantics or broaden language/framework/provider/runtime coverage.
 # Issue #138 adds owning-seam macOS T027 deterministic recovery ordering,
 # signal-zero classification, live-group fail-closed, and runner lifecycle
 # regressions plus Windows sentrdel-review lint qualification. The macOS checks
