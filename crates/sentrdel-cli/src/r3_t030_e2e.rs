@@ -12,7 +12,7 @@ use sentrdel_cli::{
 use sentrdel_review::{
     TARGET_BUILD_EXECUTION_ALLOWED,
     business_logic::{
-        R3_BUSINESS_LOGIC_PROVIDER, register_r3_pack,
+        R3_BUSINESS_LOGIC_PROVIDER,
         coverage::REQUIRED_BUSINESS_LOGIC_COVERAGE_AREAS,
         invariant::ProjectInvariantLimits,
         model::{
@@ -27,11 +27,13 @@ use sentrdel_review::{
         },
         project_invariant::{
             PROJECT_INVARIANT_CAN_WEAKEN_BUILTINS, PROJECT_INVARIANT_CREATES_FINDINGS,
-            PROJECT_INVARIANT_EXECUTES_TARGET_CODE, PROJECT_INVARIANT_PARSE_FAILURE_DISABLES_BUILTINS,
-            PROJECT_INVARIANT_PATH, PROJECT_INVARIANT_PERFORMS_NETWORK_ACCESS,
+            PROJECT_INVARIANT_EXECUTES_TARGET_CODE,
+            PROJECT_INVARIANT_PARSE_FAILURE_DISABLES_BUILTINS, PROJECT_INVARIANT_PATH,
+            PROJECT_INVARIANT_PERFORMS_NETWORK_ACCESS,
             PROJECT_INVARIANT_REQUESTS_PROVIDER_CREDENTIALS, ProjectInvariantLoadState,
             load_project_invariants,
         },
+        register_r3_pack,
         route::{RouteAdapter, RouteCoverageGapReason, extract_routes},
     },
     config_detection::CiMcpConfigDetection,
@@ -170,7 +172,9 @@ fn id(namespace: &str, value: &str) -> StableSemanticId {
     StableSemanticId::from_parts(namespace, &[value], BusinessLogicLimits::default()).unwrap()
 }
 
-fn route_result(case: FixtureCase) -> Vec<sentrdel_review::business_logic::model::RouteObservation> {
+fn route_result(
+    case: FixtureCase,
+) -> Vec<sentrdel_review::business_logic::model::RouteObservation> {
     let extraction = match case {
         FixtureCase::Safe | FixtureCase::Vulnerable => Some(extract_routes(
             RouteAdapter::Express,
@@ -324,11 +328,18 @@ fn repository(case: FixtureCase) -> CliRepository {
     CliRepository::new(format!("fixture:r3-t030:{}", case.slug()), ".").unwrap()
 }
 
-fn review(case: FixtureCase, analysis: &FixtureAnalysis) -> sentrdel_cli::review::business_logic::RegisteredBusinessLogicReviewOutput {
+fn review(
+    case: FixtureCase,
+    analysis: &FixtureAnalysis,
+) -> sentrdel_cli::review::business_logic::RegisteredBusinessLogicReviewOutput {
     let findings = reconciled_findings(case, &analysis.producer);
     let baseline = ReviewOutput::new(
         repository(case),
-        if findings.is_empty() { CliDecision::Allow } else { CliDecision::Ask },
+        if findings.is_empty() {
+            CliDecision::Allow
+        } else {
+            CliDecision::Ask
+        },
         findings,
         Vec::new(),
         Vec::new(),
@@ -398,7 +409,10 @@ fn init(case: FixtureCase) -> sentrdel_cli::init::InitOutput {
     build_init_output(&snapshot, ".", 0).unwrap()
 }
 
-fn explain(case: FixtureCase, registered: &sentrdel_cli::review::business_logic::RegisteredBusinessLogicReviewOutput) -> Option<String> {
+fn explain(
+    case: FixtureCase,
+    registered: &sentrdel_cli::review::business_logic::RegisteredBusinessLogicReviewOutput,
+) -> Option<String> {
     let finding = registered.output().findings().first()?.clone();
     let output = ExplainOutput::new(
         1,
@@ -424,7 +438,12 @@ fn r3_fixture_matrix_has_deterministic_review_init_and_explain_behavior() {
     for case in FixtureCase::ALL {
         let first_analysis = analyze_fixture(case);
         let second_analysis = analyze_fixture(case);
-        assert_eq!(first_analysis, second_analysis, "analysis replay drift for {}", case.slug());
+        assert_eq!(
+            first_analysis,
+            second_analysis,
+            "analysis replay drift for {}",
+            case.slug()
+        );
 
         let first_review = review(case, &first_analysis);
         let second_review = review(case, &second_analysis);
@@ -443,33 +462,52 @@ fn r3_fixture_matrix_has_deterministic_review_init_and_explain_behavior() {
 
         let first_init = init(case);
         let second_init = init(case);
-        assert_eq!(first_init, second_init, "init replay drift for {}", case.slug());
+        assert_eq!(
+            first_init,
+            second_init,
+            "init replay drift for {}",
+            case.slug()
+        );
 
         let first_explain = explain(case, &first_review);
         let second_explain = explain(case, &second_review);
-        assert_eq!(first_explain, second_explain, "explain replay drift for {}", case.slug());
+        assert_eq!(
+            first_explain,
+            second_explain,
+            "explain replay drift for {}",
+            case.slug()
+        );
 
         match case {
             FixtureCase::Vulnerable => {
                 assert_eq!(first_review.output().envelope().decision, CliDecision::Ask);
                 assert_eq!(first_review.output().findings().len(), 1);
-                let rendered = first_explain.expect("vulnerable fixture has an explainable Finding");
+                let rendered =
+                    first_explain.expect("vulnerable fixture has an explainable Finding");
                 assert!(rendered.contains("[VIOLATED]"));
                 assert!(rendered.contains("R2 supporting Evidence"));
                 assert!(rendered.contains("does not prove runtime exploitability"));
                 assert!(rendered.contains("reconciler remain the verdict authority"));
             }
             FixtureCase::Safe => {
-                assert_eq!(first_analysis.evaluations[0].state(), InvariantEvaluationState::Satisfied);
+                assert_eq!(
+                    first_analysis.evaluations[0].state(),
+                    InvariantEvaluationState::Satisfied
+                );
                 assert!(first_review.output().findings().is_empty());
                 assert!(first_explain.is_none());
             }
             FixtureCase::ContradictoryUnknown => {
-                assert_eq!(first_analysis.evaluations[0].state(), InvariantEvaluationState::Unknown);
+                assert_eq!(
+                    first_analysis.evaluations[0].state(),
+                    InvariantEvaluationState::Unknown
+                );
                 assert_eq!(first_analysis.paths[0].path_state(), PathState::Partial);
                 assert!(first_review.output().findings().is_empty());
             }
-            FixtureCase::UnsupportedSemanticLink | FixtureCase::UnsupportedFramework | FixtureCase::HostileRepository => {
+            FixtureCase::UnsupportedSemanticLink
+            | FixtureCase::UnsupportedFramework
+            | FixtureCase::HostileRepository => {
                 assert!(first_analysis.paths.is_empty());
                 assert!(first_analysis.evaluations.is_empty());
                 assert!(first_review.output().findings().is_empty());
