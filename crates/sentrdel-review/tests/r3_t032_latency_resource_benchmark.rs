@@ -237,7 +237,10 @@ fn run_static_pipeline() -> PipelineSnapshot {
         ProjectInvariantLimits::default(),
         limits,
     );
-    assert_eq!(project_invariants.state(), ProjectInvariantLoadState::Loaded);
+    assert_eq!(
+        project_invariants.state(),
+        ProjectInvariantLoadState::Loaded
+    );
 
     let graph = map_validated_observations(
         routes.routes(),
@@ -382,17 +385,32 @@ fn r3_t032_warm_static_pipeline_has_machine_metadata_and_preserves_review_latenc
 fn r3_t032_declared_hard_caps_match_frozen_parser_path_graph_and_invariant_defaults() {
     let policy = policy();
 
-    assert_eq!(policy.parser_caps.max_structural_rules, MAX_STRUCTURAL_RULES);
-    assert_eq!(policy.parser_caps.max_rule_id_bytes, MAX_STRUCTURAL_RULE_ID_BYTES);
-    assert_eq!(policy.parser_caps.max_pattern_bytes, MAX_STRUCTURAL_PATTERN_BYTES);
-    assert_eq!(policy.parser_caps.max_document_bytes, MAX_STRUCTURAL_DOCUMENT_BYTES);
+    assert_eq!(
+        policy.parser_caps.max_structural_rules,
+        MAX_STRUCTURAL_RULES
+    );
+    assert_eq!(
+        policy.parser_caps.max_rule_id_bytes,
+        MAX_STRUCTURAL_RULE_ID_BYTES
+    );
+    assert_eq!(
+        policy.parser_caps.max_pattern_bytes,
+        MAX_STRUCTURAL_PATTERN_BYTES
+    );
+    assert_eq!(
+        policy.parser_caps.max_document_bytes,
+        MAX_STRUCTURAL_DOCUMENT_BYTES
+    );
 
     let path = PathCorrelationLimits::default();
     assert_eq!(policy.path_caps.max_observations, path.max_observations);
     assert_eq!(policy.path_caps.max_nodes, path.max_nodes);
     assert_eq!(policy.path_caps.max_edges, path.max_edges);
     assert_eq!(policy.path_caps.max_depth, path.max_depth);
-    assert_eq!(policy.path_caps.max_candidate_paths, path.max_candidate_paths);
+    assert_eq!(
+        policy.path_caps.max_candidate_paths,
+        path.max_candidate_paths
+    );
     assert_eq!(policy.path_caps.max_diagnostics, path.max_diagnostics);
     assert_eq!(policy.path_caps.max_work_items, path.max_work_items);
     assert_eq!(policy.path_caps.max_frontier, path.max_frontier);
@@ -420,20 +438,38 @@ fn r3_t032_declared_hard_caps_match_frozen_parser_path_graph_and_invariant_defau
     );
 
     let invariants = ProjectInvariantLimits::default();
-    assert_eq!(policy.invariant_caps.max_file_bytes, invariants.max_file_bytes);
-    assert_eq!(policy.invariant_caps.max_invariants, invariants.max_invariants);
+    assert_eq!(
+        policy.invariant_caps.max_file_bytes,
+        invariants.max_file_bytes
+    );
+    assert_eq!(
+        policy.invariant_caps.max_invariants,
+        invariants.max_invariants
+    );
     assert_eq!(policy.invariant_caps.max_id_bytes, invariants.max_id_bytes);
     assert_eq!(policy.invariant_caps.max_keys, invariants.max_keys);
-    assert_eq!(policy.invariant_caps.max_value_bytes, invariants.max_value_bytes);
-    assert_eq!(invariants.max_file_bytes, DEFAULT_MAX_PROJECT_INVARIANT_FILE_BYTES);
+    assert_eq!(
+        policy.invariant_caps.max_value_bytes,
+        invariants.max_value_bytes
+    );
+    assert_eq!(
+        invariants.max_file_bytes,
+        DEFAULT_MAX_PROJECT_INVARIANT_FILE_BYTES
+    );
     assert_eq!(invariants.max_invariants, DEFAULT_MAX_PROJECT_INVARIANTS);
-    assert_eq!(invariants.max_id_bytes, DEFAULT_MAX_PROJECT_INVARIANT_ID_BYTES);
+    assert_eq!(
+        invariants.max_id_bytes,
+        DEFAULT_MAX_PROJECT_INVARIANT_ID_BYTES
+    );
     assert_eq!(invariants.max_keys, DEFAULT_MAX_PROJECT_INVARIANT_KEYS);
     assert_eq!(
         invariants.max_value_bytes,
         DEFAULT_MAX_PROJECT_INVARIANT_VALUE_BYTES
     );
-    assert_eq!(policy.invariant_caps.max_lines, DEFAULT_MAX_PROJECT_INVARIANT_LINES);
+    assert_eq!(
+        policy.invariant_caps.max_lines,
+        DEFAULT_MAX_PROJECT_INVARIANT_LINES
+    );
     assert_eq!(
         policy.invariant_caps.max_scope_text_bytes,
         DEFAULT_MAX_PROJECT_SCOPE_TEXT_BYTES
