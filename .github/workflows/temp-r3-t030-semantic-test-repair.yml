@@ -1,0 +1,149 @@
+name: Temporary R3-T030 semantic test repair
+
+on:
+  push:
+    branches:
+      - test/r3-t030-e2e-fixtures
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: test/r3-t030-e2e-fixtures
+          persist-credentials: true
+          fetch-depth: 1
+      - name: Repair admitted semantic path topology and validate
+        shell: bash
+        run: |
+          set -euo pipefail
+          rustup toolchain install 1.98.0 --profile minimal --component rustfmt
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('crates/sentrdel-cli/src/r3_t030_e2e.rs')
+          text = path.read_text()
+
+          old_helper = '''fn admitted_link(
+              case: FixtureCase,
+              route: &RouteObservation,
+              target: StableSemanticId,
+              relation: &str,
+              start: usize,
+          ) -> CrossLayerLink {
+              CrossLayerLink::new(
+                  StableSemanticId::from_parts(
+                      "r3.t030.surface.link",
+                      &[route.route_id().as_str(), target.as_str(), relation],
+                      BusinessLogicLimits::default(),
+                  )
+                  .unwrap(),
+                  route.route_id().clone(),
+                  target,
+                  relation,
+                  LinkBasis::ExplicitAdapterLink,
+                  ConfidenceBasis::Extracted,
+                  vec![semantic_location(case, start)],
+                  BusinessLogicLimits::default(),
+              )
+              .unwrap()
+          }
+          '''
+          new_helper = '''fn admitted_link(
+              case: FixtureCase,
+              source: StableSemanticId,
+              target: StableSemanticId,
+              relation: &str,
+              start: usize,
+          ) -> CrossLayerLink {
+              CrossLayerLink::new(
+                  StableSemanticId::from_parts(
+                      "r3.t030.surface.link",
+                      &[source.as_str(), target.as_str(), relation],
+                      BusinessLogicLimits::default(),
+                  )
+                  .unwrap(),
+                  source,
+                  target,
+                  relation,
+                  LinkBasis::ExplicitAdapterLink,
+                  ConfidenceBasis::Extracted,
+                  vec![semantic_location(case, start)],
+                  BusinessLogicLimits::default(),
+              )
+              .unwrap()
+          }
+          '''
+
+          old_links = '''    let links = vec![
+                  admitted_link(
+                      case,
+                      route,
+                      actor.actor_id().clone(),
+                      "surface_route_reaches_actor",
+                      160,
+                  ),
+                  admitted_link(
+                      case,
+                      route,
+                      operation.operation_id().clone(),
+                      "surface_route_reaches_operation",
+                      180,
+                  ),
+              ];
+          '''
+          new_links = '''    let mut links = vec![admitted_link(
+                  case,
+                  route.route_id().clone(),
+                  actor.actor_id().clone(),
+                  "surface_route_reaches_actor",
+                  160,
+              )];
+              if case == FixtureCase::Vulnerable {
+                  links.push(admitted_link(
+                      case,
+                      actor.actor_id().clone(),
+                      operation.operation_id().clone(),
+                      "surface_actor_reaches_operation",
+                      180,
+                  ));
+              }
+          '''
+
+          if text.count(old_helper) != 1:
+              raise SystemExit('admitted_link helper anchor mismatch')
+          if text.count(old_links) != 1:
+              raise SystemExit('admitted semantic links anchor mismatch')
+          text = text.replace(old_helper, new_helper, 1)
+          text = text.replace(old_links, new_links, 1)
+          path.write_text(text)
+          PY
+
+          cargo +1.98.0 fmt --all
+          set +e
+          cargo +1.98.0 test -p sentrdel-cli --bin sentrdel r3_t030_e2e --locked -- --nocapture
+          status=$?
+          set -e
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+          if [ "$status" -ne 0 ]; then
+            git checkout -- crates/sentrdel-cli/src/r3_t030_e2e.rs
+            rm .github/workflows/temp-r3-t030-semantic-test-repair.yml
+            git add -A crates/sentrdel-cli/src/r3_t030_e2e.rs .github/workflows/temp-r3-t030-semantic-test-repair.yml
+            git commit -m 'ci(r3): remove failed T030 semantic repair probe'
+            git push origin HEAD:test/r3-t030-e2e-fixtures
+            exit "$status"
+          fi
+
+          rm .github/workflows/temp-r3-t030-semantic-test-repair.yml
+          git diff --check
+          git add -A crates/sentrdel-cli/src/r3_t030_e2e.rs .github/workflows/temp-r3-t030-semantic-test-repair.yml
+          git commit -m 'test(r3): preserve actor path in T030 semantics'
+          git push origin HEAD:test/r3-t030-e2e-fixtures
