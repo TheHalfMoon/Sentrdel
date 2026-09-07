@@ -19,9 +19,9 @@ use sentrdel_review::{
             FieldSet, FieldSetMode, FilterOperator, FilterPredicate, FrameworkFamily, GuardKind,
             GuardObservation, HttpMethod, InvariantDefinition, InvariantEvaluation,
             InvariantEvaluationState, InvariantKind, InvariantRequirement, InvariantScope,
-            InvariantSource, LinkBasis, PathState, ProviderAuthorityClass,
-            ProviderClientAuthority, ResourceKind, ResourceRef, RouteObservation, SourceLocation,
-            StableSemanticId, TrustBasis, ValueOrigin, ValueOriginKind,
+            InvariantSource, LinkBasis, PathState, ProviderAuthorityClass, ProviderClientAuthority,
+            ResourceKind, ResourceRef, RouteObservation, SourceLocation, StableSemanticId,
+            TrustBasis, ValueOrigin, ValueOriginKind,
         },
         producer::{
             R3_BUSINESS_LOGIC_CLAIMS_RUNTIME_EXPLOITABILITY, R3_BUSINESS_LOGIC_CREATES_FINDINGS,
@@ -46,7 +46,9 @@ use sentrdel_review::{
 use sentrdel_schema::{
     SCHEMA_V1,
     coverage::CoverageState,
-    evidence::{EpistemicClass, Evidence, EvidenceAuthority, EvidenceClaim, EvidenceLocation, ProducerKind},
+    evidence::{
+        EpistemicClass, Evidence, EvidenceAuthority, EvidenceClaim, EvidenceLocation, ProducerKind,
+    },
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -200,7 +202,11 @@ fn link(
 }
 
 fn tenant_case(clean: bool) -> EvaluatedCase {
-    let tag = if clean { "tenant-safe" } else { "tenant-vulnerable" };
+    let tag = if clean {
+        "tenant-safe"
+    } else {
+        "tenant-vulnerable"
+    };
     let actor = ActorContext::new(
         id("r3.t031.tenant.actor", tag),
         ActorIdentityKind::AuthenticatedUser,
@@ -218,7 +224,11 @@ fn tenant_case(clean: bool) -> EvaluatedCase {
         } else {
             ValueOriginKind::RequestPath
         },
-        if clean { "auth.user.id" } else { "request.params.user_id" },
+        if clean {
+            "auth.user.id"
+        } else {
+            "request.params.user_id"
+        },
         clean.then(|| actor.actor_id().clone()),
         Vec::new(),
         0,
@@ -331,7 +341,11 @@ fn tenant_case(clean: bool) -> EvaluatedCase {
 }
 
 fn role_case(clean: bool) -> EvaluatedCase {
-    let tag = if clean { "role-safe" } else { "role-vulnerable" };
+    let tag = if clean {
+        "role-safe"
+    } else {
+        "role-vulnerable"
+    };
     let route = RouteObservation::new(
         id("r3.t031.role.route", tag),
         FrameworkFamily::NextApp,
@@ -599,9 +613,7 @@ fn boundary_evidence(tag: &str) -> Evidence {
         .expect("sealed boundary evidence")
 }
 
-fn elevated_support(
-    tag: &str,
-) -> (ProviderClientAuthority, R2SupportCorrelation) {
+fn elevated_support(tag: &str) -> (ProviderClientAuthority, R2SupportCorrelation) {
     let evidence = boundary_evidence(tag);
     let client = ProviderClientAuthority::new(
         id("r3.t031.elevated.client", tag),
@@ -625,7 +637,11 @@ fn elevated_support(
 }
 
 fn elevated_client_case(clean: bool) -> EvaluatedCase {
-    let tag = if clean { "elevated-safe" } else { "elevated-vulnerable" };
+    let tag = if clean {
+        "elevated-safe"
+    } else {
+        "elevated-vulnerable"
+    };
     let (client, support) = elevated_support(tag);
     let route = RouteObservation::new(
         id("r3.t031.elevated.route", tag),
@@ -811,7 +827,8 @@ fn coverage_matrix() -> Vec<BusinessLogicCoverage> {
 }
 
 fn protected_label_isolation(suite: &ReleaseSuite) -> bool {
-    let manifest: Value = serde_json::from_slice(HOLDOUT_BYTES).expect("protected holdout manifest");
+    let manifest: Value =
+        serde_json::from_slice(HOLDOUT_BYTES).expect("protected holdout manifest");
     manifest["corpus_class"] == "PROTECTED_HOLDOUT"
         && manifest["case_material_location"] == "EXTERNAL_ONLY"
         && manifest["expected_outputs_location"] == "EXTERNAL_ONLY"
@@ -850,9 +867,14 @@ fn explanation_correct(evidence: &[Evidence], expected_evaluations: usize) -> (u
                     .get("provenance_byte_ranges")
                     .and_then(Value::as_array)
                     .is_some_and(|ranges| !ranges.is_empty())
-                && item.claim().security_interpretation.as_ref().is_some_and(|text| {
-                    text.contains("bounded static scope") && !text.contains("runtime exploitability is proven")
-                })
+                && item
+                    .claim()
+                    .security_interpretation
+                    .as_ref()
+                    .is_some_and(|text| {
+                        text.contains("bounded static scope")
+                            && !text.contains("runtime exploitability is proven")
+                    })
         });
     (interpretations.len() as u64, passed)
 }
@@ -932,25 +954,32 @@ fn evaluate_once() -> R3ReleaseRun {
         .filter(|case| case.evaluation.state() != InvariantEvaluationState::Satisfied)
         .count() as u64;
     let clean_cases_evaluated = clean_cases.len() as u64;
-    assert_eq!(suite.clean_case_false_positive_gate.sample_state, "INITIAL_FOUR_CASE_STRICT_ZERO");
-    assert_eq!(suite.clean_case_false_positive_gate.max_false_positive_clean_cases, 1);
+    assert_eq!(
+        suite.clean_case_false_positive_gate.sample_state,
+        "INITIAL_FOUR_CASE_STRICT_ZERO"
+    );
+    assert_eq!(
+        suite
+            .clean_case_false_positive_gate
+            .max_false_positive_clean_cases,
+        1
+    );
     assert_eq!(suite.clean_case_false_positive_gate.per_clean_cases, 5);
-    let clean_case_fp_gate_passed = if clean_cases_evaluated
-        < suite.clean_case_false_positive_gate.per_clean_cases
-    {
-        clean_false_positives == 0 && clean_non_satisfied == 0
-    } else {
-        clean_non_satisfied == 0
-            && clean_false_positives
-                .checked_mul(suite.clean_case_false_positive_gate.per_clean_cases)
-                .is_some_and(|scaled| {
-                    scaled
-                        <= suite
-                            .clean_case_false_positive_gate
-                            .max_false_positive_clean_cases
-                            .saturating_mul(clean_cases_evaluated)
-                })
-    };
+    let clean_case_fp_gate_passed =
+        if clean_cases_evaluated < suite.clean_case_false_positive_gate.per_clean_cases {
+            clean_false_positives == 0 && clean_non_satisfied == 0
+        } else {
+            clean_non_satisfied == 0
+                && clean_false_positives
+                    .checked_mul(suite.clean_case_false_positive_gate.per_clean_cases)
+                    .is_some_and(|scaled| {
+                        scaled
+                            <= suite
+                                .clean_case_false_positive_gate
+                                .max_false_positive_clean_cases
+                                .saturating_mul(clean_cases_evaluated)
+                    })
+        };
 
     let required = suite
         .known_ground_truth
@@ -1020,7 +1049,10 @@ fn evaluate_once() -> R3ReleaseRun {
         && output.coverage().len() == coverage.len() + 2
         && evidence_identity_failures == 0;
     let authority_results = BTreeMap::from([
-        ("r3-output-is-evidence-or-coverage-only", output_is_evidence_or_coverage_only),
+        (
+            "r3-output-is-evidence-or-coverage-only",
+            output_is_evidence_or_coverage_only,
+        ),
         (
             "no-direct-finding-authority",
             !R3_DIRECT_FINDING_CREATION_ALLOWED && !R3_BUSINESS_LOGIC_CREATES_FINDINGS,
@@ -1031,7 +1063,10 @@ fn evaluate_once() -> R3ReleaseRun {
                 && !R3_TARGET_EXECUTION_ALLOWED
                 && !R3_BUSINESS_LOGIC_EXECUTES_TARGET_CODE,
         ),
-        ("no-network-access", !R3_BUSINESS_LOGIC_PERFORMS_NETWORK_ACCESS),
+        (
+            "no-network-access",
+            !R3_BUSINESS_LOGIC_PERFORMS_NETWORK_ACCESS,
+        ),
         (
             "no-provider-credentials",
             !R3_PROVIDER_CREDENTIALS_ALLOWED && !R3_BUSINESS_LOGIC_REQUESTS_PROVIDER_CREDENTIALS,
@@ -1048,7 +1083,10 @@ fn evaluate_once() -> R3ReleaseRun {
         .filter(|id| authority_results.get(id.as_str()).copied() == Some(true))
         .cloned()
         .collect::<Vec<_>>();
-    assert_eq!(authority_assertions_passed.len(), suite.authority_assertions.len());
+    assert_eq!(
+        authority_assertions_passed.len(),
+        suite.authority_assertions.len()
+    );
 
     assert_eq!(suite.performance.state, "NOT_MEASURED");
     assert_eq!(suite.performance.owner_task, "R3-T032");
