@@ -1,0 +1,141 @@
+name: Temporary R3-T030 inline correlation repair
+
+on:
+  push:
+    branches:
+      - test/r3-t030-e2e-fixtures
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: test/r3-t030-e2e-fixtures
+          persist-credentials: true
+          fetch-depth: 1
+
+      - name: Apply conservative inline route-operation correlation repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          rustup toolchain install 1.98.0 --profile minimal --component rustfmt
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('crates/sentrdel-review/src/business_logic/path.rs')
+          text = path.read_text()
+
+          anchor = "pub struct PathCorrelationInputs<'a> {\n"
+          replacement = "pub const INLINE_ROUTE_OPERATION_RELATION: &str = \"inline_route_contains_operation\";\n\n" + anchor
+          if text.count(anchor) != 1:
+              raise SystemExit('PathCorrelationInputs anchor not found exactly once')
+          text = text.replace(anchor, replacement, 1)
+
+          old = '''    let model_limits = model_limits.validate()?;\n    let base_result = base::correlate_cross_layer_paths(\n        base::PathCorrelationInputs {\n            routes: inputs.routes,\n            actors: inputs.actors,\n            guards: inputs.guards,\n            values: inputs.values,\n            data_operations: inputs.data_operations,\n            provider_clients: inputs.provider_clients,\n            links: inputs.links,\n        },\n        model_limits,\n        correlation_limits,\n    )?;\n'''
+          new = '''    let model_limits = model_limits.validate()?;\n    let correlation_limits = correlation_limits.validate()?;\n    let mut effective_links = inputs.links.to_vec();\n    effective_links.extend(derive_inline_route_operation_links(\n        inputs.routes,\n        inputs.data_operations,\n        model_limits,\n        correlation_limits,\n    )?);\n    effective_links.sort();\n    effective_links.dedup();\n    let base_result = base::correlate_cross_layer_paths(\n        base::PathCorrelationInputs {\n            routes: inputs.routes,\n            actors: inputs.actors,\n            guards: inputs.guards,\n            values: inputs.values,\n            data_operations: inputs.data_operations,\n            provider_clients: inputs.provider_clients,\n            links: &effective_links,\n        },\n        model_limits,\n        correlation_limits,\n    )?;\n'''
+          if text.count(old) != 1:
+              raise SystemExit('correlator delegation block not found exactly once')
+          text = text.replace(old, new, 1)
+
+          marker = 'fn qualify_required_role_links(\n'
+          helper = r'''fn derive_inline_route_operation_links(
+    routes: &[RouteObservation],
+    operations: &[DataOperation],
+    limits: BusinessLogicLimits,
+    correlation_limits: PathCorrelationLimits,
+) -> Result<Vec<CrossLayerLink>, PathCorrelationError> {
+    if routes.len().saturating_mul(operations.len()) > correlation_limits.max_work_items {
+        return Ok(Vec::new());
+    }
+
+    let mut routes_by_path = BTreeMap::<&str, Vec<&RouteObservation>>::new();
+    for route in routes {
+        if route.coverage_state() != &CoverageState::Covered
+            || !route
+                .handler_semantic_key()
+                .is_some_and(|handler| handler.starts_with("inline@"))
+            || route.provenance().len() != 1
+        {
+            continue;
+        }
+        let location = &route.provenance()[0];
+        routes_by_path
+            .entry(location.path().as_str())
+            .or_default()
+            .push(route);
+    }
+
+    let mut links = Vec::new();
+    for operation in operations {
+        if operation.coverage_state() != &CoverageState::Covered || operation.provenance().len() != 1
+        {
+            continue;
+        }
+        let operation_location = &operation.provenance()[0];
+        let Some(candidates) = routes_by_path.get(operation_location.path().as_str()) else {
+            continue;
+        };
+        let mut owner = None;
+        let mut ambiguous = false;
+        for route in candidates {
+            let route_location = &route.provenance()[0];
+            if route_location.start_byte() <= operation_location.start_byte()
+                && operation_location.end_byte() <= route_location.end_byte()
+            {
+                if owner.is_some() {
+                    ambiguous = true;
+                    break;
+                }
+                owner = Some(*route);
+            }
+        }
+        let Some(route) = owner.filter(|_| !ambiguous) else {
+            continue;
+        };
+        let mut provenance = BTreeSet::new();
+        provenance.extend(route.provenance().iter().cloned());
+        provenance.extend(operation.provenance().iter().cloned());
+        links.push(CrossLayerLink::new(
+            StableSemanticId::from_parts(
+                "r3-inline-route-operation-link",
+                &[
+                    route.route_id().as_str(),
+                    operation.operation_id().as_str(),
+                    INLINE_ROUTE_OPERATION_RELATION,
+                ],
+                limits,
+            )?,
+            route.route_id().clone(),
+            operation.operation_id().clone(),
+            INLINE_ROUTE_OPERATION_RELATION,
+            LinkBasis::ExplicitAdapterLink,
+            ConfidenceBasis::Extracted,
+            provenance.into_iter().collect(),
+            limits,
+        )?);
+    }
+    links.sort();
+    links.dedup();
+    Ok(links)
+}
+
+'''
+          if text.count(marker) != 1:
+              raise SystemExit('qualification helper insertion marker not found exactly once')
+          text = text.replace(marker, helper + marker, 1)
+          path.write_text(text)
+          PY
+          cargo +1.98.0 fmt --all
+          cargo +1.98.0 test -p sentrdel-review --test r3_t017_inline_route_operation --locked
+          cargo +1.98.0 test -p sentrdel-review --test r3_t020_cross_layer_correlation --locked
+          cargo +1.98.0 check --workspace --all-targets --locked
+          git diff --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add crates/sentrdel-review/src/business_logic/path.rs crates/sentrdel-review/tests/r3_t017_inline_route_operation.rs
+          git commit -m 'fix(r3): correlate unique inline route operations'
+          git push origin HEAD:test/r3-t030-e2e-fixtures
