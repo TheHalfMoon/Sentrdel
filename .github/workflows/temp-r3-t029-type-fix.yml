@@ -1,0 +1,57 @@
+name: Temporary R3-T029 type repair
+
+on:
+  push:
+    branches:
+      - feat/r3-t029-explain-business-logic
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: feat/r3-t029-explain-business-logic
+          persist-credentials: true
+          fetch-depth: 1
+
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.98.0 --profile minimal --component rustfmt
+
+      - name: Apply bounded T029 type repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('crates/sentrdel-cli/src/explain_business_logic.rs')
+          text = path.read_text()
+          replacements = [
+              ('    pub route_pattern: Option<String>,', '    pub route_pattern: String,'),
+              ('            if let Some(pattern) = &chain.route_pattern {\n                rendered.push_str(" (");\n                rendered.push_str(pattern);\n                rendered.push(\')\');\n            }', '            if !chain.route_pattern.is_empty() {\n                rendered.push_str(" (");\n                rendered.push_str(&chain.route_pattern);\n                rendered.push(\')\');\n            }'),
+              ('            route_pattern: Some("PATCH /items/:id".to_owned()),', '            route_pattern: "PATCH /items/:id".to_owned(),'),
+          ]
+          for old, new in replacements:
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'expected exactly one occurrence, found {count}: {old!r}')
+              text = text.replace(old, new, 1)
+          path.write_text(text)
+          PY
+          cargo +1.98.0 fmt --all
+          git diff --check
+          changed="$(git diff --name-only)"
+          unexpected="$(printf '%s\n' "${changed}" | grep -vFx 'crates/sentrdel-cli/src/explain_business_logic.rs' || true)"
+          if [[ -n "${unexpected}" ]]; then
+            printf 'unexpected repair paths:\n%s\n' "${unexpected}" >&2
+            exit 1
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add crates/sentrdel-cli/src/explain_business_logic.rs
+          git commit -m 'fix(r3): align explain route pattern type'
+          git push origin HEAD:feat/r3-t029-explain-business-logic
