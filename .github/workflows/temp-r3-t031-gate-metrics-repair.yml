@@ -28,7 +28,7 @@ jobs:
         run: |
           set -euo pipefail
           base="63c8b7eafc5f25446a0310f77b75e59989d3019d"
-          expected_parent="cac20501e530bb2da9b241bf600a38006c3e1b00"
+          expected_parent="bb7007b5826a1b8709baa6a695705db90bec9ee3"
           test "$(git rev-parse HEAD^)" = "$expected_parent"
           git merge-base --is-ancestor "$base" HEAD
           actual="$(git diff --name-only "$base"...HEAD | sort | tr '\n' ' ')"
