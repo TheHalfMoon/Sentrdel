@@ -124,7 +124,9 @@ struct R3ReleaseRun {
     clean_cases_evaluated: u64,
     clean_false_positives: u64,
     clean_non_satisfied: u64,
+    clean_case_policy_contract_passed: bool,
     clean_case_fp_gate_passed: bool,
+    unexpected_case_states: Vec<String>,
     required_violated_invariant_groups: Vec<String>,
     detected_violated_invariant_groups: Vec<String>,
     known_misses: u64,
@@ -978,20 +980,18 @@ fn evaluate_once() -> R3ReleaseRun {
         elevated_client_case(false),
     ];
 
-    for case in &cases {
-        let expected = if case.clean {
-            InvariantEvaluationState::Satisfied
-        } else {
-            InvariantEvaluationState::Violated
-        };
-        assert_eq!(
-            case.evaluation.state(),
-            expected,
-            "unexpected release-gate state for {} clean={}",
-            case.group,
-            case.clean
-        );
-    }
+    let unexpected_case_states = cases
+        .iter()
+        .filter_map(|case| {
+            let expected = if case.clean {
+                InvariantEvaluationState::Satisfied
+            } else {
+                InvariantEvaluationState::Violated
+            };
+            (case.evaluation.state() != expected)
+                .then(|| format!("{}:clean={}", case.group, case.clean))
+        })
+        .collect::<Vec<_>>();
 
     let clean_cases = cases.iter().filter(|case| case.clean).collect::<Vec<_>>();
     let clean_false_positives = clean_cases
@@ -1003,19 +1003,15 @@ fn evaluate_once() -> R3ReleaseRun {
         .filter(|case| case.evaluation.state() != InvariantEvaluationState::Satisfied)
         .count() as u64;
     let clean_cases_evaluated = clean_cases.len() as u64;
-    assert_eq!(
-        suite.clean_case_false_positive_gate.sample_state,
-        "INITIAL_FOUR_CASE_STRICT_ZERO"
-    );
-    assert_eq!(
-        suite
+    let clean_case_policy_contract_passed = suite.clean_case_false_positive_gate.sample_state
+        == "INITIAL_FOUR_CASE_STRICT_ZERO"
+        && suite
             .clean_case_false_positive_gate
-            .max_false_positive_clean_cases,
-        1
-    );
-    assert_eq!(suite.clean_case_false_positive_gate.per_clean_cases, 5);
-    let clean_case_fp_gate_passed =
-        if clean_cases_evaluated < suite.clean_case_false_positive_gate.per_clean_cases {
+            .max_false_positive_clean_cases
+            == 1
+        && suite.clean_case_false_positive_gate.per_clean_cases == 5;
+    let clean_case_fp_gate_passed = clean_case_policy_contract_passed
+        && if clean_cases_evaluated < suite.clean_case_false_positive_gate.per_clean_cases {
             clean_false_positives == 0 && clean_non_satisfied == 0
         } else {
             clean_non_satisfied == 0
@@ -1148,7 +1144,9 @@ fn evaluate_once() -> R3ReleaseRun {
         clean_cases_evaluated,
         clean_false_positives,
         clean_non_satisfied,
+        clean_case_policy_contract_passed,
         clean_case_fp_gate_passed,
+        unexpected_case_states,
         required_violated_invariant_groups: required.into_iter().collect(),
         detected_violated_invariant_groups: detected.into_iter().collect(),
         known_misses,
@@ -1182,7 +1180,9 @@ fn r3_initial_release_gate_meets_sentrdelbench_quality_contract() {
         "REPLAY_MISMATCH"
     }
     .to_owned();
+    assert!(first.clean_case_policy_contract_passed);
     assert!(first.clean_case_fp_gate_passed);
+    assert!(first.unexpected_case_states.is_empty());
     assert_eq!(first.clean_false_positives, 0);
     assert_eq!(first.clean_non_satisfied, 0);
     assert!(first.known_miss_gate_passed);
