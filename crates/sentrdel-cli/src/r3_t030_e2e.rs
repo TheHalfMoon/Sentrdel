@@ -366,9 +366,11 @@ fn init(case: FixtureCase) -> sentrdel_cli::init::InitOutput {
     let supabase = detect_supabase(std::iter::empty::<&str>(), DetectionLimits::default()).unwrap();
     let mut packs = SecurityPackRegistry::new();
     register_r3_pack(&mut packs).unwrap();
+    let repository_id = format!("fixture:r3-t030:{}", case.slug());
+    let repository_root_digest = format!("sha256:{}", "a".repeat(64));
     let snapshot = build_project_profile_snapshot(
-        format!("fixture:r3-t030:{}", case.slug()),
-        format!("sha256:{}", "a".repeat(64)),
+        &repository_id,
+        &repository_root_digest,
         &LanguageEcosystemDetection {
             languages: vec!["javascript".to_owned()],
             package_ecosystems: vec!["npm".to_owned()],
