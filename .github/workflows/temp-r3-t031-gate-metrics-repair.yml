@@ -28,7 +28,7 @@ jobs:
         run: |
           set -euo pipefail
           base="63c8b7eafc5f25446a0310f77b75e59989d3019d"
-          expected_parent="bb7007b5826a1b8709baa6a695705db90bec9ee3"
+          expected_parent="2e169d74f5b7215f3b2067f468ede113d00803c6"
           test "$(git rev-parse HEAD^)" = "$expected_parent"
           git merge-base --is-ancestor "$base" HEAD
           actual="$(git diff --name-only "$base"...HEAD | sort | tr '\n' ' ')"
@@ -47,137 +47,102 @@ jobs:
           path = Path("crates/sentrdel-review/tests/r3_t031_release_benchmark.rs")
           text = path.read_text()
 
-          old_struct = '''    clean_non_satisfied: u64,
-              clean_case_fp_gate_passed: bool,
-              required_violated_invariant_groups: Vec<String>,
-          '''
-          new_struct = '''    clean_non_satisfied: u64,
-              clean_case_policy_contract_passed: bool,
-              clean_case_fp_gate_passed: bool,
-              unexpected_case_states: Vec<String>,
-              required_violated_invariant_groups: Vec<String>,
-          '''
-          if text.count(old_struct) != 1:
-              raise SystemExit("R3ReleaseRun gate field anchor not found exactly once")
-          text = text.replace(old_struct, new_struct)
+          struct_anchor = "    clean_non_satisfied: u64,\n    clean_case_fp_gate_passed: bool,\n"
+          struct_replacement = (
+              "    clean_non_satisfied: u64,\n"
+              "    clean_case_policy_contract_passed: bool,\n"
+              "    clean_case_fp_gate_passed: bool,\n"
+              "    unexpected_case_states: Vec<String>,\n"
+          )
+          if text.count(struct_anchor) != 1:
+              raise SystemExit(f"R3ReleaseRun gate field anchor count={text.count(struct_anchor)}")
+          text = text.replace(struct_anchor, struct_replacement)
 
-          old_case_assert = '''    for case in &cases {
-              let expected = if case.clean {
-                  InvariantEvaluationState::Satisfied
-              } else {
-                  InvariantEvaluationState::Violated
-              };
-              assert_eq!(
-                  case.evaluation.state(),
-                  expected,
-                  "unexpected release-gate state for {} clean={}",
-                  case.group,
-                  case.clean
-              );
-          }
+          case_start = "    for case in &cases {\n"
+          case_end = "\n    let clean_cases = cases.iter().filter(|case| case.clean).collect::<Vec<_>>();"
+          if text.count(case_start) != 1 or text.count(case_end) != 1:
+              raise SystemExit("case assertion range anchors are not unique")
+          start = text.index(case_start)
+          end = text.index(case_end, start)
+          case_metric = (
+              "    let unexpected_case_states = cases\n"
+              "        .iter()\n"
+              "        .filter_map(|case| {\n"
+              "            let expected = if case.clean {\n"
+              "                InvariantEvaluationState::Satisfied\n"
+              "            } else {\n"
+              "                InvariantEvaluationState::Violated\n"
+              "            };\n"
+              "            (case.evaluation.state() != expected)\n"
+              "                .then(|| format!(\"{}:clean={}\", case.group, case.clean))\n"
+              "        })\n"
+              "        .collect::<Vec<_>>();\n"
+          )
+          text = text[:start] + case_metric + text[end:]
 
-          '''
-          new_case_metric = '''    let unexpected_case_states = cases
-              .iter()
-              .filter_map(|case| {
-                  let expected = if case.clean {
-                      InvariantEvaluationState::Satisfied
-                  } else {
-                      InvariantEvaluationState::Violated
-                  };
-                  (case.evaluation.state() != expected)
-                      .then(|| format!("{}:clean={}", case.group, case.clean))
-              })
-              .collect::<Vec<_>>();
+          policy_start = "    assert_eq!(\n        suite.clean_case_false_positive_gate.sample_state,\n"
+          policy_end = "\n\n    let required = suite\n"
+          if text.count(policy_start) != 1 or text.count(policy_end) != 1:
+              raise SystemExit("clean-case policy range anchors are not unique")
+          start = text.index(policy_start)
+          end = text.index(policy_end, start)
+          policy_metric = (
+              "    let clean_case_policy_contract_passed = suite.clean_case_false_positive_gate.sample_state\n"
+              "        == \"INITIAL_FOUR_CASE_STRICT_ZERO\"\n"
+              "        && suite\n"
+              "            .clean_case_false_positive_gate\n"
+              "            .max_false_positive_clean_cases\n"
+              "            == 1\n"
+              "        && suite.clean_case_false_positive_gate.per_clean_cases == 5;\n"
+              "    let clean_case_fp_gate_passed = clean_case_policy_contract_passed\n"
+              "        && if clean_cases_evaluated < suite.clean_case_false_positive_gate.per_clean_cases {\n"
+              "            clean_false_positives == 0 && clean_non_satisfied == 0\n"
+              "        } else {\n"
+              "            clean_non_satisfied == 0\n"
+              "                && clean_false_positives\n"
+              "                    .checked_mul(suite.clean_case_false_positive_gate.per_clean_cases)\n"
+              "                    .is_some_and(|scaled| {\n"
+              "                        scaled\n"
+              "                            <= suite\n"
+              "                                .clean_case_false_positive_gate\n"
+              "                                .max_false_positive_clean_cases\n"
+              "                                .saturating_mul(clean_cases_evaluated)\n"
+              "                    })\n"
+              "        };"
+          )
+          text = text[:start] + policy_metric + text[end:]
 
-          '''
-          if text.count(old_case_assert) != 1:
-              raise SystemExit("early per-case assertion block not found exactly once")
-          text = text.replace(old_case_assert, new_case_metric)
+          init_anchor = (
+              "        clean_false_positives,\n"
+              "        clean_non_satisfied,\n"
+              "        clean_case_fp_gate_passed,\n"
+          )
+          init_replacement = (
+              "        clean_false_positives,\n"
+              "        clean_non_satisfied,\n"
+              "        clean_case_policy_contract_passed,\n"
+              "        clean_case_fp_gate_passed,\n"
+              "        unexpected_case_states,\n"
+          )
+          if text.count(init_anchor) != 1:
+              raise SystemExit(f"R3ReleaseRun initialization anchor count={text.count(init_anchor)}")
+          text = text.replace(init_anchor, init_replacement)
 
-          old_policy = '''    assert_eq!(
-              suite.clean_case_false_positive_gate.sample_state,
-              "INITIAL_FOUR_CASE_STRICT_ZERO"
-          );
-              assert_eq!(
-                  suite
-                      .clean_case_false_positive_gate
-                      .max_false_positive_clean_cases,
-                  1
-              );
-              assert_eq!(suite.clean_case_false_positive_gate.per_clean_cases, 5);
-              let clean_case_fp_gate_passed =
-                  if clean_cases_evaluated < suite.clean_case_false_positive_gate.per_clean_cases {
-                      clean_false_positives == 0 && clean_non_satisfied == 0
-                  } else {
-                      clean_non_satisfied == 0
-                          && clean_false_positives
-                              .checked_mul(suite.clean_case_false_positive_gate.per_clean_cases)
-                              .is_some_and(|scaled| {
-                                  scaled
-                                      <= suite
-                                          .clean_case_false_positive_gate
-                                          .max_false_positive_clean_cases
-                                          .saturating_mul(clean_cases_evaluated)
-                              })
-                  };
-          '''
-          new_policy = '''    let clean_case_policy_contract_passed = suite.clean_case_false_positive_gate.sample_state
-              == "INITIAL_FOUR_CASE_STRICT_ZERO"
-              && suite
-                  .clean_case_false_positive_gate
-                  .max_false_positive_clean_cases
-                  == 1
-              && suite.clean_case_false_positive_gate.per_clean_cases == 5;
-              let clean_case_fp_gate_passed = clean_case_policy_contract_passed
-                  && if clean_cases_evaluated < suite.clean_case_false_positive_gate.per_clean_cases {
-                      clean_false_positives == 0 && clean_non_satisfied == 0
-                  } else {
-                      clean_non_satisfied == 0
-                          && clean_false_positives
-                              .checked_mul(suite.clean_case_false_positive_gate.per_clean_cases)
-                              .is_some_and(|scaled| {
-                                  scaled
-                                      <= suite
-                                          .clean_case_false_positive_gate
-                                          .max_false_positive_clean_cases
-                                          .saturating_mul(clean_cases_evaluated)
-                              })
-                  };
-          '''
-          if text.count(old_policy) != 1:
-              raise SystemExit("clean-case policy block not found exactly once")
-          text = text.replace(old_policy, new_policy)
-
-          old_init = '''        clean_false_positives,
-                  clean_non_satisfied,
-                  clean_case_fp_gate_passed,
-                  required_violated_invariant_groups: required.into_iter().collect(),
-          '''
-          new_init = '''        clean_false_positives,
-                  clean_non_satisfied,
-                  clean_case_policy_contract_passed,
-                  clean_case_fp_gate_passed,
-                  unexpected_case_states,
-                  required_violated_invariant_groups: required.into_iter().collect(),
-          '''
-          if text.count(old_init) != 1:
-              raise SystemExit("R3ReleaseRun initialization anchor not found exactly once")
-          text = text.replace(old_init, new_init)
-
-          old_test = '''    assert!(first.clean_case_fp_gate_passed);
-              assert_eq!(first.clean_false_positives, 0);
-              assert_eq!(first.clean_non_satisfied, 0);
-          '''
-          new_test = '''    assert!(first.clean_case_policy_contract_passed);
-              assert!(first.clean_case_fp_gate_passed);
-              assert!(first.unexpected_case_states.is_empty());
-              assert_eq!(first.clean_false_positives, 0);
-              assert_eq!(first.clean_non_satisfied, 0);
-          '''
-          if text.count(old_test) != 1:
-              raise SystemExit("release-gate assertion anchor not found exactly once")
-          path.write_text(text.replace(old_test, new_test))
+          test_anchor = (
+              "    assert!(first.clean_case_fp_gate_passed);\n"
+              "    assert_eq!(first.clean_false_positives, 0);\n"
+              "    assert_eq!(first.clean_non_satisfied, 0);\n"
+          )
+          test_replacement = (
+              "    assert!(first.clean_case_policy_contract_passed);\n"
+              "    assert!(first.clean_case_fp_gate_passed);\n"
+              "    assert!(first.unexpected_case_states.is_empty());\n"
+              "    assert_eq!(first.clean_false_positives, 0);\n"
+              "    assert_eq!(first.clean_non_satisfied, 0);\n"
+          )
+          if text.count(test_anchor) != 1:
+              raise SystemExit(f"release-gate assertion anchor count={text.count(test_anchor)}")
+          path.write_text(text.replace(test_anchor, test_replacement))
 
       - name: Format candidate
         shell: bash
