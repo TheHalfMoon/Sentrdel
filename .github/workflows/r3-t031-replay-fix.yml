@@ -1,0 +1,77 @@
+name: R3-T031 Replay Qualification
+
+on:
+  push:
+    branches:
+      - test/r3-t031-release-benchmark
+
+permissions:
+  contents: write
+
+jobs:
+  repair-and-qualify:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout candidate branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: test/r3-t031-release-benchmark
+          fetch-depth: 0
+
+      - name: Install pinned Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.98.0
+          components: rustfmt
+
+      - name: Apply exact serialized replay review fix
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("crates/sentrdel-review/tests/r3_t031_release_benchmark.rs")
+          text = path.read_text()
+          old = '''    let first = evaluate_once();
+              let replay = evaluate_once();
+              assert_eq!(first, replay);
+              assert!(first.clean_case_fp_gate_passed);
+          '''
+          new = '''    let first = evaluate_once();
+              let replay = evaluate_once();
+              assert_eq!(first, replay);
+              let first_record = serde_json::to_vec(&first)
+                  .expect("R3-T031 release run must serialize deterministically");
+              let replay_record = serde_json::to_vec(&replay)
+                  .expect("R3-T031 replay run must serialize deterministically");
+              assert_eq!(first_record, replay_record);
+              assert!(first.clean_case_fp_gate_passed);
+          '''
+          if text.count(old) != 1:
+              raise SystemExit(f"expected exactly one replay assertion block, found {text.count(old)}")
+          path.write_text(text.replace(old, new))
+          PY
+
+      - name: Format candidate
+        run: cargo +1.98.0 fmt --all
+
+      - name: Run focused R3-T031 release benchmark
+        run: cargo +1.98.0 test -p sentrdel-review --test r3_t031_release_benchmark --locked
+
+      - name: Check workspace
+        run: cargo +1.98.0 check --workspace --all-targets --locked
+
+      - name: Require clean patch shape
+        run: git diff --check
+
+      - name: Remove temporary workflow and commit review fix
+        shell: bash
+        run: |
+          rm .github/workflows/r3-t031-replay-fix.yml
+          git add crates/sentrdel-review/tests/r3_t031_release_benchmark.rs .github/workflows/r3-t031-replay-fix.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "test(r3): verify serialized replay determinism"
+          git push origin HEAD:test/r3-t031-release-benchmark
