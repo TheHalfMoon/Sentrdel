@@ -15,6 +15,9 @@ For any continuation that needs roadmap context, read in this order:
 5. `specs/000-sentrdel-roadmap/strategic-amendment-2026-09-02-semantic-security-graph.md`
 6. `specs/000-sentrdel-roadmap/competitive-triangulation-2026-09-02.md`
 7. `specs/000-sentrdel-roadmap/post-r3-execution-blueprint-2026-09-02.md`
+8. `specs/000-sentrdel-roadmap/source-driven-security-expansion-2026-09-08.md`
+
+Supporting exact research pins and reuse boundaries for the 2026-09-08 source study are recorded in `docs/third-party/source-candidate-assessment-2026-09-08.md`. That candidate assessment is not a source-qualification ledger entry and authorizes no source/data/dependency/runtime adoption.
 
 If any lower document conflicts with a higher authority, the lower document must change.
 
@@ -24,11 +27,11 @@ The active implementation authority remains R3:
 
 `specs/003-business-logic-invariants/`
 
-R3-T009 is canonical and post-merge proven. The current canonical implementation frontier begins at R3-T010 and continues only in the dependency order defined by the active Spec 003 task ledger.
+At the 2026-09-08 roadmap-research planning base, R3-T032 implementation is canonical on protected `main@bf50d14ef3747b028069d148f23c1696e9e67a42`. PR #301 owns the separate R3-T032 task-ledger closeout. R3-T033 remains unauthorized until that exact closeout is itself canonical and completes its required post-merge qualification and live repository-governance proof.
 
-The strategic documents in this directory **must not** reorder, widen, or bypass that canonical R3 task ledger.
+The strategic documents in this directory **must not** reorder, widen, or bypass the canonical R3 task ledger.
 
-In particular, the post-R3 blueprint is not permission to start R5, R6, R7, R9, or any other successor work before R3 has canonical closeout, post-merge CI, and live repository-governance proof.
+In particular, the post-R3 blueprint and the 2026-09-08 source-driven supplement are not permission to start R5, R6, R7, R9, Agent/MCP/Skill implementation, artifact-classifier integration, external benchmark-data import, or any other successor work before R3 has canonical closeout, post-merge CI, and live repository-governance proof.
 
 ## Strategic thesis
 
@@ -71,13 +74,14 @@ Sentrdel should prefer qualified mature infrastructure for capabilities that do 
 - package intelligence;
 - DAST/runtime engines;
 - code indexing/parsing infrastructure;
-- forge/IDE integration primitives.
+- forge/IDE integration primitives;
+- optional probabilistic artifact classifiers where they improve safe routing without becoming judgment authority.
 
-External output remains untrusted evidence and never becomes canonical judgment merely because the upstream tool reports severity, confidence, reachability, or exploitability.
+External output remains untrusted evidence and never becomes canonical judgment merely because the upstream tool reports severity, confidence, reachability, exploitability, or a high benchmark score.
 
 ## Post-R3 bounded sequence
 
-The current preferred strategic decomposition after canonical R3 closeout is:
+The current preferred strategic decomposition after canonical R3 closeout remains:
 
 1. Security Invariant Regression Core;
 2. local Security Regression Developer Contract;
@@ -91,7 +95,27 @@ The current preferred strategic decomposition after canonical R3 closeout is:
 10. mature SSG-backed project posture;
 11. controlled open-intelligence/research learning flywheel.
 
-Each numbered item is a roadmap decomposition only. Each requires its own future Spec Kit lifecycle and dependency proof before implementation.
+The 2026-09-08 source-driven research adds three **planning gates without renumbering S1-S11**:
+
+- after Open Regression Conformance: an **Agentic Code Security Conformance** profile for repository-level AI/agent-generated changes;
+- before broad external-producer expansion: **Artifact Identity + Evasion-Resistant Analyzer Routing**, separating deterministic observations from probabilistic classification and making routing disagreement visible;
+- after the stable external-evidence import boundary: a **static/local Agent/MCP/Skill Security Domain** whose observations can correlate through ASEL and the SSG without inheriting dynamic red-team authority.
+
+Each numbered item and each planning gate is roadmap decomposition only. Each requires its own future Spec Kit lifecycle and dependency/authority proof before implementation.
+
+## 2026-09-08 source-driven refinement
+
+The study of `Tencent/AI-Infra-Guard`, `google/magika`, `Tencent/AICGSecEval`, `Tencent/secguide`, and `Tencent/TscanCode` confirms the existing defensibility strategy and adds these directions:
+
+1. **Do not trust file extensions for analyzer routing.** Repository paths and extensions are untrusted; deterministic content observations, optional classifier inference, disagreement diagnostics, resource caps and explicit coverage should drive conservative routing.
+2. **Generalize the model-output boundary to probabilistic producers.** ML file classification, AI-assisted scanner confidence, external severity and external reachability are not Sentrdel FACT/VERIFIED authority by themselves.
+3. **Make Agent/MCP/Skill security an explicit semantic domain.** Prioritize local static instruction/tool/permission/dependency/credential/action analysis and correlate it with ASEL/SSG; defer dynamic red-team execution to separately authorized verification tiers.
+4. **Add repository-level agent-generated-code conformance.** Measure invariant regressions, coverage loss, evidence chains and evaluator independence, with public fixtures plus protected holdouts.
+5. **Treat knowledge/rule sources as candidate supply-chain inputs.** Preserve exact provenance, license, freshness, transformation, qualification, promotion, retirement and revalidation state; never auto-promote external rules into trusted judgment.
+6. **Keep standards-first external evidence, but support bounded generic producer adapters.** Tool-specific XML/JSON/SARIF remains untrusted input subject to parser caps, path validation, truncation diagnostics and authority ceilings.
+7. **Do not chase language or scanner count before the regression moat is proven.** External breadth informs benchmarks and future adapter selection; it does not reorder S1-S5.
+
+The detailed gaps, entry/exit gates, source dispositions and non-goals are in `source-driven-security-expansion-2026-09-08.md`.
 
 ## First proof-of-category demos
 
@@ -104,20 +128,23 @@ Before broad feature expansion, the project should prove four end-to-end cases:
 
 The fourth demo is mandatory because it proves that losing visibility is not silently converted into a clean result.
 
+After those category demos and the S1-S4 contracts are mature, the agentic-code conformance profile should add analogous repository-level AI/agent-generated cases without changing the evaluator authority or exposing protected holdouts to candidate-generation logic.
+
 ## Defensibility filter
 
 Before approving a major future feature, ask:
 
-1. Does it improve deterministic invariant judgment, evidence provenance, coverage truth, verification, or conformance?
-2. Is a mature external engine already good enough at the raw scanning capability?
-3. Can Sentrdel import the result instead of rebuilding the engine?
-4. Does building it introduce new credential, network, process, runtime, or supply-chain authority?
-5. Would the feature make the four proof-of-category demos materially better?
+1. Does it improve deterministic invariant judgment, evidence provenance, coverage truth, verification, conformance, or safe analyzer routing?
+2. Is a mature external engine already good enough at the raw scanning/classification capability?
+3. Can Sentrdel import or consume the result behind an explicit untrusted-evidence boundary instead of rebuilding the engine?
+4. Does building/adopting it introduce new credential, network, process, native runtime, model artifact, execution, or supply-chain authority?
+5. Would the feature make the proof-of-category demos or protected conformance materially better?
+6. Can a probabilistic result be kept structurally incapable of becoming FACT/VERIFIED merely because of confidence or benchmark performance?
 
 If the answer is mostly "no," defer the feature.
 
 ## Planning-PR reconciliation status
 
-The strategic roadmap planning line has been reconciled with canonical `main` after R3-T009 completed its merge, post-merge CI, and live repository-governance proof.
+The strategic roadmap planning line was previously reconciled with canonical `main` after earlier R3 progress. The 2026-09-08 supplement is based on `main@bf50d14ef3747b028069d148f23c1696e9e67a42`, where the R3-T032 implementation is canonical while its task-ledger closeout remains a separate governed change.
 
-That reconciliation changes roadmap planning only. It does not authorize R3-T010 by itself, does not close R3, and does not authorize any post-R3 successor slice. Active implementation permission continues to come only from the Constitution and the canonical Spec 003 artifacts.
+This research update changes roadmap planning only. It does not authorize R3-T033 by itself, does not close R3, does not qualify the five studied sources for reuse, and does not authorize any post-R3 successor slice. Active implementation permission continues to come only from the Constitution and the canonical Spec 003 artifacts.
