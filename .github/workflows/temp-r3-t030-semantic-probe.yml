@@ -1,0 +1,80 @@
+name: Temporary R3-T030 semantic probe
+
+on:
+  push:
+    branches:
+      - test/r3-t030-e2e-fixtures
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: test/r3-t030-e2e-fixtures
+          persist-credentials: false
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.98.0 --profile minimal
+      - name: Probe production R3 semantic pipeline
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > crates/sentrdel-review/tests/temp_t030_probe.rs <<'RS'
+          use sentrdel_review::business_logic::{
+              actor::extract_actor_contexts,
+              data::extract_supabase_data_operations,
+              guard::extract_guard_observations,
+              path::{PathCorrelationInputs, PathCorrelationLimits, correlate_cross_layer_paths},
+              route::{RouteAdapter, extract_routes},
+              value::extract_value_origins,
+              model::BusinessLogicLimits,
+          };
+          use sentrdel_review::structural::StructuralLanguage;
+          use sentrdel_review::view::NormalizedRepoPath;
+
+          const SAFE: &str = include_str!("../../../fixtures/repos/r3-business-logic/express/safe-tenant/src/routes/accounts.js");
+          const UNSAFE: &str = include_str!("../../../fixtures/repos/r3-business-logic/express/unsafe-tenant/src/routes/accounts.js");
+
+          fn path() -> NormalizedRepoPath { NormalizedRepoPath::parse("src/routes/accounts.js", 4096).unwrap() }
+
+          #[test]
+          fn probe() {
+              for (name, source) in [("SAFE", SAFE), ("UNSAFE", UNSAFE)] {
+                  let limits = BusinessLogicLimits::default();
+                  let p = path();
+                  let routes = extract_routes(RouteAdapter::Express, StructuralLanguage::JavaScript, &p, source.as_bytes(), limits).unwrap();
+                  let actors = extract_actor_contexts(RouteAdapter::Express, StructuralLanguage::JavaScript, &p, source.as_bytes(), limits).unwrap();
+                  let guards = extract_guard_observations(RouteAdapter::Express, StructuralLanguage::JavaScript, &p, source.as_bytes(), limits).unwrap();
+                  let values = extract_value_origins(RouteAdapter::Express, StructuralLanguage::JavaScript, &p, source.as_bytes(), limits).unwrap();
+                  let data = extract_supabase_data_operations(RouteAdapter::Express, StructuralLanguage::JavaScript, &p, source.as_bytes(), limits).unwrap();
+                  let mut all_values = values.values().to_vec();
+                  all_values.extend(data.supporting_values().iter().cloned());
+                  all_values.sort();
+                  all_values.dedup();
+                  let correlated = correlate_cross_layer_paths(
+                      PathCorrelationInputs {
+                          routes: routes.routes(),
+                          actors: actors.actors(),
+                          guards: guards.guards(),
+                          values: &all_values,
+                          data_operations: data.operations(),
+                          provider_clients: &[],
+                          links: &[],
+                      },
+                      limits,
+                      PathCorrelationLimits::default(),
+                  ).unwrap();
+                  println!("=== {name} ROUTES ===\n{:#?}", routes);
+                  println!("=== {name} ACTORS ===\n{:#?}", actors);
+                  println!("=== {name} GUARDS ===\n{:#?}", guards);
+                  println!("=== {name} VALUES ===\n{:#?}", values);
+                  println!("=== {name} DATA ===\n{:#?}", data);
+                  println!("=== {name} PATHS ===\n{:#?}", correlated);
+              }
+          }
+          RS
+          cargo +1.98.0 test -p sentrdel-review --test temp_t030_probe --locked -- --nocapture
