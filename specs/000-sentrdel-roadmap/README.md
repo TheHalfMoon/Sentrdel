@@ -95,11 +95,13 @@ The current preferred strategic decomposition after canonical R3 closeout remain
 10. mature SSG-backed project posture;
 11. controlled open-intelligence/research learning flywheel.
 
-The 2026-09-08 source-driven research adds three **planning gates without renumbering S1-S11**:
+The 2026-09-08 source-driven research adds three **planning gates without renumbering S1-S11 or creating a prerequisite between S4 and S5**:
 
-- after Open Regression Conformance: an **Agentic Code Security Conformance** profile for repository-level AI/agent-generated changes;
+- after Open Regression Conformance, an **Agentic Code Security Conformance** profile becomes research/conformance-eligible, but it is explicitly **non-blocking for S5** and constrains broad agent-specific detector expansion rather than bounded verification;
 - before broad external-producer expansion: **Artifact Identity + Evasion-Resistant Analyzer Routing**, separating deterministic observations from probabilistic classification and making routing disagreement visible;
 - after the stable external-evidence import boundary: a **static/local Agent/MCP/Skill Security Domain** whose observations can correlate through ASEL and the SSG without inheriting dynamic red-team authority.
+
+S1-S5 therefore remain the first product path exactly as intended by the 2026-09-02 blueprint.
 
 Each numbered item and each planning gate is roadmap decomposition only. Each requires its own future Spec Kit lifecycle and dependency/authority proof before implementation.
 
@@ -110,7 +112,7 @@ The study of `Tencent/AI-Infra-Guard`, `google/magika`, `Tencent/AICGSecEval`, `
 1. **Do not trust file extensions for analyzer routing.** Repository paths and extensions are untrusted; deterministic content observations, optional classifier inference, disagreement diagnostics, resource caps and explicit coverage should drive conservative routing.
 2. **Generalize the model-output boundary to probabilistic producers.** ML file classification, AI-assisted scanner confidence, external severity and external reachability are not Sentrdel FACT/VERIFIED authority by themselves.
 3. **Make Agent/MCP/Skill security an explicit semantic domain.** Prioritize local static instruction/tool/permission/dependency/credential/action analysis and correlate it with ASEL/SSG; defer dynamic red-team execution to separately authorized verification tiers.
-4. **Add repository-level agent-generated-code conformance.** Measure invariant regressions, coverage loss, evidence chains and evaluator independence, with public fixtures plus protected holdouts.
+4. **Add repository-level agent-generated-code conformance.** Measure invariant regressions, coverage loss, evidence chains and evaluator independence, with public fixtures plus protected holdouts. This conformance work may start from S4 contracts but must not delay S5.
 5. **Treat knowledge/rule sources as candidate supply-chain inputs.** Preserve exact provenance, license, freshness, transformation, qualification, promotion, retirement and revalidation state; never auto-promote external rules into trusted judgment.
 6. **Keep standards-first external evidence, but support bounded generic producer adapters.** Tool-specific XML/JSON/SARIF remains untrusted input subject to parser caps, path validation, truncation diagnostics and authority ceilings.
 7. **Do not chase language or scanner count before the regression moat is proven.** External breadth informs benchmarks and future adapter selection; it does not reorder S1-S5.
@@ -129,7 +131,7 @@ Before broad feature expansion, the project should prove four end-to-end cases:
 
 The fourth demo is mandatory because it proves that losing visibility is not silently converted into a clean result.
 
-After those category demos and the S1-S4 contracts are mature, the agentic-code conformance profile should add analogous repository-level AI/agent-generated cases without changing the evaluator authority or exposing protected holdouts to candidate-generation logic.
+After those category demos and the S1-S4 contracts are mature, the agentic-code conformance profile should add analogous repository-level AI/agent-generated cases without changing the evaluator authority or exposing protected holdouts to candidate-generation logic. That profile remains non-blocking for S5.
 
 ## Defensibility filter
 
