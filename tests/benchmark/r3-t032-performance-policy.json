@@ -1,0 +1,62 @@
+{
+  "policy_version": "sentrdel-r3-performance/r3-t032-v1",
+  "measurement_mode": "WARM",
+  "sample_count": 32,
+  "workload": {
+    "name": "r3-unsafe-tenant-static-pipeline",
+    "fixture_root": "fixtures/repos/r3-business-logic/express/unsafe-tenant",
+    "fixture_file": "fixtures/repos/r3-business-logic/express/unsafe-tenant/src/routes/accounts.js",
+    "max_changed_loc": 2000
+  },
+  "latency_caps": {
+    "r3_warm_p95_ms": 5000,
+    "r1_warm_review_p95_ms": 5000,
+    "r1_broad_100k_loc_ms": 30000
+  },
+  "parser_caps": {
+    "max_structural_rules": 256,
+    "max_rule_id_bytes": 128,
+    "max_pattern_bytes": 16384,
+    "max_document_bytes": 4194304
+  },
+  "path_caps": {
+    "max_observations": 16384,
+    "max_nodes": 16384,
+    "max_edges": 32768,
+    "max_depth": 32,
+    "max_candidate_paths": 4096,
+    "max_diagnostics": 1024,
+    "max_work_items": 65536,
+    "max_frontier": 8192
+  },
+  "graph_caps": {
+    "max_nodes": 4096,
+    "max_edges": 8192,
+    "max_provenance_ids_per_record": 64
+  },
+  "invariant_caps": {
+    "max_file_bytes": 65536,
+    "max_invariants": 128,
+    "max_id_bytes": 96,
+    "max_keys": 32,
+    "max_value_bytes": 4096,
+    "max_lines": 2048,
+    "max_scope_text_bytes": 1024,
+    "max_collection_items": 64,
+    "max_collection_item_bytes": 256,
+    "max_diagnostics": 32,
+    "max_scope_path_bytes": 4096
+  },
+  "machine_metadata_required": [
+    "os",
+    "architecture",
+    "runner"
+  ],
+  "external_engine_time_included": false,
+  "network_time_included": false,
+  "target_execution_time_included": false,
+  "peak_memory": {
+    "state": "NOT_MEASURED",
+    "reason": "No portable allocator-neutral peak-memory instrument is part of the current trusted workspace; R3 parser/path/graph/invariant hard ceilings remain release-visible and fail closed."
+  }
+}
