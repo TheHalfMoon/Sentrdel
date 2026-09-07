@@ -28,81 +28,32 @@ jobs:
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
-
           path = Path('crates/sentrdel-cli/src/explain_business_logic.rs')
           text = path.read_text()
-
-          old_global = '''        let has_invariant_subject = affected.iter().any(|subject| {
-            subject.starts_with("invariant:") || subject.starts_with("invariant_evaluation:")
-        });
-
-'''
+          old_global = "        let has_invariant_subject = affected.iter().any(|subject| {\n            subject.starts_with(\"invariant:\") || subject.starts_with(\"invariant_evaluation:\")\n        });\n\n"
           if text.count(old_global) != 1:
               raise SystemExit(f'expected one global prefix matcher, found {text.count(old_global)}')
           text = text.replace(old_global, '', 1)
-
-          old_path = '''            let path_subject = format!("cross_layer_path:{}", context.path_id);
-            let path_matches = affected.contains(path_subject.as_str());
-
-            let mut invariants = Vec::new();
-'''
-          new_path = '''            let path_subject = format!("cross_layer_path:{}", context.path_id);
-            let path_matches = affected.contains(path_subject.as_str());
-            let has_matching_invariant_subject = context.invariants.iter().any(|invariant| {
-                let invariant_subject = format!("invariant:{}", invariant.invariant_id);
-                let evaluation_subject =
-                    format!("invariant_evaluation:{}", invariant.evaluation_id);
-                affected.contains(invariant_subject.as_str())
-                    || affected.contains(evaluation_subject.as_str())
-            });
-
-            let mut invariants = Vec::new();
-'''
+          old_path = "            let path_subject = format!(\"cross_layer_path:{}\", context.path_id);\n            let path_matches = affected.contains(path_subject.as_str());\n\n            let mut invariants = Vec::new();\n"
+          new_path = "            let path_subject = format!(\"cross_layer_path:{}\", context.path_id);\n            let path_matches = affected.contains(path_subject.as_str());\n            let has_matching_invariant_subject = context.invariants.iter().any(|invariant| {\n                let invariant_subject = format!(\"invariant:{}\", invariant.invariant_id);\n                let evaluation_subject =\n                    format!(\"invariant_evaluation:{}\", invariant.evaluation_id);\n                affected.contains(invariant_subject.as_str())\n                    || affected.contains(evaluation_subject.as_str())\n            });\n\n            let mut invariants = Vec::new();\n"
           if text.count(old_path) != 1:
               raise SystemExit(f'expected one path matching block, found {text.count(old_path)}')
           text = text.replace(old_path, new_path, 1)
-
           old_condition = '                if invariant_matches || (path_matches && !has_invariant_subject) {'
           new_condition = '                if invariant_matches || (path_matches && !has_matching_invariant_subject) {'
           if text.count(old_condition) != 1:
               raise SystemExit(f'expected one invariant fallback condition, found {text.count(old_condition)}')
           text = text.replace(old_condition, new_condition, 1)
-
           old_skip = '            if path_matches && has_invariant_subject && invariants.is_empty() {'
           new_skip = '            if path_matches && has_matching_invariant_subject && invariants.is_empty() {'
           if text.count(old_skip) != 1:
               raise SystemExit(f'expected one path skip condition, found {text.count(old_skip)}')
           text = text.replace(old_skip, new_skip, 1)
-
-          anchor = '''    #[test]
-    fn exact_invariant_subject_can_select_one_invariant_without_path_subject() {
-'''
-          regression = '''    #[test]
-    fn exact_path_match_is_not_suppressed_by_unrelated_invariant_subject() {
-        let output = output(vec![
-            "cross_layer_path:path:update".to_owned(),
-            "invariant:invariant:unrelated".to_owned(),
-            "invariant_evaluation:eval:unrelated".to_owned(),
-        ]);
-        let contexts = vec![context("path:update", InvariantEvaluationState::Violated)];
-        let explanation = BusinessLogicExplainContext::from_output(&output, &contexts)
-            .unwrap()
-            .expect("exact path match must retain its bounded chain");
-
-        assert_eq!(explanation.chains().len(), 1);
-        assert_eq!(explanation.chains()[0].path_id, "path:update");
-        assert_eq!(explanation.chains()[0].invariants.len(), 1);
-        assert_eq!(
-            explanation.chains()[0].invariants[0].invariant_id,
-            "invariant:tenant-binding"
-        );
-    }
-
-'''
+          anchor = "    #[test]\n    fn exact_invariant_subject_can_select_one_invariant_without_path_subject() {\n"
+          regression = "    #[test]\n    fn exact_path_match_is_not_suppressed_by_unrelated_invariant_subject() {\n        let output = output(vec![\n            \"cross_layer_path:path:update\".to_owned(),\n            \"invariant:invariant:unrelated\".to_owned(),\n            \"invariant_evaluation:eval:unrelated\".to_owned(),\n        ]);\n        let contexts = vec![context(\"path:update\", InvariantEvaluationState::Violated)];\n        let explanation = BusinessLogicExplainContext::from_output(&output, &contexts)\n            .unwrap()\n            .expect(\"exact path match must retain its bounded chain\");\n\n        assert_eq!(explanation.chains().len(), 1);\n        assert_eq!(explanation.chains()[0].path_id, \"path:update\");\n        assert_eq!(explanation.chains()[0].invariants.len(), 1);\n        assert_eq!(\n            explanation.chains()[0].invariants[0].invariant_id,\n            \"invariant:tenant-binding\"\n        );\n    }\n\n"
           if text.count(anchor) != 1:
               raise SystemExit(f'expected one invariant-selection test anchor, found {text.count(anchor)}')
           text = text.replace(anchor, regression + anchor, 1)
-
           path.write_text(text)
           PY
           cargo +1.98.0 fmt --all
