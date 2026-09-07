@@ -1,0 +1,194 @@
+name: Temporary R3-T031 explanation repair
+
+on:
+  push:
+    branches:
+      - test/r3-t031-release-benchmark
+    paths:
+      - .github/workflows/temp-r3-t031-explanation-repair.yml
+
+permissions:
+  contents: write
+
+jobs:
+  repair-and-qualify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout candidate branch
+        uses: actions/checkout@v4
+        with:
+          ref: test/r3-t031-release-benchmark
+          fetch-depth: 0
+
+      - name: Require expected pre-repair head
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "566d855d052f0f0fa64239a96065d83ec6e8b8f9"
+
+      - name: Install pinned Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.98.0
+          components: rustfmt
+
+      - name: Apply exact explanation-metadata repair
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path("crates/sentrdel-review/tests/r3_t031_release_benchmark.rs")
+          text = path.read_text()
+
+          old = '''fn explanation_correct(evidence: &[Evidence], expected_evaluations: usize) -> (u64, bool) {
+              let interpretations = evidence
+                  .iter()
+                  .filter(|item| item.claim().category == "business_logic_invariant_interpretation")
+                  .collect::<Vec<_>>();
+              let passed = interpretations.len() == expected_evaluations
+                  && interpretations.iter().all(|item| {
+                      item.claim()
+                          .attributes
+                          .get("path_id")
+                          .and_then(Value::as_str)
+                          .is_some_and(|value| value.starts_with("sha256:"))
+                          && item
+                              .claim()
+                              .attributes
+                              .get("evaluation_state")
+                              .and_then(Value::as_str)
+                              .is_some()
+                          && item
+                              .claim()
+                              .attributes
+                              .get("provenance_byte_ranges")
+                              .and_then(Value::as_array)
+                              .is_some_and(|ranges| !ranges.is_empty())
+                          && item
+                              .claim()
+                              .security_interpretation
+                              .as_ref()
+                              .is_some_and(|text| {
+                                  text.contains("bounded static scope")
+                                      && !text.contains("runtime exploitability is proven")
+                              })
+                  });
+              (interpretations.len() as u64, passed)
+          }
+          '''
+
+          new = '''fn evaluation_state_name(state: InvariantEvaluationState) -> &'static str {
+              match state {
+                  InvariantEvaluationState::Satisfied => "SATISFIED",
+                  InvariantEvaluationState::Violated => "VIOLATED",
+                  InvariantEvaluationState::Unknown => "UNKNOWN",
+                  InvariantEvaluationState::NotApplicable => "NOT_APPLICABLE",
+              }
+          }
+
+          fn expected_provenance_ranges(evaluation: &InvariantEvaluation) -> Value {
+              Value::Array(
+                  evaluation
+                      .provenance()
+                      .iter()
+                      .map(|location| {
+                          serde_json::json!({
+                              "path": location.path().as_str(),
+                              "start_byte": location.start_byte(),
+                              "end_byte": location.end_byte(),
+                              "content_digest": location.content_digest(),
+                          })
+                      })
+                      .collect(),
+              )
+          }
+
+          fn explanation_correct(
+              evidence: &[Evidence],
+              evaluations: &[InvariantEvaluation],
+          ) -> (u64, bool) {
+              let interpretations = evidence
+                  .iter()
+                  .filter(|item| item.claim().category == "business_logic_invariant_interpretation")
+                  .collect::<Vec<_>>();
+              let expected = evaluations
+                  .iter()
+                  .map(|evaluation| (evaluation.evaluation_id().as_str(), evaluation))
+                  .collect::<BTreeMap<_, _>>();
+              let mut matched = BTreeSet::new();
+              let passed = interpretations.len() == expected.len()
+                  && interpretations.iter().all(|item| {
+                      let attributes = &item.claim().attributes;
+                      let Some(evaluation_id) = attributes.get("evaluation_id").and_then(Value::as_str)
+                      else {
+                          return false;
+                      };
+                      let Some(evaluation) = expected.get(evaluation_id) else {
+                          return false;
+                      };
+                      if !matched.insert(evaluation_id) {
+                          return false;
+                      }
+
+                      attributes.get("path_id").and_then(Value::as_str)
+                          == evaluation.path_id().map(|path_id| path_id.as_str())
+                          && attributes.get("evaluation_state").and_then(Value::as_str)
+                              == Some(evaluation_state_name(evaluation.state()))
+                          && attributes.get("provenance_byte_ranges")
+                              == Some(&expected_provenance_ranges(evaluation))
+                          && item
+                              .claim()
+                              .security_interpretation
+                              .as_ref()
+                              .is_some_and(|text| {
+                                  text.contains("bounded static scope")
+                                      && !text.contains("runtime exploitability is proven")
+                              })
+                  })
+                  && matched.len() == expected.len();
+              (interpretations.len() as u64, passed)
+          }
+          '''
+
+          if text.count(old) != 1:
+              raise SystemExit("exact explanation_correct anchor not found exactly once")
+          text = text.replace(old, new)
+
+          old_call = '''    let (explanation_records, explanation_correctness_passed) =
+                  explanation_correct(output.evidence(), evaluations.len());
+          '''
+          new_call = '''    let (explanation_records, explanation_correctness_passed) =
+                  explanation_correct(output.evidence(), &evaluations);
+          '''
+          if text.count(old_call) != 1:
+              raise SystemExit("exact explanation_correct call anchor not found exactly once")
+          path.write_text(text.replace(old_call, new_call))
+
+      - name: Format candidate
+        shell: bash
+        run: cargo fmt --all
+
+      - name: Run focused R3-T031 release benchmark
+        shell: bash
+        run: cargo test -p sentrdel-review --test r3_t031_release_benchmark
+
+      - name: Check workspace
+        shell: bash
+        run: cargo check --workspace --all-targets
+
+      - name: Remove helper and require final diff shape
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm .github/workflows/temp-r3-t031-explanation-repair.yml
+          test "$(git diff --name-only 63c8b7eafc5f25446a0310f77b75e59989d3019d...HEAD | sort | tr '\n' ' ')" = "crates/sentrdel-review/tests/r3_t031_release_benchmark.rs tests/benchmark/r3-release-suite.json "
+
+      - name: Commit repaired benchmark
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add crates/sentrdel-review/tests/r3_t031_release_benchmark.rs .github/workflows/temp-r3-t031-explanation-repair.yml
+          git commit -m "test(r3): verify exact explanation metadata"
+          git push origin HEAD:test/r3-t031-release-benchmark
