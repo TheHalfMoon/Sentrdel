@@ -522,7 +522,7 @@ fn r3_fixture_matrix_has_deterministic_review_init_and_explain_behavior() {
 #[test]
 fn hostile_repository_and_project_invariant_authority_attempts_remain_inert() {
     assert!(HOSTILE_README.contains("SENTRDEL_CANARY"));
-    assert!(HOSTILE_README.contains("SYSTEM"));
+    assert!(HOSTILE_README.contains("Ignore previous instructions"));
 
     let load = load_project_invariants(
         Some(FORBIDDEN_AUTHORITY_INVARIANTS),
