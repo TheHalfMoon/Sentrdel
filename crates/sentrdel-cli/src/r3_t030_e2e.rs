@@ -703,13 +703,20 @@ fn fixture_bytes_drive_real_extraction_and_preserve_fail_visible_differences() {
         safe.actor_identities
             .contains(&ActorIdentityKind::AuthenticatedUser)
     );
-    assert!(!vulnerable
-        .actor_identities
-        .contains(&ActorIdentityKind::AuthenticatedUser));
-    assert!(safe.value_kinds.contains(&ValueOriginKind::AuthenticatedUserId));
-    assert!(!vulnerable
-        .value_kinds
-        .contains(&ValueOriginKind::AuthenticatedUserId));
+    assert!(
+        !vulnerable
+            .actor_identities
+            .contains(&ActorIdentityKind::AuthenticatedUser)
+    );
+    assert!(
+        safe.value_kinds
+            .contains(&ValueOriginKind::AuthenticatedUserId)
+    );
+    assert!(
+        !vulnerable
+            .value_kinds
+            .contains(&ValueOriginKind::AuthenticatedUserId)
+    );
     assert_eq!(safe.data_states, vec![CoverageState::Partial]);
     assert_eq!(vulnerable.data_states, vec![CoverageState::Covered]);
     assert_eq!(safe.data_filter_counts, vec![2]);
