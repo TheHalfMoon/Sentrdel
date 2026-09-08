@@ -195,6 +195,25 @@ pub struct RevisionIdentity {
 }
 
 impl RevisionIdentity {
+    /// Construct a non-fixture revision identity after the production revision
+    /// boundary has validated and canonically derived its exact identity.
+    pub(super) fn validated_production(
+        role: RevisionRole,
+        exact_identity: String,
+        snapshot_input_digest: String,
+        limits: RegressionLimits,
+    ) -> Result<Self, RegressionModelError> {
+        let limits = limits.validate()?;
+        validate_text(&exact_identity, "exact_identity", limits)?;
+        validate_text(&snapshot_input_digest, "snapshot_input_digest", limits)?;
+        Ok(Self {
+            role,
+            exact_identity,
+            snapshot_input_digest,
+            fixture_only: false,
+        })
+    }
+
     pub fn fixture(
         role: RevisionRole,
         fixture_identity: impl Into<String>,

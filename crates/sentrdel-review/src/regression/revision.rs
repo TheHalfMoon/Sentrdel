@@ -11,8 +11,9 @@ use std::path::{Path, PathBuf};
 
 use sentrdel_schema::canonical::{CanonicalError, content_id};
 
-use crate::regression::S1_REGRESSION_CONTRACT_VERSION;
-use crate::regression::model::{RegressionLimits, RegressionModelError, RevisionRole};
+use crate::regression::model::{
+    RegressionLimits, RegressionModelError, RevisionIdentity, RevisionPair, RevisionRole,
+};
 
 const SHA1_HEX_BYTES: usize = 40;
 
@@ -40,22 +41,25 @@ impl LocalRevisionInput {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ValidatedLocalRevision {
-    role: RevisionRole,
-    exact_identity: String,
+    revision_identity: RevisionIdentity,
     commit_id: String,
     root_tree_id: String,
-    snapshot_input_digest: String,
 }
 
 impl ValidatedLocalRevision {
     #[must_use]
     pub const fn role(&self) -> RevisionRole {
-        self.role
+        self.revision_identity.role()
     }
 
     #[must_use]
     pub fn exact_identity(&self) -> &str {
-        &self.exact_identity
+        self.revision_identity.exact_identity()
+    }
+
+    #[must_use]
+    pub fn revision_identity(&self) -> &RevisionIdentity {
+        &self.revision_identity
     }
 
     #[must_use]
@@ -70,18 +74,18 @@ impl ValidatedLocalRevision {
 
     #[must_use]
     pub fn snapshot_input_digest(&self) -> &str {
-        &self.snapshot_input_digest
+        self.revision_identity.snapshot_input_digest()
     }
 
     #[must_use]
     pub const fn is_fixture_only(&self) -> bool {
-        false
+        self.revision_identity.is_fixture_only()
     }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ValidatedRevisionPair {
-    pair_id: String,
+    revision_pair: RevisionPair,
     trusted_base: ValidatedLocalRevision,
     candidate: ValidatedLocalRevision,
 }
@@ -89,7 +93,12 @@ pub struct ValidatedRevisionPair {
 impl ValidatedRevisionPair {
     #[must_use]
     pub fn pair_id(&self) -> &str {
-        &self.pair_id
+        self.revision_pair.pair_id()
+    }
+
+    #[must_use]
+    pub fn revision_pair(&self) -> &RevisionPair {
+        &self.revision_pair
     }
 
     #[must_use]
@@ -106,6 +115,7 @@ impl ValidatedRevisionPair {
 #[derive(Debug)]
 pub enum RevisionValidationError {
     Limits(RegressionModelError),
+    ModelContract(RegressionModelError),
     RepositoryNotFound(PathBuf),
     RepositoryOpen(String),
     EmptyField(&'static str),
@@ -144,6 +154,12 @@ impl fmt::Display for RevisionValidationError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Limits(error) => write!(formatter, "invalid S1 revision limits: {error}"),
+            Self::ModelContract(error) => {
+                write!(
+                    formatter,
+                    "S1 revision contract construction failed: {error}"
+                )
+            }
             Self::RepositoryNotFound(path) => {
                 write!(
                     formatter,
@@ -198,7 +214,7 @@ impl fmt::Display for RevisionValidationError {
 impl Error for RevisionValidationError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
-            Self::Limits(error) => Some(error),
+            Self::Limits(error) | Self::ModelContract(error) => Some(error),
             Self::Canonical(error) => Some(error),
             _ => None,
         }
@@ -236,17 +252,14 @@ pub fn validate_local_revision_pair(
         return Err(RevisionValidationError::SameRevisionIdentity);
     }
 
-    let pair_id = content_id(
-        "s1-revision-pair",
-        &(
-            S1_REGRESSION_CONTRACT_VERSION,
-            trusted_base.exact_identity.as_str(),
-            candidate.exact_identity.as_str(),
-        ),
-    )?;
+    let revision_pair = RevisionPair::new(
+        trusted_base.revision_identity().clone(),
+        candidate.revision_identity().clone(),
+    )
+    .map_err(RevisionValidationError::ModelContract)?;
 
     Ok(ValidatedRevisionPair {
-        pair_id,
+        revision_pair,
         trusted_base,
         candidate,
     })
@@ -340,12 +353,14 @@ fn validate_revision(
         ),
     )?;
 
+    let revision_identity =
+        RevisionIdentity::validated_production(role, exact_identity, snapshot_input_digest, limits)
+            .map_err(RevisionValidationError::ModelContract)?;
+
     Ok(ValidatedLocalRevision {
-        role,
-        exact_identity,
+        revision_identity,
         commit_id: resolved_id,
         root_tree_id,
-        snapshot_input_digest,
     })
 }
 
