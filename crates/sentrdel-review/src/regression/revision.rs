@@ -224,6 +224,7 @@ pub fn validate_local_revision_pair(
     limits: RegressionLimits,
 ) -> Result<ValidatedRevisionPair, RevisionValidationError> {
     let limits = limits.validate().map_err(RevisionValidationError::Limits)?;
+    enforce_pair_input_bytes(&trusted_base, &candidate, limits)?;
     let root = discover_root(start.as_ref())?;
     let repo = gix::open_opts(&root, gix::open::Options::isolated().strict_config(true))
         .map_err(|error| RevisionValidationError::RepositoryOpen(error.to_string()))?;
@@ -251,6 +252,36 @@ pub fn validate_local_revision_pair(
     })
 }
 
+fn enforce_pair_input_bytes(
+    trusted_base: &LocalRevisionInput,
+    candidate: &LocalRevisionInput,
+    limits: RegressionLimits,
+) -> Result<(), RevisionValidationError> {
+    let mut total = 0usize;
+    for input in [trusted_base, candidate] {
+        for bytes in [
+            input.exact_commit_id.len(),
+            input.snapshot_input_digest.len(),
+            input
+                .expected_root_tree_id
+                .as_ref()
+                .map_or(0, String::len),
+        ] {
+            total = total.checked_add(bytes).ok_or(
+                RevisionValidationError::TotalInputBytesExceeded {
+                    max: limits.max_total_input_bytes,
+                },
+            )?;
+            if total > limits.max_total_input_bytes {
+                return Err(RevisionValidationError::TotalInputBytesExceeded {
+                    max: limits.max_total_input_bytes,
+                });
+            }
+        }
+    }
+    Ok(())
+}
+
 fn validate_revision(
     repo: &gix::Repository,
     role: RevisionRole,
@@ -264,20 +295,6 @@ fn validate_revision(
         .transpose()?;
     let snapshot_input_digest =
         validate_text(input.snapshot_input_digest, "snapshot_input_digest", limits)?;
-
-    let mut total = commit_id.len() + snapshot_input_digest.len();
-    if let Some(tree_id) = &expected_root_tree_id {
-        total = total.checked_add(tree_id.len()).ok_or(
-            RevisionValidationError::TotalInputBytesExceeded {
-                max: limits.max_total_input_bytes,
-            },
-        )?;
-    }
-    if total > limits.max_total_input_bytes {
-        return Err(RevisionValidationError::TotalInputBytesExceeded {
-            max: limits.max_total_input_bytes,
-        });
-    }
 
     let resolved = repo.rev_parse_single(commit_id.as_str()).map_err(|error| {
         RevisionValidationError::CommitResolution {
