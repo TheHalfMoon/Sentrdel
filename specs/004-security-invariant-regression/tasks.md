@@ -33,7 +33,7 @@
 
 ## Phase 2 — Revision, snapshot, and identity substrate
 
-- [ ] **S1-T007** Implement bounded exact local revision identity validation and RevisionPair construction, including commit/tree binding where available, role ordering, fixture-only identity namespace, malformed/mismatched identity rejection and no forge/network/target-execution path.
+- [x] **S1-T007** Implement bounded exact local revision identity validation and RevisionPair construction, including commit/tree binding where available, role ordering, fixture-only identity namespace, malformed/mismatched identity rejection and no forge/network/target-execution path.
 - [ ] **S1-T008** Implement bounded SemanticSnapshot composition/validation over existing canonical R3 invariant/evaluation, Coverage, Evidence/provenance and graph records; validate producer/config/schema compatibility before comparison.
 - [ ] **S1-T009** Implement stable keyed invariant matching with normalized definition digest/compatibility; same stable ID with incompatible kind/scope/requirements fails closed as definition conflict.
 - [ ] **S1-T010** Implement exact semantic-object continuity handling using existing stable IDs and the current `sentrdel-graph` projection/diff only as context; no fuzzy lexical/graph/model rename identity.
