@@ -154,6 +154,33 @@ fn mutable_refs_abbreviations_and_malformed_ids_are_rejected_before_resolution()
 }
 
 #[test]
+fn aggregate_pair_input_cap_applies_across_both_revisions_before_repository_resolution() {
+    let repo = FixtureRepo::new("aggregate-pair-cap");
+    let (base, base_tree, candidate, candidate_tree) = repo.two_commits();
+    let limits = RegressionLimits {
+        max_total_input_bytes: 100,
+        ..RegressionLimits::default()
+    };
+
+    assert!(base.len() + base_tree.len() + "snapshot:base".len() <= limits.max_total_input_bytes);
+    assert!(
+        candidate.len() + candidate_tree.len() + "snapshot:candidate".len()
+            <= limits.max_total_input_bytes
+    );
+
+    let result = validate_local_revision_pair(
+        PathBuf::from("sentrdel-s1-t007-no-repository"),
+        input(&base, &base_tree, "snapshot:base"),
+        input(&candidate, &candidate_tree, "snapshot:candidate"),
+        limits,
+    );
+    assert!(matches!(
+        result,
+        Err(RevisionValidationError::TotalInputBytesExceeded { max: 100 })
+    ));
+}
+
+#[test]
 fn expected_root_tree_mismatch_fails_visible() {
     let repo = FixtureRepo::new("tree-mismatch");
     let (base, _base_tree, candidate, candidate_tree) = repo.two_commits();
