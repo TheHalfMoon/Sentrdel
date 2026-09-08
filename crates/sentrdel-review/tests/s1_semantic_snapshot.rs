@@ -8,8 +8,8 @@ use sentrdel_review::business_logic::model::{
     SourceLocation, StableSemanticId,
 };
 use sentrdel_review::business_logic::producer::{
-    BusinessLogicProducerOutput, R3_BUSINESS_LOGIC_PRODUCER_ID,
-    R3_BUSINESS_LOGIC_PRODUCER_VERSION, produce_business_logic_outputs,
+    BusinessLogicProducerOutput, R3_BUSINESS_LOGIC_PRODUCER_ID, R3_BUSINESS_LOGIC_PRODUCER_VERSION,
+    produce_business_logic_outputs,
 };
 use sentrdel_review::regression::model::{
     ProducerContractIdentity, RegressionLimits, RevisionIdentity, RevisionPair, RevisionRole,
@@ -94,12 +94,8 @@ fn coverage_matrix() -> Vec<BusinessLogicCoverage> {
 }
 
 fn producer_output(evaluations: &[InvariantEvaluation]) -> BusinessLogicProducerOutput {
-    produce_business_logic_outputs(
-        evaluations,
-        &coverage_matrix(),
-        "2026-09-08T00:00:00Z",
-    )
-    .expect("canonical R3 producer output")
+    produce_business_logic_outputs(evaluations, &coverage_matrix(), "2026-09-08T00:00:00Z")
+        .expect("canonical R3 producer output")
 }
 
 fn contract(
@@ -135,13 +131,8 @@ fn snapshot(
     limits: RegressionLimits,
 ) -> Result<SemanticSnapshot, SnapshotCompositionError> {
     let output = producer_output(&evaluations);
-    let graph = map_validated_observations(
-        &[],
-        &[],
-        &definitions,
-        R3GraphLimits::default(),
-    )
-    .expect("canonical R3 graph records");
+    let graph = map_validated_observations(&[], &[], &definitions, R3GraphLimits::default())
+        .expect("canonical R3 graph records");
     SemanticSnapshot::compose(
         contract(revision, producer_version, limits),
         std::mem::take(&mut definitions),
