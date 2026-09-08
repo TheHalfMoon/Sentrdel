@@ -17,7 +17,10 @@ use crate::view::NormalizedRepoPath;
 use sentrdel_schema::SCHEMA_V1;
 use sentrdel_schema::coverage::CoverageState;
 
-use super::snapshot::{SemanticSnapshot, SnapshotCompositionError, validate_snapshot_pair};
+use super::snapshot::{
+    SemanticSnapshot, SnapshotCompositionError, derive_snapshot_input_digest,
+    validate_snapshot_pair,
+};
 
 const PRODUCER_CONFIGURATION_DIGEST: &str = "sha256:s1-t008-config";
 
@@ -149,11 +152,27 @@ fn snapshot(
     )
 }
 
-fn fixture_revision(role: RevisionRole, label: &str) -> RevisionIdentity {
+fn fixture_revision(
+    role: RevisionRole,
+    label: &str,
+    definitions: &[InvariantDefinition],
+    evaluations: &[InvariantEvaluation],
+) -> RevisionIdentity {
+    let output = producer_output(evaluations);
+    let graph = map_validated_observations(&[], &[], definitions, R3GraphLimits::default())
+        .expect("canonical R3 graph records");
+    let snapshot_input_digest = derive_snapshot_input_digest(
+        definitions.to_vec(),
+        evaluations.to_vec(),
+        &output,
+        &graph,
+        RegressionLimits::default(),
+    )
+    .expect("canonical snapshot input digest");
     RevisionIdentity::fixture(
         role,
         format!("s1-t008-{label}"),
-        format!("sha256:s1-t008-{label}-snapshot"),
+        snapshot_input_digest,
         RegressionLimits::default(),
     )
     .expect("fixture revision")
@@ -165,7 +184,12 @@ fn semantic_snapshot_composition_is_bounded_normalized_and_preserves_canonical_i
     let second = invariant("alpha");
     let first_eval = evaluation("zeta", &first);
     let second_eval = evaluation("alpha", &second);
-    let revision = fixture_revision(RevisionRole::TrustedBase, "base");
+    let revision = fixture_revision(
+        RevisionRole::TrustedBase,
+        "base",
+        &[first.clone(), second.clone()],
+        &[first_eval.clone(), second_eval.clone()],
+    );
 
     let composed = snapshot(
         revision.clone(),
@@ -219,8 +243,18 @@ fn semantic_snapshot_composition_is_bounded_normalized_and_preserves_canonical_i
 fn snapshot_pair_validation_binds_exact_revision_pair_and_contract_compatibility() {
     let definition = invariant("role");
     let evaluation = evaluation("role", &definition);
-    let base_revision = fixture_revision(RevisionRole::TrustedBase, "base-pair");
-    let candidate_revision = fixture_revision(RevisionRole::Candidate, "candidate-pair");
+    let base_revision = fixture_revision(
+        RevisionRole::TrustedBase,
+        "base-pair",
+        std::slice::from_ref(&definition),
+        std::slice::from_ref(&evaluation),
+    );
+    let candidate_revision = fixture_revision(
+        RevisionRole::Candidate,
+        "candidate-pair",
+        std::slice::from_ref(&definition),
+        std::slice::from_ref(&evaluation),
+    );
     let pair = RevisionPair::new(base_revision.clone(), candidate_revision.clone()).expect("pair");
 
     let base = snapshot(
@@ -257,7 +291,12 @@ fn snapshot_pair_validation_binds_exact_revision_pair_and_contract_compatibility
     ));
 
     let wrong_base = snapshot(
-        fixture_revision(RevisionRole::TrustedBase, "wrong-base"),
+        fixture_revision(
+            RevisionRole::TrustedBase,
+            "wrong-base",
+            std::slice::from_ref(&definition),
+            std::slice::from_ref(&evaluation),
+        ),
         configuration_identity("default"),
         vec![definition.clone()],
         vec![evaluation.clone()],
@@ -272,7 +311,12 @@ fn snapshot_pair_validation_binds_exact_revision_pair_and_contract_compatibility
     ));
 
     let wrong_candidate = snapshot(
-        fixture_revision(RevisionRole::Candidate, "wrong-candidate"),
+        fixture_revision(
+            RevisionRole::Candidate,
+            "wrong-candidate",
+            std::slice::from_ref(&definition),
+            std::slice::from_ref(&evaluation),
+        ),
         configuration_identity("default"),
         vec![definition],
         vec![evaluation],
@@ -289,8 +333,18 @@ fn snapshot_pair_validation_binds_exact_revision_pair_and_contract_compatibility
 fn snapshot_composition_seals_canonical_r3_producer_and_schema_contract() {
     let definition = invariant("contract-binding");
     let evaluation = evaluation("contract-binding", &definition);
-    let base_revision = fixture_revision(RevisionRole::TrustedBase, "contract-base");
-    let candidate_revision = fixture_revision(RevisionRole::Candidate, "contract-candidate");
+    let base_revision = fixture_revision(
+        RevisionRole::TrustedBase,
+        "contract-base",
+        std::slice::from_ref(&definition),
+        std::slice::from_ref(&evaluation),
+    );
+    let candidate_revision = fixture_revision(
+        RevisionRole::Candidate,
+        "contract-candidate",
+        std::slice::from_ref(&definition),
+        std::slice::from_ref(&evaluation),
+    );
     let composed = snapshot(
         base_revision.clone(),
         configuration_identity("default"),
@@ -336,12 +390,107 @@ fn snapshot_composition_seals_canonical_r3_producer_and_schema_contract() {
 }
 
 #[test]
+fn snapshot_composition_rejects_revision_digest_that_does_not_bind_semantic_inputs() {
+    let definition = invariant("digest-binding");
+    let evaluation = evaluation("digest-binding", &definition);
+    let output = producer_output(std::slice::from_ref(&evaluation));
+    let graph = map_validated_observations(
+        &[],
+        &[],
+        std::slice::from_ref(&definition),
+        R3GraphLimits::default(),
+    )
+    .expect("canonical R3 graph records");
+    let stale_revision = RevisionIdentity::fixture(
+        RevisionRole::TrustedBase,
+        "s1-t008-stale-digest",
+        "sha256:stale-semantic-snapshot-input",
+        RegressionLimits::default(),
+    )
+    .expect("stale fixture revision");
+
+    assert!(matches!(
+        SemanticSnapshot::compose(
+            stale_revision,
+            PRODUCER_CONFIGURATION_DIGEST,
+            configuration_identity("default"),
+            vec![definition],
+            vec![evaluation],
+            output,
+            graph,
+            RegressionLimits::default(),
+        ),
+        Err(SnapshotCompositionError::SnapshotInputDigestMismatch { .. })
+    ));
+}
+
+#[test]
+fn snapshot_composition_rejects_missing_or_unrelated_producer_evidence() {
+    let definition = invariant("producer-binding");
+    let bound_evaluation = evaluation("producer-binding", &definition);
+    let graph = map_validated_observations(
+        &[],
+        &[],
+        std::slice::from_ref(&definition),
+        R3GraphLimits::default(),
+    )
+    .expect("canonical R3 graph records");
+    let stale_revision = RevisionIdentity::fixture(
+        RevisionRole::TrustedBase,
+        "s1-t008-producer-binding",
+        "sha256:producer-binding-placeholder",
+        RegressionLimits::default(),
+    )
+    .expect("fixture revision");
+
+    let empty_output = producer_output(&[]);
+    assert!(matches!(
+        SemanticSnapshot::compose(
+            stale_revision.clone(),
+            PRODUCER_CONFIGURATION_DIGEST,
+            configuration_identity("default"),
+            vec![definition.clone()],
+            vec![bound_evaluation.clone()],
+            empty_output,
+            graph.clone(),
+            RegressionLimits::default(),
+        ),
+        Err(SnapshotCompositionError::EvidenceRecordCountMismatch {
+            expected: 2,
+            actual: 0
+        })
+    ));
+
+    let unrelated_definition = invariant("unrelated-producer");
+    let unrelated_evaluation = evaluation("unrelated-producer", &unrelated_definition);
+    let unrelated_output = producer_output(&[unrelated_evaluation]);
+    assert!(matches!(
+        SemanticSnapshot::compose(
+            stale_revision,
+            PRODUCER_CONFIGURATION_DIGEST,
+            configuration_identity("default"),
+            vec![definition],
+            vec![bound_evaluation],
+            unrelated_output,
+            graph,
+            RegressionLimits::default(),
+        ),
+        Err(SnapshotCompositionError::EvidenceEvaluationBindingMismatch { .. })
+    ));
+}
+
+#[test]
 fn malformed_references_and_resource_caps_fail_visible_before_comparison() {
     let first = invariant("one");
     let second = invariant("two");
     let first_eval = evaluation("one", &first);
     let second_eval = evaluation("two", &second);
-    let revision = fixture_revision(RevisionRole::TrustedBase, "bounded");
+    let revision = fixture_revision(
+        RevisionRole::TrustedBase,
+        "bounded",
+        std::slice::from_ref(&first),
+        std::slice::from_ref(&first_eval),
+    );
 
     let invariant_cap = RegressionLimits {
         max_snapshot_invariants: 1,

@@ -5,17 +5,23 @@
 //! It grants no Finding, policy, kernel, graph-confidence, model, network,
 //! provider-credential, target-execution, or external-engine authority.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::error::Error;
 use std::fmt;
 
 use sentrdel_schema::SCHEMA_V1;
+use sentrdel_schema::canonical::content_id;
 use sentrdel_schema::coverage::CoverageRecord;
 use sentrdel_schema::evidence::{Evidence, EvidenceValidationError};
 use sentrdel_schema::graph::{GraphContractError, GraphEdge, GraphNode};
+use serde_json::{Value, json};
 
 use crate::business_logic::graph::R3GraphRecords;
-use crate::business_logic::model::{InvariantDefinition, InvariantEvaluation};
+use crate::business_logic::model::{
+    ActorIdentityKind, DataOperationKind, GuardKind, HttpMethod, InvariantDefinition,
+    InvariantEvaluation, InvariantEvaluationState, InvariantKind, InvariantRequirement,
+    InvariantSource, ResourceKind, ResourceRef, SourceLocation,
+};
 use crate::business_logic::producer::{
     BusinessLogicProducerOutput, R3_BUSINESS_LOGIC_PRODUCER_ID, R3_BUSINESS_LOGIC_PRODUCER_VERSION,
 };
@@ -25,6 +31,61 @@ use crate::regression::model::{
 };
 
 const R3_SNAPSHOT_CAPABILITY_SCOPE: &str = "BUSINESS_LOGIC";
+const S1_SNAPSHOT_INPUT_DIGEST_FORMAT: &str = "sentrdel.s1.semantic-snapshot-input/v1";
+
+/// Derive the bounded canonical digest that a `RevisionIdentity` must bind for
+/// this exact normalized semantic input set.
+///
+/// The helper is crate-private because S1-T008 does not freeze a public digest
+/// API. It exists so the trusted revision boundary can bind the same semantic
+/// records that `SemanticSnapshot::compose` independently re-derives and checks.
+pub(crate) fn derive_snapshot_input_digest(
+    mut invariant_definitions: Vec<InvariantDefinition>,
+    mut invariant_evaluations: Vec<InvariantEvaluation>,
+    producer_output: &BusinessLogicProducerOutput,
+    graph_records: &R3GraphRecords,
+    limits: RegressionLimits,
+) -> Result<String, SnapshotCompositionError> {
+    let limits = limits
+        .validate()
+        .map_err(SnapshotCompositionError::Limits)?;
+    normalize_and_validate_semantic_inputs(
+        &mut invariant_definitions,
+        &mut invariant_evaluations,
+        limits,
+    )?;
+
+    let mut coverage_records = producer_output.coverage().to_vec();
+    let mut evidence = producer_output.evidence().to_vec();
+    normalize_and_validate_producer_output(
+        &mut coverage_records,
+        &mut evidence,
+        &invariant_evaluations,
+        limits,
+    )?;
+
+    let mut graph_nodes = graph_records.nodes().to_vec();
+    let mut graph_edges = graph_records.edges().to_vec();
+    normalize_and_validate_graph_records(&mut graph_nodes, &mut graph_edges, limits)?;
+    enforce_bounded_semantic_input_bytes(
+        &invariant_definitions,
+        &invariant_evaluations,
+        &coverage_records,
+        &evidence,
+        &graph_nodes,
+        &graph_edges,
+        limits,
+    )?;
+
+    derive_normalized_snapshot_input_digest(
+        &invariant_definitions,
+        &invariant_evaluations,
+        &coverage_records,
+        &evidence,
+        &graph_nodes,
+        &graph_edges,
+    )
+}
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SemanticSnapshot {
@@ -82,65 +143,42 @@ impl SemanticSnapshot {
         )
         .map_err(SnapshotCompositionError::Contract)?;
 
-        enforce_count(
-            "invariant_definitions",
-            invariant_definitions.len(),
-            limits.max_snapshot_invariants,
+        normalize_and_validate_semantic_inputs(
+            &mut invariant_definitions,
+            &mut invariant_evaluations,
+            limits,
         )?;
-        enforce_count(
-            "invariant_evaluations",
-            invariant_evaluations.len(),
-            limits.max_snapshot_evaluations,
-        )?;
-
-        invariant_definitions.sort_by(|left, right| {
-            left.invariant_id()
-                .as_str()
-                .cmp(right.invariant_id().as_str())
-        });
-        reject_duplicate_invariant_ids(&invariant_definitions)?;
-
-        invariant_evaluations.sort_by(|left, right| {
-            left.evaluation_id()
-                .as_str()
-                .cmp(right.evaluation_id().as_str())
-        });
-        reject_duplicate_evaluation_ids(&invariant_evaluations)?;
-        validate_evaluation_references(&invariant_definitions, &invariant_evaluations)?;
 
         let (mut evidence, mut coverage_records) = producer_output.into_parts();
-        enforce_count(
-            "coverage_records",
-            coverage_records.len(),
-            limits.max_snapshot_coverage_records,
+        normalize_and_validate_producer_output(
+            &mut coverage_records,
+            &mut evidence,
+            &invariant_evaluations,
+            limits,
         )?;
-        let max_evidence_records = limits.max_snapshot_evaluations.checked_mul(2).ok_or(
-            SnapshotCompositionError::TotalInputBytesExceeded {
-                max: limits.max_total_input_bytes,
-            },
-        )?;
-        enforce_count("evidence_records", evidence.len(), max_evidence_records)?;
-
-        coverage_records.sort_by(|left, right| left.coverage_id.cmp(&right.coverage_id));
-        reject_duplicate_coverage_ids(&coverage_records)?;
-        validate_coverage_records(&coverage_records)?;
-
-        evidence.sort_by(|left, right| left.evidence_id().cmp(right.evidence_id()));
-        reject_duplicate_evidence_ids(&evidence)?;
-        validate_evidence_records(&evidence)?;
         let evidence_refs = evidence
             .iter()
             .map(|record| record.evidence_id().to_owned())
             .collect::<Vec<_>>();
 
         let (mut graph_nodes, mut graph_edges) = graph_records.into_parts();
-        enforce_count("graph_nodes", graph_nodes.len(), limits.max_graph_nodes)?;
-        enforce_count("graph_edges", graph_edges.len(), limits.max_graph_edges)?;
-        graph_nodes.sort_by(|left, right| left.node_id.cmp(&right.node_id));
-        graph_edges.sort_by(|left, right| left.edge_id.cmp(&right.edge_id));
-        reject_duplicate_graph_node_ids(&graph_nodes)?;
-        reject_duplicate_graph_edge_ids(&graph_edges)?;
-        validate_graph_records(&graph_nodes, &graph_edges)?;
+        normalize_and_validate_graph_records(&mut graph_nodes, &mut graph_edges, limits)?;
+
+        let derived_snapshot_input_digest = derive_normalized_snapshot_input_digest(
+            &invariant_definitions,
+            &invariant_evaluations,
+            &coverage_records,
+            &evidence,
+            &graph_nodes,
+            &graph_edges,
+        )?;
+        let declared_snapshot_input_digest = contract.revision().snapshot_input_digest();
+        if declared_snapshot_input_digest != derived_snapshot_input_digest {
+            return Err(SnapshotCompositionError::SnapshotInputDigestMismatch {
+                declared: declared_snapshot_input_digest.to_owned(),
+                derived: derived_snapshot_input_digest,
+            });
+        }
 
         let mut input_bytes = 0usize;
         account_debug_bytes(&mut input_bytes, &contract, limits)?;
@@ -265,6 +303,21 @@ pub enum SnapshotCompositionError {
         evaluation_id: String,
         invariant_id: String,
     },
+    EvidenceRecordCountMismatch {
+        expected: usize,
+        actual: usize,
+    },
+    EvidenceEvaluationBindingMismatch {
+        evidence_id: String,
+    },
+    EvidenceEvaluationMultiplicityMismatch {
+        evaluation_id: String,
+        count: usize,
+    },
+    SnapshotInputDigestMismatch {
+        declared: String,
+        derived: String,
+    },
     UnexpectedCoverageSchema(String),
     UnexpectedCoverageProducer(Option<String>),
     UnexpectedEvidenceProducer {
@@ -317,6 +370,25 @@ impl fmt::Display for SnapshotCompositionError {
             } => write!(
                 formatter,
                 "S1 snapshot evaluation {evaluation_id:?} references missing invariant {invariant_id:?}"
+            ),
+            Self::EvidenceRecordCountMismatch { expected, actual } => write!(
+                formatter,
+                "S1 snapshot Evidence count {actual} does not match expected R3 evaluation-bound count {expected}"
+            ),
+            Self::EvidenceEvaluationBindingMismatch { evidence_id } => write!(
+                formatter,
+                "S1 snapshot Evidence {evidence_id:?} is not bound to exactly one supplied evaluation/invariant subject pair"
+            ),
+            Self::EvidenceEvaluationMultiplicityMismatch {
+                evaluation_id,
+                count,
+            } => write!(
+                formatter,
+                "S1 snapshot evaluation {evaluation_id:?} has {count} Evidence records; expected exactly 2"
+            ),
+            Self::SnapshotInputDigestMismatch { declared, derived } => write!(
+                formatter,
+                "S1 snapshot semantic-input digest mismatch: revision declared {declared:?}, derived {derived:?}"
             ),
             Self::UnexpectedCoverageSchema(value) => write!(
                 formatter,
@@ -440,6 +512,78 @@ fn validate_evaluation_references(
     Ok(())
 }
 
+fn normalize_and_validate_semantic_inputs(
+    invariant_definitions: &mut [InvariantDefinition],
+    invariant_evaluations: &mut [InvariantEvaluation],
+    limits: RegressionLimits,
+) -> Result<(), SnapshotCompositionError> {
+    enforce_count(
+        "invariant_definitions",
+        invariant_definitions.len(),
+        limits.max_snapshot_invariants,
+    )?;
+    enforce_count(
+        "invariant_evaluations",
+        invariant_evaluations.len(),
+        limits.max_snapshot_evaluations,
+    )?;
+    invariant_definitions.sort_by(|left, right| {
+        left.invariant_id()
+            .as_str()
+            .cmp(right.invariant_id().as_str())
+    });
+    reject_duplicate_invariant_ids(invariant_definitions)?;
+    invariant_evaluations.sort_by(|left, right| {
+        left.evaluation_id()
+            .as_str()
+            .cmp(right.evaluation_id().as_str())
+    });
+    reject_duplicate_evaluation_ids(invariant_evaluations)?;
+    validate_evaluation_references(invariant_definitions, invariant_evaluations)
+}
+
+fn normalize_and_validate_producer_output(
+    coverage_records: &mut [CoverageRecord],
+    evidence: &mut [Evidence],
+    invariant_evaluations: &[InvariantEvaluation],
+    limits: RegressionLimits,
+) -> Result<(), SnapshotCompositionError> {
+    enforce_count(
+        "coverage_records",
+        coverage_records.len(),
+        limits.max_snapshot_coverage_records,
+    )?;
+    let max_evidence_records = limits.max_snapshot_evaluations.checked_mul(2).ok_or(
+        SnapshotCompositionError::TotalInputBytesExceeded {
+            max: limits.max_total_input_bytes,
+        },
+    )?;
+    enforce_count("evidence_records", evidence.len(), max_evidence_records)?;
+
+    coverage_records.sort_by(|left, right| left.coverage_id.cmp(&right.coverage_id));
+    reject_duplicate_coverage_ids(coverage_records)?;
+    validate_coverage_records(coverage_records)?;
+
+    evidence.sort_by(|left, right| left.evidence_id().cmp(right.evidence_id()));
+    reject_duplicate_evidence_ids(evidence)?;
+    validate_evidence_records(evidence)?;
+    validate_evidence_evaluation_bindings(evidence, invariant_evaluations, limits)
+}
+
+fn normalize_and_validate_graph_records(
+    graph_nodes: &mut [GraphNode],
+    graph_edges: &mut [GraphEdge],
+    limits: RegressionLimits,
+) -> Result<(), SnapshotCompositionError> {
+    enforce_count("graph_nodes", graph_nodes.len(), limits.max_graph_nodes)?;
+    enforce_count("graph_edges", graph_edges.len(), limits.max_graph_edges)?;
+    graph_nodes.sort_by(|left, right| left.node_id.cmp(&right.node_id));
+    graph_edges.sort_by(|left, right| left.edge_id.cmp(&right.edge_id));
+    reject_duplicate_graph_node_ids(graph_nodes)?;
+    reject_duplicate_graph_edge_ids(graph_edges)?;
+    validate_graph_records(graph_nodes, graph_edges)
+}
+
 fn reject_duplicate_coverage_ids(
     records: &[CoverageRecord],
 ) -> Result<(), SnapshotCompositionError> {
@@ -505,6 +649,113 @@ fn validate_evidence_records(records: &[Evidence]) -> Result<(), SnapshotComposi
     Ok(())
 }
 
+fn validate_evidence_evaluation_bindings(
+    records: &[Evidence],
+    evaluations: &[InvariantEvaluation],
+    limits: RegressionLimits,
+) -> Result<(), SnapshotCompositionError> {
+    let expected = evaluations.len().checked_mul(2).ok_or(
+        SnapshotCompositionError::TotalInputBytesExceeded {
+            max: limits.max_total_input_bytes,
+        },
+    )?;
+    if records.len() != expected {
+        return Err(SnapshotCompositionError::EvidenceRecordCountMismatch {
+            expected,
+            actual: records.len(),
+        });
+    }
+
+    let evaluation_by_id = evaluations
+        .iter()
+        .map(|evaluation| (evaluation.evaluation_id().as_str(), evaluation))
+        .collect::<BTreeMap<_, _>>();
+    let mut counts = BTreeMap::<&str, usize>::new();
+
+    for record in records {
+        let subjects = &record.claim().subjects;
+        let mut evaluation_subjects = subjects
+            .iter()
+            .filter(|subject| subject.kind == "invariant_evaluation");
+        let Some(evaluation_subject) = evaluation_subjects.next() else {
+            return Err(
+                SnapshotCompositionError::EvidenceEvaluationBindingMismatch {
+                    evidence_id: record.evidence_id().to_owned(),
+                },
+            );
+        };
+        if evaluation_subjects.next().is_some() {
+            return Err(
+                SnapshotCompositionError::EvidenceEvaluationBindingMismatch {
+                    evidence_id: record.evidence_id().to_owned(),
+                },
+            );
+        }
+        let Some(evaluation) = evaluation_by_id.get(evaluation_subject.id.as_str()) else {
+            return Err(
+                SnapshotCompositionError::EvidenceEvaluationBindingMismatch {
+                    evidence_id: record.evidence_id().to_owned(),
+                },
+            );
+        };
+
+        let mut invariant_subjects = subjects
+            .iter()
+            .filter(|subject| subject.kind == "invariant");
+        let invariant_matches = invariant_subjects
+            .next()
+            .is_some_and(|subject| subject.id == evaluation.invariant_id().as_str())
+            && invariant_subjects.next().is_none();
+        if !invariant_matches {
+            return Err(
+                SnapshotCompositionError::EvidenceEvaluationBindingMismatch {
+                    evidence_id: record.evidence_id().to_owned(),
+                },
+            );
+        }
+
+        let mut path_subjects = subjects
+            .iter()
+            .filter(|subject| subject.kind == "cross_layer_path");
+        let path_matches = match evaluation.path_id() {
+            Some(path_id) => {
+                path_subjects
+                    .next()
+                    .is_some_and(|subject| subject.id == path_id.as_str())
+                    && path_subjects.next().is_none()
+            }
+            None => path_subjects.next().is_none(),
+        };
+        if !path_matches {
+            return Err(
+                SnapshotCompositionError::EvidenceEvaluationBindingMismatch {
+                    evidence_id: record.evidence_id().to_owned(),
+                },
+            );
+        }
+
+        *counts
+            .entry(evaluation.evaluation_id().as_str())
+            .or_default() += 1;
+    }
+
+    for evaluation in evaluations {
+        let count = counts
+            .get(evaluation.evaluation_id().as_str())
+            .copied()
+            .unwrap_or(0);
+        if count != 2 {
+            return Err(
+                SnapshotCompositionError::EvidenceEvaluationMultiplicityMismatch {
+                    evaluation_id: evaluation.evaluation_id().as_str().to_owned(),
+                    count,
+                },
+            );
+        }
+    }
+    Ok(())
+}
+
 fn reject_duplicate_graph_node_ids(records: &[GraphNode]) -> Result<(), SnapshotCompositionError> {
     for pair in records.windows(2) {
         if pair[0].node_id == pair[1].node_id {
@@ -547,6 +798,234 @@ fn validate_graph_records(
         }
     }
     Ok(())
+}
+
+fn enforce_bounded_semantic_input_bytes(
+    invariant_definitions: &[InvariantDefinition],
+    invariant_evaluations: &[InvariantEvaluation],
+    coverage_records: &[CoverageRecord],
+    evidence: &[Evidence],
+    graph_nodes: &[GraphNode],
+    graph_edges: &[GraphEdge],
+    limits: RegressionLimits,
+) -> Result<(), SnapshotCompositionError> {
+    let mut input_bytes = 0usize;
+    for record in invariant_definitions {
+        account_debug_bytes(&mut input_bytes, record, limits)?;
+    }
+    for record in invariant_evaluations {
+        account_debug_bytes(&mut input_bytes, record, limits)?;
+    }
+    for record in coverage_records {
+        account_debug_bytes(&mut input_bytes, record, limits)?;
+    }
+    for record in evidence {
+        account_debug_bytes(&mut input_bytes, record, limits)?;
+    }
+    for record in graph_nodes {
+        account_debug_bytes(&mut input_bytes, record, limits)?;
+    }
+    for record in graph_edges {
+        account_debug_bytes(&mut input_bytes, record, limits)?;
+    }
+    Ok(())
+}
+
+fn derive_normalized_snapshot_input_digest(
+    invariant_definitions: &[InvariantDefinition],
+    invariant_evaluations: &[InvariantEvaluation],
+    coverage_records: &[CoverageRecord],
+    evidence: &[Evidence],
+    graph_nodes: &[GraphNode],
+    graph_edges: &[GraphEdge],
+) -> Result<String, SnapshotCompositionError> {
+    let material = json!({
+        "format": S1_SNAPSHOT_INPUT_DIGEST_FORMAT,
+        "invariant_definitions": invariant_definitions
+            .iter()
+            .map(invariant_definition_material)
+            .collect::<Vec<_>>(),
+        "invariant_evaluations": invariant_evaluations
+            .iter()
+            .map(invariant_evaluation_material)
+            .collect::<Vec<_>>(),
+        "coverage_records": coverage_records,
+        "evidence_records": evidence,
+        "graph_nodes": graph_nodes,
+        "graph_edges": graph_edges,
+    });
+    content_id("s1-semantic-snapshot-input", &material)
+        .map_err(|error| SnapshotCompositionError::Contract(error.into()))
+}
+
+fn invariant_definition_material(record: &InvariantDefinition) -> Value {
+    let scope = record.scope();
+    json!({
+        "invariant_id": record.invariant_id().as_str(),
+        "kind": invariant_kind_name(record.kind()),
+        "source": invariant_source_name(record.source()),
+        "scope": {
+            "route_pattern": scope.route_pattern(),
+            "http_methods": scope.http_methods().iter().copied().map(http_method_name).collect::<Vec<_>>(),
+            "resource": scope.resource().map(resource_material),
+            "operation_kinds": scope.operation_kinds().iter().copied().map(data_operation_kind_name).collect::<Vec<_>>(),
+            "target_paths": scope.target_paths().iter().map(|path| path.as_str()).collect::<Vec<_>>(),
+        },
+        "requirements": invariant_requirement_material(record.requirements()),
+        "provenance": record.provenance().iter().map(source_location_material).collect::<Vec<_>>(),
+    })
+}
+
+fn invariant_evaluation_material(record: &InvariantEvaluation) -> Value {
+    json!({
+        "evaluation_id": record.evaluation_id().as_str(),
+        "invariant_id": record.invariant_id().as_str(),
+        "path_id": record.path_id().map(|value| value.as_str()),
+        "state": invariant_evaluation_state_name(record.state()),
+        "supporting_observation_ids": record.supporting_observation_ids().iter().map(|value| value.as_str()).collect::<Vec<_>>(),
+        "contradicting_observation_ids": record.contradicting_observation_ids().iter().map(|value| value.as_str()).collect::<Vec<_>>(),
+        "coverage_reasons": record.coverage_reasons(),
+        "provenance": record.provenance().iter().map(source_location_material).collect::<Vec<_>>(),
+    })
+}
+
+fn invariant_requirement_material(requirement: &InvariantRequirement) -> Value {
+    match requirement {
+        InvariantRequirement::TenantBinding {
+            resource_tenant_field,
+            required_actor_identity,
+        } => json!({
+            "kind": "TENANT_BINDING",
+            "resource_tenant_field": resource_tenant_field,
+            "required_actor_identity": actor_identity_kind_name(*required_actor_identity),
+        }),
+        InvariantRequirement::RequiredRole { required_roles } => json!({
+            "kind": "REQUIRED_ROLE",
+            "required_roles": required_roles,
+        }),
+        InvariantRequirement::ProtectedProperties {
+            protected_properties,
+            mutation_operations,
+        } => json!({
+            "kind": "PROTECTED_PROPERTIES",
+            "protected_properties": protected_properties,
+            "mutation_operations": mutation_operations.iter().copied().map(data_operation_kind_name).collect::<Vec<_>>(),
+        }),
+        InvariantRequirement::ElevatedClientContext {
+            allowed_server_contexts,
+            required_guard_kinds,
+        } => json!({
+            "kind": "ELEVATED_CLIENT_CONTEXT",
+            "allowed_server_contexts": allowed_server_contexts,
+            "required_guard_kinds": required_guard_kinds.iter().copied().map(guard_kind_name).collect::<Vec<_>>(),
+        }),
+    }
+}
+
+fn source_location_material(location: &SourceLocation) -> Value {
+    json!({
+        "path": location.path().as_str(),
+        "start_byte": location.start_byte(),
+        "end_byte": location.end_byte(),
+        "content_digest": location.content_digest(),
+    })
+}
+
+fn resource_material(resource: &ResourceRef) -> Value {
+    json!({
+        "provider": resource.provider(),
+        "namespace": resource.namespace(),
+        "resource_name": resource.resource_name(),
+        "resource_kind": resource_kind_name(resource.resource_kind()),
+        "r2_subject": resource.r2_subject(),
+    })
+}
+
+fn invariant_kind_name(kind: InvariantKind) -> &'static str {
+    match kind {
+        InvariantKind::TenantBinding => "TENANT_BINDING",
+        InvariantKind::RequiredRole => "REQUIRED_ROLE",
+        InvariantKind::ProtectedProperties => "PROTECTED_PROPERTIES",
+        InvariantKind::ElevatedClientContext => "ELEVATED_CLIENT_CONTEXT",
+    }
+}
+
+fn invariant_source_name(source: InvariantSource) -> &'static str {
+    match source {
+        InvariantSource::BuiltIn => "BUILT_IN",
+        InvariantSource::ProjectDeclaration => "PROJECT_DECLARATION",
+    }
+}
+
+fn invariant_evaluation_state_name(state: InvariantEvaluationState) -> &'static str {
+    match state {
+        InvariantEvaluationState::Satisfied => "SATISFIED",
+        InvariantEvaluationState::Violated => "VIOLATED",
+        InvariantEvaluationState::Unknown => "UNKNOWN",
+        InvariantEvaluationState::NotApplicable => "NOT_APPLICABLE",
+    }
+}
+
+fn http_method_name(method: HttpMethod) -> &'static str {
+    match method {
+        HttpMethod::Get => "GET",
+        HttpMethod::Post => "POST",
+        HttpMethod::Put => "PUT",
+        HttpMethod::Patch => "PATCH",
+        HttpMethod::Delete => "DELETE",
+        HttpMethod::Options => "OPTIONS",
+        HttpMethod::Head => "HEAD",
+        HttpMethod::OtherSupported => "OTHER_SUPPORTED",
+    }
+}
+
+fn data_operation_kind_name(kind: DataOperationKind) -> &'static str {
+    match kind {
+        DataOperationKind::Read => "READ",
+        DataOperationKind::Insert => "INSERT",
+        DataOperationKind::Update => "UPDATE",
+        DataOperationKind::Upsert => "UPSERT",
+        DataOperationKind::Delete => "DELETE",
+        DataOperationKind::Rpc => "RPC",
+        DataOperationKind::OtherSupported => "OTHER_SUPPORTED",
+    }
+}
+
+fn resource_kind_name(kind: ResourceKind) -> &'static str {
+    match kind {
+        ResourceKind::Table => "TABLE",
+        ResourceKind::View => "VIEW",
+        ResourceKind::Function => "FUNCTION",
+        ResourceKind::StorageObject => "STORAGE_OBJECT",
+        ResourceKind::ApplicationResource => "APPLICATION_RESOURCE",
+        ResourceKind::OtherSupported => "OTHER_SUPPORTED",
+    }
+}
+
+fn actor_identity_kind_name(kind: ActorIdentityKind) -> &'static str {
+    match kind {
+        ActorIdentityKind::AuthenticatedUser => "AUTHENTICATED_USER",
+        ActorIdentityKind::Tenant => "TENANT",
+        ActorIdentityKind::Role => "ROLE",
+        ActorIdentityKind::Service => "SERVICE",
+        ActorIdentityKind::Anonymous => "ANONYMOUS",
+        ActorIdentityKind::RequestControlled => "REQUEST_CONTROLLED",
+        ActorIdentityKind::Unknown => "UNKNOWN",
+    }
+}
+
+fn guard_kind_name(kind: GuardKind) -> &'static str {
+    match kind {
+        GuardKind::Authentication => "AUTHENTICATION",
+        GuardKind::RequiredRole => "REQUIRED_ROLE",
+        GuardKind::TenantBinding => "TENANT_BINDING",
+        GuardKind::OwnershipBinding => "OWNERSHIP_BINDING",
+        GuardKind::ObjectMembership => "OBJECT_MEMBERSHIP",
+        GuardKind::PropertyAllowlist => "PROPERTY_ALLOWLIST",
+        GuardKind::PropertyDenylistRequirement => "PROPERTY_DENYLIST_REQUIREMENT",
+        GuardKind::ElevatedClientBoundary => "ELEVATED_CLIENT_BOUNDARY",
+        GuardKind::CustomInvariantRequirement => "CUSTOM_INVARIANT_REQUIREMENT",
+    }
 }
 
 fn account_debug_bytes<T: fmt::Debug>(
