@@ -2,10 +2,11 @@
 
 **Status:** ACTIVE  
 **Created:** 2026-08-24  
-**Last major review:** 2026-09-02  
+**Last major review:** 2026-09-08  
 **Improvement Plan of Record:** `improvement-plan-2026-08-26.md`  
 **Strategic Amendment of Record:** `strategic-amendment-2026-09-02-semantic-security-graph.md`  
 **Post-R3 Execution Blueprint of Record:** `post-r3-execution-blueprint-2026-09-02.md`  
+**Source-Driven Research Supplement:** `source-driven-security-expansion-2026-09-08.md`  
 **Roadmap Navigation:** `README.md`  
 **Purpose:** Decompose the A-to-Z Sentrdel mission into bounded Spec Kit slices. Each roadmap item MUST receive its own `spec.md`, clarification closeout, plan/research/design artifacts, checklist, tasks, analysis, and implementation lifecycle.
 
@@ -64,7 +65,7 @@ The repository adopts `strategic-amendment-2026-09-02-semantic-security-graph.md
 
 Binding direction:
 
-- continue the remaining active R3 task sequence exactly as governed; R3-T009 is canonical and this amendment does not reorder `R3-T010 -> ... -> R3-T038`;
+- R3 is canonically complete on protected `main@658078575d18c029bd25d6d5b48e5cde33381a95`; its task sequence remains the historical authority for that completed slice and no successor inherits implementation authority from R3 closeout;
 - name the bounded canonical graph direction the **Sentrdel Semantic Security Graph (SSG)** without creating a universal CPG or second graph runtime;
 - make **Security Invariant Regression** over a trusted base the first post-R3 product wedge, not generic diff-aware scanning;
 - treat **coverage regression** as a first-class security outcome so loss of visibility cannot become an implicit clean result;
@@ -77,15 +78,26 @@ Binding direction:
 - keep the core open, local-first, inspectable and useful without account creation, source upload, provider credentials or a proprietary API;
 - evaluate future major features with the defensibility filter in the strategic amendment and roadmap index: if a mature external engine can provide the raw capability and rebuilding it does not materially strengthen invariant judgment, coverage truth, verification or conformance, prefer import/reuse.
 
+## Cross-cutting 2026-09-08 source-driven refinement
+
+The repository preserves `source-driven-security-expansion-2026-09-08.md` and `docs/third-party/source-candidate-assessment-2026-09-08.md` as research/planning records. The research confirms the invariant-regression-first strategy and adds future planning gates for artifact identity/evasion-resistant routing, agent/MCP/skill static security, and agent-generated-code conformance.
+
+Binding boundaries:
+
+- the source study does not qualify donor source, data, models, binaries, containers, dependencies, network services, credentials, target execution, or dynamic verification;
+- probabilistic classification and external producer confidence remain bounded evidence/inference and cannot become Sentrdel FACT/VERIFIED authority by score alone;
+- S1-S5 remain the first product path; source-driven gates do not reorder or delay bounded verification;
+- every future adoption still requires exact source/dependency/data/runtime qualification under the Constitution and repository governance.
+
 ## Roadmap
 
 | ID | Slice | Goal | Depends on | Status | Sub-spec |
 |---|---|---|---|---|---|
 | R1 | Evidence + Guard Foundation | Ship a useful Rust CLI for diff review, canonical evidence, stack detection, bounded stdio MCP guard, git guard seams, coverage gaps, high-signal baseline checks, and the minimum immutable evaluation foundation required to measure quality before detector breadth | — | complete | `specs/001-v0-1-evidence-guard-foundation/` |
 | R2 | **Supabase P0 Static/Posture Pack** | Offline deterministic Supabase security posture: RLS/policies, grants/functions, SECURITY DEFINER/search_path, exposed schemas/sensitive columns, service-role/client boundaries, Storage and Auth/config signals; separate optional live posture later | R1 | complete | `specs/002-supabase-static-posture/` |
-| R3 | Business-Logic Substrate + Invariants | Build the first application-semantic SSG slice: route × actor/auth × guard × value/data operation × provider authority × invariant analysis, including tenant isolation/authz; augment Supabase and generalize only through bounded adapters | R1, R2 | active | `specs/003-business-logic-invariants/` |
+| R3 | Business-Logic Substrate + Invariants | Build the first application-semantic SSG slice: route × actor/auth × guard × value/data operation × provider authority × invariant analysis, including tenant isolation/authz; augment Supabase and generalize only through bounded adapters | R1, R2 | complete | `specs/003-business-logic-invariants/` |
 | R4 | Provider Pack Expansion | Expand framework/provider semantics where they materially strengthen cross-layer judgment: Firebase, common Auth/OIDC/JWT/session stacks, Stripe/payment/webhook integrity, Vercel/Cloudflare/deploy surfaces, PostgreSQL and selected cloud/IaC providers | R1, R3 | planned | — |
-| R5 | **Security Invariant Regression + CI/Forge/IDE Integrations** | Compare trusted-base vs candidate SSG/invariant/coverage state, surface high-signal security-property regressions and coverage loss, deliver through the local CLI/protocol and GitHub/forge review first, then IDE/agent integrations without making vendor hooks canonical judgment implementations | R1, R3 | planned — first post-R3 productization priority | — |
+| R5 | **Security Invariant Regression + CI/Forge/IDE Integrations** | Compare trusted-base vs candidate SSG/invariant/coverage state, surface high-signal security-property regressions and coverage loss, deliver through the local CLI/protocol and GitHub/forge review first, then IDE/agent integrations without making vendor hooks canonical judgment implementations | R1, R3 | planned — next Spec Kit planning priority | — |
 | R6 | **Evidence Upgrade + Safe Verification + Fix Validation** | Opt-in isolated differential tests and bounded verification that prove/disprove selected claims; re-analyze candidate fixes and emit `FIX_VERIFIED` only with authorized execution evidence | R1, R3 | planned | — |
 | R7 | Supply Chain + External Evidence + Infrastructure + Deployment | Add qualified SARIF/SBOM/scanner/advisory evidence imports, broaden SCA/IaC/workflow/container/deployment security, provenance/release security, and later bounded dependency/build action controls/open intelligence ingestion. External Evidence Import may begin after the stable R1/R3 Evidence/Coverage contracts; provider/infrastructure expansion within this slice additionally depends on R4 where it consumes R4 semantics. | R1, R3; R4 for provider/infrastructure expansion | planned | — |
 | R8 | Runtime Evidence + Enforcement Tiers | Add runtime observations, Linux enforcement/telemetry integrations, deployment/runtime posture and correlation back into stable semantic identities without pretending cross-platform parity | R1, R6 | planned | — |
@@ -95,7 +107,7 @@ Binding direction:
 
 ## Post-R3 strategic priority
 
-Roadmap IDs are stable identifiers, not permission to assume numerical execution order. After canonical R3 closeout and after the planning amendment itself is reconciled and qualified, the preferred product priority is:
+Roadmap IDs are stable identifiers, not permission to assume numerical execution order. R3 closeout is canonical. After this post-R3 planning reconciliation itself is qualified and canonical, the preferred product priority is:
 
 1. **R5 / S1-S3: Security Invariant Regression Core → local developer contract → GitHub/forge delivery**;
 2. **R9 / S4: Open Regression Conformance** — measure precision, misses, coverage loss, deterministic graph diff and explanation quality before broad detector expansion;
@@ -107,7 +119,7 @@ Roadmap IDs are stable identifiers, not permission to assume numerical execution
 8. **R10 / S10: mature full-project SSG posture**;
 9. **R11 / S11: controlled research/intelligence/learning flywheel**.
 
-Every new slice still requires its own Spec Kit lifecycle and dependency proof before implementation. The blueprint sequence is planning guidance, not implementation authority.
+Every new slice still requires its own Spec Kit lifecycle and dependency proof before implementation. The blueprint sequence is planning guidance, not implementation authority. The next dependency-ordered action after this reconciliation is canonical and post-merge proven is creation of the R5/S1 Spec Kit planning slice; product implementation remains blocked until that successor Spec Kit completes its own implementation-readiness lifecycle.
 
 ## Proof-of-category demos
 
@@ -178,6 +190,11 @@ The following are candidates or references, not automatically trusted dependenci
 - `continuedev/continue` — study/adapt permissively licensed IDE/CLI integration patterns; do not fork the archived product wholesale.
 - `karpathy/autoresearch` — study the immutable-evaluator/iterative experiment pattern only; do not transfer autonomous mutation authority into the trusted security plane.
 - Hermes Agent learning/skills patterns — study inspectable distill/reuse/refine lifecycle concepts; do not treat accumulated memory/skills as security authority without Sentrdel promotion, expiry, invalidation and provenance controls.
+- `Tencent/AI-Infra-Guard` — taxonomy/conformance reference for Agent/MCP/Skill security and adversarial routing; no full runtime or dynamic-red-team adoption from the research record.
+- `google/magika` — optional artifact-classifier candidate for future routing research; probabilistic output remains inference and no native/model dependency is authorized by the research record.
+- `Tencent/AICGSecEval` — benchmark-methodology reference for repository-level AI/agent-generated code evaluation; no dataset/PoC/image/provider-credential adoption from the research record.
+- `Tencent/secguide` — knowledge-source reference only; license/freshness constraints require separate validation before adaptation or trusted-rule promotion.
+- `Tencent/TscanCode` — low-priority external-engine/import-format reference; GPL implementation remains outside the permissive trusted core.
 - **Aikido Security** — product/competitive reference for full-context PR review, reachability/correlation, validation/retesting, threat-intelligence flywheels, package-action protection and developer-first distribution. Do not interpret its platform breadth as a mandate to rebuild equivalent scanners.
 - **Semgrep** — product/reference for diff-aware PR scanning and cross-file analysis; these capabilities are table stakes, not Sentrdel's category moat.
 - **Endor Labs** — product/reference for reachability, AI SAST, package/firewall, and agent-action policy surfaces; guard/reachability breadth alone is not sufficient differentiation.
