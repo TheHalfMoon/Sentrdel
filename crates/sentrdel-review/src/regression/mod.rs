@@ -8,6 +8,10 @@
 
 pub mod model;
 pub mod revision;
+// S1-T008 intentionally lands the crate-private snapshot substrate before its
+// dependency-ordered S1-T009+ consumers. Keep it compiled and tested without
+// exposing it outside this crate or weakening lints elsewhere in the workspace.
+#[allow(dead_code)]
 pub(crate) mod snapshot;
 
 pub const S1_REGRESSION_CONTRACT_VERSION: &str = "sentrdel.security-regression/v1";
