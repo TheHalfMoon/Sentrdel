@@ -13,9 +13,10 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  governance:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
+  repository-governance:
+    name: Repository governance proof
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
     env:
       SENTRDEL_EXPECTED_MAIN_SHA: c113d2718b2ef04e0dc87a71bf6363b1031ba93c
     steps:
@@ -24,7 +25,18 @@ jobs:
         with:
           ref: c113d2718b2ef04e0dc87a71bf6363b1031ba93c
           persist-credentials: false
+
+      - name: Require dedicated governance credential
+        env:
+          SENTRDEL_GOVERNANCE_ADMIN_TOKEN: ${{ secrets.SENTRDEL_GOVERNANCE_ADMIN_TOKEN }}
+        run: |
+          if [ -z "${SENTRDEL_GOVERNANCE_ADMIN_TOKEN:-}" ]; then
+            echo "repository-governance: ERROR: SENTRDEL_GOVERNANCE_ADMIN_TOKEN is unavailable" >&2
+            exit 1
+          fi
+
       - name: Verify protected main governance
         env:
-          GITHUB_TOKEN: ${{ secrets.SENTRDEL_GOVERNANCE_READ_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.SENTRDEL_GOVERNANCE_ADMIN_TOKEN }}
+          GH_TOKEN: ""
         run: python3 scripts/verify_repository_governance.py
