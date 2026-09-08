@@ -22,6 +22,8 @@ use sentrdel_review::view::NormalizedRepoPath;
 use sentrdel_schema::SCHEMA_V1;
 use sentrdel_schema::coverage::CoverageState;
 
+const PRODUCER_CONFIGURATION_DIGEST: &str = "sha256:s1-t008-config";
+
 fn source(path: &str, start: usize) -> SourceLocation {
     SourceLocation::new(
         NormalizedRepoPath::parse(path, 4_096).expect("normalized path"),
@@ -98,26 +100,31 @@ fn producer_output(evaluations: &[InvariantEvaluation]) -> BusinessLogicProducer
         .expect("canonical R3 producer output")
 }
 
-fn contract(
+fn configuration_identity(profile: &str) -> Vec<String> {
+    vec![format!("profile:{profile}")]
+}
+
+fn declared_contract(
     revision: RevisionIdentity,
+    canonical_schema_contract: &str,
     producer_version: &str,
     limits: RegressionLimits,
 ) -> SemanticSnapshotContract {
     SemanticSnapshotContract::new(
         revision,
-        "schema-v1",
+        canonical_schema_contract,
         vec![
             ProducerContractIdentity::new(
                 R3_BUSINESS_LOGIC_PRODUCER_ID,
                 producer_version,
-                "sha256:s1-t008-config",
+                PRODUCER_CONFIGURATION_DIGEST,
                 "BUSINESS_LOGIC",
                 SCHEMA_V1,
                 limits,
             )
             .expect("producer contract"),
         ],
-        vec!["profile:default".to_owned()],
+        configuration_identity("default"),
         limits,
     )
     .expect("snapshot contract")
@@ -125,7 +132,7 @@ fn contract(
 
 fn snapshot(
     revision: RevisionIdentity,
-    producer_version: &str,
+    configuration_identity: Vec<String>,
     mut definitions: Vec<InvariantDefinition>,
     mut evaluations: Vec<InvariantEvaluation>,
     limits: RegressionLimits,
@@ -134,7 +141,9 @@ fn snapshot(
     let graph = map_validated_observations(&[], &[], &definitions, R3GraphLimits::default())
         .expect("canonical R3 graph records");
     SemanticSnapshot::compose(
-        contract(revision, producer_version, limits),
+        revision,
+        PRODUCER_CONFIGURATION_DIGEST,
+        configuration_identity,
         std::mem::take(&mut definitions),
         std::mem::take(&mut evaluations),
         output,
@@ -163,7 +172,7 @@ fn semantic_snapshot_composition_is_bounded_normalized_and_preserves_canonical_i
 
     let composed = snapshot(
         revision.clone(),
-        R3_BUSINESS_LOGIC_PRODUCER_VERSION,
+        configuration_identity("default"),
         vec![first.clone(), second.clone()],
         vec![first_eval.clone(), second_eval.clone()],
         RegressionLimits::default(),
@@ -171,7 +180,7 @@ fn semantic_snapshot_composition_is_bounded_normalized_and_preserves_canonical_i
     .expect("semantic snapshot");
     let replay = snapshot(
         revision,
-        R3_BUSINESS_LOGIC_PRODUCER_VERSION,
+        configuration_identity("default"),
         vec![second, first],
         vec![second_eval, first_eval],
         RegressionLimits::default(),
@@ -219,7 +228,7 @@ fn snapshot_pair_validation_binds_exact_revision_pair_and_contract_compatibility
 
     let base = snapshot(
         base_revision,
-        R3_BUSINESS_LOGIC_PRODUCER_VERSION,
+        configuration_identity("default"),
         vec![definition.clone()],
         vec![evaluation.clone()],
         RegressionLimits::default(),
@@ -227,7 +236,7 @@ fn snapshot_pair_validation_binds_exact_revision_pair_and_contract_compatibility
     .expect("base snapshot");
     let candidate = snapshot(
         candidate_revision.clone(),
-        R3_BUSINESS_LOGIC_PRODUCER_VERSION,
+        configuration_identity("default"),
         vec![definition.clone()],
         vec![evaluation.clone()],
         RegressionLimits::default(),
@@ -237,22 +246,22 @@ fn snapshot_pair_validation_binds_exact_revision_pair_and_contract_compatibility
 
     let incompatible = snapshot(
         candidate_revision,
-        "2",
+        configuration_identity("strict"),
         vec![definition.clone()],
         vec![evaluation.clone()],
         RegressionLimits::default(),
     )
-    .expect("incompatible candidate snapshot");
+    .expect("configuration-incompatible candidate snapshot");
     assert!(matches!(
         validate_snapshot_pair(&pair, &base, &incompatible),
         Err(SnapshotCompositionError::IncompatibleSnapshots(
-            SnapshotCompatibility::ProducerContractMismatch
+            SnapshotCompatibility::ConfigurationIdentityMismatch
         ))
     ));
 
     let wrong_base = snapshot(
         fixture_revision(RevisionRole::TrustedBase, "wrong-base"),
-        R3_BUSINESS_LOGIC_PRODUCER_VERSION,
+        configuration_identity("default"),
         vec![definition],
         vec![evaluation],
         RegressionLimits::default(),
@@ -264,6 +273,54 @@ fn snapshot_pair_validation_binds_exact_revision_pair_and_contract_compatibility
             side: "TRUSTED_BASE"
         })
     ));
+}
+
+#[test]
+fn snapshot_composition_seals_canonical_r3_producer_and_schema_contract() {
+    let definition = invariant("contract-binding");
+    let evaluation = evaluation("contract-binding", &definition);
+    let base_revision = fixture_revision(RevisionRole::TrustedBase, "contract-base");
+    let candidate_revision = fixture_revision(RevisionRole::Candidate, "contract-candidate");
+    let composed = snapshot(
+        base_revision.clone(),
+        configuration_identity("default"),
+        vec![definition],
+        vec![evaluation],
+        RegressionLimits::default(),
+    )
+    .expect("canonically bound snapshot");
+
+    let wrong_base_contract = declared_contract(
+        base_revision.clone(),
+        SCHEMA_V1,
+        "2",
+        RegressionLimits::default(),
+    );
+    let wrong_candidate_contract = declared_contract(
+        candidate_revision,
+        SCHEMA_V1,
+        "2",
+        RegressionLimits::default(),
+    );
+    assert_eq!(
+        wrong_base_contract.compatibility_with(&wrong_candidate_contract),
+        SnapshotCompatibility::Compatible
+    );
+    assert_eq!(
+        composed.contract().compatibility_with(&wrong_base_contract),
+        SnapshotCompatibility::ProducerContractMismatch
+    );
+
+    let wrong_schema_contract = declared_contract(
+        base_revision,
+        "schema-v2",
+        R3_BUSINESS_LOGIC_PRODUCER_VERSION,
+        RegressionLimits::default(),
+    );
+    assert_eq!(
+        composed.contract().compatibility_with(&wrong_schema_contract),
+        SnapshotCompatibility::CanonicalSchemaMismatch
+    );
 }
 
 #[test]
@@ -281,7 +338,7 @@ fn malformed_references_and_resource_caps_fail_visible_before_comparison() {
     assert!(matches!(
         snapshot(
             revision.clone(),
-            R3_BUSINESS_LOGIC_PRODUCER_VERSION,
+            configuration_identity("default"),
             vec![first.clone(), second.clone()],
             vec![first_eval.clone(), second_eval],
             invariant_cap,
@@ -296,7 +353,7 @@ fn malformed_references_and_resource_caps_fail_visible_before_comparison() {
     assert!(matches!(
         snapshot(
             revision.clone(),
-            R3_BUSINESS_LOGIC_PRODUCER_VERSION,
+            configuration_identity("default"),
             vec![first.clone()],
             vec![orphan],
             RegressionLimits::default(),
@@ -308,7 +365,7 @@ fn malformed_references_and_resource_caps_fail_visible_before_comparison() {
     assert!(matches!(
         snapshot(
             revision.clone(),
-            R3_BUSINESS_LOGIC_PRODUCER_VERSION,
+            configuration_identity("default"),
             vec![first.clone(), duplicate],
             vec![first_eval.clone()],
             RegressionLimits::default(),
@@ -323,7 +380,7 @@ fn malformed_references_and_resource_caps_fail_visible_before_comparison() {
     assert!(matches!(
         snapshot(
             revision,
-            R3_BUSINESS_LOGIC_PRODUCER_VERSION,
+            configuration_identity("default"),
             vec![first],
             vec![first_eval],
             tiny_bytes,
