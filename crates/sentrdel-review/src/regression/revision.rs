@@ -308,13 +308,13 @@ fn validate_revision(
         .to_string()
         .to_ascii_lowercase();
 
-    if let Some(expected) = expected_root_tree_id {
-        if expected != root_tree_id {
-            return Err(RevisionValidationError::RootTreeMismatch {
-                expected,
-                actual: root_tree_id,
-            });
-        }
+    if let Some(expected) = expected_root_tree_id
+        && expected != root_tree_id
+    {
+        return Err(RevisionValidationError::RootTreeMismatch {
+            expected,
+            actual: root_tree_id,
+        });
     }
 
     let exact_identity = content_id(
