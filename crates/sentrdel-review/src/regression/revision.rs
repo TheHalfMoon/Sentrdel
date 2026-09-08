@@ -145,10 +145,17 @@ impl fmt::Display for RevisionValidationError {
         match self {
             Self::Limits(error) => write!(formatter, "invalid S1 revision limits: {error}"),
             Self::RepositoryNotFound(path) => {
-                write!(formatter, "no local Git repository found from {}", path.display())
+                write!(
+                    formatter,
+                    "no local Git repository found from {}",
+                    path.display()
+                )
             }
             Self::RepositoryOpen(source) => {
-                write!(formatter, "cannot open local Git repository safely: {source}")
+                write!(
+                    formatter,
+                    "cannot open local Git repository safely: {source}"
+                )
             }
             Self::EmptyField(field) => write!(formatter, "S1 revision field {field} is empty"),
             Self::FieldTooLarge { field, bytes, max } => write!(
@@ -156,7 +163,10 @@ impl fmt::Display for RevisionValidationError {
                 "S1 revision field {field} size {bytes} exceeds cap {max}"
             ),
             Self::TotalInputBytesExceeded { max } => {
-                write!(formatter, "S1 revision identity input exceeds byte cap {max}")
+                write!(
+                    formatter,
+                    "S1 revision identity input exceeds byte cap {max}"
+                )
             }
             Self::InvalidExactObjectId { field } => write!(
                 formatter,
@@ -178,9 +188,8 @@ impl fmt::Display for RevisionValidationError {
                 formatter,
                 "local root tree mismatch: expected {expected}, resolved {actual}"
             ),
-            Self::SameRevisionIdentity => formatter.write_str(
-                "trusted-base and candidate must bind distinct exact local commits",
-            ),
+            Self::SameRevisionIdentity => formatter
+                .write_str("trusted-base and candidate must bind distinct exact local commits"),
             Self::Canonical(error) => write!(formatter, "S1 revision identity failed: {error}"),
         }
     }
@@ -219,12 +228,7 @@ pub fn validate_local_revision_pair(
     let repo = gix::open_opts(&root, gix::open::Options::isolated().strict_config(true))
         .map_err(|error| RevisionValidationError::RepositoryOpen(error.to_string()))?;
 
-    let trusted_base = validate_revision(
-        &repo,
-        RevisionRole::TrustedBase,
-        trusted_base,
-        limits,
-    )?;
+    let trusted_base = validate_revision(&repo, RevisionRole::TrustedBase, trusted_base, limits)?;
     let candidate = validate_revision(&repo, RevisionRole::Candidate, candidate, limits)?;
 
     if trusted_base.commit_id == candidate.commit_id {
@@ -275,7 +279,7 @@ fn validate_revision(
         });
     }
 
-    let resolved = repo.rev_parse_single(&commit_id).map_err(|error| {
+    let resolved = repo.rev_parse_single(commit_id.as_str()).map_err(|error| {
         RevisionValidationError::CommitResolution {
             commit_id: commit_id.clone(),
             source: error.to_string(),
