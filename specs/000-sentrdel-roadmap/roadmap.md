@@ -185,7 +185,7 @@ The following are candidates or references, not automatically trusted dependenci
 - `tree-sitter`, `ast-grep-core`, SCIP, `petgraph`, qualified `gix`, `regorus`, `rmcp` — native/high-priority foundations subject to exact security qualification.
 - Joern, Opengrep, CodeQL (user-supplied), Syft/Trivy/Checkov and other mature scanners — optional external evidence engines where qualified.
 - `Graphify-Labs/graphify` — study/adapt graph-diff, confidence, affected/blast-radius patterns; do not introduce a second canonical graph runtime.
-- `vitali87/code-graph-rag` — study/adapt schema, resource/data-flow/static-runtime merge concepts; do not import its Python/Memgraph runtime as Sentrdel core.
+- `vitali87/code-graph-rag` — study/adapt schema, resource/data-flow, static/runtime merge concepts; do not import its Python/Memgraph runtime as Sentrdel core.
 - `deepseek-ai/deepseek-harness` — study/adapt durable agent events, tool guard pipeline, approval/sandbox seam concepts.
 - `continuedev/continue` — study/adapt permissively licensed IDE/CLI integration patterns; do not fork the archived product wholesale.
 - `karpathy/autoresearch` — study the immutable-evaluator/iterative experiment pattern only; do not transfer autonomous mutation authority into the trusted security plane.
