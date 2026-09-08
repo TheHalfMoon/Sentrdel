@@ -198,11 +198,7 @@ impl RevisionIdentity {
         let fixture_identity = fixture_identity.into();
         let snapshot_input_digest = snapshot_input_digest.into();
         validate_text(&fixture_identity, "fixture_identity", limits)?;
-        validate_text(
-            &snapshot_input_digest,
-            "snapshot_input_digest",
-            limits,
-        )?;
+        validate_text(&snapshot_input_digest, "snapshot_input_digest", limits)?;
 
         let exact_identity = content_id(
             "s1-fixture-revision-identity",
@@ -323,11 +319,7 @@ impl ProducerContractIdentity {
         };
         validate_text(&value.producer_id, "producer_id", limits)?;
         validate_text(&value.producer_version, "producer_version", limits)?;
-        validate_text(
-            &value.configuration_digest,
-            "configuration_digest",
-            limits,
-        )?;
+        validate_text(&value.configuration_digest, "configuration_digest", limits)?;
         validate_text(&value.capability_scope, "capability_scope", limits)?;
         validate_text(
             &value.schema_or_contract_version,
@@ -823,10 +815,11 @@ impl SecurityRegressionRecord {
             "s1-regression-candidate-provenance-refs",
             &draft.candidate_provenance_refs,
         )?;
-        let graph_digest =
-            content_id("s1-regression-graph-context-refs", &draft.graph_context_refs)?;
-        let diagnostics_digest =
-            content_id("s1-regression-diagnostics", &draft.diagnostics)?;
+        let graph_digest = content_id(
+            "s1-regression-graph-context-refs",
+            &draft.graph_context_refs,
+        )?;
+        let diagnostics_digest = content_id("s1-regression-diagnostics", &draft.diagnostics)?;
 
         let identity_parts = vec![
             S1_REGRESSION_CONTRACT_VERSION.to_owned(),
@@ -836,7 +829,10 @@ impl SecurityRegressionRecord {
             draft.base_invariant_id.clone().unwrap_or_default(),
             draft.candidate_invariant_id.clone().unwrap_or_default(),
             draft.base_definition_digest.clone().unwrap_or_default(),
-            draft.candidate_definition_digest.clone().unwrap_or_default(),
+            draft
+                .candidate_definition_digest
+                .clone()
+                .unwrap_or_default(),
             invariant_state_name(draft.base_evaluation_state).to_owned(),
             invariant_state_name(draft.candidate_evaluation_state).to_owned(),
             draft.disposition.as_str().to_owned(),
@@ -850,8 +846,7 @@ impl SecurityRegressionRecord {
             diagnostics_digest,
             draft.resource_state.as_str().to_owned(),
         ];
-        let regression_id =
-            content_id("s1-security-regression-record", &identity_parts)?;
+        let regression_id = content_id("s1-security-regression-record", &identity_parts)?;
 
         Ok(Self {
             regression_id,
@@ -947,11 +942,7 @@ fn coverage_state_name(value: Option<&CoverageState>) -> &'static str {
 mod tests {
     use super::*;
 
-    fn fixture_revision(
-        role: RevisionRole,
-        fixture: &str,
-        digest: &str,
-    ) -> RevisionIdentity {
+    fn fixture_revision(role: RevisionRole, fixture: &str, digest: &str) -> RevisionIdentity {
         RevisionIdentity::fixture(role, fixture, digest, RegressionLimits::default())
             .expect("fixture revision")
     }
@@ -998,13 +989,19 @@ mod tests {
             fixture_revision(RevisionRole::TrustedBase, "same", "digest:same"),
             fixture_revision(RevisionRole::Candidate, "same", "digest:same"),
         );
-        assert!(matches!(same, Err(RegressionModelError::SameRevisionIdentity)));
+        assert!(matches!(
+            same,
+            Err(RegressionModelError::SameRevisionIdentity)
+        ));
 
         let wrong = RevisionPair::new(
             fixture_revision(RevisionRole::Candidate, "base", "digest:base"),
             fixture_revision(RevisionRole::TrustedBase, "candidate", "digest:candidate"),
         );
-        assert!(matches!(wrong, Err(RegressionModelError::InvalidRevisionRole)));
+        assert!(matches!(
+            wrong,
+            Err(RegressionModelError::InvalidRevisionRole)
+        ));
     }
 
     #[test]
@@ -1031,7 +1028,11 @@ mod tests {
         );
 
         let changed_producer = SemanticSnapshotContract::new(
-            fixture_revision(RevisionRole::Candidate, "candidate-v2", "digest:candidate-v2"),
+            fixture_revision(
+                RevisionRole::Candidate,
+                "candidate-v2",
+                "digest:candidate-v2",
+            ),
             "schema-v1",
             vec![producer("2")],
             vec!["profile:default".to_owned()],
@@ -1044,7 +1045,11 @@ mod tests {
         );
 
         let changed_config = SemanticSnapshotContract::new(
-            fixture_revision(RevisionRole::Candidate, "candidate-config", "digest:candidate-config"),
+            fixture_revision(
+                RevisionRole::Candidate,
+                "candidate-config",
+                "digest:candidate-config",
+            ),
             "schema-v1",
             vec![producer("1")],
             vec!["profile:strict".to_owned()],
@@ -1078,15 +1083,19 @@ mod tests {
                     && rule.candidate == InvariantEvaluationState::Unknown
             })
             .expect("coverage-loss transition");
-        assert!(lost
-            .allowed_dispositions
-            .contains(&SecurityDeltaDisposition::CoverageLost));
-        assert!(lost
-            .allowed_dispositions
-            .contains(&SecurityDeltaDisposition::Unknown));
-        assert!(!lost
-            .allowed_dispositions
-            .contains(&SecurityDeltaDisposition::Improvement));
+        assert!(
+            lost.allowed_dispositions
+                .contains(&SecurityDeltaDisposition::CoverageLost)
+        );
+        assert!(
+            lost.allowed_dispositions
+                .contains(&SecurityDeltaDisposition::Unknown)
+        );
+        assert!(
+            !lost
+                .allowed_dispositions
+                .contains(&SecurityDeltaDisposition::Improvement)
+        );
 
         assert!(FROZEN_INVARIANT_TRANSITIONS.iter().all(|rule| {
             rule.base != InvariantEvaluationState::NotApplicable
