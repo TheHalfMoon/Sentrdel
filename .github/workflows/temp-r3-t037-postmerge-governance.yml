@@ -1,0 +1,24 @@
+name: Temporary R3 T037 Post-Merge Governance
+
+on:
+  push:
+    branches:
+      - ci/r3-t037-postmerge-governance
+
+permissions:
+  contents: read
+
+jobs:
+  governance:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout without persisted credentials
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Verify live repository governance
+        env:
+          GITHUB_TOKEN: ${{ secrets.SENTRDEL_GOVERNANCE_ADMIN_TOKEN }}
+        run: python3 scripts/verify_repository_governance.py
+
+# Canonical baseline main: 7c79c7c26dd9937e3ace5e78e757749b013f9575
