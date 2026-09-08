@@ -133,7 +133,11 @@ fn mutable_refs_abbreviations_and_malformed_ids_are_rejected_before_resolution()
     let (base, base_tree, candidate, candidate_tree) = repo.two_commits();
     let limits = RegressionLimits::default();
 
-    for invalid in ["HEAD", &base[..12], "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz"] {
+    for invalid in [
+        "HEAD",
+        &base[..12],
+        "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz",
+    ] {
         let result = validate_local_revision_pair(
             &repo.root,
             LocalRevisionInput::new(invalid, Some(base_tree.as_str()), "snapshot:base"),
@@ -244,7 +248,12 @@ fn hostile_git_config_and_remote_are_data_and_never_execute_helpers() {
     repo.git(&["config", "filter.hostile.clean", &helper_text]);
     repo.git(&["config", "filter.hostile.smudge", &helper_text]);
     repo.git(&["config", "core.hooksPath", &helper_text]);
-    repo.git(&["remote", "add", "origin", "https://example.invalid/never-fetch.git"]);
+    repo.git(&[
+        "remote",
+        "add",
+        "origin",
+        "https://example.invalid/never-fetch.git",
+    ]);
 
     let pair = validate_local_revision_pair(
         &repo.root,
