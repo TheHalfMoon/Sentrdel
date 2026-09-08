@@ -20,9 +20,11 @@ use crate::business_logic::producer::{
     BusinessLogicProducerOutput, R3_BUSINESS_LOGIC_PRODUCER_ID, R3_BUSINESS_LOGIC_PRODUCER_VERSION,
 };
 use crate::regression::model::{
-    RegressionLimits, RegressionModelError, RevisionPair, SemanticSnapshotContract,
-    SnapshotCompatibility,
+    ProducerContractIdentity, RegressionLimits, RegressionModelError, RevisionIdentity,
+    RevisionPair, SemanticSnapshotContract, SnapshotCompatibility,
 };
+
+const R3_SNAPSHOT_CAPABILITY_SCOPE: &str = "BUSINESS_LOGIC";
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SemanticSnapshot {
@@ -39,12 +41,20 @@ pub struct SemanticSnapshot {
 impl SemanticSnapshot {
     /// Compose one bounded semantic snapshot from existing canonical R3 outputs.
     ///
+    /// The snapshot contract is constructed inside this trusted boundary from the
+    /// exact revision plus runtime-owned configuration identity and the fixed R3
+    /// producer/schema identity. Callers cannot supply a declaration that differs
+    /// from the canonical records being composed.
+    ///
     /// Inputs are normalized by stable identity before storage. Canonical Evidence
     /// and graph identities are revalidated at this boundary; Coverage/Evidence
     /// must come from the sealed R3 producer output type rather than caller-built
     /// wire records. No comparison disposition is produced here.
+    #[allow(clippy::too_many_arguments)]
     pub fn compose(
-        contract: SemanticSnapshotContract,
+        revision: RevisionIdentity,
+        producer_configuration_digest: impl Into<String>,
+        configuration_identity: Vec<String>,
         mut invariant_definitions: Vec<InvariantDefinition>,
         mut invariant_evaluations: Vec<InvariantEvaluation>,
         producer_output: BusinessLogicProducerOutput,
@@ -54,6 +64,23 @@ impl SemanticSnapshot {
         let limits = limits
             .validate()
             .map_err(SnapshotCompositionError::Limits)?;
+        let producer_contract = ProducerContractIdentity::new(
+            R3_BUSINESS_LOGIC_PRODUCER_ID,
+            R3_BUSINESS_LOGIC_PRODUCER_VERSION,
+            producer_configuration_digest,
+            R3_SNAPSHOT_CAPABILITY_SCOPE,
+            SCHEMA_V1,
+            limits,
+        )
+        .map_err(SnapshotCompositionError::Contract)?;
+        let contract = SemanticSnapshotContract::new(
+            revision,
+            SCHEMA_V1,
+            vec![producer_contract],
+            configuration_identity,
+            limits,
+        )
+        .map_err(SnapshotCompositionError::Contract)?;
 
         enforce_count(
             "invariant_definitions",
@@ -222,6 +249,7 @@ pub fn validate_snapshot_pair(
 #[derive(Debug)]
 pub enum SnapshotCompositionError {
     Limits(RegressionModelError),
+    Contract(RegressionModelError),
     TooManyCollectionItems {
         field: &'static str,
         count: usize,
@@ -260,6 +288,7 @@ impl fmt::Display for SnapshotCompositionError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Limits(error) => write!(formatter, "invalid S1 snapshot limits: {error}"),
+            Self::Contract(error) => write!(formatter, "invalid S1 snapshot contract: {error}"),
             Self::TooManyCollectionItems { field, count, max } => write!(
                 formatter,
                 "S1 snapshot collection {field} count {count} exceeds cap {max}"
@@ -335,7 +364,7 @@ impl fmt::Display for SnapshotCompositionError {
 impl Error for SnapshotCompositionError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
-            Self::Limits(error) => Some(error),
+            Self::Limits(error) | Self::Contract(error) => Some(error),
             Self::Evidence(error) => Some(error),
             Self::Graph(error) => Some(error),
             _ => None,
