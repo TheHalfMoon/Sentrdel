@@ -89,7 +89,7 @@
 - [x] **R3-T034** Run Linux/macOS/Windows supported-path qualification and adversarial no-network/no-target-execution/project-invariant-authority/secret canaries; platform/language/framework limitations remain explicit coverage.
 - [x] **R3-T035** Update README, threat model and architecture/provider/coverage documentation to describe implemented R3 cross-layer static business-logic analysis and preserve non-claims for live provider posture, target execution, runtime exploitability, universal CPG and unsupported framework semantics.
 - [x] **R3-T036** Run final R3 Spec Kit consistency analysis against Constitution, roadmap, R1/R2 authority, R3 spec/clarification/research/plan/data-model/contracts/readiness/tasks and implemented behavior; record/repair only evidence-backed drift in `analysis.md`.
-- [ ] **R3-T037** Run R3 implementation closeout: exact workspace/tests/lints/benchmarks, authority/secret/no-execution canaries, coverage truth, dependency qualification, cross-platform evidence and protected-main governance; record exact results in `implementation-closeout.md` without broadening claims.
+- [x] **R3-T037** Run R3 implementation closeout: exact workspace/tests/lints/benchmarks, authority/secret/no-execution canaries, coverage truth, dependency qualification, cross-platform evidence and protected-main governance; record exact results in `implementation-closeout.md` without broadening claims.
 - [ ] **R3-T038** Canonicalize R3 closeout and mark all R3 tasks complete only after exact-head applicable CI, clean independent review, zero unresolved conversations, guarded expected-head merge, post-merge required CI, live protected-main governance proof and confirmation that no R3 task remains open.
 
 ---
