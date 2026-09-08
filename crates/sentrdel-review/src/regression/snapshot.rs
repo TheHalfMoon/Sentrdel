@@ -12,7 +12,7 @@ use std::fmt;
 use sentrdel_schema::SCHEMA_V1;
 use sentrdel_schema::canonical::content_id;
 use sentrdel_schema::coverage::CoverageRecord;
-use sentrdel_schema::evidence::{Evidence, EvidenceValidationError};
+use sentrdel_schema::evidence::{Evidence, EvidenceLocation, EvidenceValidationError};
 use sentrdel_schema::graph::{GraphContractError, GraphEdge, GraphNode};
 use serde_json::{Value, json};
 
@@ -32,6 +32,8 @@ use crate::regression::model::{
 
 const R3_SNAPSHOT_CAPABILITY_SCOPE: &str = "BUSINESS_LOGIC";
 const S1_SNAPSHOT_INPUT_DIGEST_FORMAT: &str = "sentrdel.s1.semantic-snapshot-input/v1";
+const R3_OBSERVATION_CATEGORY: &str = "business_logic_invariant_observation";
+const R3_INTERPRETATION_CATEGORY: &str = "business_logic_invariant_interpretation";
 
 /// Derive the bounded canonical digest that a `RevisionIdentity` must bind for
 /// this exact normalized semantic input set.
@@ -671,6 +673,7 @@ fn validate_evidence_evaluation_bindings(
         .map(|evaluation| (evaluation.evaluation_id().as_str(), evaluation))
         .collect::<BTreeMap<_, _>>();
     let mut counts = BTreeMap::<&str, usize>::new();
+    let mut categories = BTreeMap::<&str, BTreeSet<&str>>::new();
 
     for record in records {
         let subjects = &record.claim().subjects;
@@ -733,10 +736,24 @@ fn validate_evidence_evaluation_bindings(
                 },
             );
         }
+        let expected_subject_count = if evaluation.path_id().is_some() { 3 } else { 2 };
+        if subjects.len() != expected_subject_count
+            || !evidence_semantics_match_evaluation(record, evaluation)
+        {
+            return Err(
+                SnapshotCompositionError::EvidenceEvaluationBindingMismatch {
+                    evidence_id: record.evidence_id().to_owned(),
+                },
+            );
+        }
 
         *counts
             .entry(evaluation.evaluation_id().as_str())
             .or_default() += 1;
+        categories
+            .entry(evaluation.evaluation_id().as_str())
+            .or_default()
+            .insert(record.claim().category.as_str());
     }
 
     for evaluation in evaluations {
@@ -744,7 +761,13 @@ fn validate_evidence_evaluation_bindings(
             .get(evaluation.evaluation_id().as_str())
             .copied()
             .unwrap_or(0);
-        if count != 2 {
+        let category_set = categories.get(evaluation.evaluation_id().as_str());
+        let has_expected_categories = category_set.is_some_and(|values| {
+            values.len() == 2
+                && values.contains(R3_OBSERVATION_CATEGORY)
+                && values.contains(R3_INTERPRETATION_CATEGORY)
+        });
+        if count != 2 || !has_expected_categories {
             return Err(
                 SnapshotCompositionError::EvidenceEvaluationMultiplicityMismatch {
                     evaluation_id: evaluation.evaluation_id().as_str().to_owned(),
@@ -754,6 +777,132 @@ fn validate_evidence_evaluation_bindings(
         }
     }
     Ok(())
+}
+
+fn evidence_semantics_match_evaluation(
+    record: &Evidence,
+    evaluation: &InvariantEvaluation,
+) -> bool {
+    let claim = record.claim();
+    let mut expected_attributes = expected_common_evaluation_attributes(evaluation);
+    match claim.category.as_str() {
+        R3_OBSERVATION_CATEGORY => {
+            expected_attributes.insert(
+                "observation_role".to_owned(),
+                Value::String("direct_bounded_metadata".to_owned()),
+            );
+        }
+        R3_INTERPRETATION_CATEGORY => {
+            expected_attributes.insert(
+                "evaluation_state".to_owned(),
+                Value::String(invariant_evaluation_state_name(evaluation.state()).to_owned()),
+            );
+            expected_attributes.insert(
+                "coverage_reasons".to_owned(),
+                Value::Array(
+                    evaluation
+                        .coverage_reasons()
+                        .iter()
+                        .cloned()
+                        .map(Value::String)
+                        .collect(),
+                ),
+            );
+        }
+        _ => return false,
+    }
+
+    claim.attributes == expected_attributes
+        && claim.input_digests == expected_evaluation_input_digests(evaluation)
+        && claim.locations == expected_evaluation_locations(evaluation)
+}
+
+fn expected_common_evaluation_attributes(
+    evaluation: &InvariantEvaluation,
+) -> BTreeMap<String, Value> {
+    let mut attributes = BTreeMap::new();
+    attributes.insert(
+        "evaluation_id".to_owned(),
+        Value::String(evaluation.evaluation_id().as_str().to_owned()),
+    );
+    attributes.insert(
+        "invariant_id".to_owned(),
+        Value::String(evaluation.invariant_id().as_str().to_owned()),
+    );
+    if let Some(path_id) = evaluation.path_id() {
+        attributes.insert(
+            "path_id".to_owned(),
+            Value::String(path_id.as_str().to_owned()),
+        );
+    }
+    attributes.insert(
+        "supporting_observation_ids".to_owned(),
+        Value::Array(
+            evaluation
+                .supporting_observation_ids()
+                .iter()
+                .map(|value| Value::String(value.as_str().to_owned()))
+                .collect(),
+        ),
+    );
+    attributes.insert(
+        "contradicting_observation_ids".to_owned(),
+        Value::Array(
+            evaluation
+                .contradicting_observation_ids()
+                .iter()
+                .map(|value| Value::String(value.as_str().to_owned()))
+                .collect(),
+        ),
+    );
+    attributes.insert(
+        "provenance_byte_ranges".to_owned(),
+        Value::Array(
+            evaluation
+                .provenance()
+                .iter()
+                .map(|location| {
+                    json!({
+                        "path": location.path().as_str(),
+                        "start_byte": location.start_byte(),
+                        "end_byte": location.end_byte(),
+                        "content_digest": location.content_digest(),
+                    })
+                })
+                .collect(),
+        ),
+    );
+    attributes
+}
+
+fn expected_evaluation_input_digests(evaluation: &InvariantEvaluation) -> Vec<String> {
+    let mut digests = evaluation
+        .provenance()
+        .iter()
+        .map(|location| location.content_digest().to_owned())
+        .collect::<Vec<_>>();
+    digests.sort();
+    digests.dedup();
+    digests
+}
+
+fn expected_evaluation_locations(evaluation: &InvariantEvaluation) -> Vec<EvidenceLocation> {
+    evaluation
+        .provenance()
+        .iter()
+        .map(|location| EvidenceLocation {
+            repo_relative_path: location.path().as_str().to_owned(),
+            start_line: None,
+            start_column: None,
+            end_line: None,
+            end_column: None,
+            symbol: Some(format!(
+                "invariant-evaluation:{}",
+                evaluation.evaluation_id().as_str()
+            )),
+            content_digest: Some(location.content_digest().to_owned()),
+        })
+        .collect()
 }
 
 fn reject_duplicate_graph_node_ids(records: &[GraphNode]) -> Result<(), SnapshotCompositionError> {

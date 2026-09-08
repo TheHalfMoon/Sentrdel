@@ -63,11 +63,19 @@ fn invariant(name: &str) -> InvariantDefinition {
 }
 
 fn evaluation(name: &str, invariant: &InvariantDefinition) -> InvariantEvaluation {
+    evaluation_with_state(name, invariant, InvariantEvaluationState::Satisfied)
+}
+
+fn evaluation_with_state(
+    name: &str,
+    invariant: &InvariantDefinition,
+    state: InvariantEvaluationState,
+) -> InvariantEvaluation {
     InvariantEvaluation::new(
         stable_id("s1.t008.evaluation", name),
         invariant.invariant_id().clone(),
         None,
-        InvariantEvaluationState::Satisfied,
+        state,
         vec![stable_id("s1.t008.observation", name)],
         Vec::new(),
         vec!["R3_T008_FIXTURE_COVERED".to_owned()],
@@ -459,6 +467,26 @@ fn snapshot_composition_rejects_missing_or_unrelated_producer_evidence() {
             expected: 2,
             actual: 0
         })
+    ));
+
+    let same_identity_different_state = evaluation_with_state(
+        "producer-binding",
+        &definition,
+        InvariantEvaluationState::Violated,
+    );
+    let semantically_mismatched_output = producer_output(&[same_identity_different_state]);
+    assert!(matches!(
+        SemanticSnapshot::compose(
+            stale_revision.clone(),
+            PRODUCER_CONFIGURATION_DIGEST,
+            configuration_identity("default"),
+            vec![definition.clone()],
+            vec![bound_evaluation.clone()],
+            semantically_mismatched_output,
+            graph.clone(),
+            RegressionLimits::default(),
+        ),
+        Err(SnapshotCompositionError::EvidenceEvaluationBindingMismatch { .. })
     ));
 
     let unrelated_definition = invariant("unrelated-producer");
