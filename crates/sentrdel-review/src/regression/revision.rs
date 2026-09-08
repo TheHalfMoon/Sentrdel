@@ -350,10 +350,17 @@ fn validate_revision(
 }
 
 fn discover_root(start: &Path) -> Result<PathBuf, RevisionValidationError> {
-    let mut current = if start.is_file() {
-        start.parent().unwrap_or(start).to_path_buf()
-    } else {
+    let absolute = if start.is_absolute() {
         start.to_path_buf()
+    } else {
+        std::env::current_dir()
+            .map_err(|_| RevisionValidationError::RepositoryNotFound(start.to_path_buf()))?
+            .join(start)
+    };
+    let mut current = if absolute.is_file() {
+        absolute.parent().unwrap_or(&absolute).to_path_buf()
+    } else {
+        absolute
     };
 
     loop {
