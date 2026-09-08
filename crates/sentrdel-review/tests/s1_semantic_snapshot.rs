@@ -318,7 +318,9 @@ fn snapshot_composition_seals_canonical_r3_producer_and_schema_contract() {
         RegressionLimits::default(),
     );
     assert_eq!(
-        composed.contract().compatibility_with(&wrong_schema_contract),
+        composed
+            .contract()
+            .compatibility_with(&wrong_schema_contract),
         SnapshotCompatibility::CanonicalSchemaMismatch
     );
 }
