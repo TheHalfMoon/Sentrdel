@@ -21,11 +21,11 @@
 
 ## Phase 1 — Frozen pair contracts and ground truth
 
-- [ ] **S1-T002** Freeze the internal revision-pair/snapshot contract: exact trusted-base/candidate role identity, deterministic pair ID, snapshot contract/producer/config compatibility and fixture-only synthetic identity; no forge/network discovery.
-- [ ] **S1-T003** [P] Create frozen synthetic before/after fixture pairs for identical clean replay, safe semantic change, proven regression, proven improvement, unknown, coverage loss/gain, producer disappearance, move-only continuity, ambiguous rename/unmatched, added/removed objects, project invariant removal, definition conflict, graph-metadata-only change, hostile metadata and resource caps.
-- [ ] **S1-T004** [P] Extend SentrdelBench metadata for S1 pair ground truth, clean-case false-positive controls, declared supported regression/miss expectations, Coverage/provenance assertions, authority assertions and protected-holdout eligibility before comparison implementation breadth.
-- [ ] **S1-T005** Freeze the bounded internal regression model and deterministic reason-code/state matrix from `data-model.md`; preserve before/after state, presence, continuity, Coverage and bilateral provenance; no public schema widening unless separately justified.
-- [ ] **S1-T006** Freeze authority fixtures proving comparison records cannot directly create Findings, mint FACT/VERIFIED authority, override policy/kernel/reconciler decisions, turn graph/model/external confidence into authority, or turn missing output into PASS.
+- [x] **S1-T002** Freeze the internal revision-pair/snapshot contract: exact trusted-base/candidate role identity, deterministic pair ID, snapshot contract/producer/config compatibility and fixture-only synthetic identity; no forge/network discovery.
+- [x] **S1-T003** [P] Create frozen synthetic before/after fixture pairs for identical clean replay, safe semantic change, proven regression, proven improvement, unknown, coverage loss/gain, producer disappearance, move-only continuity, ambiguous rename/unmatched, added/removed objects, project invariant removal, definition conflict, graph-metadata-only change, hostile metadata and resource caps.
+- [x] **S1-T004** [P] Extend SentrdelBench metadata for S1 pair ground truth, clean-case false-positive controls, declared supported regression/miss expectations, Coverage/provenance assertions, authority assertions and protected-holdout eligibility before comparison implementation breadth.
+- [x] **S1-T005** Freeze the bounded internal regression model and deterministic reason-code/state matrix from `data-model.md`; preserve before/after state, presence, continuity, Coverage and bilateral provenance; no public schema widening unless separately justified.
+- [x] **S1-T006** Freeze authority fixtures proving comparison records cannot directly create Findings, mint FACT/VERIFIED authority, override policy/kernel/reconciler decisions, turn graph/model/external confidence into authority, or turn missing output into PASS.
 
 **Checkpoint:** exact pair semantics and immutable evaluation ground truth are canonical before comparison implementation.
 
