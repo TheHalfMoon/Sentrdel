@@ -13,6 +13,7 @@ pub mod profile;
 pub mod project_detection;
 pub mod reasoner;
 pub mod reconcile;
+pub mod regression;
 pub mod secrets;
 pub mod stack_detection;
 pub mod structural;
