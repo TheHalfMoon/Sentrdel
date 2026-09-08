@@ -262,10 +262,7 @@ fn enforce_pair_input_bytes(
         for bytes in [
             input.exact_commit_id.len(),
             input.snapshot_input_digest.len(),
-            input
-                .expected_root_tree_id
-                .as_ref()
-                .map_or(0, String::len),
+            input.expected_root_tree_id.as_ref().map_or(0, String::len),
         ] {
             total = total.checked_add(bytes).ok_or(
                 RevisionValidationError::TotalInputBytesExceeded {
