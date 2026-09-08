@@ -166,6 +166,8 @@ The following remain intentionally outside the implemented R3 slice and are not 
 
 At the start of R3-T036, protected `main` was exactly `27b5f33f142860075e9fa91141009fb577dccad0`, with R3-T001 through R3-T035 checked in the canonical task ledger. The R3-T035 closeout had completed exact post-merge Self Security, Bootstrap CI, Schema Lock Qualification, Linux/macOS/Windows Cross-platform qualification and live repository-governance verification against that exact main head.
 
+The live-governance statement is anchored by GitHub Actions run `34173694467`, job `101898807995` (`Repository governance proof`). Its retained job log records `repository-governance: PASS`, `branch=main`, `head=27b5f33f142860075e9fa91141009fb577dccad0`, required checks `Dependency security`, `Resolve and test schema substrate`, and `Rust 1.98 bootstrap`, with `active_repository_rulesets=0`.
+
 This observation establishes the dependency-ready starting point for R3-T036. It is not a substitute for exact-head qualification, independent review, guarded merge and post-merge governance proof of this R3-T036 candidate itself.
 
 ## Final R3-T036 verdict
