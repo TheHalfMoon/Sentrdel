@@ -1,0 +1,30 @@
+name: Temporary S1 Rustfmt Export
+
+on:
+  push:
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout without persisted credentials
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.98.0 --profile minimal --component rustfmt
+      - name: Format exact candidate checkout
+        run: cargo +1.98.0 fmt --all
+      - name: Upload formatted S1 files
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: s1-rustfmt-files
+          path: |
+            crates/sentrdel-review/src/regression/model.rs
+            crates/sentrdel-review/tests/s1_phase1_contract.rs
+          if-no-files-found: error
+          retention-days: 1
