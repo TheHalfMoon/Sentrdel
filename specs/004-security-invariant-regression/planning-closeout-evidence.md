@@ -1,17 +1,15 @@
 # S1-T001 Planning Closeout Evidence
 
 **Task:** S1-T001 — canonical planning/readiness closeout  
-**Status:** PREDECESSOR_EVIDENCE_CANONICAL_CLOSEOUT_CANDIDATE_PENDING_OWN_QUALIFICATION  
+**Status:** PREDECESSOR_CLOSEOUT_PROVEN_STATUS_CANONICALIZATION_PENDING_OWN_QUALIFICATION  
 **Evidence date:** 2026-09-08  
-**Canonical baseline:** `64d637fd4c23e18934461e15500edc3b62e81d78`
+**Proven closeout main:** `fe5ef81e269c7f8bb0047e72e520356c01c74eee`
 
 ## Purpose
 
-This document records the evidence now available for the S1-T001 planning/readiness closeout candidate after the initial S1 planning slice and its first canonical readiness-gate evidence have both become canonical and completed their required protected-main post-merge qualification.
+This document records the completed evidence for the separately qualified S1-T001 planning/readiness closeout candidate in PR #321. The predecessor closeout has now completed every gate that had to exist before implementation-readiness gate #2, the S1-T001 task checkbox, task status, and roadmap status could be changed.
 
-This document is deliberately evidence-only. It does **not** mark the second implementation-readiness gate complete, does not mark S1-T001 complete, does not change the roadmap from `planning`, and does not authorize S1-T002 or any S1 product implementation.
-
-The closeout candidate that adds this file must complete its own exact-head applicable CI, substantive independent exact-range review, zero unresolved conversations, guarded expected-head merge, protected-main post-merge required/Cross-platform CI, live repository-governance proof, and temporary evidence cleanup before a separate status-canonicalization candidate may consume this evidence.
+The status-canonicalization change that consumes this evidence is still an ordinary candidate until it completes its own exact-head applicable CI, substantive independent exact-range review, zero unresolved conversations, guarded expected-head merge, protected-main required/Cross-platform CI, live repository-governance proof, and temporary evidence cleanup. Therefore S1-T002 and all S1 product implementation remain blocked until that status-canonicalization change is itself canonical and post-merge proven.
 
 ## Initial S1 planning gate
 
@@ -122,37 +120,120 @@ Evidence:
 
 The temporary workflow was removed in cleanup commit `c1650ec3667c26639b89354ed7182d6ee3bb1451`. Comparing exact protected main `64d637fd4c23e18934461e15500edc3b62e81d78` to that cleanup head yields an empty changed-file set. The temporary workflow never entered `main`.
 
-## Predecessor gate conclusion
+## PR #321 — S1-T001 planning/readiness closeout candidate
 
-Every condition that had to be proven before creating the S1-T001 planning/readiness closeout candidate is now supported by exact repository evidence:
+PR #321 changed exactly one governance/evidence file and did not change product source, dependencies, lockfiles, workflows, runtime behavior, credential authority, public interfaces, forge behavior, or execution authority.
+
+### Exact pre-merge identity
+
+- PR: `#321`
+- base: `64d637fd4c23e18934461e15500edc3b62e81d78`
+- exact head: `a90c5580758b49a65b64172c96a7ab3007532c64`
+- commits: exactly 1
+- changed files: exactly 1
+- changed file: `specs/004-security-invariant-regression/planning-closeout-evidence.md`
+- product source changes: none
+- dependency / lockfile changes: none
+- workflow / runtime / credential changes: none
+
+### Exact-head qualification
+
+All applicable pull-request workflows completed successfully on exact head `a90c5580758b49a65b64172c96a7ab3007532c64`:
+
+- Self Security: run `34245721039` — success
+- Bootstrap CI: run `34245720949` — success
+- Schema Lock Qualification: run `34245721094` — success
+- Cross-platform CI: run `34245721066` — success on Linux, macOS, and Windows
+
+### Independent exact-range review
+
+CodeRabbit comment `#issuecomment-5587768527` reviewed only the exact range:
+
+`64d637fd4c23e18934461e15500edc3b62e81d78..a90c5580758b49a65b64172c96a7ab3007532c64`
+
+The reviewer independently verified the one-commit/one-file range, the recorded PR #318/#319 hashes, exact-head CI, protected-main CI, review evidence, governance logs, cleanup comparisons, and authority boundaries, then concluded:
+
+`I found no actionable findings on this exact base/head.`
+
+The review explicitly confirmed that the candidate was evidence-only, did not complete readiness gate #2 or S1-T001, did not change tasks/roadmap status, and granted no S1-T002+ product authority.
+
+Final inline review comments before merge: zero.
+
+### Guarded merge
+
+PR #321 was merged with expected-head protection against exact head `a90c5580758b49a65b64172c96a7ab3007532c64`.
+
+- merge method: merge commit
+- canonical merge commit: `fe5ef81e269c7f8bb0047e72e520356c01c74eee`
+- merged at: `2026-09-08T15:43:41Z`
+
+## PR #321 protected-main post-merge qualification
+
+Exact protected `main=fe5ef81e269c7f8bb0047e72e520356c01c74eee` completed successfully:
+
+- Self Security: run `34246616472` — success
+- Bootstrap CI: run `34246616434` — success
+- Schema Lock Qualification: run `34246616441` — success
+- Cross-platform CI: run `34246616447` — success on Linux, macOS, and Windows
+  - Linux — success
+  - macOS — success, including the qualified T027 containment seam
+  - Windows — success, including Windows review lint and guard seam qualification
+
+Protected `main` remained configured with the required contexts:
+
+- `Dependency security`
+- `Resolve and test schema substrate`
+- `Rust 1.98 bootstrap`
+
+## PR #321 live repository-governance proof
+
+A temporary noncanonical branch was created directly from exact protected `main=fe5ef81e269c7f8bb0047e72e520356c01c74eee` and added only a temporary governance workflow using the established verifier and masked governance credential boundary.
+
+Evidence:
+
+- noncanonical branch: `ci/temp-governance-s1-t001-closeout-20260908`
+- temporary workflow commit: `de44fd327389b77aaa731b25dcb194f06c1d75c1`
+- workflow run: `34246747797` — success
+- job: `102130574848` — success
+- checkout used pinned `actions/checkout@11d5960a326750d5838078e36cf38b85af677262` with `persist-credentials: false`
+- verifier output:
+  - `repository-governance: PASS`
+  - `repository=TheHalfMoon/Sentrdel`
+  - `branch=main`
+  - `head=fe5ef81e269c7f8bb0047e72e520356c01c74eee`
+  - `required_checks=Dependency security,Resolve and test schema substrate,Rust 1.98 bootstrap`
+  - `active_repository_rulesets=0`
+
+The temporary workflow was removed in cleanup commit `fb6341336ba282122f510726d9213cc7b4076293`. Comparing exact protected main `fe5ef81e269c7f8bb0047e72e520356c01c74eee` to that cleanup head yields an empty changed-file set. The temporary workflow never entered `main`.
+
+## Gate conclusion
+
+Every predecessor condition required by S1-T001 before status canonicalization is now proven:
 
 1. the complete initial S1 planning slice is canonical;
 2. its first canonical readiness-gate evidence is separately canonical;
-3. PR #319 exact-head applicable CI — PASS;
-4. PR #319 substantive independent exact-range review — PASS with no actionable issues;
-5. PR #319 unresolved review conversations — zero;
-6. PR #319 guarded expected-head merge — PASS;
-7. PR #319 protected-main required and Cross-platform CI — PASS;
+3. PR #321 exact-head applicable CI — PASS;
+4. PR #321 substantive independent exact-range review — PASS with no actionable findings;
+5. PR #321 unresolved inline review conversations — zero;
+6. PR #321 guarded expected-head merge — PASS;
+7. PR #321 protected-main required and Cross-platform CI — PASS;
 8. live repository-governance proof against exact resulting protected main — PASS;
 9. temporary governance workflow cleanup — zero net diff relative to that protected main.
 
-Therefore this **separate planning-closeout evidence candidate** is now permitted to exist.
+Therefore a separate status-canonicalization candidate may mark the second readiness checkbox, S1-T001, task status and roadmap status as implementation-ready.
 
-It is not self-proving. The second implementation-readiness checkbox, S1-T001 checkbox, `tasks.md` status, and roadmap status must remain unchanged until this closeout candidate itself completes the same exact-head review/merge/post-merge/governance lifecycle.
-
-Only after that predecessor closeout is proven may a separate status-canonicalization candidate mark S1 implementation-ready. S1-T002 remains blocked until the status-canonicalization candidate itself is canonical and post-merge proven.
+That status candidate is not self-proving. S1-T002 remains blocked until the status-canonicalization candidate itself completes exact-head applicable CI, substantive independent exact-range review, zero unresolved conversations, guarded expected-head merge, protected-main required/Cross-platform CI, live repository-governance proof, and temporary evidence cleanup on the resulting exact protected `main`.
 
 ## Authority boundary
 
-Neither this evidence record nor the predecessor evidence authorizes:
+Neither the proven S1-T001 closeout nor its status canonicalization authorizes:
 
-- S1 product implementation;
-- public CLI, JSON, protocol, exit-code, or forge-delivery behavior reserved for successor slices;
+- public CLI, JSON, protocol, exit-code, or forge-delivery behavior reserved for S2/S3;
 - provider credentials, hosted-provider access, or production connections;
 - target application/build/package/test/migration/provider-tool execution;
 - network access or remote Git/forge discovery;
 - LLM/model or external-engine execution;
-- dependency/source adoption beyond separately qualified authority;
+- dependency/source adoption beyond separately qualified task authority;
 - direct canonical Finding creation;
 - FACT or VERIFIED authority widening;
 - policy, kernel, or reconciler authority widening;
@@ -160,4 +241,4 @@ Neither this evidence record nor the predecessor evidence authorizes:
 - a second graph runtime or universal CPG;
 - autonomous exploitation or production mutation.
 
-S1-T002 and every later S1 product task remain unauthorized until S1-T001 status canonicalization completes its own protected-main post-merge qualification.
+S1 product implementation, once the status candidate is canonical and post-merge proven, remains limited to the dependency-ordered static/offline authority already frozen by the S1 specification and task ledger. S2/S3 public/forge behavior remains unauthorized.

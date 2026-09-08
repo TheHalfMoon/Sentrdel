@@ -83,6 +83,8 @@
 ## Canonical gates
 
 - [x] Initial S1 planning PR is exact-head qualified, independently review-clean, guarded-merged, and post-merge required/Cross-platform CI plus live repository-governance proof are complete on exact protected `main`.
-- [ ] S1-T001 planning/readiness closeout is separately exact-head qualified, independently review-clean, guarded-merged, and post-merge governance is proven; only then may the task ledger/roadmap mark S1 implementation-ready through a separately qualified status-canonicalization change.
+- [x] S1-T001 planning/readiness closeout is separately exact-head qualified, independently review-clean, guarded-merged, and post-merge governance is proven; the task ledger/roadmap may now mark S1 implementation-ready through this separately qualified status-canonicalization change.
 
-Evidence for the first canonical gate is recorded in `../planning-gate-evidence.md`. S1-T001 remains open and the second canonical gate remains intentionally unchecked. This evidence-canonicalization candidate does not self-prove its own qualification and does not authorize S1 product implementation.
+Evidence for the initial planning gate is recorded in `../planning-gate-evidence.md`. Evidence for the separately proven S1-T001 closeout is recorded in `../planning-closeout-evidence.md`.
+
+All planning/readiness evidence that must precede this status transition is complete. This status-canonicalization candidate must still pass its own exact-head applicable CI, substantive independent exact-range review, zero unresolved conversations, guarded expected-head merge, protected-main required/Cross-platform CI, live repository-governance proof, and temporary evidence cleanup before S1-T002 begins.
