@@ -8,7 +8,7 @@
 
 pub mod model;
 pub mod revision;
-pub mod snapshot;
+pub(crate) mod snapshot;
 
 pub const S1_REGRESSION_CONTRACT_VERSION: &str = "sentrdel.security-regression/v1";
 pub const S1_SNAPSHOT_CONTRACT_VERSION: &str = "sentrdel.security-regression-snapshot/v1";
@@ -26,6 +26,9 @@ pub const S1_PROVIDER_CREDENTIALS_ALLOWED: bool = false;
 pub const S1_TARGET_EXECUTION_ALLOWED: bool = false;
 pub const S1_LLM_OR_EXTERNAL_ENGINE_ALLOWED: bool = false;
 pub const S1_MISSING_OUTPUT_CAN_BECOME_PASS: bool = false;
+
+#[cfg(test)]
+mod snapshot_tests;
 
 #[cfg(test)]
 mod tests {

@@ -1,26 +1,23 @@
-#![forbid(unsafe_code)]
-
-use sentrdel_review::business_logic::coverage::REQUIRED_BUSINESS_LOGIC_COVERAGE_AREAS;
-use sentrdel_review::business_logic::graph::{R3GraphLimits, map_validated_observations};
-use sentrdel_review::business_logic::model::{
+use crate::business_logic::coverage::REQUIRED_BUSINESS_LOGIC_COVERAGE_AREAS;
+use crate::business_logic::graph::{R3GraphLimits, map_validated_observations};
+use crate::business_logic::model::{
     BusinessLogicCoverage, BusinessLogicLimits, InvariantDefinition, InvariantEvaluation,
     InvariantEvaluationState, InvariantKind, InvariantRequirement, InvariantScope, InvariantSource,
     SourceLocation, StableSemanticId,
 };
-use sentrdel_review::business_logic::producer::{
+use crate::business_logic::producer::{
     BusinessLogicProducerOutput, R3_BUSINESS_LOGIC_PRODUCER_ID, R3_BUSINESS_LOGIC_PRODUCER_VERSION,
     produce_business_logic_outputs,
 };
-use sentrdel_review::regression::model::{
+use crate::regression::model::{
     ProducerContractIdentity, RegressionLimits, RevisionIdentity, RevisionPair, RevisionRole,
     SemanticSnapshotContract, SnapshotCompatibility,
 };
-use sentrdel_review::regression::snapshot::{
-    SemanticSnapshot, SnapshotCompositionError, validate_snapshot_pair,
-};
-use sentrdel_review::view::NormalizedRepoPath;
+use crate::view::NormalizedRepoPath;
 use sentrdel_schema::SCHEMA_V1;
 use sentrdel_schema::coverage::CoverageState;
+
+use super::snapshot::{SemanticSnapshot, SnapshotCompositionError, validate_snapshot_pair};
 
 const PRODUCER_CONFIGURATION_DIGEST: &str = "sha256:s1-t008-config";
 
