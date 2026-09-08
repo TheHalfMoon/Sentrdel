@@ -82,7 +82,7 @@
 
 ## Canonical gates
 
-- [ ] Initial S1 planning PR is exact-head qualified, independently review-clean, guarded-merged, and post-merge required/Cross-platform CI plus live repository-governance proof are complete on exact protected `main`.
+- [x] Initial S1 planning PR is exact-head qualified, independently review-clean, guarded-merged, and post-merge required/Cross-platform CI plus live repository-governance proof are complete on exact protected `main`.
 - [ ] S1-T001 planning/readiness closeout is separately exact-head qualified, independently review-clean, guarded-merged, and post-merge governance is proven; only then may the task ledger/roadmap mark S1 implementation-ready through a separately qualified status-canonicalization change.
 
-These two gates are intentionally unchecked in the initial planning candidate. No planning document may self-prove its own GitHub qualification.
+Evidence for the first canonical gate is recorded in `../planning-gate-evidence.md`. S1-T001 remains open and the second canonical gate remains intentionally unchecked. This evidence-canonicalization candidate does not self-prove its own qualification and does not authorize S1 product implementation.
