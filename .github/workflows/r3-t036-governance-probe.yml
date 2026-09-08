@@ -1,0 +1,33 @@
+name: R3 T036 Post-Merge Governance Proof
+
+on:
+  push:
+    branches:
+      - probe/r3-t036-governance-72754f9
+
+permissions:
+  contents: read
+
+jobs:
+  repository-governance:
+    name: Repository governance proof
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout without persisted credentials
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Require dedicated governance credential
+        env:
+          SENTRDEL_GOVERNANCE_ADMIN_TOKEN: ${{ secrets.SENTRDEL_GOVERNANCE_ADMIN_TOKEN }}
+        run: |
+          if [ -z "${SENTRDEL_GOVERNANCE_ADMIN_TOKEN:-}" ]; then
+            echo "repository-governance: ERROR: SENTRDEL_GOVERNANCE_ADMIN_TOKEN is unavailable" >&2
+            exit 1
+          fi
+      - name: Verify live repository governance
+        env:
+          GITHUB_TOKEN: ${{ secrets.SENTRDEL_GOVERNANCE_ADMIN_TOKEN }}
+          GH_TOKEN: ""
+        run: python3 scripts/verify_repository_governance.py
