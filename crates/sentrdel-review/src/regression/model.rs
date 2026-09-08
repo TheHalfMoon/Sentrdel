@@ -108,6 +108,9 @@ pub enum RegressionModelError {
         count: usize,
         max: usize,
     },
+    TotalInputBytesExceeded {
+        max: usize,
+    },
     DuplicateCoverageKey(String),
     MissingComparedIdentity,
     Canonical(CanonicalError),
@@ -136,6 +139,10 @@ impl fmt::Display for RegressionModelError {
             Self::TooManyCollectionItems { field, count, max } => write!(
                 formatter,
                 "S1 collection {field} count {count} exceeds cap {max}"
+            ),
+            Self::TotalInputBytesExceeded { max } => write!(
+                formatter,
+                "S1 aggregate comparison input exceeds byte cap {max}"
             ),
             Self::DuplicateCoverageKey(value) => {
                 write!(formatter, "duplicate S1 coverage comparison key {value:?}")
@@ -713,6 +720,7 @@ impl SecurityRegressionRecord {
     ) -> Result<Self, RegressionModelError> {
         let limits = limits.validate()?;
         validate_text(&draft.pair_id, "pair_id", limits)?;
+        enforce_total_input_bytes(&draft, limits)?;
         if draft.base_invariant_id.is_none() && draft.candidate_invariant_id.is_none() {
             return Err(RegressionModelError::MissingComparedIdentity);
         }
@@ -863,6 +871,66 @@ impl SecurityRegressionRecord {
     pub fn draft(&self) -> &SecurityRegressionRecordDraft {
         &self.draft
     }
+}
+
+fn enforce_total_input_bytes(
+    draft: &SecurityRegressionRecordDraft,
+    limits: RegressionLimits,
+) -> Result<(), RegressionModelError> {
+    let mut total = 0usize;
+    let max = limits.max_total_input_bytes;
+
+    account_total_input_bytes(&mut total, draft.pair_id.len(), max)?;
+    for value in [
+        draft.base_invariant_id.as_deref(),
+        draft.candidate_invariant_id.as_deref(),
+        draft.base_definition_digest.as_deref(),
+        draft.candidate_definition_digest.as_deref(),
+    ]
+    .into_iter()
+    .flatten()
+    {
+        account_total_input_bytes(&mut total, value.len(), max)?;
+    }
+
+    for pair in &draft.coverage_pairs {
+        account_total_input_bytes(&mut total, pair.comparison_key.len(), max)?;
+        if let Some(reason) = pair.base_reason.as_deref() {
+            account_total_input_bytes(&mut total, reason.len(), max)?;
+        }
+        if let Some(reason) = pair.candidate_reason.as_deref() {
+            account_total_input_bytes(&mut total, reason.len(), max)?;
+        }
+    }
+
+    for values in [
+        &draft.base_supporting_evidence_refs,
+        &draft.candidate_supporting_evidence_refs,
+        &draft.base_provenance_refs,
+        &draft.candidate_provenance_refs,
+        &draft.graph_context_refs,
+        &draft.diagnostics,
+    ] {
+        for value in values {
+            account_total_input_bytes(&mut total, value.len(), max)?;
+        }
+    }
+
+    Ok(())
+}
+
+fn account_total_input_bytes(
+    total: &mut usize,
+    bytes: usize,
+    max: usize,
+) -> Result<(), RegressionModelError> {
+    *total = total
+        .checked_add(bytes)
+        .ok_or(RegressionModelError::TotalInputBytesExceeded { max })?;
+    if *total > max {
+        return Err(RegressionModelError::TotalInputBytesExceeded { max });
+    }
+    Ok(())
 }
 
 fn validate_text(
@@ -1169,6 +1237,42 @@ mod tests {
             first.draft().base_provenance_refs,
             first.draft().candidate_provenance_refs
         );
+    }
+
+    #[test]
+    fn seal_rejects_aggregate_input_bytes_before_complete_record_creation() {
+        let limits = RegressionLimits {
+            max_total_input_bytes: 64,
+            ..RegressionLimits::default()
+        };
+        let result = SecurityRegressionRecord::seal(
+            SecurityRegressionRecordDraft {
+                pair_id: "pair:aggregate-limit".to_owned(),
+                pair_presence: PairPresence::Matched,
+                continuity_basis: ContinuityBasis::ExactStableId,
+                base_invariant_id: Some("invariant:base-limit".to_owned()),
+                candidate_invariant_id: Some("invariant:candidate-limit".to_owned()),
+                base_definition_digest: None,
+                candidate_definition_digest: None,
+                base_evaluation_state: Some(InvariantEvaluationState::Satisfied),
+                candidate_evaluation_state: Some(InvariantEvaluationState::Satisfied),
+                disposition: SecurityDeltaDisposition::Unchanged,
+                reason_code: SecurityDeltaReason::InvariantStateUnchanged,
+                coverage_pairs: Vec::new(),
+                base_supporting_evidence_refs: vec!["evidence:base-limit".to_owned()],
+                candidate_supporting_evidence_refs: Vec::new(),
+                base_provenance_refs: Vec::new(),
+                candidate_provenance_refs: Vec::new(),
+                graph_context_refs: Vec::new(),
+                diagnostics: Vec::new(),
+                resource_state: ResourceState::Complete,
+            },
+            limits,
+        );
+        assert!(matches!(
+            result,
+            Err(RegressionModelError::TotalInputBytesExceeded { max: 64 })
+        ));
     }
 
     #[test]

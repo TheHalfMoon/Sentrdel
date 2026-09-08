@@ -324,6 +324,7 @@ fn s1_authority_canaries_and_code_constants_deny_privilege_widening() {
     let forbidden = authority["forbidden_authority"]
         .as_object()
         .expect("forbidden authority object");
+    assert!(!forbidden.is_empty());
     assert!(forbidden.values().all(|value| value == false));
 
     let canaries = authority["canaries"].as_array().expect("canaries");
