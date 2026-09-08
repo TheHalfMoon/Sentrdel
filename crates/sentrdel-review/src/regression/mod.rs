@@ -1,12 +1,18 @@
-//! S1 security-invariant regression contracts.
+//! S1 security-invariant regression contracts and bounded local substrates.
 //!
-//! This module provides bounded local revision identity validation and frozen
-//! internal pair/comparison authority. It does not perform forge discovery,
-//! network access, target execution, provider access, external-model execution,
-//! or canonical Finding creation.
+//! This module provides exact local revision identity validation, bounded
+//! composition/compatibility validation for canonical semantic snapshots, and
+//! frozen internal pair/comparison authority. It does not perform forge
+//! discovery, network access, target execution, provider access, external-model
+//! execution, or canonical Finding creation.
 
 pub mod model;
 pub mod revision;
+// S1-T008 intentionally lands the crate-private snapshot substrate before its
+// dependency-ordered S1-T009+ consumers. Keep it compiled and tested without
+// exposing it outside this crate or weakening lints elsewhere in the workspace.
+#[allow(dead_code)]
+pub(crate) mod snapshot;
 
 pub const S1_REGRESSION_CONTRACT_VERSION: &str = "sentrdel.security-regression/v1";
 pub const S1_SNAPSHOT_CONTRACT_VERSION: &str = "sentrdel.security-regression-snapshot/v1";
@@ -24,6 +30,9 @@ pub const S1_PROVIDER_CREDENTIALS_ALLOWED: bool = false;
 pub const S1_TARGET_EXECUTION_ALLOWED: bool = false;
 pub const S1_LLM_OR_EXTERNAL_ENGINE_ALLOWED: bool = false;
 pub const S1_MISSING_OUTPUT_CAN_BECOME_PASS: bool = false;
+
+#[cfg(test)]
+mod snapshot_tests;
 
 #[cfg(test)]
 mod tests {
