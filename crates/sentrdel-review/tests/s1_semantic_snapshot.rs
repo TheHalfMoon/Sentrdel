@@ -262,8 +262,8 @@ fn snapshot_pair_validation_binds_exact_revision_pair_and_contract_compatibility
     let wrong_base = snapshot(
         fixture_revision(RevisionRole::TrustedBase, "wrong-base"),
         configuration_identity("default"),
-        vec![definition],
-        vec![evaluation],
+        vec![definition.clone()],
+        vec![evaluation.clone()],
         RegressionLimits::default(),
     )
     .expect("wrong base snapshot");
@@ -272,6 +272,19 @@ fn snapshot_pair_validation_binds_exact_revision_pair_and_contract_compatibility
         Err(SnapshotCompositionError::RevisionPairMismatch {
             side: "TRUSTED_BASE"
         })
+    ));
+
+    let wrong_candidate = snapshot(
+        fixture_revision(RevisionRole::Candidate, "wrong-candidate"),
+        configuration_identity("default"),
+        vec![definition],
+        vec![evaluation],
+        RegressionLimits::default(),
+    )
+    .expect("wrong candidate snapshot");
+    assert!(matches!(
+        validate_snapshot_pair(&pair, &base, &wrong_candidate),
+        Err(SnapshotCompositionError::RevisionPairMismatch { side: "CANDIDATE" })
     ));
 }
 
