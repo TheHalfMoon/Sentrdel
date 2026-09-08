@@ -1,7 +1,7 @@
 # Tasks: Security Invariant Regression Core
 
 **Input:** Constitution, roadmap, completed R1/R3 contracts, S1 `spec.md`, `clarification-closeout.md`, `research.md`, `plan.md`, `data-model.md`, `contracts/revision-pair-contract.md`, `contracts/security-regression-contract.md`, and `checklists/implementation-readiness.md`.  
-**Status:** PLANNING — no S1 product implementation task is authorized until S1-T001 is separately canonical and post-merge proven.
+**Status:** IMPLEMENTATION_READY — S1-T001 planning/readiness evidence is proven; product implementation may begin only after this status-canonicalization change completes its own protected-main qualification and governance proof.
 
 ## Format
 
@@ -13,9 +13,9 @@
 
 ## Phase 0 — Canonical planning gate
 
-- [ ] **S1-T001** Canonicalize the complete S1 Spec Kit planning slice on protected `main`: exact-head applicable CI, substantive independent exact-range review, zero unresolved conversations, guarded expected-head merge, post-merge required and Cross-platform CI, live repository-governance proof, then separately canonicalize planning-gate evidence, planning-closeout evidence, final implementation-readiness gates, roadmap implementation-ready status and this task checkbox without allowing a status document to self-prove its own qualification. **Blocks every product implementation task below.**
+- [x] **S1-T001** Canonicalize the complete S1 Spec Kit planning slice on protected `main`: exact-head applicable CI, substantive independent exact-range review, zero unresolved conversations, guarded expected-head merge, post-merge required and Cross-platform CI, live repository-governance proof, then separately canonicalize planning-gate evidence, planning-closeout evidence, final implementation-readiness gates, roadmap implementation-ready status and this task checkbox without allowing a status document to self-prove its own qualification. **Blocks every product implementation task below until this status-canonicalization change is itself canonical and post-merge proven.**
 
-**Checkpoint:** S1 planning/readiness is canonical and post-merge proven. No S1 product code is written before the final S1-T001 status-canonicalization change itself is canonical and post-merge proven.
+**Checkpoint:** S1 planning/readiness evidence is complete and roadmap status may be `implementation-ready`. No S1 product code is written until this status-canonicalization change itself completes exact-head qualification, guarded expected-head merge, protected-main required/Cross-platform CI, live repository-governance proof, and temporary evidence cleanup.
 
 ---
 
