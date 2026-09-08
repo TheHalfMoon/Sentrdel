@@ -1,10 +1,12 @@
 //! S1 security-invariant regression contracts.
 //!
-//! This module freezes only bounded internal pair/comparison authority. It does
-//! not perform forge discovery, network access, target execution, provider
-//! access, external-model execution, or canonical Finding creation.
+//! This module provides bounded local revision identity validation and frozen
+//! internal pair/comparison authority. It does not perform forge discovery,
+//! network access, target execution, provider access, external-model execution,
+//! or canonical Finding creation.
 
 pub mod model;
+pub mod revision;
 
 pub const S1_REGRESSION_CONTRACT_VERSION: &str = "sentrdel.security-regression/v1";
 pub const S1_SNAPSHOT_CONTRACT_VERSION: &str = "sentrdel.security-regression-snapshot/v1";
