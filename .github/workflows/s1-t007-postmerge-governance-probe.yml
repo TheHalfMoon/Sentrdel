@@ -1,0 +1,30 @@
+name: S1 T007 Postmerge Governance Probe
+
+on:
+  push:
+    branches:
+      - tmp/s1-t007-postmerge-governance
+
+permissions:
+  contents: read
+
+concurrency:
+  group: s1-t007-postmerge-governance-probe-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  governance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      SENTRDEL_EXPECTED_MAIN_SHA: c113d2718b2ef04e0dc87a71bf6363b1031ba93c
+    steps:
+      - name: Checkout exact canonical merge
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: c113d2718b2ef04e0dc87a71bf6363b1031ba93c
+          persist-credentials: false
+      - name: Verify protected main governance
+        env:
+          GITHUB_TOKEN: ${{ secrets.SENTRDEL_GOVERNANCE_READ_TOKEN }}
+        run: python3 scripts/verify_repository_governance.py
