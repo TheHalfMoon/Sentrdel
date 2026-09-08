@@ -1,18 +1,17 @@
 #![forbid(unsafe_code)]
 
 use sentrdel_review::business_logic::model::InvariantEvaluationState;
+use sentrdel_review::regression::model::{
+    FROZEN_INVARIANT_TRANSITIONS, ProducerContractIdentity, RegressionLimits, RevisionIdentity,
+    RevisionPair, RevisionRole, SecurityDeltaDisposition, SemanticSnapshotContract,
+    SnapshotCompatibility,
+};
 use sentrdel_review::regression::{
     S1_DIRECT_FINDING_CREATION_ALLOWED, S1_FACT_VERIFIED_MINTING_ALLOWED,
-    S1_FORGE_DISCOVERY_ALLOWED, S1_GRAPH_OR_MODEL_AUTHORITY_ALLOWED,
-    S1_KERNEL_OVERRIDE_ALLOWED, S1_LLM_OR_EXTERNAL_ENGINE_ALLOWED,
-    S1_MISSING_OUTPUT_CAN_BECOME_PASS, S1_NETWORK_ACCESS_ALLOWED,
-    S1_POLICY_OVERRIDE_ALLOWED, S1_PROVIDER_CREDENTIALS_ALLOWED,
+    S1_FORGE_DISCOVERY_ALLOWED, S1_GRAPH_OR_MODEL_AUTHORITY_ALLOWED, S1_KERNEL_OVERRIDE_ALLOWED,
+    S1_LLM_OR_EXTERNAL_ENGINE_ALLOWED, S1_MISSING_OUTPUT_CAN_BECOME_PASS,
+    S1_NETWORK_ACCESS_ALLOWED, S1_POLICY_OVERRIDE_ALLOWED, S1_PROVIDER_CREDENTIALS_ALLOWED,
     S1_RECONCILER_OVERRIDE_ALLOWED, S1_TARGET_EXECUTION_ALLOWED,
-};
-use sentrdel_review::regression::model::{
-    FROZEN_INVARIANT_TRANSITIONS, ProducerContractIdentity, RegressionLimits,
-    RevisionIdentity, RevisionPair, RevisionRole, SecurityDeltaDisposition,
-    SemanticSnapshotContract, SnapshotCompatibility,
 };
 
 const FIXTURE_PAIRS: &[u8] =
@@ -166,15 +165,21 @@ fn s1_frozen_transition_matrix_keeps_regression_and_uncertainty_distinct() {
                 && rule.candidate == InvariantEvaluationState::Unknown
         })
         .expect("violated to unknown");
-    assert!(violated_to_unknown
-        .allowed_dispositions
-        .contains(&SecurityDeltaDisposition::CoverageLost));
-    assert!(violated_to_unknown
-        .allowed_dispositions
-        .contains(&SecurityDeltaDisposition::Unknown));
-    assert!(!violated_to_unknown
-        .allowed_dispositions
-        .contains(&SecurityDeltaDisposition::Improvement));
+    assert!(
+        violated_to_unknown
+            .allowed_dispositions
+            .contains(&SecurityDeltaDisposition::CoverageLost)
+    );
+    assert!(
+        violated_to_unknown
+            .allowed_dispositions
+            .contains(&SecurityDeltaDisposition::Unknown)
+    );
+    assert!(
+        !violated_to_unknown
+            .allowed_dispositions
+            .contains(&SecurityDeltaDisposition::Improvement)
+    );
 }
 
 #[test]
@@ -229,12 +234,16 @@ fn s1_fixture_pairs_and_development_metadata_freeze_the_same_ground_truth() {
         let assertions = case["authority_assertions"]
             .as_array()
             .expect("authority assertions");
-        assert!(assertions
-            .iter()
-            .any(|entry| entry == "comparison-record-is-not-a-finding"));
-        assert!(assertions
-            .iter()
-            .any(|entry| entry == "missing-output-is-not-pass"));
+        assert!(
+            assertions
+                .iter()
+                .any(|entry| entry == "comparison-record-is-not-a-finding")
+        );
+        assert!(
+            assertions
+                .iter()
+                .any(|entry| entry == "missing-output-is-not-pass")
+        );
     }
 
     let clean_cases = corpus["cases"]
@@ -244,9 +253,11 @@ fn s1_fixture_pairs_and_development_metadata_freeze_the_same_ground_truth() {
         .filter(|case| case["clean_case"] == true)
         .collect::<Vec<_>>();
     assert!(!clean_cases.is_empty());
-    assert!(clean_cases
-        .iter()
-        .all(|case| case["expected_false_positive"] == false));
+    assert!(
+        clean_cases
+            .iter()
+            .all(|case| case["expected_false_positive"] == false)
+    );
 
     let known_regressions = corpus["cases"]
         .as_array()
@@ -255,9 +266,11 @@ fn s1_fixture_pairs_and_development_metadata_freeze_the_same_ground_truth() {
         .filter(|case| case["known_regression_ground_truth"] == true)
         .collect::<Vec<_>>();
     assert!(!known_regressions.is_empty());
-    assert!(known_regressions
-        .iter()
-        .all(|case| case["expected_known_miss_after_supported_implementation"] == false));
+    assert!(
+        known_regressions
+            .iter()
+            .all(|case| case["expected_known_miss_after_supported_implementation"] == false)
+    );
 
     assert!(FIXTURE_MATRIX.contains("SENTRDEL_CANARY"));
     assert!(FIXTURE_MATRIX.contains("never a canonical Finding"));
