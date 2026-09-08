@@ -1,12 +1,14 @@
-//! S1 security-invariant regression contracts.
+//! S1 security-invariant regression contracts and bounded local substrates.
 //!
-//! This module provides bounded local revision identity validation and frozen
-//! internal pair/comparison authority. It does not perform forge discovery,
-//! network access, target execution, provider access, external-model execution,
-//! or canonical Finding creation.
+//! This module provides exact local revision identity validation, bounded
+//! composition/compatibility validation for canonical semantic snapshots, and
+//! frozen internal pair/comparison authority. It does not perform forge
+//! discovery, network access, target execution, provider access, external-model
+//! execution, or canonical Finding creation.
 
 pub mod model;
 pub mod revision;
+pub mod snapshot;
 
 pub const S1_REGRESSION_CONTRACT_VERSION: &str = "sentrdel.security-regression/v1";
 pub const S1_SNAPSHOT_CONTRACT_VERSION: &str = "sentrdel.security-regression-snapshot/v1";
