@@ -3,7 +3,10 @@ use std::path::PathBuf;
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use sentrdel_review::regression::model::{RegressionLimits, RevisionRole};
+use sentrdel_review::regression::model::{
+    ProducerContractIdentity, RegressionLimits, RevisionPair, RevisionRole,
+    SemanticSnapshotContract,
+};
 use sentrdel_review::regression::revision::{
     LocalRevisionInput, RevisionValidationError, validate_local_revision_pair,
 };
@@ -116,6 +119,34 @@ fn exact_local_pair_binds_commit_tree_roles_and_order_deterministically() {
     assert_eq!(first.candidate().root_tree_id(), candidate_tree);
     assert!(!first.trusted_base().is_fixture_only());
     assert!(!first.candidate().is_fixture_only());
+
+    let canonical_pair = RevisionPair::new(
+        first.trusted_base().revision_identity().clone(),
+        first.candidate().revision_identity().clone(),
+    )
+    .expect("validated production revisions must construct the frozen pair contract");
+    assert_eq!(first.revision_pair(), &canonical_pair);
+    assert_eq!(first.pair_id(), canonical_pair.pair_id());
+
+    let producer = ProducerContractIdentity::new(
+        "r3-business-logic",
+        "1",
+        "config:stable",
+        "BUSINESS_LOGIC",
+        "r3-contract",
+        limits,
+    )
+    .expect("producer contract fixture must be valid");
+    let base_snapshot = SemanticSnapshotContract::new(
+        first.trusted_base().revision_identity().clone(),
+        "canonical-schema-v1",
+        vec![producer],
+        vec!["config:stable".to_owned()],
+        limits,
+    )
+    .expect("validated production identity must bind directly into a semantic snapshot");
+    assert_eq!(base_snapshot.revision(), canonical_pair.trusted_base());
+    assert!(!base_snapshot.revision().is_fixture_only());
 
     let reversed = validate_local_revision_pair(
         &repo.root,
