@@ -185,9 +185,9 @@ The following are candidates or references, not automatically trusted dependenci
 - `tree-sitter`, `ast-grep-core`, SCIP, `petgraph`, qualified `gix`, `regorus`, `rmcp` — native/high-priority foundations subject to exact security qualification.
 - Joern, Opengrep, CodeQL (user-supplied), Syft/Trivy/Checkov and other mature scanners — optional external evidence engines where qualified.
 - `Graphify-Labs/graphify` — study/adapt graph-diff, confidence, affected/blast-radius patterns; do not introduce a second canonical graph runtime.
-- `vitali87/code-graph-rag` — study/adapt schema, resource/data-flow, static/runtime merge concepts; do not import its Python/Memgraph runtime as Sentrdel core.
-- `deepseek-ai/deepseek-harness` — study/adapt durable agent events, tool guard pipeline, approval/sandbox seam concepts.
-- `continuedev/continue` — study/adapt permissively licensed IDE/CLI/diff plumbing; do not fork the archived product wholesale.
+- `vitali87/code-graph-rag` — study/adapt schema, resource/data-flow/static-runtime merge concepts; do not import its Python/Memgraph runtime as Sentrdel core.
+- `deepseek-ai/deepseek-harness` — study/adapt durable events/tool guards/approval seams.
+- `continuedev/continue` — study/adapt permissively licensed IDE/CLI integration patterns; do not fork the archived product wholesale.
 - `karpathy/autoresearch` — study the immutable-evaluator/iterative experiment pattern only; do not transfer autonomous mutation authority into the trusted security plane.
 - Hermes Agent learning/skills patterns — study inspectable distill/reuse/refine lifecycle concepts; do not treat accumulated memory/skills as security authority without Sentrdel promotion, expiry, invalidation and provenance controls.
 - `Tencent/AI-Infra-Guard` — taxonomy/conformance reference for Agent/MCP/Skill security and adversarial routing; no full runtime or dynamic-red-team adoption from the research record.
