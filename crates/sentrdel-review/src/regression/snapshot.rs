@@ -17,8 +17,7 @@ use sentrdel_schema::graph::{GraphContractError, GraphEdge, GraphNode};
 use crate::business_logic::graph::R3GraphRecords;
 use crate::business_logic::model::{InvariantDefinition, InvariantEvaluation};
 use crate::business_logic::producer::{
-    BusinessLogicProducerOutput, R3_BUSINESS_LOGIC_PRODUCER_ID,
-    R3_BUSINESS_LOGIC_PRODUCER_VERSION,
+    BusinessLogicProducerOutput, R3_BUSINESS_LOGIC_PRODUCER_ID, R3_BUSINESS_LOGIC_PRODUCER_VERSION,
 };
 use crate::regression::model::{
     RegressionLimits, RegressionModelError, RevisionPair, SemanticSnapshotContract,
@@ -52,7 +51,9 @@ impl SemanticSnapshot {
         graph_records: R3GraphRecords,
         limits: RegressionLimits,
     ) -> Result<Self, SnapshotCompositionError> {
-        let limits = limits.validate().map_err(SnapshotCompositionError::Limits)?;
+        let limits = limits
+            .validate()
+            .map_err(SnapshotCompositionError::Limits)?;
 
         enforce_count(
             "invariant_definitions",
@@ -86,12 +87,11 @@ impl SemanticSnapshot {
             coverage_records.len(),
             limits.max_snapshot_coverage_records,
         )?;
-        let max_evidence_records = limits
-            .max_snapshot_evaluations
-            .checked_mul(2)
-            .ok_or(SnapshotCompositionError::TotalInputBytesExceeded {
+        let max_evidence_records = limits.max_snapshot_evaluations.checked_mul(2).ok_or(
+            SnapshotCompositionError::TotalInputBytesExceeded {
                 max: limits.max_total_input_bytes,
-            })?;
+            },
+        )?;
         enforce_count("evidence_records", evidence.len(), max_evidence_records)?;
 
         coverage_records.sort_by(|left, right| left.coverage_id.cmp(&right.coverage_id));
@@ -207,9 +207,7 @@ pub fn validate_snapshot_pair(
         });
     }
     if candidate.contract().revision() != pair.candidate() {
-        return Err(SnapshotCompositionError::RevisionPairMismatch {
-            side: "CANDIDATE",
-        });
+        return Err(SnapshotCompositionError::RevisionPairMismatch { side: "CANDIDATE" });
     }
 
     let compatibility = trusted_base.compatibility_with(candidate);
@@ -317,7 +315,10 @@ impl fmt::Display for SnapshotCompositionError {
             Self::Evidence(error) => write!(formatter, "invalid S1 snapshot Evidence: {error}"),
             Self::Graph(error) => write!(formatter, "invalid S1 snapshot graph record: {error}"),
             Self::TotalInputBytesExceeded { max } => {
-                write!(formatter, "S1 snapshot input exceeds aggregate byte cap {max}")
+                write!(
+                    formatter,
+                    "S1 snapshot input exceeds aggregate byte cap {max}"
+                )
             }
             Self::RevisionPairMismatch { side } => write!(
                 formatter,
@@ -501,7 +502,10 @@ fn validate_graph_records(
     nodes: &[GraphNode],
     edges: &[GraphEdge],
 ) -> Result<(), SnapshotCompositionError> {
-    let node_ids = nodes.iter().map(|node| &node.node_id).collect::<BTreeSet<_>>();
+    let node_ids = nodes
+        .iter()
+        .map(|node| &node.node_id)
+        .collect::<BTreeSet<_>>();
     for node in nodes {
         node.validate()?;
     }
