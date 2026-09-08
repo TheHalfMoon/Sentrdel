@@ -4,27 +4,28 @@ on:
   push:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   export:
+    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Checkout without persisted credentials
+      - name: Checkout temporary formatter branch
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
-          persist-credentials: false
+          persist-credentials: true
       - name: Install pinned Rust toolchain
         run: rustup toolchain install 1.98.0 --profile minimal --component rustfmt
-      - name: Format exact candidate checkout
+      - name: Format exact candidate-derived checkout
         run: cargo +1.98.0 fmt --all
-      - name: Upload formatted S1 files
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: s1-rustfmt-files
-          path: |
-            crates/sentrdel-review/src/regression/model.rs
-            crates/sentrdel-review/tests/s1_phase1_contract.rs
-          if-no-files-found: error
-          retention-days: 1
+      - name: Commit formatter-only files to temporary branch
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- crates/sentrdel-review/src/regression/model.rs crates/sentrdel-review/tests/s1_phase1_contract.rs
+          git diff --cached --quiet && exit 1
+          git commit -m "style(s1): capture rustfmt output"
+          git push origin HEAD:${GITHUB_REF_NAME}
