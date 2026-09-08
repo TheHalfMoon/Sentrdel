@@ -1,7 +1,7 @@
 # Tasks: Business-Logic Substrate + Invariants
 
 **Input:** Constitution, roadmap, completed R1/R2 contracts, R3 `spec.md`, `clarification-closeout.md`, `research.md`, `plan.md`, `data-model.md`, `contracts/business-logic-contract.md`, `contracts/project-invariant-contract.md`, and `checklists/implementation-readiness.md`.  
-**Status:** IMPLEMENTATION_READY — R3-T001 planning/readiness evidence is proven; product implementation may begin only after this status-canonicalization change completes its own protected-main qualification and governance proof.
+**Status:** COMPLETE — all R3 tasks are canonical on protected `main`; no R3 task remains open.
 
 ## Format
 
@@ -53,7 +53,7 @@
 - [x] **R3-T017** Implement deterministic bounded route → actor/guard/value → data-operation/provider-client correlation with stable path identities, link basis/confidence metadata and UNKNOWN/PARTIAL propagation; cap graph nodes/edges/depth/candidate paths/diagnostics.
 - [x] **R3-T018** Integrate canonical R2 Supabase Evidence/Coverage as supporting inputs for RLS/policy/grant/key/client/static-context correlation while preserving R2 identities, provenance, static-vs-live limitations and the fact that elevated authority can bypass ordinary RLS semantics.
 - [x] **R3-T019** Implement monotonic business-logic coverage aggregation for routes, actor identity, guards, value origins, data operations, local/semantic linking, R2 correlation, project invariants and invariant evaluation; an empty Finding set cannot erase partial/failed/unsupported dimensions.
-- [x] **R3-T020** Add cross-layer correlation tests proving safe and unsafe paths remain distinguishable, ambiguous links do not satisfy invariants, graph confidence cannot upgrade epistemic authority, R2 static posture cannot become hosted truth and path-cap exhaustion fails visible.
+- [x] **R3-T020** Add cross-layer correlation tests proving safe and unsafe paths remain distinguishishable, ambiguous links do not satisfy invariants, graph confidence cannot upgrade epistemic authority, R2 static posture cannot become hosted truth and path-cap exhaustion fails visible.
 
 **Checkpoint:** bounded cross-layer paths and coverage are trustworthy enough for invariant evaluation.
 
@@ -90,7 +90,7 @@
 - [x] **R3-T035** Update README, threat model and architecture/provider/coverage documentation to describe implemented R3 cross-layer static business-logic analysis and preserve non-claims for live provider posture, target execution, runtime exploitability, universal CPG and unsupported framework semantics.
 - [x] **R3-T036** Run final R3 Spec Kit consistency analysis against Constitution, roadmap, R1/R2 authority, R3 spec/clarification/research/plan/data-model/contracts/readiness/tasks and implemented behavior; record/repair only evidence-backed drift in `analysis.md`.
 - [x] **R3-T037** Run R3 implementation closeout: exact workspace/tests/lints/benchmarks, authority/secret/no-execution canaries, coverage truth, dependency qualification, cross-platform evidence and protected-main governance; record exact results in `implementation-closeout.md` without broadening claims.
-- [ ] **R3-T038** Canonicalize R3 closeout and mark all R3 tasks complete only after exact-head applicable CI, clean independent review, zero unresolved conversations, guarded expected-head merge, post-merge required CI, live protected-main governance proof and confirmation that no R3 task remains open.
+- [x] **R3-T038** Canonicalize R3 closeout and mark all R3 tasks complete only after exact-head applicable CI, clean independent review, zero unresolved conversations, guarded expected-head merge, post-merge required CI, live protected-main governance proof and confirmation that no R3 task remains open.
 
 ---
 
