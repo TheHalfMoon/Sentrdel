@@ -8,9 +8,10 @@
 
 pub mod model;
 pub mod revision;
-// S1-T008/T009 intentionally keep snapshot composition and invariant matching
-// crate-private until dependency-ordered comparison consumers land. Keep these
-// substrates compiled and tested without widening the public authority surface.
+// S1-T008 through S1-T010 intentionally keep snapshot composition and exact
+// identity matching crate-private until dependency-ordered comparison consumers
+// land. Keep these substrates compiled and tested without widening the public
+// authority surface.
 #[allow(dead_code)]
 #[path = "match.rs"]
 pub(crate) mod invariant_match;

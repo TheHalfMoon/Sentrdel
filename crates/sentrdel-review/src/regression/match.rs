@@ -1,9 +1,10 @@
-//! Stable keyed invariant matching for S1 semantic snapshots.
+//! Stable keyed invariant and semantic-object continuity matching for S1 snapshots.
 //!
-//! Matching is exact on Sentrdel-owned stable invariant identity. Definition
+//! Matching is exact on Sentrdel-owned stable identity. Invariant definition
 //! compatibility is determined from a normalized semantic digest covering kind,
-//! source/authority, scope, and requirements. Provenance, lexical similarity,
-//! graph proximity, edit distance, and model judgment cannot create identity.
+//! source/authority, scope, and requirements. Canonical graph node/edge identity
+//! establishes object continuity; provenance, lexical similarity, graph proximity,
+//! edit distance, confidence, and model judgment cannot create identity.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::error::Error;
@@ -281,4 +282,233 @@ fn definition_digest(
             source,
         }
     })
+}
+
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub enum SemanticObjectKind {
+    EvaluationPath,
+    Observation,
+    GraphNode,
+    GraphEdge,
+}
+
+impl SemanticObjectKind {
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::EvaluationPath => "EVALUATION_PATH",
+            Self::Observation => "OBSERVATION",
+            Self::GraphNode => "GRAPH_NODE",
+            Self::GraphEdge => "GRAPH_EDGE",
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SemanticObjectMatch {
+    object_kind: SemanticObjectKind,
+    stable_object_id: String,
+    pair_presence: PairPresence,
+    continuity_basis: ContinuityBasis,
+}
+
+impl SemanticObjectMatch {
+    #[must_use]
+    pub const fn object_kind(&self) -> SemanticObjectKind {
+        self.object_kind
+    }
+
+    #[must_use]
+    pub fn stable_object_id(&self) -> &str {
+        &self.stable_object_id
+    }
+
+    #[must_use]
+    pub const fn pair_presence(&self) -> PairPresence {
+        self.pair_presence
+    }
+
+    #[must_use]
+    pub const fn continuity_basis(&self) -> ContinuityBasis {
+        self.continuity_basis
+    }
+}
+
+#[derive(Debug)]
+pub enum SemanticObjectMatchError {
+    Limits(RegressionModelError),
+    Snapshot(SnapshotCompositionError),
+    TooManySemanticObjects {
+        object_kind: SemanticObjectKind,
+        count: usize,
+        max: usize,
+    },
+}
+
+impl fmt::Display for SemanticObjectMatchError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Limits(error) => {
+                write!(formatter, "invalid semantic-object match limits: {error}")
+            }
+            Self::Snapshot(error) => write!(formatter, "snapshot pair is not comparable: {error}"),
+            Self::TooManySemanticObjects {
+                object_kind,
+                count,
+                max,
+            } => write!(
+                formatter,
+                "{} continuity result count {count} exceeds configured maximum {max}",
+                object_kind.as_str()
+            ),
+        }
+    }
+}
+
+impl Error for SemanticObjectMatchError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match self {
+            Self::Limits(error) => Some(error),
+            Self::Snapshot(error) => Some(error),
+            Self::TooManySemanticObjects { .. } => None,
+        }
+    }
+}
+
+/// Establish exact continuity for semantic objects already carried by a snapshot.
+///
+/// The exact revision pair and snapshot compatibility contract are validated
+/// before continuity handling. Evaluation path IDs, referenced observation IDs,
+/// graph node IDs, and graph edge IDs are keyed only by their existing canonical
+/// stable identities. Same-ID objects are `MATCHED` with `EXACT_STABLE_ID`;
+/// one-sided IDs remain explicitly unmatched. Invariant-definition identity is
+/// handled separately by the stricter S1-T009 matcher.
+///
+/// This function does not infer rename continuity, compare graph neighborhoods,
+/// interpret mutable graph metadata, or create graph/security dispositions.
+/// Existing `GraphProjection::diff` remains bounded comparison context for
+/// S1-T021 and never becomes identity authority here.
+pub fn match_semantic_objects(
+    pair: &RevisionPair,
+    trusted_base: &SemanticSnapshot,
+    candidate: &SemanticSnapshot,
+    limits: RegressionLimits,
+) -> Result<Vec<SemanticObjectMatch>, SemanticObjectMatchError> {
+    let limits = limits
+        .validate()
+        .map_err(SemanticObjectMatchError::Limits)?;
+    validate_snapshot_pair(pair, trusted_base, candidate)
+        .map_err(SemanticObjectMatchError::Snapshot)?;
+
+    let (base_path_ids, base_observation_ids) = evaluation_semantic_ids(trusted_base);
+    let (candidate_path_ids, candidate_observation_ids) = evaluation_semantic_ids(candidate);
+    let base_node_ids = trusted_base
+        .graph_nodes()
+        .iter()
+        .map(|node| node.node_id.as_str())
+        .collect::<BTreeSet<_>>();
+    let candidate_node_ids = candidate
+        .graph_nodes()
+        .iter()
+        .map(|node| node.node_id.as_str())
+        .collect::<BTreeSet<_>>();
+    let base_edge_ids = trusted_base
+        .graph_edges()
+        .iter()
+        .map(|edge| edge.edge_id.as_str())
+        .collect::<BTreeSet<_>>();
+    let candidate_edge_ids = candidate
+        .graph_edges()
+        .iter()
+        .map(|edge| edge.edge_id.as_str())
+        .collect::<BTreeSet<_>>();
+
+    let mut matches = match_semantic_id_sets(
+        SemanticObjectKind::EvaluationPath,
+        &base_path_ids,
+        &candidate_path_ids,
+        limits.max_pair_results,
+    )?;
+    matches.extend(match_semantic_id_sets(
+        SemanticObjectKind::Observation,
+        &base_observation_ids,
+        &candidate_observation_ids,
+        limits.max_pair_results,
+    )?);
+    matches.extend(match_semantic_id_sets(
+        SemanticObjectKind::GraphNode,
+        &base_node_ids,
+        &candidate_node_ids,
+        limits.max_graph_nodes,
+    )?);
+    matches.extend(match_semantic_id_sets(
+        SemanticObjectKind::GraphEdge,
+        &base_edge_ids,
+        &candidate_edge_ids,
+        limits.max_graph_edges,
+    )?);
+    Ok(matches)
+}
+
+fn evaluation_semantic_ids(snapshot: &SemanticSnapshot) -> (BTreeSet<&str>, BTreeSet<&str>) {
+    let mut path_ids = BTreeSet::new();
+    let mut observation_ids = BTreeSet::new();
+    for evaluation in snapshot.invariant_evaluations() {
+        if let Some(path_id) = evaluation.path_id() {
+            path_ids.insert(path_id.as_str());
+        }
+        observation_ids.extend(
+            evaluation
+                .supporting_observation_ids()
+                .iter()
+                .map(|value| value.as_str()),
+        );
+        observation_ids.extend(
+            evaluation
+                .contradicting_observation_ids()
+                .iter()
+                .map(|value| value.as_str()),
+        );
+    }
+    (path_ids, observation_ids)
+}
+
+fn match_semantic_id_sets(
+    object_kind: SemanticObjectKind,
+    base_ids: &BTreeSet<&str>,
+    candidate_ids: &BTreeSet<&str>,
+    max_results: usize,
+) -> Result<Vec<SemanticObjectMatch>, SemanticObjectMatchError> {
+    let ids = base_ids
+        .iter()
+        .copied()
+        .chain(candidate_ids.iter().copied())
+        .collect::<BTreeSet<_>>();
+    if ids.len() > max_results {
+        return Err(SemanticObjectMatchError::TooManySemanticObjects {
+            object_kind,
+            count: ids.len(),
+            max: max_results,
+        });
+    }
+
+    Ok(ids
+        .into_iter()
+        .map(|stable_object_id| {
+            let in_base = base_ids.contains(stable_object_id);
+            let in_candidate = candidate_ids.contains(stable_object_id);
+            let (pair_presence, continuity_basis) = match (in_base, in_candidate) {
+                (true, true) => (PairPresence::Matched, ContinuityBasis::ExactStableId),
+                (true, false) => (PairPresence::BaseOnly, ContinuityBasis::Unmatched),
+                (false, true) => (PairPresence::CandidateOnly, ContinuityBasis::Unmatched),
+                (false, false) => unreachable!("union ID must exist in at least one snapshot"),
+            };
+            SemanticObjectMatch {
+                object_kind,
+                stable_object_id: stable_object_id.to_owned(),
+                pair_presence,
+                continuity_basis,
+            }
+        })
+        .collect())
 }
