@@ -40,7 +40,7 @@ marker = "    #[test]\n    fn provenance_identity_is_stable_and_side_label_is_no
 tests = '''    #[test]
     fn provenance_path_and_digest_respect_text_bounds() {
         let path_location = location("abcde", 0, "x");
-        let path_known = known_provenance("TRUSTED_BASE", &[path_location.clone()]);
+        let path_known = known_provenance("TRUSTED_BASE", std::slice::from_ref(&path_location));
         let limits = RegressionLimits {
             max_text_bytes: 4,
             ..RegressionLimits::default()
@@ -67,7 +67,7 @@ tests = '''    #[test]
         ));
 
         let digest_location = location("a", 0, "12345");
-        let digest_known = known_provenance("CANDIDATE", &[digest_location.clone()]);
+        let digest_known = known_provenance("CANDIDATE", std::slice::from_ref(&digest_location));
         let mut digest_total = 0;
         let digest_error = normalize_side_support(
             "CANDIDATE",
