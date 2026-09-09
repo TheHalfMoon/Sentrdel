@@ -75,6 +75,12 @@ pub(crate) enum BilateralSupportError {
         bytes: usize,
         max: usize,
     },
+    ProvenanceFieldTooLarge {
+        side: &'static str,
+        field: &'static str,
+        bytes: usize,
+        max: usize,
+    },
     UnknownEvidenceRef {
         side: &'static str,
         evidence_ref: String,
@@ -112,6 +118,15 @@ impl fmt::Display for BilateralSupportError {
                 formatter,
                 "{side} evidence reference size {bytes} exceeds configured maximum {max}"
             ),
+            Self::ProvenanceFieldTooLarge {
+                side,
+                field,
+                bytes,
+                max,
+            } => write!(
+                formatter,
+                "{side} provenance {field} size {bytes} exceeds configured maximum {max}"
+            ),
             Self::UnknownEvidenceRef { side, evidence_ref } => write!(
                 formatter,
                 "{side} evidence reference is not present in its validated snapshot: {evidence_ref}"
@@ -147,6 +162,7 @@ impl Error for BilateralSupportError {
             | Self::TooManyProvenanceRefs { .. }
             | Self::EmptyEvidenceRef { .. }
             | Self::EvidenceRefTooLarge { .. }
+            | Self::ProvenanceFieldTooLarge { .. }
             | Self::UnknownEvidenceRef { .. }
             | Self::UnknownProvenanceRef { .. }
             | Self::TotalInputBytesExceeded { .. } => None,
@@ -284,14 +300,19 @@ fn normalize_side_support(
 
     let mut normalized_provenance = BTreeSet::new();
     for location in provenance {
-        account_input_bytes(
-            total_input_bytes,
-            location.path().as_str().len(),
-            limits.max_total_input_bytes,
+        let path = location.path().as_str();
+        let content_digest = location.content_digest();
+        validate_provenance_text(side, "path", path, limits.max_text_bytes)?;
+        validate_provenance_text(
+            side,
+            "content_digest",
+            content_digest,
+            limits.max_text_bytes,
         )?;
+        account_input_bytes(total_input_bytes, path.len(), limits.max_total_input_bytes)?;
         account_input_bytes(
             total_input_bytes,
-            location.content_digest().len(),
+            content_digest.len(),
             limits.max_total_input_bytes,
         )?;
         account_input_bytes(
@@ -313,6 +334,23 @@ fn normalize_side_support(
         evidence_refs: normalized_evidence.into_iter().collect(),
         provenance_refs: normalized_provenance.into_iter().collect(),
     })
+}
+
+fn validate_provenance_text(
+    side: &'static str,
+    field: &'static str,
+    value: &str,
+    max: usize,
+) -> Result<(), BilateralSupportError> {
+    if value.len() > max {
+        return Err(BilateralSupportError::ProvenanceFieldTooLarge {
+            side,
+            field,
+            bytes: value.len(),
+            max,
+        });
+    }
+    Ok(())
 }
 
 fn provenance_ref(
@@ -569,6 +607,75 @@ mod tests {
             exhausted,
             BilateralSupportError::TotalInputBytesExceeded { max: 4 }
         ));
+    }
+
+    #[test]
+    fn provenance_text_limits_are_enforced_per_field_with_inclusive_boundary() {
+        let path_too_large = location("abcde", 0, "d");
+        let path_known = known_provenance("TRUSTED_BASE", std::slice::from_ref(&path_too_large));
+        let no_evidence = BTreeSet::new();
+        let limits = RegressionLimits {
+            max_text_bytes: 4,
+            ..RegressionLimits::default()
+        };
+        let mut path_total = 0;
+        let path_error = normalize_side_support(
+            "TRUSTED_BASE",
+            vec![],
+            &[path_too_large],
+            &no_evidence,
+            &path_known,
+            limits,
+            &mut path_total,
+        )
+        .expect_err("oversized provenance path must fail");
+        assert!(matches!(
+            path_error,
+            BilateralSupportError::ProvenanceFieldTooLarge {
+                side: "TRUSTED_BASE",
+                field: "path",
+                bytes: 5,
+                max: 4,
+            }
+        ));
+
+        let digest_too_large = location("a", 0, "12345");
+        let digest_known = known_provenance("CANDIDATE", std::slice::from_ref(&digest_too_large));
+        let mut digest_total = 0;
+        let digest_error = normalize_side_support(
+            "CANDIDATE",
+            vec![],
+            &[digest_too_large],
+            &no_evidence,
+            &digest_known,
+            limits,
+            &mut digest_total,
+        )
+        .expect_err("oversized provenance digest must fail");
+        assert!(matches!(
+            digest_error,
+            BilateralSupportError::ProvenanceFieldTooLarge {
+                side: "CANDIDATE",
+                field: "content_digest",
+                bytes: 5,
+                max: 4,
+            }
+        ));
+
+        let at_boundary = location("abcd", 0, "1234");
+        let boundary_known = known_provenance("TRUSTED_BASE", std::slice::from_ref(&at_boundary));
+        let mut boundary_total = 0;
+        let boundary = normalize_side_support(
+            "TRUSTED_BASE",
+            vec![],
+            &[at_boundary],
+            &no_evidence,
+            &boundary_known,
+            limits,
+            &mut boundary_total,
+        )
+        .expect("provenance fields exactly at max_text_bytes must remain valid");
+        assert_eq!(boundary.provenance_refs().len(), 1);
     }
 
     #[test]
