@@ -20,7 +20,7 @@ use crate::business_logic::graph::R3GraphRecords;
 use crate::business_logic::model::{
     ActorIdentityKind, DataOperationKind, GuardKind, HttpMethod, InvariantDefinition,
     InvariantEvaluation, InvariantEvaluationState, InvariantKind, InvariantRequirement,
-    InvariantSource, ResourceKind, ResourceRef, SourceLocation,
+    InvariantScope, InvariantSource, ResourceKind, ResourceRef, SourceLocation,
 };
 use crate::business_logic::producer::{
     BusinessLogicProducerOutput, R3_BUSINESS_LOGIC_PRODUCER_ID, R3_BUSINESS_LOGIC_PRODUCER_VERSION,
@@ -32,6 +32,7 @@ use crate::regression::model::{
 
 const R3_SNAPSHOT_CAPABILITY_SCOPE: &str = "BUSINESS_LOGIC";
 const S1_SNAPSHOT_INPUT_DIGEST_FORMAT: &str = "sentrdel.s1.semantic-snapshot-input/v1";
+const S1_INVARIANT_DEFINITION_DIGEST_FORMAT: &str = "sentrdel.s1.invariant-definition/v1";
 const R3_OBSERVATION_CATEGORY: &str = "business_logic_invariant_observation";
 const R3_INTERPRETATION_CATEGORY: &str = "business_logic_invariant_interpretation";
 
@@ -87,6 +88,21 @@ pub(crate) fn derive_snapshot_input_digest(
         &graph_nodes,
         &graph_edges,
     )
+}
+
+/// Derive the canonical digest of one invariant's normalized semantic definition.
+///
+/// Stable identity and provenance are deliberately excluded. The digest covers
+/// kind, source/authority, scope, and requirements so source movement alone does
+/// not create definition conflict while semantic reuse under one stable ID does.
+pub(crate) fn derive_invariant_definition_digest(
+    record: &InvariantDefinition,
+) -> Result<String, RegressionModelError> {
+    let material = json!({
+        "format": S1_INVARIANT_DEFINITION_DIGEST_FORMAT,
+        "definition": invariant_definition_semantic_material(record),
+    });
+    content_id("s1-invariant-definition", &material).map_err(RegressionModelError::from)
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -1008,20 +1024,32 @@ fn derive_normalized_snapshot_input_digest(
 }
 
 fn invariant_definition_material(record: &InvariantDefinition) -> Value {
-    let scope = record.scope();
     json!({
         "invariant_id": record.invariant_id().as_str(),
         "kind": invariant_kind_name(record.kind()),
         "source": invariant_source_name(record.source()),
-        "scope": {
-            "route_pattern": scope.route_pattern(),
-            "http_methods": scope.http_methods().iter().copied().map(http_method_name).collect::<Vec<_>>(),
-            "resource": scope.resource().map(resource_material),
-            "operation_kinds": scope.operation_kinds().iter().copied().map(data_operation_kind_name).collect::<Vec<_>>(),
-            "target_paths": scope.target_paths().iter().map(|path| path.as_str()).collect::<Vec<_>>(),
-        },
+        "scope": invariant_scope_material(record.scope()),
         "requirements": invariant_requirement_material(record.requirements()),
         "provenance": record.provenance().iter().map(source_location_material).collect::<Vec<_>>(),
+    })
+}
+
+fn invariant_definition_semantic_material(record: &InvariantDefinition) -> Value {
+    json!({
+        "kind": invariant_kind_name(record.kind()),
+        "source": invariant_source_name(record.source()),
+        "scope": invariant_scope_material(record.scope()),
+        "requirements": invariant_requirement_material(record.requirements()),
+    })
+}
+
+fn invariant_scope_material(scope: &InvariantScope) -> Value {
+    json!({
+        "route_pattern": scope.route_pattern(),
+        "http_methods": scope.http_methods().iter().copied().map(http_method_name).collect::<Vec<_>>(),
+        "resource": scope.resource().map(resource_material),
+        "operation_kinds": scope.operation_kinds().iter().copied().map(data_operation_kind_name).collect::<Vec<_>>(),
+        "target_paths": scope.target_paths().iter().map(|path| path.as_str()).collect::<Vec<_>>(),
     })
 }
 

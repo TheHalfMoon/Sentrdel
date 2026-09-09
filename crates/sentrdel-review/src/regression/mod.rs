@@ -8,9 +8,12 @@
 
 pub mod model;
 pub mod revision;
-// S1-T008 intentionally lands the crate-private snapshot substrate before its
-// dependency-ordered S1-T009+ consumers. Keep it compiled and tested without
-// exposing it outside this crate or weakening lints elsewhere in the workspace.
+// S1-T008/T009 intentionally keep snapshot composition and invariant matching
+// crate-private until dependency-ordered comparison consumers land. Keep these
+// substrates compiled and tested without widening the public authority surface.
+#[allow(dead_code)]
+#[path = "match.rs"]
+pub(crate) mod invariant_match;
 #[allow(dead_code)]
 pub(crate) mod snapshot;
 
@@ -31,6 +34,8 @@ pub const S1_TARGET_EXECUTION_ALLOWED: bool = false;
 pub const S1_LLM_OR_EXTERNAL_ENGINE_ALLOWED: bool = false;
 pub const S1_MISSING_OUTPUT_CAN_BECOME_PASS: bool = false;
 
+#[cfg(test)]
+mod match_tests;
 #[cfg(test)]
 mod snapshot_tests;
 
