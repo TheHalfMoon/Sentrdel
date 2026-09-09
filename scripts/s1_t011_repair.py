@@ -51,7 +51,7 @@ marker = "    #[test]\n    fn provenance_identity_is_stable_and_side_label_is_no
 new_test = r'''    #[test]
     fn provenance_text_limits_are_enforced_per_field_with_inclusive_boundary() {
         let path_too_large = location("abcde", 0, "d");
-        let path_known = known_provenance("TRUSTED_BASE", &[path_too_large.clone()]);
+        let path_known = known_provenance("TRUSTED_BASE", std::slice::from_ref(&path_too_large));
         let no_evidence = BTreeSet::new();
         let limits = RegressionLimits {
             max_text_bytes: 4,
@@ -79,7 +79,7 @@ new_test = r'''    #[test]
         ));
 
         let digest_too_large = location("a", 0, "12345");
-        let digest_known = known_provenance("CANDIDATE", &[digest_too_large.clone()]);
+        let digest_known = known_provenance("CANDIDATE", std::slice::from_ref(&digest_too_large));
         let mut digest_total = 0;
         let digest_error = normalize_side_support(
             "CANDIDATE",
@@ -102,7 +102,7 @@ new_test = r'''    #[test]
         ));
 
         let at_boundary = location("abcd", 0, "1234");
-        let boundary_known = known_provenance("TRUSTED_BASE", &[at_boundary.clone()]);
+        let boundary_known = known_provenance("TRUSTED_BASE", std::slice::from_ref(&at_boundary));
         let mut boundary_total = 0;
         let boundary = normalize_side_support(
             "TRUSTED_BASE",
