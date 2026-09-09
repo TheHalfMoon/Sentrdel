@@ -1,0 +1,69 @@
+name: S1 T011 Review Repair V2
+
+on:
+  push:
+    branches:
+      - evidence/s1-t011-review-repair-e47b41e
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repair payload
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+      - name: Freeze exact implementation head and payload
+        shell: bash
+        run: |
+          cp scripts/s1_t011_review_repair.py /tmp/s1_t011_review_repair.py
+          git fetch origin main feat/s1-t011-bilateral-support
+          test "$(git rev-parse origin/main)" = "b6dafbb31b61d067f19177a86ba2179c9b8783b3"
+          test "$(git rev-parse origin/feat/s1-t011-bilateral-support)" = "e47b41ed18053467dec746108f41263edf3876ea"
+          git checkout --detach e47b41ed18053467dec746108f41263edf3876ea
+      - name: Install pinned Rust toolchain
+        shell: bash
+        run: |
+          rustup toolchain install 1.98.0 --profile minimal --component rustfmt --component clippy
+          rustup default 1.98.0
+          rustc --version
+      - name: Apply exact review repair
+        shell: bash
+        run: |
+          python3 /tmp/s1_t011_review_repair.py
+          cargo fmt --all
+          test "$(git diff --name-only)" = "crates/sentrdel-review/src/regression/support.rs"
+      - name: Qualify repaired implementation
+        shell: bash
+        run: |
+          cargo fmt --all --check
+          cargo check --workspace --locked
+          cargo test -p sentrdel-review --lib regression::support --locked
+          cargo test --workspace --locked
+          cargo clippy --workspace --all-targets --locked -- -D warnings
+      - name: Commit and push forward repair
+        shell: bash
+        run: |
+          git config user.name "Abdulaziz M. Shehri"
+          git config user.email "alshehriofficial@gmail.com"
+          git add crates/sentrdel-review/src/regression/support.rs
+          git diff --cached --quiet && { echo "repair produced no diff"; exit 1; }
+          test "$(git rev-parse HEAD)" = "e47b41ed18053467dec746108f41263edf3876ea"
+          git commit -m "fix(s1): enforce provenance text bounds"
+          git push origin HEAD:refs/heads/feat/s1-t011-bilateral-support
+      - name: Delete temporary repair branch
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          curl --fail-with-body --silent --show-error \
+            -X DELETE \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/TheHalfMoon/Sentrdel/git/refs/heads/evidence/s1-t011-review-repair-e47b41e"
