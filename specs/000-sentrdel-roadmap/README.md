@@ -154,8 +154,10 @@ The latest blueprint therefore adds:
 8. **Signed/versioned Security Packs.** Packs declare source/license/capabilities/dependencies/authority ceiling/conformance and cannot widen permissions through instructions.
 9. **Agent-security verification after isolation.** Prompt injection/tool misuse/goal hijacking tests belong in a future bounded verification profile for owned/authorized agents, not ordinary review.
 10. **Optional control-plane UX over stable protocols.** A web/server layer may provide inventory, lifecycle, runtime correlation and portfolio views later, while the local Rust judgment path remains independently useful.
+11. **Observation and response are separate authority planes.** Any future runtime blocking/quarantine/response requires explicit response authorization, supported control points, rollback/disable semantics and protected false-block/latency conformance; telemetry severity alone cannot trigger action.
+12. **Inventory is not target permission.** Asset/service/API/environment identities support posture and correlation, but discovered/imported assets never become dynamic scan targets without separate Rules of Engagement. Multi-user control-plane delivery must freeze tenant/principal/authz/audit boundaries first.
 
-The full gap register G15–G38, target architecture, contracts, dependency order, acceptance gates, benchmark metrics, adversarial cases, and source-specific adoption backlog are in `security-control-plane-expansion-2026-09-12.md`.
+The full gap register G15–G42, target architecture, contracts, dependency order, acceptance gates, benchmark metrics, adversarial cases, and source-specific adoption backlog are in `security-control-plane-expansion-2026-09-12.md`.
 
 ## First proof-of-category demos
 

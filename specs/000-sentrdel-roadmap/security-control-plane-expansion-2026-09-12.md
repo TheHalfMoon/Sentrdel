@@ -15,7 +15,7 @@ Sentrdel should become the **open security control plane for AI-built software**
 
 It should **not** become an autonomous pentesting bot, a bundle of 150 shell tools, a mandatory SaaS, or a vulnerability database clone.
 
-The strongest architecture combines seven capabilities that are usually fragmented across separate products:
+The strongest architecture combines eight capabilities that are usually fragmented across separate products:
 
 1. **pre-change and pre-merge judgment** — Evidence, Coverage, SSG, invariants, regression;
 2. **external analyzer/import fabric** — mature scanners as untrusted producers;
@@ -23,7 +23,8 @@ The strongest architecture combines seven capabilities that are usually fragment
 4. **runtime/operational evidence** — errors, logs, traces, health, deployments, runtime security events;
 5. **finding/remediation lifecycle** — ownership, risk, fix candidates, retest, verified closure;
 6. **agent/MCP/tool security** — static first, isolated dynamic testing later;
-7. **open conformance and learning** — reproducible benchmarks, protected holdouts, candidate packs/rules that cannot self-promote.
+7. **open conformance and learning** — reproducible benchmarks, protected holdouts, candidate packs/rules that cannot self-promote;
+8. **bounded runtime enforcement and response** — explicit prevention/response policy at controlled seams, separate from observation and disabled unless a future authorized profile proves the safety envelope.
 
 This is how Sentrdel can be broader than a scanner **without becoming shallower than one**.
 
@@ -255,6 +256,30 @@ R9 needs tests for more than finding precision.
 
 **Required correction:** approvals must bind exact action/capability/target/scope/expiry/run identity, record approver identity/provenance where available, and never authorize a broader future action implicitly.
 
+### G39 — Runtime enforcement and automated response authority is under-specified
+
+Runtime telemetry and runtime prevention are different authority classes. A system that can block a request, kill a workload, quarantine an artifact, rotate a route, revoke a token, or change policy has materially more blast radius than an observer.
+
+**Required correction:** define a separate runtime-response contract with explicit control points, action allowlists, target/environment scope, expiry, latency/SLO budget, fail-open/fail-closed semantics, rollback/disable behavior, actor/policy provenance, and immutable action records. Runtime observation alone MUST NOT authorize a response action. Production mutation remains outside this blueprint until a future explicit Spec Kit and constitutional review authorize a bounded profile.
+
+### G40 — Optional control-plane trust, tenancy, and administration are under-specified
+
+An optional web/API control plane becomes a high-value security target because it can expose Findings, proof artifacts, runtime telemetry, source metadata, authorizations, pack/tool state, and remediation actions. “Add auth later” is not an acceptable architecture.
+
+**Required correction:** before multi-user/server implementation, freeze tenant/project boundaries, principal/session/API-token identity, RBAC/ABAC or equivalent authorization semantics, admin break-glass behavior, audit events, CSRF/session protections where applicable, key/secret handling, encryption boundaries, rate limits, export/delete controls, migration/backup/restore expectations, and denial tests for cross-tenant access. The server remains a projection/orchestration surface, never canonical Finding authority.
+
+### G41 — Asset, service, API, and environment identity is not explicit enough
+
+Project posture and runtime correlation need a stable inventory vocabulary, but inventory must not become permission to probe arbitrary external assets.
+
+**Required correction:** define bounded `AssetIdentity` / service/API/environment relationships derived from repository metadata, deployments, explicit operator inventory, or qualified imports. Discovery provenance and confidence must be explicit; imported or inferred assets do not automatically enter dynamic target scope. Internet-wide/external attack-surface discovery is not authorized by this blueprint.
+
+### G42 — Operational incidents and canonical Findings need separate semantics
+
+A runtime attack signal, outage, exploit attempt, WAF/RASP block, suspicious process event, or telemetry anomaly is not necessarily the same object as a source-level Finding. Conflating them would either weaken Finding authority or make incident response unusably rigid.
+
+**Required correction:** define a bounded operational-incident/event projection that can link to zero or more Findings, deployments, assets, proof artifacts, and runtime observations. Incident creation/triage may be operational, but it cannot create or rewrite a canonical Finding without normal reconciliation. Response actions must reference their incident/evidence/policy basis.
+
 ## 6. Target architecture
 
 ### Plane A — Trusted Judgment Core
@@ -363,6 +388,23 @@ Contains:
 - source freshness/license/provenance tracking.
 
 Candidate generation cannot modify the evaluator/holdout that judges it and cannot self-promote into trusted policy.
+
+### Plane H — Optional Bounded Runtime Enforcement and Response
+
+This plane is deliberately separate from Plane D observation. It MAY eventually contain narrowly authorized controls such as request blocking, quarantine, service protection, or other reversible response actions at known enforcement seams.
+
+Every action requires:
+
+- an authorized response profile and exact environment/asset/control-point scope;
+- a kernel-validated policy/authorization decision;
+- explicit action type and maximum blast radius;
+- immutable policy, Evidence/incident, actor and action provenance;
+- bounded latency/resource impact;
+- rollback/disable behavior;
+- visible failure/partial-enforcement state;
+- conformance proving that telemetry/model/tool output cannot independently trigger a broader action.
+
+Production mutation, destructive response, credential revocation, privileged host control, or autonomous incident response is **not authorized by this blueprint**. Those require a future explicit Spec Kit and constitutional review.
 
 ## 7. Contracts to freeze before broad implementation
 
@@ -525,6 +567,60 @@ Minimum semantics:
 - revocation/revalidation state;
 - no ambient network/credential/filesystem authority.
 
+### 7.11 `AssetIdentity`
+
+Minimum semantics:
+
+- stable asset/service/API/environment ID within a declared project/tenant scope;
+- asset kind and ownership/context;
+- repository/revision/deployment relationships where known;
+- canonical address/endpoint identifiers only when explicitly supplied or safely derived;
+- discovery/import source and confidence;
+- lifecycle state (`ACTIVE`, `RETIRED`, `UNRESOLVED`, or future frozen equivalent);
+- explicit statement that inventory presence is **not** dynamic target authorization.
+
+### 7.12 `RuntimeResponseAuthorization` / `EnforcementActionRecord`
+
+Minimum semantics:
+
+- response authorization/policy ID and digest;
+- exact environment/asset/control-point scope;
+- allowed action types and parameters;
+- source policy plus Evidence/incident prerequisites;
+- actor/service identity;
+- start/expiry and emergency disable;
+- maximum blast radius/rate/concurrency;
+- latency/SLO and fail-open/fail-closed mode;
+- rollback/recovery semantics;
+- action result, partial/failure state and immutable audit identity.
+
+Observation or model confidence cannot independently satisfy this authorization.
+
+### 7.13 `ControlPlanePrincipal` / `ControlPlaneAuditEvent`
+
+Minimum semantics:
+
+- principal/session/API-client identity;
+- tenant/project scope;
+- role/grant/capability set with explicit expiry where applicable;
+- authentication strength/context without storing credential plaintext;
+- requested operation, target object and authorization outcome;
+- admin/break-glass provenance;
+- immutable audit event identity and timestamp;
+- redaction/export/retention class.
+
+### 7.14 `OperationalIncidentRecord`
+
+Minimum semantics:
+
+- incident ID and lifecycle state;
+- asset/service/environment/deployment linkage;
+- related runtime observation/Evidence/proof IDs;
+- related canonical Finding IDs when reconciled;
+- actor/owner/timestamps/severity as operational metadata;
+- response-action IDs and policy basis;
+- explicit separation from reconciler-only Finding creation.
+
 ## 8. Progressive security escalation model
 
 Sentrdel should minimize risk, latency, and cost by escalating only when needed.
@@ -553,7 +649,11 @@ Only with explicit profile + authorization + isolation. Produce immutable proof 
 
 Asynchronously correlate real operational observations to the shipped revision/deployment and relevant Findings/invariants.
 
-### Stage 6 — Remediation and point retest
+### Stage 6 — Optional bounded runtime response
+
+Only at a separately authorized control point and response profile. A policy kernel validates the exact environment/asset/action scope. Observation, external severity, or model confidence alone cannot trigger a broader action. Production/destructive response remains unauthorized until a future explicit Spec Kit permits it.
+
+### Stage 7 — Remediation and point retest
 
 Generate or ingest fix candidates, then rerun the smallest sufficient regression/verification plan. Only execution-backed proof can create execution-backed verified closure.
 
@@ -659,6 +759,26 @@ Prefer OTLP/OpenTelemetry resource semantics; add Sentry-compatible envelopes on
 
 **Exit:** runtime observations from a synthetic deployed service correlate to exact revision/deployment/SSG identities without changing static facts or bypassing the reconciler.
 
+### R8 Track — Bounded Runtime Enforcement and Response (later)
+
+**Entry:** Operational Evidence Bridge canonical; stable `AssetIdentity`; explicit response authorization/action contracts; incident projection; protected conformance for false-positive/latency/failure behavior.
+
+**First bounded scope:** synthetic or explicitly authorized staging control points only. Start with reversible, low-blast-radius actions and a disabled-by-default posture.
+
+**Mandatory gates:**
+
+- runtime observation and response authority remain separate;
+- action types/targets/parameters are code/policy allowlisted;
+- no repository/model/external-tool output can widen response scope;
+- fail-open/fail-closed choice is explicit per control point and benchmarked;
+- emergency disable/rollback is tested;
+- partial enforcement/failure stays visible;
+- performance/availability regression budget is enforced;
+- every action emits an immutable `EnforcementActionRecord`;
+- production/destructive/credential-revocation/privileged-host response is excluded until separately authorized.
+
+**Exit:** a synthetic runtime attack can be observed, reconciled to an incident/finding context, blocked at an authorized staging control point, audited, rolled back/disabled, and replayed without any false autonomous expansion of scope.
+
 ### R6/R9 Track — Agent Security Verification Profile
 
 **Entry:** S5 verification safety foundation canonical + Gate A conformance substrate.
@@ -692,10 +812,10 @@ Prefer OTLP/OpenTelemetry resource semantics; add Sentry-compatible envelopes on
 
 The control plane MAY provide:
 
-- project/repository/service/environment inventory;
+- project/repository/service/environment/API inventory;
 - run history;
 - Finding triage;
-- runtime correlation;
+- runtime/incident correlation;
 - proof artifact viewer;
 - coverage dashboard;
 - remediation/retest workflow;
@@ -703,7 +823,9 @@ The control plane MAY provide:
 - alerts/integrations;
 - team/portfolio posture.
 
-It MUST NOT be required for local CLI judgment.
+Before multi-user/server delivery, its Spec Kit MUST freeze principal/session/API-token identity, tenant/project isolation, authorization semantics, admin/break-glass behavior, immutable audit events, key/secret boundaries, cross-tenant denial tests, CSRF/session controls where applicable, rate limits, export/delete behavior, migration/backup/restore expectations, and incident response for control-plane compromise.
+
+It MUST NOT be required for local CLI judgment, and web/database code MUST NOT become canonical Finding or verification authority.
 
 ### S7 — Semantic Provider Expansion
 
@@ -715,7 +837,7 @@ Extend to agent/skill/tool installation only at genuinely controlled seams. Pack
 
 ### S9 — Runtime Correlation
 
-Build on the Operational Evidence Bridge. Add temporal/deployment correlation and bounded runtime-security producers. Do not embed privileged eBPF/kernel collection into the base install.
+Build on the Operational Evidence Bridge. Add temporal/deployment/asset correlation, bounded runtime-security producers, and operational-incident relationships. Any later active runtime enforcement follows the separate response-authorization gates above. Do not embed privileged eBPF/kernel collection or active blocking into the base install.
 
 ### S10 — Mature SSG Project Posture
 
@@ -774,9 +896,16 @@ The following are the recommended next bounded Spec Kits **when their dependenci
 ### Spec Kit candidate G — Optional Self-Hosted Control Plane
 
 **Owner:** R10  
-**Dependencies:** stable local API/event/lifecycle/runtime contracts.  
-**Primary outputs:** optional server/API/UI projection; local-first sync/import; tenancy/auth/audit.  
-**No-go:** moving kernel judgment into web/database code.
+**Dependencies:** stable local API/event/lifecycle/runtime contracts + `AssetIdentity` + principal/tenant/audit design.
+**Primary outputs:** optional server/API/UI projection; local-first sync/import; asset/service/API inventory; principal/session/API-token identity; tenant isolation; authorization; immutable audit; backup/restore/migration and admin-security contracts.
+**No-go:** moving kernel judgment into web/database code or using inventory presence as target authorization.
+
+### Spec Kit candidate H — Bounded Runtime Enforcement and Response
+
+**Owner:** R8
+**Dependencies:** Operational Evidence Bridge + asset/deployment identity + incident projection + protected enforcement conformance.
+**Primary outputs:** response authorization, bounded reversible staging control point, immutable action record, performance/failure/rollback gates.
+**No-go:** autonomous production mutation, credential revocation, destructive response, ambient host privilege, or runtime telemetry directly triggering a canonical response action.
 
 ## 11. External engine strategy
 
@@ -891,6 +1020,14 @@ Correlation confidence must remain explicit. A guessed mapping cannot silently b
 - retention policy per data class;
 - tenant/project isolation;
 - explicit export/delete controls in any future server.
+
+### Asset and incident separation
+
+Runtime telemetry may introduce an asset/service/API identity or operational incident candidate, but neither object grants network/verification scope and neither object is automatically a canonical Finding. Correlation quality (`EXACT`, `ATTESTED`, `AMBIGUOUS`, `UNMAPPED`, or future frozen equivalent) must remain visible.
+
+### Runtime enforcement boundary
+
+Observation and response are separate contracts. A future response action requires an explicit `RuntimeResponseAuthorization`, a supported control point, a bounded action type, and an immutable `EnforcementActionRecord`. Model output, scanner severity, telemetry severity, or incident priority cannot independently authorize the action. Default base behavior is observation-only.
 
 ## 15. Finding lifecycle state machine constraints
 
@@ -1055,9 +1192,20 @@ Future applicable releases should measure at least:
 
 - deployment→revision mapping correctness;
 - runtime observation→semantic identity precision;
+- asset/service/API identity correlation precision and explicit unresolved rate;
 - explicit ambiguous/unmapped rate;
 - dropped/sampled/truncated truthfulness;
 - PII/secret redaction failures: target **0** on protected canaries.
+
+### Runtime enforcement and control-plane safety
+
+- unauthorized response actions: target **0** on protected conformance;
+- cross-tenant/project authorization escapes: target **0**;
+- response false-block rate by supported profile/control point;
+- response latency and application SLO impact;
+- emergency-disable/rollback success;
+- fail-open/fail-closed behavior matches frozen policy under dependency outage;
+- every response action has complete immutable authorization/evidence/audit lineage.
 
 ### Durability/recovery
 
@@ -1109,6 +1257,11 @@ At minimum, future suites should cover:
 - accepted-risk item expires;
 - verified fix regresses in a later revision;
 - runtime contradiction reopens a previously verified fix;
+- a high-severity runtime event attempts to trigger an undeclared response action;
+- a response policy tries to cross tenant/environment/asset boundaries;
+- fail-open/fail-closed behavior is exercised under control-plane or telemetry outage;
+- an inventory-only external asset is incorrectly proposed as an authorized verification target;
+- cross-tenant control-plane API/object references are denied and audited;
 - sampling/drop/cap exhaustion is represented as missing coverage, not clean;
 - malicious pack/rule tries to widen permissions;
 - signed but unqualified engine proves that integrity is not equivalent to trust;

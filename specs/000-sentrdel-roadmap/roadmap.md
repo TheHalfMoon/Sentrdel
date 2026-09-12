@@ -111,6 +111,9 @@ Binding direction:
 - add Finding lifecycle/remediation/retest after the developer/verification contracts are mature while keeping Finding creation reconciler-only;
 - treat third-party Security Packs/tools/rules as signed/versioned/capability-declared supply-chain objects with explicit authority ceilings and requalification;
 - allow later bounded agent-security verification only for owned/explicitly authorized isolated targets after S5 safety and R9/Gate-A conformance exist;
+- keep runtime observation separate from active response authority; any future blocking/quarantine/response capability requires explicit response authorization, supported control points, immutable action records, rollback/disable semantics, and protected false-block/latency conformance before production consideration;
+- make asset/service/API inventory identities explicit while keeping inventory presence structurally incapable of authorizing verification or scanning;
+- require any optional multi-user control plane to freeze principal/session/API-token identity, tenant/project isolation, authorization, immutable audit and admin/break-glass boundaries before it can manage sensitive evidence/runtime/remediation state;
 - preserve local-first operation: no cloud, model provider, Docker, browser, Python, Node, eBPF or web control plane becomes a base requirement;
 - founder source-copy permission context does not replace exact source/file/license/security qualification. Restricted/copyleft public terms remain controlling unless a sufficiently specific separate permission/relicense record is stored.
 
