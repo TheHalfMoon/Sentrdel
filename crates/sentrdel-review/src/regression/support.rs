@@ -17,6 +17,11 @@ use crate::regression::snapshot::{
     SemanticSnapshot, SnapshotCompositionError, validate_snapshot_pair,
 };
 
+/// Fixed accounting weight for the two byte offsets in one provenance location.
+/// Keep this independent of the host pointer width so aggregate cap decisions
+/// remain deterministic across supported compilation targets.
+const PROVENANCE_OFFSET_ACCOUNTING_BYTES: usize = 16;
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct SideSupport {
     evidence_refs: Vec<String>,
@@ -317,7 +322,7 @@ fn normalize_side_support(
         )?;
         account_input_bytes(
             total_input_bytes,
-            2 * std::mem::size_of::<usize>(),
+            PROVENANCE_OFFSET_ACCOUNTING_BYTES,
             limits.max_total_input_bytes,
         )?;
         let reference = provenance_ref(side, location)?;
