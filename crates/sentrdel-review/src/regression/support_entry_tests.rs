@@ -116,13 +116,8 @@ fn fixture_snapshot(
         limits,
     )
     .expect("canonical snapshot input digest");
-    let revision = RevisionIdentity::fixture(
-        role,
-        fixture_identity,
-        snapshot_input_digest,
-        limits,
-    )
-    .expect("fixture revision");
+    let revision = RevisionIdentity::fixture(role, fixture_identity, snapshot_input_digest, limits)
+        .expect("fixture revision");
     let snapshot = SemanticSnapshot::compose(
         revision.clone(),
         PRODUCER_CONFIGURATION_DIGEST,
@@ -139,8 +134,7 @@ fn fixture_snapshot(
 
 #[test]
 fn preserve_entrypoint_rejects_snapshot_revision_mismatch() {
-    let (base_revision, base) =
-        fixture_snapshot(RevisionRole::TrustedBase, "s1-t011-base", "base");
+    let (base_revision, base) = fixture_snapshot(RevisionRole::TrustedBase, "s1-t011-base", "base");
     let (candidate_revision, _candidate) =
         fixture_snapshot(RevisionRole::Candidate, "s1-t011-candidate", "candidate");
     let (_rogue_revision, rogue_candidate) =
@@ -164,8 +158,7 @@ fn preserve_entrypoint_rejects_snapshot_revision_mismatch() {
 
 #[test]
 fn preserve_entrypoint_enforces_one_aggregate_byte_cap_across_both_sides() {
-    let (base_revision, base) =
-        fixture_snapshot(RevisionRole::TrustedBase, "s1-t011-base", "base");
+    let (base_revision, base) = fixture_snapshot(RevisionRole::TrustedBase, "s1-t011-base", "base");
     let (candidate_revision, candidate) =
         fixture_snapshot(RevisionRole::Candidate, "s1-t011-candidate", "candidate");
     let pair = RevisionPair::new(base_revision, candidate_revision).expect("revision pair");
