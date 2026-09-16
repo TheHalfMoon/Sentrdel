@@ -4,68 +4,50 @@
 **Planning branch:** `docs/security-control-plane-2026-09-12`  
 **Active implementation authority:** `specs/004-security-invariant-regression/` only  
 **Founder permission context:** `docs/third-party/founder-source-reuse-attestation-2026-09-16-github-source-universe.md`  
-**OpenCTI study:** `docs/third-party/opencti-source-assessment-2026-09-16.md` and `opencti-source-reuse-map-2026-09-16.md`  
 
 ## 1. Purpose
 
-This study mines the founder's connected GitHub source universe for code, contracts, benchmarks, and architecture patterns that can materially improve Sentrdel.
+This study mines the founder's connected GitHub source universe for implementation, contract, benchmark, and interoperability material that can strengthen Sentrdel.
 
-The objective is **not** to merge projects or copy complete applications into Sentrdel. The objective is to identify the smallest proven mechanisms that strengthen Sentrdel's durable moat:
+It does not authorize implementation or reorder the active S1 program. Sentrdel-owned qualification records always outrank research pins discovered in another founder repository.
 
-> deterministic security-invariant regression + bounded Evidence/Coverage + provenance + controlled verification + external intelligence context + runtime evidence, while Sentrdel remains the judgment authority.
+The target architecture remains:
 
-The current S1 task order is unchanged. Nothing in this document authorizes implementation ahead of the active Spec Kit frontier.
+> Sentrdel owns deterministic Evidence/Coverage, security-invariant regression, canonical Finding judgment, bounded verification, and provenance. External tools, intelligence platforms, models, graphs, sandboxes, and scanners remain qualified producers or constrained execution backends.
 
-## 2. Headline conclusion
+## 2. Qualification precedence
 
-The most valuable source material is already distributed across the founder's repositories:
+Use this precedence when the same upstream appears in multiple founder repositories:
 
 ```text
-Golam
-  -> authority integrity, capability leases, approvals, taint, egress and sandbox rights narrowing
-
-Kodac
-  -> exact evidence provenance, evidence relations, deterministic analyzer normalization,
-     sandbox attestation/admission, verification receipts
-
-Ascout
-  -> source-bound verification receipts, completeness/no-green-by-omission,
-     security evidence adapter semantics and benchmark methodology
-
-OpenCTI
-  -> STIX/TAXII interoperability, connectors, workbench, investigations/cases,
-     markings, service identities and filtered streams
-
-Signthos
-  -> immutable-byte/content-identity admission, TOCTOU resistance,
-     derived-artifact quarantine and scanner-state separation
-
-WePLD
-  -> a high-quality source acquisition registry for graph, policy, sandbox,
-     attestation, agent-runtime and security-oracle candidates
-
-Himsat
-  -> revisioned derived artifacts and non-destructive provenance/history patterns
+Sentrdel canonical source/dependency qualification
+  > Sentrdel source assessment
+  > exact research pin from another founder repository
+  > unpinned reference
 ```
 
-The strongest Sentrdel direction is therefore **selective convergence**, not another greenfield rewrite.
+Examples already proven by this pass:
 
-## 3. Reuse classification
+- `Graphify-Labs/graphify` is **already Sentrdel-qualified** at `b2cd36267456c166788c95be6e68574064a92a42` for a bounded selective Rust port. The WePLD pin is research history only.
+- `ast-grep-core 0.45.2`, `tree-sitter 0.26.13`, and `tree-sitter-javascript 0.25.0` already have a Sentrdel dependency qualification for the bounded native structural-producer path, subject to the recorded lock/privileged-dependency closure.
+- Sentrdel already owns a strict JSON/SARIF engine-adapter dependency boundary using its existing exact-pinned `serde` / `serde_json` closure.
+- `Tencent/AI-Infra-Guard`, `google/magika`, and `Tencent/AICGSecEval` already have Sentrdel research assessments and must not be downgraded to a weaker cross-repository classification.
 
-This study uses the following dispositions:
+## 3. Reuse dispositions
 
-- `PORT_CANDIDATE` — existing founder-owned implementation is close enough to justify selective code porting after exact source qualification.
-- `ADAPT_IN_RUST` — preserve semantics/tests but implement inside Sentrdel's Rust contracts rather than importing the original runtime stack.
-- `OUT_OF_PROCESS_ADAPTER` — keep the producer/tool outside Sentrdel's trusted core and import bounded evidence.
-- `PROTOCOL_REFERENCE` — use the protocol/interchange design while Sentrdel owns implementation and authority.
-- `BENCHMARK_REFERENCE` — use test/evaluation methodology or fixtures only after provenance qualification.
-- `RESEARCH_REFERENCE` — valuable ideas; no current code-intake case.
+- `QUALIFIED_EXISTING` — Sentrdel already has a controlling qualification.
+- `PORT_CANDIDATE` — founder-owned implementation is close enough to justify selective porting after exact-path qualification.
+- `ADAPT_IN_RUST` — retain semantics/tests but implement inside Sentrdel-owned Rust contracts.
+- `OUT_OF_PROCESS_ADAPTER` — keep the producer outside the trusted core and import bounded evidence.
+- `PROTOCOL_REFERENCE` — use the protocol/interchange contract without adopting a full runtime.
+- `BENCHMARK_REFERENCE` — use methodology/data shape only after rights/provenance qualification.
+- `RESEARCH_REFERENCE` — useful ideas, no current code-intake case.
 
-## 4. Tier 0 — founder-owned code with direct Sentrdel reuse value
+## 4. Highest-value founder-owned implementation sources
 
-### 4.1 `TheHalfMoon/Golam` — authority-security ledger
+### 4.1 `TheHalfMoon/Golam` — authenticated authority-state integrity
 
-High-value implementation:
+Primary implementation:
 
 ```text
 crates/golam-ledger/src/authority_security_v2.rs
@@ -74,33 +56,30 @@ crates/golam-ledger/src/authority_security_v2.rs
 Observed properties:
 
 - `#![forbid(unsafe_code)]`;
-- protected source kinds include principals, policy bundles, active policy, capability leases/revocations, approvals/consumption, taint attestations, verifier rules, secrets, egress permits, sandbox profiles/admissions and authorization decisions;
-- deterministic canonical payload encoding;
-- BLAKE3 payload and hash-chain integrity;
-- contiguous audit sequence validation;
-- latest authenticated snapshot must exactly match every current protected source;
-- missing authenticated coverage fails visible;
-- stale authenticated records with no current source fail integrity validation.
+- protected snapshots for principals, policy, capability leases/revocations, approvals, taint, verifier rules, secrets, egress, sandbox admissions, and authorization decisions;
+- canonical payload encoding;
+- BLAKE3 payload and chained-record integrity;
+- contiguous audit sequencing;
+- exact reconciliation between latest authenticated snapshots and current protected state;
+- missing protected-state coverage fails visible.
 
-Sentrdel fit:
-
-- future control-plane integrity ledger;
-- `VerificationAuthorization` validation provenance;
-- `IntegrationServiceIdentity` / policy / marking / automation authority mutation audit;
-- signed/versioned Security Pack activation history;
-- tamper-evident operational authority state.
-
-Disposition:
+Sentrdel use:
 
 ```text
-PORT_CANDIDATE / VERY_HIGH_PRIORITY
+VerificationAuthorization validation history
+IntegrationServiceIdentity changes
+Security Pack activation
+marking / policy / automation authority mutations
+control-plane protected-state audit
 ```
 
-Do not port the Golam schema wholesale. Port the **authenticated protected-state snapshot + chain verification pattern** behind Sentrdel-owned types.
+Disposition: `PORT_CANDIDATE / P0`.
+
+Port the authenticated-state integrity pattern behind Sentrdel-owned types; do not import Golam's whole authority schema.
 
 ### 4.2 `TheHalfMoon/Golam` — sandbox rights narrowing
 
-High-value implementation:
+Primary implementation:
 
 ```text
 crates/golam-ledger/src/sandbox_enforcement.rs
@@ -108,133 +87,95 @@ crates/golam-ledger/src/sandbox_enforcement.rs
 
 Observed properties:
 
-- deny-all request constructor;
-- exact allowlisted filesystem read/write roots;
-- explicit environment allowlist with cleared-environment semantics;
-- monotonic network authority (`None`, loopback, permit-bound external);
-- monotonic process spawn authority;
-- resource limits only narrow, never widen;
-- device, IPC and inherited-handle allowlists;
-- bounded request cardinality;
-- deterministic descriptor hash bound to source launch-plan hash;
-- explicit non-claim that a rights descriptor alone proves platform containment.
+- deny-all request shape;
+- exact-subset filesystem, environment, device, IPC, and inherited-handle rules;
+- network and process-spawn authority cannot widen;
+- requested resource limits can only narrow;
+- deterministic enforcement-descriptor hash bound to the source launch plan;
+- a rights descriptor explicitly does not claim actual platform containment.
 
-Sentrdel fit:
-
-- R6 verification isolation;
-- `ToolCapabilityManifest` enforcement;
-- exact `VerificationRunManifest` launch authority;
-- separate authorization from actual platform containment proof;
-- fail-closed sandbox provider adapters.
-
-Disposition:
+Sentrdel use:
 
 ```text
-PORT_CANDIDATE / VERY_HIGH_PRIORITY
+ToolCapabilityManifest
+VerificationRunManifest
+bounded verification worker launch
+sandbox adapter conformance
 ```
+
+Disposition: `PORT_CANDIDATE / P0`.
 
 ### 4.3 `TheHalfMoon/Golam` — capability leases and one-shot approvals
 
-High-value implementation:
+Primary implementation/reference:
 
 ```text
 crates/golam-kernel/src/capability_lease_effect.rs
 specs/003-identity-policy-secrets-sandbox/contracts/egress-sandbox-contract.md
 ```
 
-Observed properties:
+High-value semantics:
 
-- authorization required before capability-lease mutation;
-- effect payload hash binding;
-- explicit proposed -> authorized state transition;
-- at-most-once execution semantics;
-- one-shot approval scope bound to exact effect/action/resource;
-- parent authority and expiry concepts;
-- egress authority is explicit rather than ambient.
+- authorization precedes authority mutation;
+- exact payload/effect binding;
+- proposed -> authorized transition;
+- at-most-once effect semantics;
+- one-shot approval bound to exact effect/action/resource;
+- explicit egress instead of ambient network authority.
 
-Sentrdel fit:
+Sentrdel use: short-lived verification authority, service identities, one-shot mutation approval, connector egress.
 
-- verification authorization delegation;
-- short-lived service identities/connectors;
-- one-shot mutation/verification approvals;
-- explicit egress permits for optional external producers;
-- preventing a connector or automation rule from minting broader authority.
+Disposition: `ADAPT_IN_RUST / P0-P1`.
 
-Disposition:
+### 4.4 `TheHalfMoon/Kodac` — exact evidence provenance
 
-```text
-ADAPT_IN_RUST / HIGH_PRIORITY
-```
-
-Sentrdel should preserve the semantics but use its own authority names and lifecycle.
-
-### 4.4 `TheHalfMoon/Kodac` — exact evidence provenance binding
-
-High-value implementation:
+Primary implementation:
 
 ```text
 packages/kodac-runtime/src/verification/p5-evidence-provenance.ts
 schema/p5-evidence-provenance.schema.json
 ```
 
-Observed binding dimensions:
+The contract binds:
 
 ```text
-source kind / evidence identity / source ref / source digest
+source kind / source ref / source digest / evidence identity
 repository identity / canonical base / candidate head
 producer identity / version / configuration identity
-policy identity
-scope identity
-input identity
-environment identity
-freshness state + basis identity
+policy / scope / input / environment identities
+freshness state + basis
 canonical semantic binding identity
 ```
 
-Validation is strict about object shape, bounded text, Unicode scalars, immutable revision identities and digest formats.
-
-Sentrdel fit:
-
-- future `ExternalEvidenceEnvelope`;
-- runtime evidence bridge;
-- CTI import provenance;
-- verification proof artifacts;
-- preserving freshness independently of producer confidence/severity;
-- preventing stale producer output from silently supporting a current verdict.
-
-Disposition:
+Sentrdel use:
 
 ```text
-ADAPT_IN_RUST / VERY_HIGH_PRIORITY
+ExternalEvidenceEnvelope
+ProofArtifactReference
+runtime evidence
+CTI import provenance
+verification artifacts
+freshness without trust promotion
 ```
 
-The semantic field set is highly reusable even though the TypeScript implementation should not become a required runtime dependency.
+Disposition: `ADAPT_IN_RUST / P0`.
 
-### 4.5 `TheHalfMoon/Kodac` — evidence relation edges
+### 4.5 `TheHalfMoon/Kodac` — evidence relationship edges
 
-High-value implementation:
+Primary implementation:
 
 ```text
 packages/kodac-runtime/src/verification/p5-evidence-relation.ts
 schema/p5-evidence-relation.schema.json
 ```
 
-Sentrdel fit:
+Sentrdel use: provenance-rich `DerivedRelationshipRecord` and SSG evidence lineage without collapsing source identities.
 
-- `DerivedRelationshipRecord`;
-- SSG evidence lineage;
-- imported CTI relationship derivation;
-- explicit `supports`, `contradicts`, `derived-from`, `reproduces`, or equivalent typed edges without collapsing underlying evidence identities.
+Disposition: `ADAPT_IN_RUST / P0-P1`.
 
-Disposition:
+### 4.6 `TheHalfMoon/Kodac` — deterministic analyzer normalization
 
-```text
-ADAPT_IN_RUST / HIGH_PRIORITY
-```
-
-### 4.6 `TheHalfMoon/Kodac` — deterministic analyzer finding normalization
-
-High-value implementation:
+Primary implementation:
 
 ```text
 packages/kodac-runtime/src/security/p6-deterministic-security-finding.ts
@@ -243,39 +184,28 @@ schema/p6-deterministic-security-finding.schema.json
 
 Observed strengths:
 
-- explicit deterministic analyzer origin;
-- lanes for static analysis, dependency analysis, secret detection, supply-chain provenance and CI workflow integrity;
-- provenance binding is mandatory;
-- repository-relative path validation;
-- bounded/canonical references;
-- native record digest and fingerprint are retained;
-- defensive JSON-data validation rejects proxies, accessors, cycles, sparse/extra-property arrays, unbounded depth/container counts and non-finite values.
+- deterministic analyzer origin;
+- static/dependency/secret/supply-chain/CI lanes;
+- mandatory provenance binding;
+- repository-relative safe locations;
+- native record digest and fingerprint retained;
+- defensive bounded JSON graph validation.
 
-Sentrdel fit:
-
-- External Evidence Import Protocol;
-- safe normalization of SARIF/native analyzer records;
-- preserving native artifacts/fingerprints without granting them Finding authority.
-
-Critical correction for Sentrdel:
+Required Sentrdel semantic correction:
 
 ```text
-KODAC_DETERMINISTIC_SECURITY_FINDING
-  -> SENTRDEL_IMPORTED_SECURITY_OBSERVATION
-  != SENTRDEL_CANONICAL_FINDING
+Kodac deterministic security finding
+  -> Sentrdel ImportedSecurityObservation
+  != Sentrdel canonical Finding
 ```
 
-Only the Sentrdel reconciler may create canonical Findings.
+Only Sentrdel's reconciler owns canonical Finding creation.
 
-Disposition:
+Disposition: `ADAPT_IN_RUST / P0`.
 
-```text
-ADAPT_IN_RUST / VERY_HIGH_PRIORITY
-```
+### 4.7 `TheHalfMoon/Kodac` — sandbox backend evidence
 
-### 4.7 `TheHalfMoon/Kodac` — sandbox attestation and approval binding
-
-High-value implementation family:
+Relevant family:
 
 ```text
 packages/kodac-runtime/src/trust/sandbox-backend-evidence.ts
@@ -287,25 +217,15 @@ packages/kodac-runtime/src/trust/sandbox-observer-gvisor-network-runtime.ts
 packages/kodac-runtime/src/trust/sandbox-output-gvisor.ts
 ```
 
-Sentrdel fit:
+Kodac is especially useful for separating declared backend capability from observed containment, workload identity, approval binding, TTL recovery, and network/output evidence.
 
-- separate declared sandbox capability from observed containment evidence;
-- workload identity/attestation;
-- approval binding to exact runtime requirement;
-- lifecycle/TTL cleanup and recovery;
-- network/output containment evidence.
+Preferred convergence: Golam supplies the cleaner Rust rights-narrowing core; Kodac supplies backend-attestation/lifecycle patterns.
 
-Disposition:
+Disposition: `PORT/ADAPT CANDIDATE / P1 for verification`.
 
-```text
-PATTERN_PORT_CANDIDATE / HIGH_PRIORITY_FOR_R6
-```
+### 4.8 `TheHalfMoon/Ascout` — verification receipt and no-green-by-omission
 
-Golam supplies the cleaner Rust rights-narrowing core; Kodac supplies broader backend-attestation and lifecycle evidence patterns. They should be combined, not duplicated.
-
-### 4.8 `TheHalfMoon/Ascout` — verification receipt model
-
-High-value implementation:
+Primary implementation:
 
 ```text
 src/receipt/model.ts
@@ -314,101 +234,205 @@ specs/001-changed-code-verification-receipt/data-model.md
 
 Observed strengths:
 
-- source start/end identity;
+- source start/end identities;
 - exact changed surface;
-- task authorization source;
-- argv/tool/version and admission state;
-- execution status distinguishes PASS/FAIL/FLAKY/BLOCKED/ERROR/NOT_APPLICABLE/NOT_RUN;
-- evidence and artifact identities with hashes/redaction/truncation facts;
+- task authorization source, argv, tool/version, admission state;
+- distinct `PASS`, `FAIL`, `FLAKY`, `BLOCKED`, `ERROR`, `NOT_APPLICABLE`, `NOT_RUN`;
+- evidence/artifact hashes plus redaction/truncation facts;
 - explicit stability and completeness;
-- no-green-by-omission: blocked/not-run/unresolved exercise can make the receipt materially incomplete;
-- errors/tree drift have distinct exit semantics.
+- blocked/not-run/unresolved coverage cannot become green.
 
-Sentrdel fit:
-
-- `VerificationRunManifest` + final verification receipt;
-- external analyzer execution receipts;
-- runtime/benchmark/conformance evidence;
-- explicit distinction between `NO_FINDINGS`, `NOT_RUN`, `ERROR`, `BLOCKED`, `NOT_APPLICABLE`, and incomplete coverage.
-
-Disposition:
+Sentrdel use:
 
 ```text
-ADAPT_IN_RUST / VERY_HIGH_PRIORITY
+VerificationRunManifest
+VerificationReceipt
+external analyzer receipt
+benchmark/conformance receipt
 ```
 
-### 4.9 `TheHalfMoon/Ascout` — security evidence research
+Disposition: `ADAPT_IN_RUST / P0`.
 
-High-value research artifact:
+### 4.9 `TheHalfMoon/Signthos` — immutable input/content admission
 
-```text
-docs/strategy/SECURITY_VERIFICATION_SOURCE_STUDY.md
-```
-
-It already identifies three high-value upstreams:
-
-- `Tencent/AICGSecEval`;
-- `Tencent/AI-Infra-Guard`;
-- `google/magika`.
-
-It also freezes a useful security-adapter rule:
-
-```text
-ZERO_FINDINGS != CLEAN
-```
-
-unless execution, output parse/schema, applicability and scope are all proven.
-
-Disposition:
-
-```text
-RESEARCH_REFERENCE / VERY_HIGH_PRIORITY
-```
-
-### 4.10 `TheHalfMoon/Signthos` — immutable content identity/admission
-
-High-value research artifact:
+High-value planning source:
 
 ```text
 specs/004-local-pdf-core/source-informed-security-plan-amendment.md
 ```
 
-Transferable patterns:
+Transferable rules:
 
 - digest exact bytes before producer execution;
-- preserve declared identity separately from observed identity;
-- prevent TOCTOU path substitution;
-- downstream providers must inspect the same immutable bytes;
-- derived/extracted artifacts receive new identities and do not inherit parent trust;
-- parser/classifier/scanner success is one evidence component, never universal safety;
-- scanner configured/executed/applicable/parsed/complete states remain separate.
+- declared identity and observed identity remain separate;
+- prevent mutable-path/TOCTOU substitution;
+- downstream providers must consume the same immutable bytes;
+- derived artifacts receive new identities and never inherit parent trust;
+- configured/executed/applicable/parsed/complete scanner states remain separate.
 
-Sentrdel fit:
+Sentrdel use: analyzer artifact admission, proof artifacts, CTI attachments, downloaded samples.
 
-- imported analyzer artifact admission;
-- downloaded CTI attachments/samples;
-- verification proof artifacts;
-- future file/content evidence before external engines consume data.
+Disposition: `ADAPT_IN_RUST / P1`.
 
-Disposition:
+### 4.10 `TheHalfMoon/Himsat` — revisioned derived artifacts
+
+Himsat planning repeatedly preserves provenance to source objects and revision history rather than destructively replacing derived state.
+
+Sentrdel use: workbench revisions, analyst-edited intelligence projections, cases/investigations, derived relationship history.
+
+Disposition: `RESEARCH_REFERENCE / P2`.
+
+## 5. Existing Sentrdel-qualified source surfaces
+
+### 5.1 Graphify — controlling Sentrdel qualification
+
+Controlling record:
 
 ```text
-ADAPT_IN_RUST / MEDIUM_HIGH_PRIORITY
+docs/third-party/graphify-source-qualification.md
 ```
 
-### 4.11 `TheHalfMoon/wepld` — source acquisition registry
-
-High-value artifact:
+Qualified upstream:
 
 ```text
-specs/003-agent-control-plane-architecture-enrichment/source-acquisition.md
+Graphify-Labs/graphify@b2cd36267456c166788c95be6e68574064a92a42
+status = QUALIFIED_FOR_SELECTIVE_RUST_PORT
 ```
 
-This repository already recorded reproducible research pins for several sources highly relevant to Sentrdel:
+Exact qualified donor surfaces include:
+
+- `graphify/analyze.py` for graph-diff semantics;
+- `graphify/affected.py` for bounded reverse impact traversal;
+- `graphify/validate.py` for validation/confidence vocabulary as concept-only;
+- upstream tests as behavioral references.
+
+Important existing Sentrdel corrections already frozen:
+
+- provenance/confidence changes must not disappear inside endpoint-only graph identity;
+- ambiguous/fuzzy seed selection cannot mint canonical identity;
+- graph confidence cannot create FACT/VERIFIED;
+- no Python/NetworkX/LLM/MCP/database runtime is admitted;
+- the port stays inside `sentrdel-graph` and `UNIVERSAL_CPG = false` remains unchanged.
+
+Disposition: `QUALIFIED_EXISTING / P0 where owning task is dependency-eligible`.
+
+### 5.2 ast-grep-core / Tree-sitter — controlling Sentrdel dependency qualification
+
+Controlling record:
+
+```text
+docs/third-party/ast-grep-tree-sitter-qualification.md
+```
+
+Qualified exact packages:
+
+```text
+ast-grep-core =0.45.2
+tree-sitter =0.26.13
+tree-sitter-javascript =0.25.0
+```
+
+Status:
+
+```text
+QUALIFIED_FOR_T039_ADMISSION_PENDING_LOCK_CLOSURE
+```
+
+The qualification admits only the bounded in-process Rust parser/matcher substrate and explicitly rejects broad grammar bundles, CLI execution, dynamic loading, remote grammar fetch, repository-selected executable behavior, or direct Finding authority.
+
+Disposition: `QUALIFIED_EXISTING`; do not replace this with a weaker external research pin.
+
+### 5.3 Strict JSON / SARIF adaptation substrate
+
+Controlling record:
+
+```text
+docs/third-party/engine-adapter-dependency-qualification.md
+```
+
+Sentrdel already has an exact-pinned `serde` / `serde_json` boundary for bounded native JSON and SARIF decoding after a Sentrdel-owned structural preflight. Producer identity and trusted provenance remain runtime-owned rather than decoded from the untrusted engine output.
+
+This means future SARIF work should extend the existing strict adapter philosophy rather than introduce an unrelated parser authority.
+
+## 6. Existing Sentrdel-assessed external sources
+
+### 6.1 OpenCTI
+
+Current research pin:
+
+```text
+OpenCTI-Platform/opencti@c22668461981ac9602e8e16527ef613428c34c3c
+```
+
+Existing Sentrdel studies:
+
+```text
+docs/third-party/opencti-source-assessment-2026-09-16.md
+docs/third-party/opencti-source-reuse-map-2026-09-16.md
+specs/000-sentrdel-roadmap/opencti-intelligence-interoperability-2026-09-16.md
+```
+
+Preferred use:
+
+- STIX 2.1/TAXII protocol handling;
+- connector lifecycle and service identity patterns;
+- Intake Workbench;
+- Investigation Workspace / Security Case patterns;
+- markings/access filtering;
+- filtered streaming/data sharing;
+- selective Community Edition source reuse after exact file qualification.
+
+Do not adopt the entire OpenCTI Node/Python/server topology into Sentrdel's local Rust core.
+
+Disposition: `PROTOCOL_REFERENCE + SELECTIVE_SOURCE_CANDIDATE / P1`.
+
+### 6.2 Tencent AI-Infra-Guard
+
+Controlling Sentrdel assessment:
+
+```text
+docs/third-party/source-candidate-assessment-2026-09-08.md
+Tencent/AI-Infra-Guard@e4e622af3ad2b8228ce82dd62b01415dd8ce2b9c
+```
+
+Use for Agent/MCP/Skill threat taxonomy, deterministic pre-scan, smuggling/hidden executable cases, tool poisoning/shadowing, SARIF fixtures, and conformance.
+
+Disposition: `HIGH_PRIORITY_TAXONOMY_AND_CONFORMANCE_REFERENCE` now; optional external producer only after the appropriate import/verification contracts exist.
+
+### 6.3 Tencent AICGSecEval
+
+Controlling Sentrdel assessment pin:
+
+```text
+Tencent/AICGSecEval@94428ebf45141bf4ecd365a51d596dcd51caa690
+```
+
+Use for SentrdelBench methodology around known vulnerable/fixed repository pairs, functional controls, static/dynamic security evidence separation, CVE/CWE metadata, checkpoints, and evaluator independence.
+
+Disposition: `HIGH_PRIORITY_BENCHMARK_METHODOLOGY_REFERENCE`.
+
+### 6.4 Google Magika
+
+Controlling Sentrdel assessment pin:
+
+```text
+google/magika@26b6a9ba7e92f2b0a3745970a9190ec0dde9bf83
+```
+
+Use only as an optional content/routing inference signal if benchmarks prove incremental value. Model output remains INFERENCE and may not suppress an otherwise applicable analyzer.
+
+Disposition: `HIGH_PRIORITY_OPTIONAL_ARTIFACT_CLASSIFIER_CANDIDATE`, but lower priority than deterministic authority/evidence work.
+
+## 7. Source discoveries imported from other founder repositories
+
+The following are valuable because another founder repository already performed source reconnaissance. These pins are **research inputs only** until Sentrdel re-pins and qualifies them.
+
+### 7.1 WePLD source acquisition registry
+
+WePLD recorded exact research pins for:
 
 ```text
 vitali87/code-graph-rag@79abdb5fdbcde6d138db071efbe61e9afc16f63d
-Graphify-Labs/graphify@91f4d120b630ee35c79bf3c75ccd186870a808f9
 microsoft/agent-governance-toolkit@b5705588883fac48b88cbe6fd0bd7d48c798453e
 cedar-policy/cedar@ba579ee7e9d63afa73a5b59be0d338a404c6108b
 openai/codex@339751715c64496cb86246bfb3935f40e309dd3d
@@ -416,241 +440,26 @@ deepseek-ai/deepseek-harness@b150a551b8d465e31e418e1b2eaf5e79bbb7d28e
 bytedance/trae-agent@e839e559ac61bdd0e057c375dd1dee391fee797d
 ```
 
-The same source registry queues Tree-sitter, SCIP, ast-grep, Joern, OpenGrep, OPA, OpenSandbox, E2B, gVisor, Firecracker, in-toto, SLSA and OpenTelemetry for capability-triggered mining.
+It also queues SCIP, Joern, OpenGrep, OPA, OpenSandbox, E2B, gVisor, Firecracker, in-toto, SLSA and OpenTelemetry.
 
-Disposition:
+Note: WePLD also recorded a Graphify pin, but Sentrdel's existing GQ-001 qualification controls instead.
 
-```text
-SOURCE_DISCOVERY_AUTHORITY=HIGH_VALUE_RESEARCH_INPUT
-```
+### 7.2 Golam donor/source research
 
-Pins remain research identities and must be refreshed before Sentrdel admission.
-
-### 4.12 `TheHalfMoon/Himsat` — revisioned derived-artifact provenance
-
-Useful planning patterns in Himsat require derived objects to retain provenance to source objects and preserve revision history rather than destructively replacing materialized state.
-
-Sentrdel fit:
-
-- Intake Workbench revisions;
-- analyst-edited CTI projections;
-- derived intelligence relationships;
-- case/investigation notes;
-- imported/normalized artifact lineage.
-
-Disposition:
+Golam's donor register identifies additional candidates including Cedar, Wasmtime, Graphify/code-graph-rag, Restate/Temporal and governed-memory systems. Golam's Tencent study also records:
 
 ```text
-RESEARCH_REFERENCE / MEDIUM_PRIORITY
+Tencent/WeKnora@647848f3954dae34473b8a8d0e0eef5e0fb3a58e
+Tencent/RoMem@39ac1417b4db41ea729e5c3be71ac20de54da993
+Tencent/SkillHone@7d565839fb4dc74f9c77f09ace660e1c0484e048
+Tencent/LoopForge@09c765286f549624dd95434e1e6ef2249657cbeb
 ```
 
-## 5. Tier 1 — external sources already present in the founder's GitHub research universe
+Most are not priority Sentrdel code donors. Their strongest Sentrdel value is workbench/revision UX, resumable execution, evaluation separation, and non-destructive provenance patterns.
 
-### 5.1 OpenCTI — intelligence interoperability and analyst workflow
+### 7.3 Kodac analyzer and Cyber-method research
 
-Research pin already established in the Sentrdel study:
-
-```text
-OpenCTI-Platform/opencti@c22668461981ac9602e8e16527ef613428c34c3c
-```
-
-Use for:
-
-- STIX 2.1/TAXII;
-- connector lifecycle;
-- workbench staging;
-- investigations/cases;
-- markings/access filtering;
-- streaming/data sharing;
-- service identities;
-- selective Community Edition source reuse after exact file qualification.
-
-Do **not** adopt OpenCTI's entire Node/Python/Elastic/Redis/RabbitMQ stack into Sentrdel core.
-
-### 5.2 Tencent AI-Infra-Guard — agent/MCP/Skill security evidence
-
-Existing research pin:
-
-```text
-Tencent/AI-Infra-Guard@e4e622af3ad2b8228ce82dd62b01415dd8ce2b9c
-```
-
-Use for:
-
-- deterministic pre-scan before model-mediated audit;
-- Skill/MCP/agent threat taxonomy;
-- encoding/smuggling and hidden-executable checks;
-- tool poisoning/shadowing/rug-pull risk;
-- SARIF 2.1.0 transport;
-- agent-security conformance fixtures.
-
-Preferred Sentrdel role:
-
-```text
-OUT_OF_PROCESS_ADAPTER + BENCHMARK_REFERENCE
-```
-
-### 5.3 Tencent AICGSecEval — security regression benchmark methodology
-
-Existing research pin:
-
-```text
-Tencent/AICGSecEval@94428ebf45141bf4ecd365a51d596dcd51caa690
-```
-
-Use for SentrdelBench methodology:
-
-```text
-known vulnerable base
-known fixed/patch revision
-functional control
-static security signal
-dynamic/PoC oracle where separately authorized
-CVE/CWE metadata
-build/container/environment evidence
-```
-
-This is a strong candidate for proving that Sentrdel's regression engine detects a weakening/fix without conflating build failure, scanner failure and security truth.
-
-Preferred role:
-
-```text
-BENCHMARK_REFERENCE
-```
-
-### 5.4 Google Magika — optional content-identity evidence
-
-Existing research pin:
-
-```text
-google/magika@26b6a9ba7e92f2b0a3745970a9190ec0dde9bf83
-```
-
-Use only where content identity materially improves artifact admission. A classifier label/confidence is producer metadata, not security truth.
-
-Preferred role:
-
-```text
-OPTIONAL_OUT_OF_PROCESS_OR_LIBRARY_OBSERVER / LOWER_PRIORITY
-```
-
-### 5.5 Graphify + code-graph-rag — optional SSG enrichment
-
-Existing research pins from WePLD:
-
-```text
-Graphify-Labs/graphify@91f4d120b630ee35c79bf3c75ccd186870a808f9
-vitali87/code-graph-rag@79abdb5fdbcde6d138db071efbe61e9afc16f63d
-```
-
-Use for:
-
-- deeper source relationship extraction;
-- graph/dataflow exploration;
-- context retrieval;
-- candidate SSG enrichment and analyst investigation.
-
-Guardrail:
-
-```text
-EXTERNAL_GRAPH_CONFIDENCE != IDENTITY_AUTHORITY != FINDING_AUTHORITY
-```
-
-Preferred role:
-
-```text
-OPTIONAL_ADAPTER / SELECTIVE_PORT_AFTER_BENCHMARK
-```
-
-### 5.6 Microsoft Agent Governance Toolkit + Cedar
-
-Research pins from WePLD:
-
-```text
-microsoft/agent-governance-toolkit@b5705588883fac48b88cbe6fd0bd7d48c798453e
-cedar-policy/cedar@ba579ee7e9d63afa73a5b59be0d338a404c6108b
-```
-
-Potential use:
-
-- agent/action policy schema and conformance ideas;
-- authorization evaluation;
-- policy-bundle versioning;
-- deny-by-default policy errors;
-- test/conformance corpus for `VerificationAuthorization`, connectors and automation rules.
-
-Preferred role:
-
-```text
-PROTOCOL_REFERENCE first
-CEDAR_OPTIONAL_EVALUATOR only after measured need
-```
-
-Sentrdel hard guards must remain owned by Sentrdel; a policy engine cannot authorize its own activation or widen immutable safety constraints.
-
-### 5.7 OpenSandbox / gVisor / Firecracker / Wasmtime — containment backends
-
-Existing founder-repo research already identifies these as candidates for isolated execution.
-
-Use for:
-
-- separately authorized verification workers;
-- disposable analyzer execution;
-- deterministic workload/rights descriptors;
-- platform containment qualification;
-- synthetic credentials and denied production secrets.
-
-Preferred architecture:
-
-```text
-Sentrdel Verification Authorization
-        -> Sentrdel-owned rights descriptor
-        -> qualified sandbox adapter
-        -> observed containment evidence
-        -> verification receipt
-```
-
-No sandbox provider becomes an authority root.
-
-### 5.8 Tree-sitter / SCIP / ast-grep / Joern / OpenGrep
-
-Use for layered SSG/analyzer enrichment:
-
-- Tree-sitter: bounded syntax extraction;
-- SCIP: symbol/reference identity when available;
-- ast-grep: structured pattern extraction;
-- Joern: CPG/dataflow/taint/reachability evidence;
-- OpenGrep: pattern/taint analyzer evidence.
-
-Preferred role:
-
-```text
-native/lightweight parsers where justified
-heavy analyzers out-of-process
-```
-
-No external analyzer can independently mint canonical Findings.
-
-### 5.9 in-toto / SLSA / OpenTelemetry
-
-Use for:
-
-- evidence/attestation export;
-- build/deployment provenance;
-- runtime trace/log/metric correlation;
-- interoperable operational evidence bridge.
-
-Preferred role:
-
-```text
-PROTOCOL_REFERENCE + OPTIONAL ADAPTERS
-```
-
-This is stronger than inventing a Sentrdel-only telemetry or supply-chain envelope when mature standards already exist.
-
-## 6. Tier 2 — mature analyzer/provider fabric discovered in Kodac research
-
-Kodac's cyber/analyzer study records exact research pins for a strong external evidence fabric:
+Kodac recorded research pins for:
 
 ```text
 Team-Atlanta/atlantis-java@943c07bd08db5b3eeed6dace3a7c0ee1659ceab7
@@ -668,91 +477,109 @@ ossf/scorecard@d1fab88f54636ff366076edfc5c239f97b3c8e66
 facebook/infer@e327d4468c5d5e0984043096ee844944320e9ca1
 ```
 
-These are **research pins**, not Sentrdel admission pins.
+These are not Sentrdel admission pins. Their value is to avoid reinventing mature evidence producers.
 
-### Analyzer fabric rule
+## 8. Recommended external analyzer fabric
 
-Sentrdel should prefer mature producers over rebuilding every scanner:
+Future External Evidence Import work should preserve native evidence and add Sentrdel-owned provenance/coverage rather than flattening tools into a generic severity object.
+
+Target shape:
 
 ```text
-Native analyzer result
-  + exact producer/version/config
-  + exact target identity
-  + raw artifact digest
-  + invocation/environment receipt
-  + applicability/coverage state
+native producer artifact
++ exact producer/version/config
++ exact target identity
++ raw artifact digest
++ invocation/environment receipt
++ parse/schema validity
++ applicability + coverage
         -> bounded Sentrdel normalization
         -> imported Evidence/Coverage
         -> reconciler-controlled canonical Finding semantics
 ```
 
-Native evidence must remain attached. Normalization is never evidence promotion.
+Suggested technical evaluation order after the owning Spec Kit becomes eligible:
 
-### High-priority producer order
-
-For early External Evidence Import work, evaluate in roughly this technical order after the owning Spec Kit activates:
-
-1. SARIF transport contract;
-2. OSV-compatible vulnerability/advisory records;
+1. SARIF transport/profile using the existing strict engine-adapter philosophy;
+2. OSV-compatible advisories/vulnerability records;
 3. Syft CycloneDX/SPDX SBOM;
 4. Grype/Trivy dependency vulnerability output;
 5. Gitleaks secret-candidate output;
-6. OpenGrep/Semgrep static/taint findings;
-7. user-supplied CodeQL SARIF/database-derived result import;
+6. OpenGrep/Semgrep structured static/taint output;
+7. user-supplied CodeQL output;
 8. Scorecard supply-chain posture as context;
-9. Joern/Infer deep analysis where measured value justifies heavier execution.
+9. Joern/Infer deep analysis only when measured value justifies heavier execution.
 
-## 7. Tier 3 — future high-assurance verification method providers
+## 9. Graph and semantic enrichment
 
-### 7.1 OSS-CRS
+Existing Sentrdel state changes the priority substantially:
 
-Best reference for provider-neutral isolated Cyber Reasoning System execution and artifact exchange.
+- Graphify selective Rust-port qualification already exists — use it when its owning task is eligible.
+- Tree-sitter/ast-grep-core qualification already exists for the native structural producer path.
+- SCIP remains a useful future symbol/reference evidence candidate.
+- `code-graph-rag` can be evaluated for additional dataflow/context behavior, but only if it proves value beyond Sentrdel's already-qualified native/Graphify substrate.
+- Joern is best treated as an out-of-process deep dataflow/taint/reachability producer, not as the SSG authority.
 
-Useful pattern:
-
-```text
-method provider submits artifact
-provider cannot directly mutate trusted evidence state
-closed Sentrdel validator verifies artifact
-```
-
-### 7.2 Atlantis-Java
-
-Useful for shared target/sink state across multiple methods: static/dataflow, concolic, fuzzing, semantic generation and PoV stages.
-
-Sentrdel adaptation should route method artifacts without allowing an external method to promote its own reachability/verdict state.
-
-### 7.3 FuzzingBrain V2
-
-Most useful as a **negative architecture oracle**: experiment lifetime must not be owned by the requesting model worker. Long-running verification/fuzzing needs an independent durable experiment lifecycle and artifact finalization before cleanup.
-
-### 7.4 Vulnhuntr
-
-Useful for progressive context retrieval:
+Hard rule:
 
 ```text
-small suspicious surface
-  -> hypothesis
-  -> explicit symbol/context request
-  -> deterministic resolver
-  -> next analysis turn
+external graph confidence
+  != stable semantic identity authority
+  != canonical Finding authority
 ```
 
-Model output remains candidate analysis. Required library/framework semantics must come from qualified source/docs/analyzers rather than model memory.
+## 10. Verification containment candidates
 
-## 8. Recommended Sentrdel convergence packages
+Use a Sentrdel-owned authorization/rights contract above any backend:
 
-These packages are **planning groupings**, not implementation authorization.
+```text
+VerificationAuthorization
+  -> ToolCapabilityManifest
+  -> Sentrdel rights descriptor
+  -> qualified backend adapter
+  -> observed containment evidence
+  -> VerificationReceipt
+```
 
-### SM-1 — Evidence and provenance kernel
+Candidate backends from founder research include OpenSandbox, gVisor, Firecracker and Wasmtime. E2B may remain optional where a remote sandbox is explicitly allowed, but local-first core verification must not depend on it.
+
+No sandbox backend becomes an authority root.
+
+## 11. Agent/MCP/extension security
+
+High-value sources:
+
+- AI-Infra-Guard for deterministic/static pre-scan and modern Skill/MCP/agent threat classes;
+- AICGSecEval for repository-level security-evaluation methodology;
+- HackAgent for generator/judge/target role separation;
+- synthetic Sentrdel-authored adversarial fixtures for stable conformance.
+
+Dynamic attacks remain a later bounded verification profile. An LLM judge remains inference unless deterministic or execution-grounded evidence separately upgrades the claim.
+
+## 12. Standards-first runtime and provenance bridge
+
+Prefer mature protocols instead of inventing Sentrdel-only transport formats:
+
+- OpenTelemetry/OTLP for runtime traces/logs/metrics where applicable;
+- in-toto/SLSA for build/deployment provenance and attestations;
+- Sentry-compatible/GlitchTip patterns for error/release/environment correlation where useful;
+- STIX/TAXII for external threat intelligence interoperability.
+
+Imported protocol records remain observations until Sentrdel-owned validation/reconciliation gives them a permitted role.
+
+## 13. Convergence packages
+
+These are planning packages, not implementation authority.
+
+### SM-1 — Evidence and provenance kernel — P0
 
 Mine/adapt:
 
-- Kodac P5 provenance + evidence relation;
-- Ascout receipt completeness/artifact identity;
-- Golam authenticated authority-state audit pattern.
+- Kodac evidence provenance + relation;
+- Ascout receipt/completeness semantics;
+- Golam authenticated protected-state audit.
 
-Target Sentrdel concepts:
+Target:
 
 ```text
 ExternalEvidenceEnvelope
@@ -762,19 +589,16 @@ VerificationReceipt
 AuthorityStateAuditRecord
 ```
 
-Priority: **P0**.
-
-### SM-2 — Verification authority and containment
+### SM-2 — Verification authority and containment — P0/P1
 
 Mine/adapt:
 
-- Golam capability leases/one-shot approvals;
-- Golam sandbox rights narrowing;
-- Kodac sandbox backend evidence/admission/TTL;
-- Cedar/agent-governance conformance ideas;
-- OpenSandbox/gVisor/Firecracker/Wasmtime adapters.
+- Golam leases/approvals and sandbox rights narrowing;
+- Kodac backend-attestation/lifecycle patterns;
+- Cedar/agent-governance conformance concepts;
+- qualified sandbox adapters.
 
-Target concepts:
+Target:
 
 ```text
 VerificationAuthorization
@@ -785,17 +609,14 @@ IntegrationServiceIdentity
 EgressPermit
 ```
 
-Priority: **P0 after dependency-eligible verification planning**.
-
-### SM-3 — Intelligence interoperability and analyst workspace
+### SM-3 — Intelligence interoperability and analyst workspace — P1
 
 Mine/adapt:
 
-- OpenCTI STIX/TAXII conversion and connector patterns;
-- OpenCTI Workbench/Investigation/stream/marking patterns;
+- OpenCTI STIX/TAXII/connectors/workbench/investigations/markings/streams;
 - Himsat revisioned derived-artifact provenance.
 
-Target concepts:
+Target:
 
 ```text
 ExternalIntelligenceEnvelope
@@ -806,156 +627,98 @@ DataHandlingMarking
 SecurityEventStreamSubscription
 ```
 
-Priority: **P1 after current regression/productization sequence permits it**.
+### SM-4 — External analyzer fabric — P1/P2
 
-### SM-4 — External analyzer fabric
+Use bounded adapters around OSV/Syft/Grype/Trivy/Gitleaks/OpenGrep/Semgrep/CodeQL and later heavier analyzers.
 
-Use adapters for:
+### SM-5 — SSG enrichment — existing qualifications first
 
-- OSV/Syft/Grype/Trivy;
-- Gitleaks;
-- OpenGrep/Semgrep;
-- CodeQL;
-- Scorecard;
-- Joern/Infer where useful.
+Use existing Graphify + Tree-sitter/ast-grep qualification before adding a second graph/parser stack. Evaluate SCIP/Joern/code-graph-rag only for measured incremental value.
 
-Target:
+### SM-6 — Agent/MCP security conformance — P2
 
-```text
-External Evidence Import Protocol
-```
+Use AI-Infra-Guard, AICGSecEval, HackAgent and Sentrdel-owned fixtures without importing a mandatory model runtime.
 
-Priority: **P1/P2**, source by source, measured against SentrdelBench.
+### SM-7 — Runtime evidence and attestations — P2
 
-### SM-5 — SSG semantic enrichment
+Use OpenTelemetry, in-toto/SLSA and deployment/release identity after the core static/import contracts stabilize.
 
-Evaluate:
+## 14. What should not be copied wholesale
 
-- Tree-sitter;
-- SCIP;
-- ast-grep;
-- Joern;
-- Graphify;
-- code-graph-rag.
+Permission to reuse code does not make whole-platform adoption technically desirable.
 
-Priority: **benchmark-driven only**. Do not create a second mandatory graph runtime.
-
-### SM-6 — Agent/MCP/extension security
-
-Use:
-
-- AI-Infra-Guard;
-- AICGSecEval;
-- HackAgent;
-- SentrdelBench synthetic adversarial fixtures.
-
-Target:
-
-```text
-Agent Security Verification Profile
-Extension Security Admission
-Conformance suites
-```
-
-Priority: **later verification/conformance phase**.
-
-### SM-7 — Runtime evidence and attestations
-
-Use:
-
-- OpenTelemetry;
-- in-toto;
-- SLSA;
-- Sentry-compatible/GlitchTip patterns;
-- deployment/release identity.
-
-Target:
-
-```text
-Operational Evidence Bridge
-DeploymentIdentity
-RuntimeObservation
-Build/Deployment Attestation Import
-```
-
-Priority: **after static regression semantics and external evidence contracts stabilize**.
-
-## 9. What should NOT be copied wholesale
-
-Do not copy complete donor platforms merely because permission exists.
-
-Reject wholesale adoption of:
+Do not wholesale import:
 
 - OpenCTI's complete server/dependency topology;
-- Golam's whole agent operating system;
+- Golam's whole agent OS;
 - Kodac's complete TypeScript runtime;
 - Ascout's complete verification CLI;
-- autonomous exploitation loops from Strix/Shannon/HexStrike/CRS systems;
+- autonomous exploitation loops from pentest/CRS systems;
 - a mandatory graph database;
 - a mandatory LLM/provider runtime;
-- a mandatory cloud sandbox/control plane;
+- a mandatory hosted sandbox/control plane;
 - a second Finding authority;
-- a second policy/authorization authority that can bypass Sentrdel hard guards.
+- a second policy authority able to bypass Sentrdel hard guards.
 
-Prefer small contracts, validators, parsers, adapters and test corpora.
+Prefer exact validators, contracts, algorithms, adapters and adversarial tests.
 
-## 10. Canonical authority boundaries
-
-The following rules remain non-negotiable:
+## 15. Non-negotiable authority rules
 
 ```text
 External scanner result != canonical Finding
 External graph relationship != semantic identity authority
 CTI confidence != Evidence authority
 LLM judge != VERIFIED
-Sandbox provider success != authorization
-Policy engine ALLOW != hard-guard bypass
+Sandbox success != authorization
+Policy-engine ALLOW != hard-guard bypass
 Zero findings != clean when execution/applicability/coverage is incomplete
-Successful process exit != sufficient proof artifact
-Permission to copy != source admitted
-Planning source map != implementation authorization
+Process exit 0 != sufficient proof artifact
+Founder permission != source admitted
+Research pin != current admission pin
+Planning source map != implementation authority
 ```
 
-## 11. Recommended immediate repository action
-
-This source-mining pass should change **planning and source qualification only** while S1 remains active.
-
-Immediate actions:
-
-1. keep PR #330 / S1-T011 isolated from this planning work;
-2. preserve PR #332 as docs/research-only;
-3. record the founder GitHub-source permission statement separately;
-4. add this cross-repository source map to PR #332;
-5. do not start any new donor integration until the active Spec Kit makes the relevant successor slice dependency-eligible;
-6. when a successor slice activates, qualify the **smallest exact source paths** needed instead of approving an entire repository.
-
-## 12. Final source priority
-
-If Sentrdel eventually qualifies only a small subset of this universe, the highest-value order is:
+## 16. Priority order
 
 ```text
-P0  Founder-owned:
-    Golam authority/sandbox primitives
-    Kodac evidence provenance + relation + analyzer normalization
+P0  Use Sentrdel's existing qualifications first:
+    Graphify selective Rust port
+    ast-grep-core / Tree-sitter substrate
+    strict bounded JSON/SARIF adapter philosophy
+
+P0  Mine founder-owned primitives:
+    Golam authority/sandbox
+    Kodac evidence provenance/relation/analyzer normalization
     Ascout receipt/completeness semantics
 
 P1  Interoperability:
-    OpenCTI Community STIX/TAXII/connectors/workbench/stream patterns
-    OpenTelemetry + in-toto/SLSA protocol surfaces
+    OpenCTI Community-qualified paths
+    STIX/TAXII
+    later OpenTelemetry + in-toto/SLSA
 
-P1  Evidence producers:
+P1  External evidence producers:
     OSV/Syft/Grype/Trivy/Gitleaks/OpenGrep-Semgrep
 
 P2  Deep semantics:
-    Tree-sitter/SCIP/Joern
-    Graphify/code-graph-rag only if benchmark evidence proves incremental value
+    SCIP/Joern
+    code-graph-rag only if incremental value is proven
 
 P2  Verification/conformance:
-    AI-Infra-Guard/AICGSecEval
+    AI-Infra-Guard/AICGSecEval/HackAgent
     OSS-CRS/Atlantis/FuzzingBrain/Vulnhuntr as method/lifecycle references
 
-P3  Optional observations:
-    Magika and other content classifiers
+P3  Optional probabilistic observations:
+    Magika and similar classifiers
 ```
 
-This order maximizes Sentrdel-owned deterministic authority before adding heavier or more dynamic external systems.
+## 17. Immediate repository action
+
+While S1 remains active:
+
+1. keep PR #330 / S1-T011 isolated;
+2. keep this source-mining work docs/research-only in PR #332;
+3. do not import donor code into the active S1 branch because of this study;
+4. when a successor slice becomes dependency-eligible, start with the smallest exact source paths needed;
+5. refresh external research pins at admission time;
+6. preserve all applicable license/NOTICE/attribution/third-party obligations even where founder permission is recorded;
+7. benchmark every added engine or semantic layer against Sentrdel's deterministic Evidence/Coverage/invariant-regression moat before keeping it.
