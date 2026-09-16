@@ -35,8 +35,9 @@ OpenCTI-Platform/opencti@c22668461981ac9602e8e16527ef613428c34c3c
 
 - `docs/third-party/founder-source-reuse-attestation-2026-09-16-github-source-universe.md`
 - `docs/third-party/cross-repository-source-mining-2026-09-16.md`
+- `docs/third-party/development-assurance-source-mining-2026-09-16.md`
 
-The cross-repository study mines founder-owned Golam/Kodac/Ascout/Signthos/Himsat/WePLD material plus external source pins already researched there.
+The product/source study mines founder-owned Golam/Kodac/Ascout/Signthos/Himsat/WePLD material plus external source pins already researched there. The development-assurance study separately records Diffcipline, SpecGrain and HarnessMind patterns that can improve how Sentrdel changes are bounded and proven without making those projects runtime dependencies.
 
 ### Existing Sentrdel source/dependency qualifications that control over cross-repository pins
 
@@ -88,6 +89,21 @@ TheHalfMoon/Ascout
 ```
 
 These are source-mining priorities only. Their owning Sentrdel implementation slices still require dependency-eligible Spec Kit authority and exact selected-path qualification.
+
+## Development-assurance references
+
+```text
+TheHalfMoon/Diffcipline
+  proof-before-done / exact-diff / explicit verification evidence
+
+TheHalfMoon/SpecGrain
+  bounded independently verifiable work units / packet-attempt-verifier separation
+
+TheHalfMoon/HarnessMind
+  evidence semantics / projection-not-truth / standards-first trajectory and telemetry choices
+```
+
+These improve Sentrdel engineering discipline. They are not product/runtime source priorities.
 
 ## External producer/adaptor candidates discovered through founder repositories
 
