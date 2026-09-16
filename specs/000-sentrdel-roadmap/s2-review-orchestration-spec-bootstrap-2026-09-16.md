@@ -413,7 +413,7 @@ Persistence is a later S2A packet in `sentrdel-store`; CLI composition remains i
 
 ## 11. Task DAG seed
 
-These are seed IDs, not active canonical tasks.
+These are seed IDs, not active canonical tasks. The graph is intentionally explicit: T004 and T005 are sibling tasks after T003 and must both complete before T006.
 
 ```text
 S2A-T001  Bootstrap active successor Spec Kit + Constitution Check
@@ -422,10 +422,16 @@ S2A-T002  Exact immutable change inventory + limits/errors
    |
 S2A-T003  Selection state/reason model + deterministic planner
    |
-S2A-T004  Deterministic review-unit partition
-   |
-S2A-T005  Deterministic risk-profile derivation
-   |
+   +-------------------------------+
+   |                               |
+   v                               v
+S2A-T004  Deterministic        S2A-T005  Deterministic
+          review-unit                    risk-profile
+          partition                      derivation
+   |                               |
+   +---------------+---------------+
+                   |
+                   v
 S2A-T006  Run item/unit state model + ChangeReviewManifest
    |
 S2A-T007  Completeness reducer + no-green-by-omission tests
@@ -445,11 +451,16 @@ S2A-T013  Full adversarial/determinism/cross-platform conformance
 S2A-T014  Exact-head qualification + ledger closeout + protected-main proof
 ```
 
-Possible safe parallelism after T003:
+Dependency rules:
 
-- T004 and T005 MAY proceed independently only if their shared selection/planner contracts are frozen and they touch separable modules;
-- persistence T011 MUST NOT precede pure reuse semantics T009;
-- CLI composition T012 MUST wait for the pure domain and store adapter contracts it consumes.
+- T004 depends on T003 only.
+- T005 depends on T003 only.
+- T004 and T005 MAY proceed independently when they touch separable modules and the shared T003 contracts are canonical on their common base.
+- T006 depends on **both** T004 and T005; neither sibling may be skipped.
+- T011 MUST NOT precede the pure reuse semantics established by T009; T010 also remains on the dependency path before persistence so the manifest/advisory/publication model is stable before durable storage work.
+- T012 depends on the pure domain contracts and the store adapter it composes.
+- T013 is the integrated conformance gate after composition.
+- T014 is closeout only after T013 is proven.
 
 ---
 
@@ -477,9 +488,28 @@ Pass only if:
 - unknown content stays visible;
 - preview and execution can consume the same plan object/identity.
 
+### T004 review-unit partition
+
+Pass only if:
+
+- every selected item belongs to the correct deterministic unit or explicit fallback unit;
+- semantic grouping does not create fuzzy identity authority;
+- fallback grouping remains complete;
+- item ordering does not change unit identities;
+- caps/pathological relation shapes fail visibly.
+
+### T005 risk profile
+
+Pass only if:
+
+- deterministic facts/policy produce deterministic profile + reason codes;
+- input permutation does not change the result;
+- model/advisory input cannot downgrade the deterministic profile;
+- profile selection grants no new execution/network/credential/target authority.
+
 ### T006/T007 manifest + completeness
 
-Pass only if failed/timed-out/cancelled/deferred/unsupported mandatory work cannot yield `COMPLETE`, including zero-finding cases.
+Pass only if failed/timed-out/cancelled/deferred/unsupported mandatory work cannot yield `COMPLETE`, including zero-finding cases, and both T004/T005 outputs are represented consistently by the manifest/planning identity.
 
 ### T009 reuse
 
