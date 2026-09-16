@@ -41,6 +41,8 @@ pub const S1_MISSING_OUTPUT_CAN_BECOME_PASS: bool = false;
 mod match_tests;
 #[cfg(test)]
 mod snapshot_tests;
+#[cfg(test)]
+mod support_entry_tests;
 
 #[cfg(test)]
 mod tests {
