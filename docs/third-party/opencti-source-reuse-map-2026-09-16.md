@@ -9,12 +9,30 @@
 
 ## Classification rules
 
-This map uses four dispositions:
+Each candidate uses exactly one **primary disposition** in `candidate_disposition`:
 
 - `QUALIFY_FOR_SELECTIVE_REUSE` — exact source may be worth copying/porting after file-level license, security, dependency, and architecture qualification.
 - `REFERENCE_AND_REIMPLEMENT` — learn from behavior/contracts but prefer a smaller Sentrdel-native implementation.
 - `PROTOCOL_REFERENCE` — use the external standard and Sentrdel contracts as primary authority; upstream code is test/reference material, not the target architecture.
 - `COPY_BLOCKED_PENDING_SPECIFIC_PERMISSION` — direct reuse is blocked because the observed file is Enterprise Edition or otherwise lacks a compatible stored source-specific permission/license basis.
+
+A candidate may also carry one optional `reuse_qualifier` that narrows the intended research/reuse surface without changing the primary disposition. Allowed research qualifiers in this map are:
+
+- `NONE`;
+- `SELECTIVE_TEST_TYPE_PATTERN_REUSE`;
+- `SELECTIVE_IMPLEMENTATION_REUSE_AFTER_QUALIFICATION`;
+- `SELECTIVE_ALGORITHM_REUSE_AFTER_QUALIFICATION`;
+- `SELECTIVE_UI_PATTERN_REUSE`;
+- `SELECTIVE_STREAM_EDGE_CASE_REUSE`.
+
+The grammar is therefore:
+
+```text
+candidate_disposition: <exactly one primary disposition token>
+reuse_qualifier: <exactly one qualifier token>
+```
+
+Qualifiers are descriptive only. They cannot upgrade `REFERENCE_AND_REIMPLEMENT` or `PROTOCOL_REFERENCE` into source qualification, cannot override `COPY_BLOCKED_PENDING_SPECIFIC_PERMISSION`, and never imply implementation authority. Future qualification must either retain the same primary disposition or record an explicit new Sentrdel qualification decision with its own evidence.
 
 At the research pin, upstream's repository license states that files without an Enterprise Edition indication are Community Edition under Apache-2.0 and that Enterprise Edition files carry separate licensing. That repository rule is still only the first step: every selected file must be re-fetched at its exact immutable ref and qualified before reuse.
 
@@ -27,7 +45,8 @@ path: opencti-platform/opencti-graphql/src/schema/stixDomainObject.ts
 blob_sha: 59e4c7ac42c42ad451f9dba624ccb3a5b4c08f11
 observed_header: no Enterprise Edition header in fetched file prefix
 upstream_classification_basis: unmarked-file rule in repository LICENSE
-candidate_disposition: PROTOCOL_REFERENCE + SELECTIVE_TEST/TYPE_PATTERN_REUSE
+candidate_disposition: PROTOCOL_REFERENCE
+reuse_qualifier: SELECTIVE_TEST_TYPE_PATTERN_REUSE
 ```
 
 Observed responsibilities include STIX domain-object type registration, entity constants, container categories, and type predicates.
@@ -41,7 +60,8 @@ path: opencti-platform/opencti-graphql/src/database/stix-2-1-converter.ts
 blob_sha: 4f1c0dcc63dff52759afcc7a33e4392fcd0ab733
 observed_header: no Enterprise Edition header in fetched file prefix
 upstream_classification_basis: unmarked-file rule in repository LICENSE
-candidate_disposition: PROTOCOL_REFERENCE / QUALIFY_FOR_SELECTIVE_REUSE
+candidate_disposition: PROTOCOL_REFERENCE
+reuse_qualifier: SELECTIVE_IMPLEMENTATION_REUSE_AFTER_QUALIFICATION
 ```
 
 Observed responsibilities include conversion from OpenCTI store objects to STIX 2.1 objects, type dispatch, relationship/reference handling, and OpenCTI extension mapping.
@@ -58,6 +78,7 @@ blob_sha: 9b9a23c718b3310fd619b9ff44a2fa1bcbbfdc7c
 observed_header: no Enterprise Edition header in fetched file prefix
 upstream_classification_basis: unmarked-file rule in repository LICENSE
 candidate_disposition: REFERENCE_AND_REIMPLEMENT
+reuse_qualifier: NONE
 ```
 
 Observed responsibilities include connector registration surfaces, connector type/scope metadata, built-in connector enumeration, and queue-backed runtime registration.
@@ -73,7 +94,8 @@ path: client-python/pycti/connector/opencti_connector_helper.py
 blob_sha: cd89a01846cec5a0332715beaa95e2a7755d4ba5
 observed_header: no Enterprise Edition header in fetched file prefix
 upstream_classification_basis: unmarked-file rule in repository LICENSE
-candidate_disposition: REFERENCE_AND_REIMPLEMENT / SELECTIVE_ALGORITHM_REUSE_AFTER_QUALIFICATION
+candidate_disposition: REFERENCE_AND_REIMPLEMENT
+reuse_qualifier: SELECTIVE_ALGORITHM_REUSE_AFTER_QUALIFICATION
 ```
 
 Observed responsibilities include connector registration, RabbitMQ consumption, SSE stream listening, scheduling, heartbeat/liveness, STIX bundle processing, temporary-file handling, TLS/JWT helpers, concurrency, and metrics.
@@ -89,7 +111,8 @@ path: opencti-platform/opencti-front/src/private/components/common/files/workben
 blob_sha: 1fb2cf133bdbeed28fab7db98ab7cdc07b02a8db
 observed_header: no Enterprise Edition header in fetched file prefix
 upstream_classification_basis: unmarked-file rule in repository LICENSE
-candidate_disposition: QUALIFY_FOR_SELECTIVE_UI_PATTERN_REUSE
+candidate_disposition: QUALIFY_FOR_SELECTIVE_REUSE
+reuse_qualifier: SELECTIVE_UI_PATTERN_REUSE
 ```
 
 Observed responsibilities include staging a workbench file, labels, object markings, optional entity binding, validation, upload mutation, and UI state handling.
@@ -106,6 +129,7 @@ blob_sha: d0b7d24abf07a1503b826ebafa3f76409f7f048d
 observed_header: no Enterprise Edition header in fetched file prefix
 upstream_classification_basis: unmarked-file rule in repository LICENSE
 candidate_disposition: REFERENCE_AND_REIMPLEMENT
+reuse_qualifier: NONE
 ```
 
 Observed responsibilities include investigation workspace creation from a container, filtered investigated-entity membership, and STIX report/bundle export.
@@ -121,7 +145,8 @@ path: opencti-platform/opencti-graphql/src/graphql/sseMiddleware.js
 blob_sha: a5dfa723c84ff30b2e4764cb7657dcd72e47a092
 observed_header: no Enterprise Edition header in fetched file prefix
 upstream_classification_basis: unmarked-file rule in repository LICENSE
-candidate_disposition: REFERENCE_AND_REIMPLEMENT / SELECTIVE_STREAM_EDGE_CASE_REUSE
+candidate_disposition: REFERENCE_AND_REIMPLEMENT
+reuse_qualifier: SELECTIVE_STREAM_EDGE_CASE_REUSE
 ```
 
 Observed responsibilities include authenticated live streams, OTP checks, access/capability checks, marking-aware filtering, organization restrictions, stream cursors/events, heartbeat/cache behavior, STIX conversion, and stream-consumer tracking.
@@ -138,6 +163,7 @@ Observed responsibilities include authenticated live streams, OTP checks, access
 representative_path: opencti-platform/opencti-graphql/src/modules/playbook/playbook.ts
 observed_file_header: explicit OpenCTI Enterprise Edition license notice
 candidate_disposition: COPY_BLOCKED_PENDING_SPECIFIC_PERMISSION
+reuse_qualifier: NONE
 ```
 
 Additional observed files under the playbook module and frontend also carry explicit Enterprise Edition notices, including:
