@@ -31,6 +31,19 @@ Research pin:
 OpenCTI-Platform/opencti@c22668461981ac9602e8e16527ef613428c34c3c
 ```
 
+### OpenCodeReview
+
+- `docs/third-party/open-code-review-source-assessment-2026-09-16.md`
+- `specs/000-sentrdel-roadmap/full-project-review-and-plan-strengthening-2026-09-16.md`
+
+Research pin:
+
+```text
+alibaba/open-code-review@a694be568d9b9a935b2ba11a867d5a91d7ffd833
+```
+
+Primary value: deterministic review selection, run/completeness manifest, safe resume/checkpoint identity, bounded grouping/fallback, rule-routing explanation, host-agent delegation, and forge publication mechanics. The model loop is not a Sentrdel judgment-authority candidate.
+
 ### Founder GitHub source universe
 
 - `docs/third-party/founder-source-reuse-attestation-2026-09-16-github-source-universe.md`
@@ -136,5 +149,6 @@ Source qualification != implementation authorization
 External result != canonical Finding
 External confidence != Sentrdel Evidence authority
 Sandbox backend != authorization authority
+Model review comment != canonical Finding
 Research pin != release pin
 ```
