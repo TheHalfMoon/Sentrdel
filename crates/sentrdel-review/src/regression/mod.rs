@@ -8,15 +8,17 @@
 
 pub mod model;
 pub mod revision;
-// S1-T008 through S1-T010 intentionally keep snapshot composition and exact
-// identity matching crate-private until dependency-ordered comparison consumers
-// land. Keep these substrates compiled and tested without widening the public
-// authority surface.
+// S1-T008 through S1-T011 intentionally keep snapshot composition, exact
+// identity matching, and bilateral support preservation crate-private until
+// dependency-ordered comparison consumers land. Keep these substrates compiled
+// and tested without widening the public authority surface.
 #[allow(dead_code)]
 #[path = "match.rs"]
 pub(crate) mod invariant_match;
 #[allow(dead_code)]
 pub(crate) mod snapshot;
+#[allow(dead_code)]
+pub(crate) mod support;
 
 pub const S1_REGRESSION_CONTRACT_VERSION: &str = "sentrdel.security-regression/v1";
 pub const S1_SNAPSHOT_CONTRACT_VERSION: &str = "sentrdel.security-regression-snapshot/v1";
@@ -39,6 +41,8 @@ pub const S1_MISSING_OUTPUT_CAN_BECOME_PASS: bool = false;
 mod match_tests;
 #[cfg(test)]
 mod snapshot_tests;
+#[cfg(test)]
+mod support_entry_tests;
 
 #[cfg(test)]
 mod tests {
