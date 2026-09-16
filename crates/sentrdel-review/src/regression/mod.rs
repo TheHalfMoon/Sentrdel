@@ -8,10 +8,12 @@
 
 pub mod model;
 pub mod revision;
-// S1-T008 through S1-T011 intentionally keep snapshot composition, exact
-// identity matching, and bilateral support preservation crate-private until
+// S1-T008 through S1-T012 intentionally keep snapshot composition, exact
+// identity matching, bilateral support preservation, and Coverage pairing crate-private until
 // dependency-ordered comparison consumers land. Keep these substrates compiled
 // and tested without widening the public authority surface.
+#[allow(dead_code)]
+pub(crate) mod coverage;
 #[allow(dead_code)]
 #[path = "match.rs"]
 pub(crate) mod invariant_match;
