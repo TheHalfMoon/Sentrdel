@@ -20,6 +20,7 @@ use crate::regression::{
 pub const DEFAULT_MAX_SNAPSHOT_INVARIANTS: usize = 4_096;
 pub const DEFAULT_MAX_SNAPSHOT_EVALUATIONS: usize = 4_096;
 pub const DEFAULT_MAX_SNAPSHOT_COVERAGE_RECORDS: usize = 4_096;
+pub const DEFAULT_MAX_COVERAGE_INPUT_DIGESTS_PER_RECORD: usize = 256;
 pub const DEFAULT_MAX_GRAPH_NODES: usize = 4_096;
 pub const DEFAULT_MAX_GRAPH_EDGES: usize = 8_192;
 pub const DEFAULT_MAX_PAIR_RESULTS: usize = 4_096;
@@ -36,6 +37,7 @@ pub struct RegressionLimits {
     pub max_snapshot_invariants: usize,
     pub max_snapshot_evaluations: usize,
     pub max_snapshot_coverage_records: usize,
+    pub max_coverage_input_digests_per_record: usize,
     pub max_graph_nodes: usize,
     pub max_graph_edges: usize,
     pub max_pair_results: usize,
@@ -54,6 +56,7 @@ impl Default for RegressionLimits {
             max_snapshot_invariants: DEFAULT_MAX_SNAPSHOT_INVARIANTS,
             max_snapshot_evaluations: DEFAULT_MAX_SNAPSHOT_EVALUATIONS,
             max_snapshot_coverage_records: DEFAULT_MAX_SNAPSHOT_COVERAGE_RECORDS,
+            max_coverage_input_digests_per_record: DEFAULT_MAX_COVERAGE_INPUT_DIGESTS_PER_RECORD,
             max_graph_nodes: DEFAULT_MAX_GRAPH_NODES,
             max_graph_edges: DEFAULT_MAX_GRAPH_EDGES,
             max_pair_results: DEFAULT_MAX_PAIR_RESULTS,
@@ -73,6 +76,7 @@ impl RegressionLimits {
         if self.max_snapshot_invariants == 0
             || self.max_snapshot_evaluations == 0
             || self.max_snapshot_coverage_records == 0
+            || self.max_coverage_input_digests_per_record == 0
             || self.max_graph_nodes == 0
             || self.max_graph_edges == 0
             || self.max_pair_results == 0
@@ -112,6 +116,7 @@ pub enum RegressionModelError {
         max: usize,
     },
     DuplicateCoverageKey(String),
+    MissingCoverageSide,
     MissingComparedIdentity,
     Canonical(CanonicalError),
 }
@@ -147,6 +152,9 @@ impl fmt::Display for RegressionModelError {
             Self::DuplicateCoverageKey(value) => {
                 write!(formatter, "duplicate S1 coverage comparison key {value:?}")
             }
+            Self::MissingCoverageSide => formatter.write_str(
+                "S1 CoveragePair requires a trusted-base or candidate Coverage state",
+            ),
             Self::MissingComparedIdentity => formatter.write_str(
                 "S1 comparison record requires a base or candidate semantic identity",
             ),
@@ -632,6 +640,24 @@ pub const FROZEN_INVARIANT_TRANSITIONS: &[FrozenInvariantTransition] = &[
     },
 ];
 
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub enum CoveragePairCompatibility {
+    Compatible,
+    BaseOnly,
+    CandidateOnly,
+}
+
+impl CoveragePairCompatibility {
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Compatible => "COMPATIBLE",
+            Self::BaseOnly => "BASE_ONLY",
+            Self::CandidateOnly => "CANDIDATE_ONLY",
+        }
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CoveragePair {
     comparison_key: String,
@@ -639,18 +665,28 @@ pub struct CoveragePair {
     candidate_state: Option<CoverageState>,
     base_reason: Option<String>,
     candidate_reason: Option<String>,
+    base_input_digests: Vec<String>,
+    candidate_input_digests: Vec<String>,
+    compatibility: CoveragePairCompatibility,
 }
 
 impl CoveragePair {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         comparison_key: impl Into<String>,
         base_state: Option<CoverageState>,
         candidate_state: Option<CoverageState>,
         base_reason: Option<String>,
         candidate_reason: Option<String>,
+        base_input_digests: Vec<String>,
+        candidate_input_digests: Vec<String>,
+        compatibility: CoveragePairCompatibility,
         limits: RegressionLimits,
     ) -> Result<Self, RegressionModelError> {
         let limits = limits.validate()?;
+        if base_state.is_none() && candidate_state.is_none() {
+            return Err(RegressionModelError::MissingCoverageSide);
+        }
         let comparison_key = comparison_key.into();
         validate_text(&comparison_key, "coverage_comparison_key", limits)?;
         validate_optional_text(base_reason.as_deref(), "base_coverage_reason", limits)?;
@@ -659,18 +695,68 @@ impl CoveragePair {
             "candidate_coverage_reason",
             limits,
         )?;
+        let base_input_digests = normalize_text_collection(
+            base_input_digests,
+            "base_coverage_input_digests",
+            limits.max_coverage_input_digests_per_record,
+            limits,
+        )?;
+        let candidate_input_digests = normalize_text_collection(
+            candidate_input_digests,
+            "candidate_coverage_input_digests",
+            limits.max_coverage_input_digests_per_record,
+            limits,
+        )?;
         Ok(Self {
             comparison_key,
             base_state,
             candidate_state,
             base_reason,
             candidate_reason,
+            base_input_digests,
+            candidate_input_digests,
+            compatibility,
         })
     }
 
     #[must_use]
     pub fn comparison_key(&self) -> &str {
         &self.comparison_key
+    }
+
+    #[must_use]
+    pub fn base_state(&self) -> Option<&CoverageState> {
+        self.base_state.as_ref()
+    }
+
+    #[must_use]
+    pub fn candidate_state(&self) -> Option<&CoverageState> {
+        self.candidate_state.as_ref()
+    }
+
+    #[must_use]
+    pub fn base_reason(&self) -> Option<&str> {
+        self.base_reason.as_deref()
+    }
+
+    #[must_use]
+    pub fn candidate_reason(&self) -> Option<&str> {
+        self.candidate_reason.as_deref()
+    }
+
+    #[must_use]
+    pub fn base_input_digests(&self) -> &[String] {
+        &self.base_input_digests
+    }
+
+    #[must_use]
+    pub fn candidate_input_digests(&self) -> &[String] {
+        &self.candidate_input_digests
+    }
+
+    #[must_use]
+    pub const fn compatibility(&self) -> CoveragePairCompatibility {
+        self.compatibility
     }
 
     fn semantic_id(&self) -> Result<String, RegressionModelError> {
@@ -682,6 +768,9 @@ impl CoveragePair {
                 coverage_state_name(self.candidate_state.as_ref()),
                 self.base_reason.as_deref().unwrap_or(""),
                 self.candidate_reason.as_deref().unwrap_or(""),
+                &self.base_input_digests,
+                &self.candidate_input_digests,
+                self.compatibility.as_str(),
             ),
         )?)
     }
@@ -919,6 +1008,12 @@ fn enforce_total_input_bytes(
         }
         if let Some(reason) = pair.candidate_reason.as_deref() {
             account_total_input_bytes(&mut total, reason.len(), max)?;
+        }
+        for digest in &pair.base_input_digests {
+            account_total_input_bytes(&mut total, digest.len(), max)?;
+        }
+        for digest in &pair.candidate_input_digests {
+            account_total_input_bytes(&mut total, digest.len(), max)?;
         }
     }
 
@@ -1203,6 +1298,9 @@ mod tests {
             Some(CoverageState::Covered),
             None,
             None,
+            vec!["sha256:base".to_owned()],
+            vec!["sha256:candidate".to_owned()],
+            CoveragePairCompatibility::Compatible,
             RegressionLimits::default(),
         )
         .expect("coverage pair");
