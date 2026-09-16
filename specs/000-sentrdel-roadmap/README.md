@@ -17,12 +17,15 @@ For any continuation that needs roadmap context, read in this order:
 7. `specs/000-sentrdel-roadmap/post-r3-execution-blueprint-2026-09-02.md`
 8. `specs/000-sentrdel-roadmap/source-driven-security-expansion-2026-09-08.md`
 9. `specs/000-sentrdel-roadmap/security-control-plane-expansion-2026-09-12.md`
+10. `specs/000-sentrdel-roadmap/opencti-intelligence-interoperability-2026-09-16.md`
 
 Supporting research/provenance records:
 
 - `docs/third-party/source-candidate-assessment-2026-09-08.md` — AI infrastructure, artifact routing, benchmark, secure-guidance, and external-engine source study.
 - `docs/third-party/source-candidate-assessment-2026-09-12.md` — GlitchTip, HackerAI, HackAgent, HexStrike AI, Shannon, HackBot, and Strix security-control-plane study.
 - `docs/third-party/founder-source-reuse-attestation-2026-09-12.md` — durable record of the founder's permission statement for the 2026-09-12 sources; permission context only, not source qualification.
+- `docs/third-party/opencti-source-assessment-2026-09-16.md` — OpenCTI architecture, STIX/TAXII, graph, connectors, workbench, cases, access/marking, streaming, automation, source-license boundaries, and Sentrdel adoption study.
+- `docs/third-party/founder-source-reuse-attestation-2026-09-16-opencti.md` — durable record of the founder's OpenCTI source-reuse permission statement; permission context only, not source qualification.
 
 Candidate assessments are not Source Qualification Ledger entries and authorize no source/data/dependency/runtime adoption. Exact qualification remains mandatory before copied/vendored/linked source lands.
 
@@ -48,11 +51,15 @@ The 2026-09-12 expansion defines the long-term product envelope around that kern
 
 > **Sentrdel becomes an open security control plane that connects source changes, evidence, coverage, bounded verification, deployments, runtime observations, remediation, and re-verification without surrendering canonical judgment to scanners, models, or control-plane services.**
 
+The 2026-09-16 OpenCTI study extends that envelope with standards-based external intelligence and analyst collaboration while preserving the same authority split:
+
+> **Threat intelligence, imported relationships, cases, workbenches, markings, streams, and automation can enrich context and workflow, but they never outrank Sentrdel's Evidence/Coverage/invariant/verification model.**
+
 The **Sentrdel Semantic Security Graph (SSG)** is the bounded reasoning substrate, not the product category by itself.
 
 The core product question is:
 
-> **What security property did this change weaken, what evidence proves it, what analysis is missing, what stronger claim—if any—was separately verified, what actually shipped, what happened in runtime, and did the remediation truly hold?**
+> **What security property did this change weaken, what evidence proves it, what analysis is missing, what stronger claim—if any—was separately verified, what actually shipped, what happened in runtime, what external intelligence adds, and did the remediation truly hold?**
 
 ## What Sentrdel should own
 
@@ -85,11 +92,12 @@ Sentrdel should prefer qualified mature infrastructure for capabilities that do 
 - DAST/runtime engines;
 - runtime event producers;
 - observability telemetry protocols/collectors;
+- cyber-threat-intelligence feeds and standards such as STIX/TAXII;
 - code indexing/parsing infrastructure;
 - forge/IDE integration primitives;
 - optional probabilistic artifact classifiers where they improve safe routing without becoming judgment authority.
 
-External output remains untrusted evidence and never becomes canonical judgment merely because the upstream tool reports severity, confidence, reachability, exploitability, identity, or a high benchmark score.
+External output remains untrusted evidence/context and never becomes canonical judgment merely because the upstream tool or intelligence source reports severity, confidence, reachability, exploitability, identity, attribution, or a high benchmark score.
 
 ## Post-R3 bounded sequence
 
@@ -120,6 +128,14 @@ The 2026-09-12 security-control-plane blueprint adds implementation-ready **inte
 - a later **Finding Lifecycle + Remediation** track can add triage/risk/fix/retest/reopen workflow without moving Finding creation authority out of the reconciler;
 - a later **Agent Security Verification** profile may test owned/authorized synthetic/local agents only after S5 isolation and Gate A conformance exist;
 - an optional self-hosted control plane may project stable local protocols only after lifecycle/runtime contracts mature; it must never become required for local judgment.
+
+The 2026-09-16 OpenCTI study adds later interoperability/control-plane candidates without changing that sequence:
+
+- after S6, a **Security Intelligence Interoperability Foundation** may add bounded STIX/TAXII and external-intelligence envelopes;
+- after control-plane principal/tenant/authz contracts, an **Intelligence Intake Workbench**, **Investigation Workspace**, **Security Case**, and **DataHandlingMarking** layer may be specified;
+- filtered sharing/streams require tenant/project/marking enforcement before release;
+- bounded automation remains later and may only compose typed pre-authorized actions;
+- external intelligence confidence, inference, graph relationships, or case membership cannot mint a Finding, VERIFIED state, target authorization, or runtime-response authority.
 
 S1-S5 therefore remain the first product path. Each numbered item, planning gate, internal package, and later track requires its own future Spec Kit lifecycle and dependency/authority proof before implementation.
 
@@ -159,6 +175,26 @@ The latest blueprint therefore adds:
 
 The full gap register G15–G42, target architecture, contracts, dependency order, acceptance gates, benchmark metrics, adversarial cases, and source-specific adoption backlog are in `security-control-plane-expansion-2026-09-12.md`.
 
+## 2026-09-16 OpenCTI intelligence-interoperability refinement
+
+The study of `OpenCTI-Platform/opencti@c22668461981ac9602e8e16527ef613428c34c3c` identifies a third class of gaps: once Sentrdel has strong local judgment and generic import/runtime contracts, it needs a safe way to consume, stage, correlate, investigate, share, and operationalize external security intelligence without surrendering authority.
+
+The new strategy therefore adds:
+
+1. **External Intelligence Context Bridge.** STIX 2.1/TAXII and other intelligence sources are bounded adapters after S6; STIX is not Sentrdel's internal trusted model.
+2. **Intake Workbench.** Ambiguous imports, conflicts, unsupported objects, and proposed identity links are staged before durable promotion.
+3. **Separate reliability/confidence metadata.** Source reliability and producer confidence never equal FACT/VERIFIED or a canonical Finding.
+4. **DataHandlingMarking / disclosure policy.** Sensitive evidence, proof, runtime data, embargoed intelligence, and customer records gain view/export/share controls independent from truth.
+5. **Investigation Workspaces and Security Cases.** Collaborative graph/timeline/task containers link canonical records without rewriting them.
+6. **IntegrationServiceIdentity.** Every long-running connector/import adapter receives exact capability, source, secret, rotation, revocation, and audit scope.
+7. **Filtered event/data streams.** Server-mode sharing applies tenant/project/marking/redaction/cursor policy and remains a projection over canonical events.
+8. **Derived relationship provenance.** Imported/inferred/correlated edges visibly retain derivation inputs, rule/version, confidence, authority ceiling, and invalidation state.
+9. **Bounded automation only after authority contracts.** Future playbooks may compose typed authorized actions but cannot manufacture verification/runtime-response permission or arbitrary shell access.
+10. **OpenCTI remains a selective source/reference.** Community Edition Apache-2.0 material still requires exact file qualification; Enterprise Edition material is copy-blocked unless a compatible source-specific permission/license record is stored.
+11. **VerificationAuthorization is hardened.** Future authorization requires trusted issuer validation, canonical integrity verification, replay defense, expiry/revocation and exact scope matching; forged/replayed/expired/scope-mismatched records fail closed before target execution.
+
+The detailed gaps G43–G52, contracts, STIX/TAXII mapping, intake/correlation pipeline, UX/access design, source reuse rules, and future Spec Kit candidates I–M are in `opencti-intelligence-interoperability-2026-09-16.md`.
+
 ## First proof-of-category demos
 
 Before broad feature expansion, the project should prove four end-to-end cases:
@@ -174,18 +210,21 @@ After those category demos and the S1-S4 contracts are mature, the agentic-code 
 
 After S5/S6/runtime/lifecycle contracts mature, the long-term category demo expands to one full source→verification→deployment→runtime→remediation→retest chain as defined in the 2026-09-12 blueprint.
 
+After the future intelligence-interoperability foundation is canonical, an additional demo should prove that external intelligence can be imported, staged, marked, correlated, investigated, case-linked, and shared without directly creating a Finding, VERIFIED state, dynamic target authorization, or runtime-response authority.
+
 ## Defensibility filter
 
 Before approving a major future feature, ask:
 
-1. Does it improve deterministic invariant judgment, evidence provenance, coverage truth, verification, lifecycle/retest, runtime correlation, conformance, or safe analyzer routing?
-2. Is a mature external engine already good enough at the raw scanning/classification/telemetry capability?
-3. Can Sentrdel import or consume the result behind an explicit untrusted-evidence boundary instead of rebuilding the engine?
-4. Does building/adopting it introduce new credential, network, process, native runtime, model artifact, execution, target-mutation, or supply-chain authority?
+1. Does it improve deterministic invariant judgment, evidence provenance, coverage truth, verification, lifecycle/retest, runtime correlation, intelligence context, conformance, or safe analyzer routing?
+2. Is a mature external engine/platform already good enough at the raw scanning/classification/telemetry/intelligence capability?
+3. Can Sentrdel import or consume the result behind an explicit untrusted-evidence/context boundary instead of rebuilding the engine/platform?
+4. Does building/adopting it introduce new credential, network, process, native runtime, model artifact, execution, target-mutation, data-sharing, or supply-chain authority?
 5. Would the feature make the proof-of-category demos or protected conformance materially better?
-6. Can probabilistic/external/runtime results remain structurally incapable of bypassing canonical judgment authority?
-7. Can failure, timeout, unsupported state, drop/sampling, and budget exhaustion remain visible Coverage instead of becoming clean?
+6. Can probabilistic/external/runtime/intelligence results remain structurally incapable of bypassing canonical judgment authority?
+7. Can failure, timeout, unsupported state, drop/sampling, partial import, and budget exhaustion remain visible Coverage/diagnostics instead of becoming clean?
 8. Can the capability remain optional so the local base install stays small and useful?
+9. Can tenant/project/marking restrictions prevent server-mode intelligence or proof leakage?
 
 If the answer is mostly “no,” defer the feature.
 
@@ -193,6 +232,6 @@ If the answer is mostly “no,” defer the feature.
 
 This navigation file is reconciled to protected `main@b6dafbb31b61d067f19177a86ba2179c9b8783b3`, where R3 is complete and S1 implementation is active under Spec 004 with S1-T001 through S1-T010 canonical.
 
-The 2026-09-08 and 2026-09-12 source studies remain planning/provenance only. They do not qualify donor source for reuse, widen the active S1 implementation scope, or authorize S2+.
+The 2026-09-08, 2026-09-12, and 2026-09-16 source studies remain planning/provenance only. They do not qualify donor source for reuse, widen the active S1 implementation scope, or authorize S2+.
 
 The next dependency-ordered implementation action is always whatever the active canonical `specs/004-security-invariant-regression/tasks.md` and live repository state authorize. After S1 closes canonically, later roadmap work still requires its own Spec Kit lifecycle before implementation.
