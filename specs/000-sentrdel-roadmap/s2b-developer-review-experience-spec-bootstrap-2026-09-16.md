@@ -148,7 +148,7 @@ A separate verification field carries stronger proof state and cannot be inferre
 
 **S2B-FR-003** — Default review MUST consume canonical S2A inventory/plan/run truth rather than rediscovering scope independently.
 
-**S2B-FR-004** — Human and machine output for the same run MUST bind the same immutable run/candidate identity.
+**S2B-FR-004** — Human and machine output for the same run MUST bind the same immutable run identity and the same immutable trusted-base/candidate revision-pair identity. Neither projection may omit the trusted base or substitute a mutable ref for either revision.
 
 **S2B-FR-005** — The first human-readable block MUST show outcome, completeness, exact change identity, blocking/actionable summary, unknown/missing work, and verification state before deep provenance detail.
 
@@ -166,7 +166,7 @@ A separate verification field carries stronger proof state and cannot be inferre
 
 **S2B-FR-010** — The local machine protocol MUST be explicitly versioned.
 
-**S2B-FR-011** — Machine output MUST expose separate fields for at least run identity, completeness, developer outcome, policy decision, regression summary, Coverage summary, canonical findings, unknown/missing work, advisories, verification state, and protocol version.
+**S2B-FR-011** — Machine output MUST expose separate fields for at least run identity, immutable trusted-base identity, immutable candidate identity, completeness, developer outcome, policy decision, regression summary, Coverage summary, canonical findings, unknown/missing work, advisories, verification state, and protocol version.
 
 **S2B-FR-012** — Unknown future fields and enum values MUST follow an explicit forward/backward compatibility policy.
 
@@ -275,6 +275,7 @@ A separate verification field carries stronger proof state and cannot be inferre
 ```text
 protocol_version
 run_identity
+base_revision_identity
 candidate_revision_identity
 outcome
 run_completeness
@@ -289,6 +290,8 @@ reuse_summary
 explain_refs[]
 render_metadata
 ```
+
+`base_revision_identity` and `candidate_revision_identity` are mandatory immutable pair members. A future protocol may additionally expose a deterministic `revision_pair_identity`, but it cannot replace inspectable binding to both exact revisions unless the active contract defines a lossless canonical resolution to both identities.
 
 ### `DeveloperReviewOutcome`
 
@@ -499,6 +502,7 @@ Pass only if:
 - no color-only critical state;
 - no dominant green `ALLOW` under incompleteness;
 - canonical counts match manifest truth;
+- exact trusted-base and candidate identities are visible or losslessly resolvable from the displayed exact change identity;
 - secret fixtures remain redacted.
 
 ### T004 machine protocol
@@ -507,6 +511,8 @@ Pass only if:
 
 - schema is versioned;
 - semantic compatibility policy exists;
+- every summary binds the exact immutable trusted-base and candidate identities, or an explicitly canonical revision-pair identity that losslessly resolves to both;
+- human and machine projections bind the same revision pair;
 - equal run truth replays equal semantic output;
 - unknown/missing work is first-class;
 - protocol can represent future forge/IDE projection without log scraping.
@@ -561,6 +567,9 @@ Pass only if a clean reference environment can follow published steps to first r
 
 At minimum:
 
+- same candidate compared against two different trusted bases;
+- machine/human projection pair-identity mismatch;
+- mutable base ref moved after resolution;
 - policy `ALLOW` + incomplete run;
 - zero findings + timeout;
 - blocking finding + many advisories;
@@ -678,6 +687,7 @@ Do not freeze arbitrary performance thresholds until a reproducible baseline exi
 ### Protocol
 
 - [ ] version frozen;
+- [ ] exact immutable base/candidate revision-pair binding frozen;
 - [ ] fields/enums frozen;
 - [ ] compatibility rules frozen;
 - [ ] exit-code contract frozen;
@@ -722,6 +732,7 @@ The future active plan must explicitly confirm:
 
 - local-first behavior remains real, not a marketing mode requiring cloud services;
 - human/machine projections preserve Evidence/Coverage/completeness distinctions;
+- human/machine projections bind the same exact immutable trusted-base/candidate revision pair;
 - developer convenience does not activate verification/target execution;
 - repo config cannot weaken mandatory work;
 - model/agent output remains lower-authority;
@@ -759,7 +770,7 @@ S2B is complete only when Sentrdel can prove, on protected main with real qualif
 
 1. a developer can run the supported core review locally without a hosted account;
 2. one top-level output makes policy, completeness, blockers, unknowns, and verification impossible to confuse;
-3. the same truth is available in a stable versioned machine protocol;
+3. the same truth is available in a stable versioned machine protocol bound to the exact immutable trusted-base/candidate revision pair;
 4. preview/explain bind exact canonical identities;
 5. secret-safe redaction/truncation is proven;
 6. automation exit semantics are unambiguous;
