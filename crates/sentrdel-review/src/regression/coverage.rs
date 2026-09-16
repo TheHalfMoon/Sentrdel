@@ -947,7 +947,7 @@ mod tests {
         ));
 
         let pair_count_error = pair_coverage_records(
-            &[one.clone()],
+            std::slice::from_ref(&one),
             &[record(
                 "coverage:candidate-only",
                 "CANDIDATE_ONLY",
