@@ -114,6 +114,10 @@ pub(crate) enum CoveragePairingError {
         count: usize,
         max: usize,
     },
+    TooManyCoveragePairs {
+        count: usize,
+        max: usize,
+    },
     DuplicateCoverageIdentity {
         side: CoveragePairingSide,
         comparison_key: String,
@@ -173,6 +177,10 @@ impl fmt::Display for CoveragePairingError {
                 formatter,
                 "S1 Coverage {} record {coverage_id:?} input-digest count {count} exceeds cap {max}",
                 side.as_str()
+            ),
+            Self::TooManyCoveragePairs { count, max } => write!(
+                formatter,
+                "S1 Coverage pair count {count} exceeds pair-result cap {max}"
             ),
             Self::DuplicateCoverageIdentity {
                 side,
@@ -264,6 +272,12 @@ pub(crate) fn pair_coverage_records(
         .chain(candidate.keys())
         .cloned()
         .collect::<BTreeSet<_>>();
+    if keys.len() > limits.max_pair_results {
+        return Err(CoveragePairingError::TooManyCoveragePairs {
+            count: keys.len(),
+            max: limits.max_pair_results,
+        });
+    }
     let mut pairs = Vec::with_capacity(keys.len());
     for key in keys {
         let base_record = base.get(&key);
@@ -930,6 +944,28 @@ mod tests {
         assert!(matches!(
             digest_error,
             CoveragePairingError::TooManyInputDigests { .. }
+        ));
+
+        let pair_count_error = pair_coverage_records(
+            &[one.clone()],
+            &[record(
+                "coverage:candidate-only",
+                "CANDIDATE_ONLY",
+                "producer",
+                ProviderCoverageDimension::StaticPosture,
+                CoverageState::Partial,
+                Some("PARTIAL"),
+                &["sha256:candidate"],
+            )],
+            RegressionLimits {
+                max_pair_results: 1,
+                ..RegressionLimits::default()
+            },
+        )
+        .expect_err("pair-result cap");
+        assert!(matches!(
+            pair_count_error,
+            CoveragePairingError::TooManyCoveragePairs { count: 2, max: 1 }
         ));
 
         let byte_error = pair_coverage_records(
