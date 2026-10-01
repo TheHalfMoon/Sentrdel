@@ -30,3 +30,15 @@ If guidance conflicts, the higher authority wins.
 - Keep dependencies minimal. Every dependency needs a justification; `build.rs`, proc macros, native code, downloaded artifacts, or network/credential behavior require elevated review.
 - Do not weaken lint/test/security gates to make a change pass.
 - Do not claim CI PASS when no workflow run exists.
+
+<!-- graft:start -->
+## Graft — repository context layer
+
+Use Graft (https://github.com/trailhq/Graft, `@nanonets/graft`) only as local developer/agent repository-context tooling. This does not authorize Graft or its MCP integration as a Sentrdel product/runtime dependency and does not change the R1 MCP boundary.
+
+When locally available, prefer `graft check`, `graft map`, `graft ask "<question>" --source`, `graft skeleton <file>`, `graft callers <symbol>`, and `graft grep "<literal>"` for passive repository navigation. `graft init`/`graft build` must not execute target-repository install/build scripts, hooks, remotes, credentials, or other prohibited analysis-time effects.
+
+Treat `graft/` as a local regenerable cache and do not commit it. Keep usage zero-cost; do not introduce paid model/API usage or external egress that is not independently authorized.
+
+Graft output is context/inference only, never policy, a Finding, security evidence, coverage evidence, or qualification authority. Continue all Spec Kit gates, tests, Jev where applicable, Alibaba Open Code Review, CI, security, provenance, and dependency review. Never fabricate Graft output, execution, CI, reviews, or evidence.
+<!-- graft:end -->
